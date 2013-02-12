@@ -1,0 +1,37 @@
+This is the Intel OTC GFX team's internal enabling tree. A few random
+best-practices:
+
+- Try to split out innocent refactoring patches so that they can be pushed
+  to upstream early.
+
+- Tag patches which are not for upstream with !UPSTREAM in the headline.
+
+- Not-perfect stuff is acceptable, but please note any internal review feedback
+  which has not yet been acted upon in the commit message.
+
+- Please prefix platform specific stuff with drm/i915/<platform-TLA>
+
+- Use FIXME in the commit message for patches which need some more work before
+  upstreaming. Pretty much excludes an !UPSTREAM tag in the headline, just
+  indicates more work to do.
+
+In general though the same requirements apply to merging patches into the
+internal tree as for upstream. Specifically:
+
+- Any new features and interfaces need open-source userspace.
+
+- A feature is only done until all auxiliary tasks like writing testcases,
+  documentation and similar work is also completed.
+
+The only big difference is really that there's no requirement for in-depth
+review and that unresolved issues (due to unclear specs or lack of support in
+simulation enviromnents) are acceptable.
+
+The internal tree is maintained as a quilt patch with a bit of git-based
+tracking using my quilt flow tool. You can grab the latest version from the
+maintainer-tools branch of the upstream drm-intel git repository. Direct link:
+
+	http://cgit.freedesktop.org/drm-intel/plain/qf?h=maintainer-tools
+
+The script has an integrate howto and extensive on-line help for all
+subcommands.
