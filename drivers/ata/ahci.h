@@ -309,6 +309,14 @@ struct ahci_em_priv {
 	struct ata_link *link;
 };
 
+enum ahci_port_states {
+	AHCI_PORT_NOLINK	= 0,
+	AHCI_PORT_ACTIVE	= 1,
+	AHCI_PORT_PARTIAL	= 2,
+	AHCI_PORT_SLUMBER	= 3,
+	AHCI_PORT_DEVSLP	= 4
+};
+
 struct ahci_port_priv {
 	struct ata_link		*active_link;
 	struct ahci_cmd_hdr	*cmd_slot;
@@ -329,6 +337,15 @@ struct ahci_port_priv {
 	/* enclosure management info per PM slot */
 	struct ahci_em_priv	em_priv[EM_MAX_SLOTS];
 	char			*irq_desc;	/* desc in /proc/interrupts */
+
+	/* ALPM accounting state and stats */
+	unsigned int		accounting_active:1;
+	u64			active_jiffies;
+	u64			partial_jiffies;
+	u64			slumber_jiffies;
+	u64			devslp_jiffies;
+	int			previous_state;
+	int			previous_jiffies;
 };
 
 struct ahci_host_priv {
