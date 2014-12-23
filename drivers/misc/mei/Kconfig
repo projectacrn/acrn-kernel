@@ -51,3 +51,5 @@ config INTEL_MEI_DAL
 	  Dynamic Application Loader enables downloading java applets
 	  to DAL FW and run it in a secure environment.
 	  The DAL module exposes both user space api and kernel space api.
+
+source "drivers/misc/mei/spd/Kconfig"
