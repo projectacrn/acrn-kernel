@@ -44,6 +44,7 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/sd.h>
+#include <linux/rpmb.h>
 
 #include <linux/uaccess.h>
 
@@ -409,8 +410,8 @@ static int mmc_blk_ioctl_copy_to_user(struct mmc_ioc_cmd __user *ic_ptr,
 	return 0;
 }
 
-static int ioctl_rpmb_card_status_poll(struct mmc_card *card, u32 *status,
-				       u32 retries_max)
+static int ioctl_mmc_blk_rpmb_status_poll(struct mmc_card *card, u32 *status,
+					  u32 retries_max)
 {
 	int err;
 	u32 retry_count = 0;
@@ -612,7 +613,7 @@ static int __mmc_blk_ioctl_cmd(struct mmc_card *card, struct mmc_blk_data *md,
 		 * Ensure RPMB command has completed by polling CMD13
 		 * "Send Status".
 		 */
-		err = ioctl_rpmb_card_status_poll(card, &status, 5);
+		err = ioctl_mmc_blk_rpmb_status_poll(card, &status, 5);
 		if (err)
 			dev_err(mmc_dev(card->host),
 					"%s: Card Status=0x%08X, error %d\n",
@@ -1116,6 +1117,201 @@ static void mmc_blk_issue_drv_op(struct mmc_queue *mq, struct request *req)
 	}
 	mq_rq->drv_op_result = ret;
 	blk_mq_end_request(req, ret ? BLK_STS_IOERR : BLK_STS_OK);
+}
+
+static int mmc_blk_rpmb_process(struct mmc_blk_data *md,
+				struct mmc_blk_ioc_data *idata[],
+				u64 num_of_cmds)
+{
+	struct mmc_card *card;
+	struct mmc_queue *mq;
+	int err = 0;
+	struct request *req;
+	int op_mode;
+
+	card = md->queue.card;
+	if (IS_ERR(card)) {
+		err = PTR_ERR(card);
+		goto cmd_err;
+	}
+
+	/*
+	 * Dispatch the ioctl()s into the block request queue.
+	 */
+	mq = &md->queue;
+	op_mode = idata[0]->ic.write_flag ? REQ_OP_DRV_OUT : REQ_OP_DRV_IN,
+	req = blk_get_request(mq->queue, op_mode, __GFP_RECLAIM);
+	if (IS_ERR(req)) {
+		err = PTR_ERR(req);
+		goto cmd_err;
+	}
+
+	req_to_mmc_queue_req(req)->drv_op = MMC_DRV_OP_IOCTL_RPMB;
+	req_to_mmc_queue_req(req)->drv_op_data = idata;
+	req_to_mmc_queue_req(req)->ioc_count = num_of_cmds;
+
+	blk_execute_rq(mq->queue, NULL, req, 0);
+
+	err = req_to_mmc_queue_req(req)->drv_op_result;
+
+	blk_put_request(req);
+
+cmd_err:
+	return err;
+}
+
+static
+struct mmc_blk_ioc_data *mmc_blk_rpmb_cmd_to_ioc_data(struct rpmb_cmd *cmd)
+{
+	struct mmc_blk_ioc_data *idata;
+	int err;
+
+	idata = kzalloc(sizeof(*idata), GFP_KERNEL);
+	if (!idata) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	if (cmd->flags & RPMB_F_WRITE) {
+		idata->ic.opcode = MMC_WRITE_MULTIPLE_BLOCK;
+		idata->ic.write_flag = 1;
+		if (cmd->flags & RPMB_F_REL_WRITE)
+			idata->ic.write_flag |= 1 << 31;
+	} else {
+		idata->ic.opcode = MMC_READ_MULTIPLE_BLOCK;
+	}
+
+	idata->ic.blocks = cmd->nframes;
+	idata->ic.blksz = 512;
+
+	idata->buf_bytes = (u64)idata->ic.blksz * idata->ic.blocks;
+	if (idata->buf_bytes > MMC_IOC_MAX_BYTES) {
+		err = -EOVERFLOW;
+		goto out;
+	}
+
+	idata->buf = (unsigned char *)cmd->frames;
+
+	return idata;
+out:
+	kfree(idata);
+	return ERR_PTR(err);
+}
+
+static int mmc_blk_rpmb_cmd_seq(struct device *dev,
+				struct rpmb_cmd *cmds,
+				u32 num_of_cmds)
+{
+	struct mmc_rpmb_data *rpmb = dev_get_drvdata(dev);
+	struct mmc_blk_ioc_data **idata;
+	int err = 0;
+	u32 i;
+
+	if (!rpmb)
+		return -ENODEV;
+
+	idata = kcalloc(num_of_cmds, sizeof(*idata), GFP_KERNEL);
+	if (!idata)
+		return -ENOMEM;
+
+	for (i = 0; i < num_of_cmds; i++) {
+		idata[i] = mmc_blk_rpmb_cmd_to_ioc_data(&cmds[i]);
+		if (IS_ERR(idata[i])) {
+			err = PTR_ERR(idata[i]);
+			num_of_cmds = i;
+			goto cmd_err;
+		}
+		idata[i]->rpmb = rpmb;
+	}
+
+	get_device(&rpmb->dev);
+	mmc_blk_get(rpmb->md->disk);
+
+	err = mmc_blk_rpmb_process(rpmb->md, idata, num_of_cmds);
+
+cmd_err:
+	for (i = 0; i < num_of_cmds; i++)
+		kfree(idata[i]);
+
+	kfree(idata);
+
+	put_device(&rpmb->dev);
+	mmc_blk_put(rpmb->md);
+
+	return err;
+}
+
+static struct rpmb_ops mmc_rpmb_dev_ops = {
+	.cmd_seq = mmc_blk_rpmb_cmd_seq,
+	.type = RPMB_TYPE_EMMC,
+};
+
+static void mmc_blk_rpmb_unset_dev_id(struct rpmb_ops *ops)
+{
+	kfree(ops->dev_id);
+	ops->dev_id = NULL;
+}
+
+static int mmc_blk_rpmb_set_dev_id(struct rpmb_ops *ops, struct mmc_card *card)
+{
+	char *id;
+
+	id = kmalloc(sizeof(card->raw_cid), GFP_KERNEL);
+	if (!id)
+		return -ENOMEM;
+
+	memcpy(id, card->raw_cid, sizeof(card->raw_cid));
+	ops->dev_id = id;
+	ops->dev_id_len = sizeof(card->raw_cid);
+
+	return 0;
+}
+
+static void mmc_blk_rpmb_set_rel_wr_cnt(struct rpmb_ops *ops,
+					struct mmc_card *card)
+{
+	u16 rel_wr_cnt;
+
+	/* RPMB blocks are written in half sectors hence '* 2' */
+	rel_wr_cnt = card->ext_csd.rel_sectors * 2;
+	/* eMMC 5.1 may support RPMB 8K (32) frames */
+	if (card->ext_csd.rev >= 8) {
+		if (card->ext_csd.rel_param & EXT_CSD_WR_REL_PARAM_EN)
+			rel_wr_cnt = 32;
+		else
+			rel_wr_cnt = 2;
+	}
+	ops->reliable_wr_cnt = rel_wr_cnt;
+}
+
+static void mmc_blk_rpmb_add(struct mmc_card *card)
+{
+	struct mmc_blk_data *md = dev_get_drvdata(&card->dev);
+	struct rpmb_dev *rdev;
+	struct mmc_rpmb_data *rpmb;
+
+	mmc_blk_rpmb_set_dev_id(&mmc_rpmb_dev_ops, card);
+	mmc_blk_rpmb_set_rel_wr_cnt(&mmc_rpmb_dev_ops, card);
+
+	/* Add RPMB partitions */
+	list_for_each_entry(rpmb, &md->rpmbs, node) {
+		rdev = rpmb_dev_register(&rpmb->dev, &mmc_rpmb_dev_ops);
+		if (IS_ERR(rdev)) {
+			pr_warn("%s: cannot register to rpmb %ld\n",
+				dev_name(&rpmb->dev), PTR_ERR(rdev));
+		}
+	}
+}
+
+static void mmc_blk_rpmb_remove(struct mmc_card *card)
+{
+	struct mmc_blk_data *md = dev_get_drvdata(&card->dev);
+	struct mmc_rpmb_data *rpmb;
+
+	list_for_each_entry(rpmb, &md->rpmbs, node)
+		rpmb_dev_unregister(&rpmb->dev);
+
+	mmc_blk_rpmb_unset_dev_id(&mmc_rpmb_dev_ops);
 }
 
 static void mmc_blk_issue_discard_rq(struct mmc_queue *mq, struct request *req)
@@ -2937,6 +3133,9 @@ static int mmc_blk_probe(struct mmc_card *card)
 			goto out;
 	}
 
+	/* Add rpmb layer */
+	mmc_blk_rpmb_add(card);
+
 	/* Add two debugfs entries */
 	mmc_blk_add_debugfs(card, md);
 
@@ -2965,6 +3164,7 @@ static void mmc_blk_remove(struct mmc_card *card)
 	struct mmc_blk_data *md = dev_get_drvdata(&card->dev);
 
 	mmc_blk_remove_debugfs(card, md);
+	mmc_blk_rpmb_remove(card);
 	mmc_blk_remove_parts(card, md);
 	pm_runtime_get_sync(&card->dev);
 	mmc_claim_host(card->host);
