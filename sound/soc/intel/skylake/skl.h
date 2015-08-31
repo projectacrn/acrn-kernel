@@ -75,6 +75,7 @@ struct skl {
 	u8 nr_modules;
 	struct skl_module **modules;
 	bool use_tplg_pcm;
+	bool nhlt_override;
 };
 
 #define skl_to_ebus(s)	(&(s)->ebus)
