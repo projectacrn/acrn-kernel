@@ -76,6 +76,7 @@ struct skl {
 	struct skl_module **modules;
 	bool use_tplg_pcm;
 	bool nhlt_override;
+	bool mod_set_get_status;
 };
 
 #define skl_to_ebus(s)	(&(s)->ebus)
