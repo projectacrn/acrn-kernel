@@ -134,8 +134,11 @@ static enum intel_pch
 intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 {
 	switch (id) {
-	case INTEL_PCH_HAS_DEVICE_ID_TYPE:
+	case INTEL_PCH_HAS3_DEVICE_ID_TYPE:
 		DRM_DEBUG_KMS("Found HAS PCH\n");
+		return PCH_SIM;
+	case INTEL_PCH_HAS4_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found HAS4 PCH (x58 ICH10)\n");
 		return PCH_SIM;
 	case INTEL_PCH_IBX_DEVICE_ID_TYPE:
 		DRM_DEBUG_KMS("Found Ibex Peak PCH\n");
