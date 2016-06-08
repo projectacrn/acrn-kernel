@@ -612,6 +612,29 @@ static int ioat_enumerate_channels(struct ioatdma_device *ioat_dma)
 			i = 0;
 			break;
 		}
+
+		/* setting up LTR values for 3.4 or later */
+		if (ioat_dma->version >= IOAT_VER_3_4) {
+			u32 lat_val;
+
+			lat_val = IOAT_CHAN_LTR_ACTIVE_SNVAL |
+				  IOAT_CHAN_LTR_ACTIVE_SNLATSCALE |
+				  IOAT_CHAN_LTR_ACTIVE_SNREQMNT;
+			writel(lat_val, ioat_chan->reg_base +
+					IOAT_CHAN_LTR_ACTIVE_OFFSET);
+
+			lat_val = IOAT_CHAN_LTR_IDLE_SNVAL |
+				  IOAT_CHAN_LTR_IDLE_SNLATSCALE |
+				  IOAT_CHAN_LTR_IDLE_SNREQMNT;
+			writel(lat_val, ioat_chan->reg_base +
+					IOAT_CHAN_LTR_IDLE_OFFSET);
+
+			writeb(IOAT_CHAN_LTR_SWSEL_ACTIVE,
+			       ioat_chan->reg_base +
+			       IOAT_CHAN_LTR_SWSEL_OFFSET);
+		}
+
+
 	}
 	dma->chancnt = i;
 	return i;
