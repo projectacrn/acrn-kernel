@@ -40,6 +40,7 @@ enum extra_reg_type {
 	EXTRA_REG_LBR   = 2,	/* lbr_select */
 	EXTRA_REG_LDLAT = 3,	/* ld_lat_threshold */
 	EXTRA_REG_FE    = 4,    /* fe_* */
+	EXTRA_REG_PERF_METRICS = 5, /* perf metrics */
 
 	EXTRA_REG_MAX		/* number of entries needed */
 };
@@ -71,6 +72,7 @@ struct event_constraint {
 #define PERF_X86_EVENT_EXCL_ACCT	0x0200 /* accounted EXCL event */
 #define PERF_X86_EVENT_AUTO_RELOAD	0x0400 /* use PEBS auto-reload */
 #define PERF_X86_EVENT_FREERUNNING	0x0800 /* use freerunning PEBS */
+#define PERF_X86_EVENT_UPDATE		0x1000 /* call update_event after read */
 
 static inline bool constraint_match(struct event_constraint *c, u64 ecode)
 {
@@ -225,6 +227,10 @@ struct cpu_hw_events {
 	u64				intel_ctrl_guest_mask;
 	u64				intel_ctrl_host_mask;
 	struct perf_guest_switch_msr	guest_switch_msrs[X86_PMC_IDX_MAX];
+
+	unsigned long			txn_metric;
+	unsigned long			txn_regs;
+	unsigned long			nmi_metric;
 
 	/*
 	 * Intel checkpoint mask
@@ -511,6 +517,7 @@ union perf_capabilities {
 		 */
 		u64	full_width_write:1;
 		u64     adaptive_pebs:1;
+		u64	perf_metrics_available:1;
 	};
 	u64	capabilities;
 };
@@ -573,6 +580,7 @@ struct x86_pmu {
 	int		(*addr_offset)(int index, bool eventsel);
 	int		(*rdpmc_index)(int index);
 	u64		(*event_map)(int);
+	u64		(*metric_update_event)(struct perf_event *event, u64 val);
 	int		max_events;
 	int		num_counters;
 	int		num_counters_fixed;
@@ -604,6 +612,7 @@ struct x86_pmu {
 	int		perfctr_second_write;
 	bool		late_ack;
 	unsigned	(*limit_period)(struct perf_event *event, unsigned l);
+	void		(*update_counter)(struct perf_event *event);
 
 	/*
 	 * sysfs attrs
@@ -687,6 +696,8 @@ struct x86_pmu {
 	 */
 	struct extra_reg *extra_regs;
 	unsigned int flags;
+
+	bool has_metric;
 
 	/*
 	 * Intel host/guest support (KVM)

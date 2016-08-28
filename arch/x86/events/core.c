@@ -101,6 +101,9 @@ again:
 	delta = (new_raw_count << shift) - (prev_raw_count << shift);
 	delta >>= shift;
 
+	if (hwc->flags & PERF_X86_EVENT_UPDATE)
+		delta = x86_pmu.metric_update_event(event, delta);
+
 	local64_add(delta, &event->count);
 	local64_sub(delta, &hwc->period_left);
 
@@ -1181,6 +1184,9 @@ int x86_perf_event_set_period(struct perf_event *event)
 		wrmsrl(hwc->event_base, (u64)(-left) & x86_pmu.cntval_mask);
 	}
 
+	if (x86_pmu.update_counter)
+		x86_pmu.update_counter(event);
+
 	/*
 	 * Due to erratum on certan cpu we need
 	 * a second write to be sure the register
@@ -1905,10 +1911,6 @@ static inline void x86_pmu_read(struct perf_event *event)
  * Start group events scheduling transaction
  * Set the flag to make pmu::enable() not perform the
  * schedulability test, it will be performed at commit time
- *
- * We only support PERF_PMU_TXN_ADD transactions. Save the
- * transaction flags but otherwise ignore non-PERF_PMU_TXN_ADD
- * transactions.
  */
 static void x86_pmu_start_txn(struct pmu *pmu, unsigned int txn_flags)
 {
@@ -1917,6 +1919,7 @@ static void x86_pmu_start_txn(struct pmu *pmu, unsigned int txn_flags)
 	WARN_ON_ONCE(cpuc->txn_flags);		/* txn already in flight */
 
 	cpuc->txn_flags = txn_flags;
+	cpuc->txn_regs = 0;
 	if (txn_flags & ~PERF_PMU_TXN_ADD)
 		return;
 
@@ -1938,6 +1941,8 @@ static void x86_pmu_cancel_txn(struct pmu *pmu)
 
 	txn_flags = cpuc->txn_flags;
 	cpuc->txn_flags = 0;
+	cpuc->txn_metric = 0;
+	cpuc->txn_regs = 0;
 	if (txn_flags & ~PERF_PMU_TXN_ADD)
 		return;
 
@@ -1965,6 +1970,7 @@ static int x86_pmu_commit_txn(struct pmu *pmu)
 
 	WARN_ON_ONCE(!cpuc->txn_flags);	/* no txn in flight */
 
+	cpuc->txn_metric = 0;
 	if (cpuc->txn_flags & ~PERF_PMU_TXN_ADD) {
 		cpuc->txn_flags = 0;
 		return 0;

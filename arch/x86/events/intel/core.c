@@ -244,6 +244,10 @@ static struct event_constraint intel_icl_event_constraints[] = {
 	FIXED_EVENT_CONSTRAINT(0x003c, 1),	/* CPU_CLK_UNHALTED.CORE */
 	FIXED_EVENT_CONSTRAINT(0x0300, 2),	/* CPU_CLK_UNHALTED.REF */
 	FIXED_EVENT_CONSTRAINT(0x05ff, 3),	/* SLOTS */
+	METRIC_EVENT_CONSTRAINT(0x01ff, 0),     /* Retiring metric */
+	METRIC_EVENT_CONSTRAINT(0x02ff, 1),     /* Bad speculation metric */
+	METRIC_EVENT_CONSTRAINT(0x03ff, 2),     /* FE bound metric */
+	METRIC_EVENT_CONSTRAINT(0x04ff, 3),     /* BE bound metric */
 	INTEL_EVENT_CONSTRAINT_RANGE(0x03, 0x0a, 0xf),
 	INTEL_UEVENT_CONSTRAINT(0x800d, 0xf),	/* INT_MISC.CLEAR_RESTEER_CYCLES */
 
@@ -270,6 +274,14 @@ static struct extra_reg intel_icl_extra_regs[] __read_mostly = {
 	INTEL_UEVENT_EXTRA_REG(0x01bb, MSR_OFFCORE_RSP_1, 0x1fffffbfffull, RSP_1),
 	INTEL_UEVENT_PEBS_LDLAT_EXTRA_REG(0x01cd),
 	INTEL_UEVENT_EXTRA_REG(0x01c6, MSR_PEBS_FRONTEND, 0x7fff17, FE),
+	/*
+         * PERF_METRICS does exist, but it is not configured. But we
+         * share the original Fixed Ctr 3 from different metrics
+         * events. So use the extra reg to enforce the same
+         * configuration on the original register, but do not actually
+         * write to it.
+         */
+        INTEL_EVENT_EXTRA_REG(0xff, 0, -1L, PERF_METRICS),
 	EVENT_EXTRA_END
 };
 
@@ -2278,6 +2290,7 @@ static int intel_pmu_handle_irq(struct pt_regs *regs)
 	int handled;
 
 	cpuc = this_cpu_ptr(&cpu_hw_events);
+	cpuc->nmi_metric = 0;
 
 	/*
 	 * No known reason to not always do late ACK,
@@ -3043,6 +3056,7 @@ static unsigned long intel_pmu_free_running_flags(struct perf_event *event)
 static int intel_pmu_hw_config(struct perf_event *event)
 {
 	int ret = x86_pmu_hw_config(event);
+	unsigned ecode;
 
 	if (ret)
 		return ret;
@@ -3077,6 +3091,32 @@ static int intel_pmu_hw_config(struct perf_event *event)
 
 	if (event->attr.type != PERF_TYPE_RAW)
 		return 0;
+
+	/* Fixed Counter 3 with its metric sub events */
+	ecode = event->attr.config & INTEL_ARCH_EVENT_MASK;
+	if (x86_pmu.has_metric &&
+		(ecode & 0xff) == 0xff &&
+		ecode >= 0x01ff && ecode <= 0x05ff) {
+		if (event->attr.config1 != 0)
+			return -EINVAL;
+		if (event->attr.config & ARCH_PERFMON_EVENTSEL_ANY)
+			return -EINVAL;
+		/*
+		 * Put configuration (minus event) into config1 so that
+		 * the scheduler enforces through an extra_reg that
+		 * all instances of the metrics events have the same
+		 * configuration.
+		 */
+		event->attr.config1 = event->hw.config & X86_ALL_EVENT_FLAGS;
+		if (ecode != 0x05ff) {
+			if (!x86_pmu.intel_cap.perf_metrics_available)
+				return -EINVAL;
+			if (event->attr.sample_period)
+				return -EINVAL;
+			event->hw.flags |= PERF_X86_EVENT_UPDATE;
+		}
+		return 0;
+	}
 
 	if (!(event->attr.config & ARCH_PERFMON_EVENTSEL_ANY))
 		return 0;
@@ -3793,6 +3833,71 @@ static __init void intel_ht_bug(void)
 	x86_pmu.stop_scheduling = intel_stop_scheduling;
 }
 
+/*
+ * Update metric event with the PERF_METRICS register.
+ *
+ * Metric events are defined as SLOTS * metric. The original
+ * metric can be reconstructed by taking SUM(all-metrics)/metric
+ * (or SLOTS/metric)
+ */
+static u64 icl_metric_update_event(struct perf_event *event, u64 val)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+	struct hw_perf_event *hwc = &event->hw;
+	u64 newval, metric;
+	bool nmi = in_nmi();
+	int txn_flags = nmi ? 0 : cpuc->txn_flags;
+
+	/*
+	 * Use cached value for transaction.
+	 */
+	newval = 0;
+	if (txn_flags)
+		newval = cpuc->txn_metric;
+	else if (nmi)
+		newval = cpuc->nmi_metric;
+	if (!newval) {
+		rdpmcl((1<<29) | 0, newval);
+		if (txn_flags)
+			cpuc->txn_metric = newval;
+		else if (nmi)
+			cpuc->nmi_metric = newval;
+		if (!(txn_flags & PERF_PMU_TXN_REMOVE))
+			wrmsrl(MSR_PERF_METRICS, 0);
+	}
+	metric = (newval >> ((hwc->idx - INTEL_PMC_IDX_FIXED_METRIC_BASE)*8)) & 0xff;
+	/*
+	 * If we're scheduled out save the metric value for later restore.
+	 */
+	if (txn_flags & PERF_PMU_TXN_REMOVE)
+		hwc->saved_metric = newval;
+
+	/*
+	 * The metric is reported as an 8bit integer percentage
+	 * suming up to 0xff. As the counter is less than 64bits
+	 * we can use the not used bits to get the needed precision.
+	 * Use 16bit fixed point arithmetic for
+	 * slots-in-metric = (MetricPct / 0xff) * val
+	 * This works fine for upto 48bit counters, but will
+	 * lose precision above that.
+	 */
+	return (((metric * 0xffff) >> 8) * val) >> 16;
+}
+
+/*
+ * Update metrics counter after metric event has been restored
+ */
+static void icl_update_counter(struct perf_event *event)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+
+	if (!cpuc->txn_flags & PERF_PMU_TXN_ADD)
+		return;
+	if (is_metric_idx(event->hw.idx) &&
+	    !__test_and_set_bit(event->hw.idx, &cpuc->txn_regs))
+		wrmsrl(MSR_PERF_METRICS, event->hw.saved_metric);
+}
+
 EVENT_ATTR_STR(mem-loads,	mem_ld_hsw,	"event=0xcd,umask=0x1,ldlat=3");
 EVENT_ATTR_STR(mem-stores,	mem_st_hsw,	"event=0xd0,umask=0x82")
 
@@ -4426,6 +4531,9 @@ __init int intel_pmu_init(void)
 		x86_pmu.lbr_pt_coexist = true;
 		intel_pmu_pebs_data_source_skl(
 			boot_cpu_data.x86_model == INTEL_FAM6_ICELAKE_X);
+		x86_pmu.has_metric = x86_pmu.intel_cap.perf_metrics_available;
+		x86_pmu.metric_update_event = icl_metric_update_event;
+		x86_pmu.update_counter = icl_update_counter;
 		pr_cont("Icelake events, ");
 		name = "icelake";
 		break;
@@ -4528,6 +4636,11 @@ __init int intel_pmu_init(void)
 		x86_pmu.max_period = x86_pmu.cntval_mask >> 1;
 		x86_pmu.perfctr = MSR_IA32_PMC0;
 		pr_cont("full-width counters, ");
+	}
+
+	if (x86_pmu.has_metric) {
+		x86_pmu.intel_ctrl |= 1ULL << 48;
+		pr_cont("TopDown, ");
 	}
 
 	return 0;
