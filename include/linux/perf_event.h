@@ -930,8 +930,8 @@ struct perf_sample_data {
 
 	struct perf_regs		regs_intr;
 	u64				stack_user_size;
-
 	u64				phys_addr;
+	u64				*extra_regs;
 } ____cacheline_aligned;
 
 /* default value for data source */
@@ -952,6 +952,7 @@ static inline void perf_sample_data_init(struct perf_sample_data *data,
 	data->weight = 0;
 	data->data_src.val = PERF_MEM_NA;
 	data->txn = 0;
+	data->extra_regs = NULL;
 }
 
 extern void perf_output_sample(struct perf_output_handle *handle,
