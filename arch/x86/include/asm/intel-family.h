@@ -72,4 +72,8 @@
 #define INTEL_FAM6_XEON_PHI_KNL		0x57 /* Knights Landing */
 #define INTEL_FAM6_XEON_PHI_KNM		0x85 /* Knights Mill */
 
+#define INTEL_FAM6_ICELAKE_X		0x6a
+#define INTEL_FAM6_ICELAKE_DESKTOP	0x7d
+#define INTEL_FAM6_ICELAKE_MOBILE	0x7e
+
 #endif /* _ASM_X86_INTEL_FAMILY_H */
