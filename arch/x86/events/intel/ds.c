@@ -1093,7 +1093,10 @@ void intel_pmu_pebs_enable(struct perf_event *event)
 	 * This must be done in pmu::start(), because PERF_EVENT_IOC_PERIOD.
 	 */
 	if (hwc->flags & PERF_X86_EVENT_AUTO_RELOAD) {
-		ds->pebs_event_reset[hwc->idx] =
+		unsigned idx = hwc->idx;
+		if (hwc->idx >= 32)
+			idx = MAX_PEBS_EVENTS + (hwc->idx - 32);
+		ds->pebs_event_reset[idx] =
 			(u64)(-hwc->sample_period) & x86_pmu.cntval_mask;
 	} else {
 		ds->pebs_event_reset[hwc->idx] = 0;
