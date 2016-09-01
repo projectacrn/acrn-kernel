@@ -232,6 +232,7 @@ struct perf_event;
  */
 #define PERF_PMU_TXN_ADD  0x1		/* txn to add/schedule event on PMU */
 #define PERF_PMU_TXN_READ 0x2		/* txn to read event group from PMU */
+#define PERF_PMU_TXN_REMOVE 0x4		/* txn to remove event on PMU */
 
 /**
  * pmu::capabilities flags
