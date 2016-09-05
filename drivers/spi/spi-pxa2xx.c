@@ -1492,6 +1492,10 @@ static const struct pci_device_id pxa2xx_spi_pci_compound_match[] = {
 	{ PCI_VDEVICE(INTEL, 0x3daa), LPSS_CNL_SSP },
 	{ PCI_VDEVICE(INTEL, 0x3dab), LPSS_CNL_SSP },
 	{ PCI_VDEVICE(INTEL, 0x3dfb), LPSS_CNL_SSP },
+	/* GLV */
+	{ PCI_VDEVICE(INTEL, 0x3e3c), LPSS_BXT_SSP },
+	{ PCI_VDEVICE(INTEL, 0x3e3d), LPSS_BXT_SSP },
+	{ PCI_VDEVICE(INTEL, 0x3e3e), LPSS_BXT_SSP },
 	/* APL */
 	{ PCI_VDEVICE(INTEL, 0x5ac2), LPSS_BXT_SSP },
 	{ PCI_VDEVICE(INTEL, 0x5ac4), LPSS_BXT_SSP },
