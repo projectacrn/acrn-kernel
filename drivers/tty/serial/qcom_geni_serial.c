@@ -1048,21 +1048,6 @@ static void console_unregister(struct uart_driver *drv)
 }
 #endif /* CONFIG_SERIAL_QCOM_GENI_CONSOLE */
 
-static void qcom_geni_serial_cons_pm(struct uart_port *uport,
-		unsigned int new_state, unsigned int old_state)
-{
-	struct qcom_geni_serial_port *port = to_dev_port(uport, uport);
-
-	if (unlikely(!uart_console(uport)))
-		return;
-
-	if (new_state == UART_PM_STATE_ON && old_state == UART_PM_STATE_OFF)
-		geni_se_resources_on(&port->se);
-	else if (new_state == UART_PM_STATE_OFF &&
-			old_state == UART_PM_STATE_ON)
-		geni_se_resources_off(&port->se);
-}
-
 static const struct uart_ops qcom_geni_console_pops = {
 	.tx_empty = qcom_geni_serial_tx_empty,
 	.stop_tx = qcom_geni_serial_stop_tx,
@@ -1080,7 +1065,6 @@ static const struct uart_ops qcom_geni_console_pops = {
 	.poll_get_char	= qcom_geni_serial_get_char,
 	.poll_put_char	= qcom_geni_serial_poll_put_char,
 #endif
-	.pm = qcom_geni_serial_cons_pm,
 };
 
 static int qcom_geni_serial_probe(struct platform_device *pdev)
