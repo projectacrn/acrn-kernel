@@ -420,6 +420,7 @@ struct mei_fw_version {
  * @hbm_f_fa_supported  : hbm feature fixed address client
  * @hbm_f_ie_supported  : hbm feature immediate reply to enum request
  * @hbm_f_os_supported  : hbm feature support OS ver message
+ * @hbm_f_dr_supported  : hbm feature dma ring supported
  * @fw_ver : FW versions
  *
  * @me_clients_rwsem: rw lock over me_clients list
@@ -497,6 +498,7 @@ struct mei_device {
 	unsigned int hbm_f_fa_supported:1;
 	unsigned int hbm_f_ie_supported:1;
 	unsigned int hbm_f_os_supported:1;
+	unsigned int hbm_f_dr_supported:1;
 	struct mei_fw_version fw_ver[MEI_MAX_FW_VER_BLOCKS];
 
 	struct rw_semaphore me_clients_rwsem;
