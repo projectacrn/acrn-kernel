@@ -430,11 +430,20 @@ static inline void elsp_write(u64 desc, u32 __iomem *elsp)
 
 static void execlists_submit_ports(struct intel_engine_cs *engine)
 {
+	struct drm_i915_private *dev_priv = engine->i915;
 	struct execlist_port *port = engine->execlists.port;
 	u32 __iomem *elsp =
 		engine->i915->regs + i915_mmio_reg_offset(RING_ELSP(engine));
+	u32 __iomem *elsq =
+		engine->i915->regs + i915_mmio_reg_offset(RING_ELSQ(engine));
 	unsigned int n;
 
+	/*
+	 * Gen11+ note: the submit queue is not cleared after being submitted
+	 * to the HW so we need to make sure we always clean it up. This is
+	 * currently ensured by the fact that we always write the same number
+	 * of elsq entries, keep this in mind before changing the loop below.
+	 */
 	for (n = execlists_num_ports(&engine->execlists); n--; ) {
 		struct drm_i915_gem_request *rq;
 		unsigned int count;
@@ -458,8 +467,18 @@ static void execlists_submit_ports(struct intel_engine_cs *engine)
 			desc = 0;
 		}
 
-		elsp_write(desc, elsp);
+		if (INTEL_GEN(engine->i915) >= 11) {
+			writel(lower_32_bits(desc), elsq + n * 2);
+			writel(upper_32_bits(desc), elsq + n * 2 + 1);
+		} else {
+			elsp_write(desc, elsp);
+		}
 	}
+
+	/* for gen11+ we need to manually load the submit queue */
+	if (INTEL_GEN(engine->i915) >= 11)
+		I915_WRITE_FW(RING_ELCR(engine), ELCR_LOAD);
+
 	execlists_clear_active(&engine->execlists, EXECLISTS_ACTIVE_HWACK);
 }
 
