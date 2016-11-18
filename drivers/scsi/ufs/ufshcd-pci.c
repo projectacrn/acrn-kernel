@@ -110,6 +110,8 @@ static struct ufs_hba_variant_ops ufs_intel_cnl_hba_vops = {
 	.pwr_change_notify	= ufs_intel_pwr_change_notify,
 };
 
+#include "ufs-intel-fpga.c"
+
 #ifdef CONFIG_PM_SLEEP
 /**
  * ufshcd_pci_suspend - suspend power management function
@@ -213,6 +215,9 @@ ufshcd_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	}
 
 	hba->vops = (struct ufs_hba_variant_ops *)id->driver_data;
+
+	if (ufs_intel_fpga_detected(id))
+		hba->vops = &ufs_intel_icl_fpga_hba_vops;
 
 	err = ufshcd_init(hba, mmio_base, pdev->irq);
 	if (err) {
