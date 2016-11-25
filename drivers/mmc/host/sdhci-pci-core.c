@@ -897,7 +897,8 @@ static const struct sdhci_pci_fixes sdhci_intel_icl_sd = {
 	.quirks         = SDHCI_QUIRK_BROKEN_TIMEOUT_VAL,
 	.quirks2        = SDHCI_QUIRK2_CARD_ON_NEEDS_BUS_ON |
 			  SDHCI_QUIRK2_STOP_WITH_TC |
-			  SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
+			  SDHCI_QUIRK2_PRESET_VALUE_BROKEN |
+			  SDHCI_QUIRK2_CLOCK_DIV_ONE_DDR50,
 	.allow_runtime_pm = false,
 	.own_cd_for_runtime_pm = false,
 };

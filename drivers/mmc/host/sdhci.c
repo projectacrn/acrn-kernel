@@ -1350,6 +1350,10 @@ u16 sdhci_calc_clk(struct sdhci_host *host, unsigned int clock,
 			if ((host->quirks2 & SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN)
 				&& !div && host->max_clk <= 25000000)
 				div = 1;
+
+			if ((host->quirks2 & SDHCI_QUIRK2_CLOCK_DIV_ONE_DDR50)
+				&& !div && host->max_clk == 20000000)
+				div = 1;
 		}
 	} else {
 		/* Version 2.00 divisors must be a power of 2. */

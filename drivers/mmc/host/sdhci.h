@@ -437,6 +437,8 @@ struct sdhci_host {
 #define SDHCI_QUIRK2_CLOCK_DIV_ZERO_BROKEN		(1<<15)
 /* Controller has CRC in 136 bit Command Response */
 #define SDHCI_QUIRK2_RSP_136_HAS_CRC			(1<<16)
+/* Force set clk div to 1 due to invalid FPGA frequency for DDR50 */
+#define SDHCI_QUIRK2_CLOCK_DIV_ONE_DDR50		(1<<17)
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
