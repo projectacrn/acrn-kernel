@@ -595,3 +595,5 @@ static bool ufs_intel_fpga_detected(const struct pci_device_id *id)
 	return id->vendor == PCI_VENDOR_ID_INTEL && id->device == 0x34FA &&
 	       pci_dev_present(ufs_icl_bridge_pci_tbl);
 }
+
+MODULE_SOFTDEP("pre: ufs_icl_bridge");

@@ -1,4 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
+# UFS FPGA bridges shall init as first ones
+obj-$(CONFIG_SCSI_UFS_INTEL_ICL_BRIDGE) += ufs-icl-bridge.o
+
 # UFSHCD makefile
 obj-$(CONFIG_SCSI_UFS_DWC_TC_PCI) += tc-dwc-g210-pci.o ufshcd-dwc.o tc-dwc-g210.o
 obj-$(CONFIG_SCSI_UFS_DWC_TC_PLATFORM) += tc-dwc-g210-pltfrm.o ufshcd-dwc.o tc-dwc-g210.o
