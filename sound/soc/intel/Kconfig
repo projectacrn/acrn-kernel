@@ -67,6 +67,8 @@ config SND_SOC_INTEL_SKYLAKE
 	select SND_SOC_TOPOLOGY
 	select SND_SOC_INTEL_SST
 	select SND_SOC_COMPRESS
+	select SDW
+	select SDW_CNL
 
 # ASoC codec drivers
 source "sound/soc/intel/boards/Kconfig"
