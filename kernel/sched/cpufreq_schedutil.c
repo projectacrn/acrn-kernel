@@ -18,6 +18,11 @@
 #include <trace/events/power.h>
 
 #include "sched.h"
+#include "tune.h"
+
+#ifdef CONFIG_SCHED_WALT
+unsigned long boosted_cpu_util(int cpu);
+#endif
 
 #define SUGOV_KTHREAD_PRIORITY	50
 
@@ -184,6 +189,10 @@ static void sugov_get_util(unsigned long *util, unsigned long *max, int cpu)
 	cfs_max = arch_scale_cpu_capacity(NULL, cpu);
 
 	*util = min(rq->cfs.avg.util_avg, cfs_max);
+#ifdef CONFIG_SCHED_WALT
+	if (!walt_disabled && sysctl_sched_use_walt_cpu_util)
+		*util = boosted_cpu_util(cpu);
+#endif
 	*max = cfs_max;
 }
 
