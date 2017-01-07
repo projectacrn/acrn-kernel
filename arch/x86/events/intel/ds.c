@@ -904,6 +904,9 @@ struct event_constraint *intel_pebs_constraints(struct perf_event *event)
 		}
 	}
 
+	if (x86_pmu.flags & PMU_FL_PEBS_ALL)
+		return NULL;
+
 	return &emptyconstraint;
 }
 
