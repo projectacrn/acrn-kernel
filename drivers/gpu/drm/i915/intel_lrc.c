@@ -1504,8 +1504,14 @@ static int gen8_init_common_ring(struct intel_engine_cs *engine)
 	intel_engine_init_hangcheck(engine);
 
 	I915_WRITE(RING_HWSTAM(engine->mmio_base), 0xffffffff);
-	I915_WRITE(RING_MODE_GEN7(engine),
-		   _MASKED_BIT_ENABLE(GFX_RUN_LIST_ENABLE));
+
+	if (IS_GEN11(dev_priv))
+		I915_WRITE(RING_MODE_GEN7(engine),
+			   _MASKED_BIT_DISABLE(GEN11_GFX_DISABLE_LEGACY_MODE));
+	else
+		I915_WRITE(RING_MODE_GEN7(engine),
+			   _MASKED_BIT_ENABLE(GFX_RUN_LIST_ENABLE));
+
 	I915_WRITE(RING_HWS_PGA(engine->mmio_base),
 		   engine->status_page.ggtt_offset);
 	POSTING_READ(RING_HWS_PGA(engine->mmio_base));
