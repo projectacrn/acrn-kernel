@@ -220,6 +220,59 @@ static const struct stmmac_pci_info quark_pci_info = {
 	.setup = quark_default_data,
 };
 
+static int synp_haps_default_data(struct pci_dev *pdev,
+				  struct plat_stmmacenet_data *plat)
+{
+	plat->bus_id = 1;
+	plat->phy_addr = 0;
+	plat->interface = PHY_INTERFACE_MODE_GMII;
+	plat->clk_csr = 5;
+	plat->has_gmac = 0;
+	plat->has_gmac4 = 1;
+	plat->force_sf_dma_mode = 1;
+	plat->tso_en = 1;
+
+	plat->mdio_bus_data->phy_reset = NULL;
+	plat->mdio_bus_data->phy_mask = 0;
+
+	plat->dma_cfg->pbl = 32;
+	plat->dma_cfg->fixed_burst = 0;
+	plat->dma_cfg->mixed_burst = 0;
+	plat->dma_cfg->aal = 0;
+
+	plat->axi = devm_kzalloc(&pdev->dev, sizeof(*plat->axi),
+				 GFP_KERNEL);
+	if (!plat->axi)
+		return -ENOMEM;
+	plat->axi->axi_lpi_en = 0;
+	plat->axi->axi_xit_frm = 0;
+	plat->axi->axi_wr_osr_lmt = 0;
+	plat->axi->axi_rd_osr_lmt = 2;
+	plat->axi->axi_blen[0] = 4;
+	plat->axi->axi_blen[1] = 8;
+	plat->axi->axi_blen[2] = 16;
+
+	/* Set default value for multicast hash bins */
+	plat->multicast_filter_bins = HASH_TABLE_SIZE;
+
+	/* Set default value for unicast filter entries */
+	plat->unicast_filter_entries = 1;
+
+	/* Set the maxmtu to a default of JUMBO_LEN */
+	plat->maxmtu = JUMBO_LEN;
+
+	/* Synopsys Ethernet IPK FPGA image does not support MSI
+	 * even the HAPS PCI Config Space do expose MSI capability
+	 */
+	plat->no_msi = 1;
+
+	return 0;
+}
+
+static struct stmmac_pci_info synp_haps_pci_info = {
+	.setup = synp_haps_default_data,
+};
+
 /**
  * stmmac_pci_probe
  *
@@ -280,7 +333,8 @@ static int stmmac_pci_probe(struct pci_dev *pdev,
 	if (ret)
 		return ret;
 
-	pci_enable_msi(pdev);
+	if (!plat->no_msi)
+		pci_enable_msi(pdev);
 
 	memset(&res, 0, sizeof(res));
 	res.addr = pcim_iomap_table(pdev)[i];
@@ -345,6 +399,8 @@ static SIMPLE_DEV_PM_OPS(stmmac_pm_ops, stmmac_pci_suspend, stmmac_pci_resume);
 
 #define STMMAC_QUARK_ID  0x0937
 #define STMMAC_DEVICE_ID 0x1108
+#define DEVICE_ID_HAPS_DX 0x7102
+#define DEVICE_ID_HAPS_6X 0x7101
 
 #define STMMAC_DEVICE(vendor_id, dev_id, info)	{	\
 	PCI_VDEVICE(vendor_id, dev_id),			\
@@ -355,6 +411,8 @@ static const struct pci_device_id stmmac_id_table[] = {
 	STMMAC_DEVICE(STMMAC, STMMAC_DEVICE_ID, stmmac_pci_info),
 	STMMAC_DEVICE(STMICRO, PCI_DEVICE_ID_STMICRO_MAC, stmmac_pci_info),
 	STMMAC_DEVICE(INTEL, STMMAC_QUARK_ID, quark_pci_info),
+	STMMAC_DEVICE(SYNOPSYS, DEVICE_ID_HAPS_DX, synp_haps_pci_info),
+	STMMAC_DEVICE(SYNOPSYS, DEVICE_ID_HAPS_6X, synp_haps_pci_info),
 	{}
 };
 
