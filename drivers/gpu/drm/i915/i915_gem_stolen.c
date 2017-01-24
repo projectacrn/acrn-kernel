@@ -98,7 +98,16 @@ static dma_addr_t i915_stolen_to_dma(struct drm_i915_private *dev_priv)
 	 *
 	 */
 	base = 0;
-	if (INTEL_GEN(dev_priv) >= 3) {
+	if (INTEL_GEN(dev_priv) >= 11) {
+		u32 lsb, msb;
+
+		pci_read_config_dword(pdev, INTEL_GEN11_BSM_DW0, &lsb);
+		pci_read_config_dword(pdev, INTEL_GEN11_BSM_DW1, &msb);
+
+		WARN_ON(sizeof(base) < sizeof(u64));
+
+		base = (dma_addr_t)(((u64)msb << 32) | (lsb & INTEL_BSM_MASK));
+	} else if (INTEL_GEN(dev_priv) >= 3) {
 		u32 bsm;
 
 		pci_read_config_dword(pdev, INTEL_BSM, &bsm);
@@ -437,6 +446,32 @@ static void bdw_get_stolen_reserved(struct drm_i915_private *dev_priv,
 		*size = stolen_top - *base;
 }
 
+static void icl_get_stolen_reserved(struct drm_i915_private *dev_priv,
+				    dma_addr_t *base, u32 *size)
+{
+	uint64_t reg_val = I915_READ64(GEN6_STOLEN_RESERVED);
+
+	*base = reg_val & GEN11_STOLEN_RESERVED_ADDR_MASK;
+
+	switch (reg_val & GEN8_STOLEN_RESERVED_SIZE_MASK) {
+	case GEN8_STOLEN_RESERVED_1M:
+		*size = 1024 * 1024;
+		break;
+	case GEN8_STOLEN_RESERVED_2M:
+		*size = 2 * 1024 * 1024;
+		break;
+	case GEN8_STOLEN_RESERVED_4M:
+		*size = 4 * 1024 * 1024;
+		break;
+	case GEN8_STOLEN_RESERVED_8M:
+		*size = 8 * 1024 * 1024;
+		break;
+	default:
+		*size = 8 * 1024 * 1024;
+		MISSING_CASE(reg_val & GEN8_STOLEN_RESERVED_SIZE_MASK);
+	}
+}
+
 int i915_gem_init_stolen(struct drm_i915_private *dev_priv)
 {
 	struct i915_ggtt *ggtt = &dev_priv->ggtt;
@@ -487,13 +522,20 @@ int i915_gem_init_stolen(struct drm_i915_private *dev_priv)
 		gen7_get_stolen_reserved(dev_priv,
 					 &reserved_base, &reserved_size);
 		break;
-	default:
+	case 8:
+	case 9:
+	case 10:
 		if (IS_LP(dev_priv))
 			chv_get_stolen_reserved(dev_priv,
 						&reserved_base, &reserved_size);
 		else
 			bdw_get_stolen_reserved(dev_priv,
 						&reserved_base, &reserved_size);
+		break;
+	case 11:
+	default:
+		icl_get_stolen_reserved(dev_priv, &reserved_base,
+					&reserved_size);
 		break;
 	}
 
