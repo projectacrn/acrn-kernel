@@ -1,0 +1,12 @@
+- Linux perf support for Icelake (Sunny Cove core)
+This implements Linux perf PMU support for Sunny Cove core on Icelake Server and Client.
+Support for LBRs, core PMU, TopDown counter, adaptive PEBS, extended PEBS, basic PEBS
+To use the topdown functionality the perf tool in tools/perf also needs to be used.
+
+Open issues:
+- kernel driver event list is not final
+- no uncore support
+
+Includes workaround for Simics Whitley seabios ACPI crash
+
+Owner: Andi Kleen
