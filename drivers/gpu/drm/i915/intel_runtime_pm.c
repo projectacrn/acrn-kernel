@@ -1836,6 +1836,9 @@ void intel_display_power_put(struct drm_i915_private *dev_priv,
 #define CNL_DISPLAY_AUX_D_POWER_DOMAINS (		\
 	BIT_ULL(POWER_DOMAIN_AUX_D) |			\
 	BIT_ULL(POWER_DOMAIN_INIT))
+#define CNL_DISPLAY_AUX_F_POWER_DOMAINS (		\
+	BIT_ULL(POWER_DOMAIN_AUX_F) |			\
+	BIT_ULL(POWER_DOMAIN_INIT))
 #define CNL_DISPLAY_DC_OFF_POWER_DOMAINS (		\
 	CNL_DISPLAY_POWERWELL_2_POWER_DOMAINS |		\
 	BIT_ULL(POWER_DOMAIN_MODESET) |			\
@@ -2471,6 +2474,12 @@ static struct i915_power_well cnl_h_power_wells[] = {
 		.domains = CNL_DISPLAY_DDI_E_IO_POWER_DOMAINS,
 		.ops = &hsw_power_well_ops,
 		.id = CNL_DISP_PW_DDI_E,
+	},
+	{
+		.name = "AUX F",
+		.domains = CNL_DISPLAY_AUX_F_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = CNL_DISP_PW_AUX_F,
 	},
 };
 

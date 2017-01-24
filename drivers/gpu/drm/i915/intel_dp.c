@@ -1298,6 +1298,9 @@ static enum port intel_aux_port(struct drm_i915_private *dev_priv,
 	case DP_AUX_D:
 		aux_port = PORT_D;
 		break;
+	case DP_AUX_F:
+		aux_port = PORT_F;
+		break;
 	default:
 		MISSING_CASE(info->alternate_aux_channel);
 		aux_port = PORT_A;
@@ -1317,6 +1320,7 @@ static i915_reg_t g4x_aux_ctl_reg(struct drm_i915_private *dev_priv,
 	case PORT_B:
 	case PORT_C:
 	case PORT_D:
+	case PORT_F:
 		return DP_AUX_CH_CTL(port);
 	default:
 		MISSING_CASE(port);
@@ -1331,6 +1335,7 @@ static i915_reg_t g4x_aux_data_reg(struct drm_i915_private *dev_priv,
 	case PORT_B:
 	case PORT_C:
 	case PORT_D:
+	case PORT_F:
 		return DP_AUX_CH_DATA(port, index);
 	default:
 		MISSING_CASE(port);
@@ -5978,6 +5983,9 @@ intel_dp_init_connector_port_info(struct intel_digital_port *intel_dig_port)
 	case PORT_E:
 		/* FIXME: Check VBT for actual wiring of PORT E */
 		intel_dp->aux_power_domain = POWER_DOMAIN_AUX_D;
+		break;
+	case PORT_F:
+		intel_dp->aux_power_domain = POWER_DOMAIN_AUX_F;
 		break;
 	default:
 		MISSING_CASE(encoder->port);
