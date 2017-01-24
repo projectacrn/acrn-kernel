@@ -346,6 +346,7 @@ enum port {
 	PORT_C,
 	PORT_D,
 	PORT_E,
+	PORT_F,
 	I915_MAX_PORTS
 };
 #define port_name(p) ((p) + 'A')
