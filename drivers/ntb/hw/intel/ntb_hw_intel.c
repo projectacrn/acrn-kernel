@@ -216,6 +216,15 @@ static inline int pdev_is_xeon(struct pci_dev *pdev)
 	return 0;
 }
 
+static inline int pdev_is_xeon_ntb3(struct pci_dev *pdev)
+{
+	if ((pdev->device == PCI_DEVICE_ID_INTEL_NTB_B2B_SKX) ||
+	    (pdev->device == PCI_DEVICE_ID_INTEL_NTB_B2B_ICX))
+		return 1;
+
+	return 0;
+}
+
 static inline int pdev_is_skx_xeon(struct pci_dev *pdev)
 {
 	if (pdev->device == PCI_DEVICE_ID_INTEL_NTB_B2B_SKX)
@@ -1009,7 +1018,7 @@ static ssize_t ndev_debugfs_read(struct file *filp, char __user *ubuf,
 	if (pdev_is_xeon(ndev->ntb.pdev) ||
 	    pdev_is_atom(ndev->ntb.pdev))
 		return ndev_ntb_debugfs_read(filp, ubuf, count, offp);
-	else if (pdev_is_skx_xeon(ndev->ntb.pdev))
+	else if (pdev_is_xeon_ntb3(ndev->ntb.pdev))
 		return ndev_ntb3_debugfs_read(filp, ubuf, count, offp);
 
 	return -ENXIO;
@@ -2763,7 +2772,7 @@ static int intel_ntb_pci_probe(struct pci_dev *pdev,
 		if (rc)
 			goto err_init_dev;
 
-	} else if (pdev_is_skx_xeon(pdev)) {
+	} else if (pdev_is_xeon_ntb3(pdev)) {
 		ndev = kzalloc_node(sizeof(*ndev), GFP_KERNEL, node);
 		if (!ndev) {
 			rc = -ENOMEM;
@@ -2804,7 +2813,7 @@ err_register:
 	ndev_deinit_debugfs(ndev);
 	if (pdev_is_atom(pdev))
 		atom_deinit_dev(ndev);
-	else if (pdev_is_xeon(pdev) || pdev_is_skx_xeon(pdev))
+	else if (pdev_is_xeon(pdev) || pdev_is_xeon_ntb3(pdev))
 		xeon_deinit_dev(ndev);
 err_init_dev:
 	intel_ntb_deinit_pci(ndev);
@@ -2822,7 +2831,7 @@ static void intel_ntb_pci_remove(struct pci_dev *pdev)
 	ndev_deinit_debugfs(ndev);
 	if (pdev_is_atom(pdev))
 		atom_deinit_dev(ndev);
-	else if (pdev_is_xeon(pdev) || pdev_is_skx_xeon(pdev))
+	else if (pdev_is_xeon(pdev) || pdev_is_xeon_ntb3(pdev))
 		xeon_deinit_dev(ndev);
 	intel_ntb_deinit_pci(ndev);
 	kfree(ndev);
@@ -3028,6 +3037,7 @@ static const struct pci_device_id intel_ntb_pci_tbl[] = {
 	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_SS_HSX)},
 	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_SS_BDX)},
 	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_SKX)},
+	{PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_NTB_B2B_ICX)},
 	{0}
 };
 MODULE_DEVICE_TABLE(pci, intel_ntb_pci_tbl);
