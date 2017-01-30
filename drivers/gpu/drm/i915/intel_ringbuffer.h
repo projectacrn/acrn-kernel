@@ -397,6 +397,11 @@ struct intel_engine_cs {
 
 	u32             irq_keep_mask; /* always keep these interrupts */
 	u32		irq_enable_mask; /* bitmask to enable ring interrupt */
+
+	/*
+	 * irq_enable and irq_disable do not have to be provided for
+	 * an engine. In other words they can be NULL.
+	 */
 	void		(*irq_enable)(struct intel_engine_cs *engine);
 	void		(*irq_disable)(struct intel_engine_cs *engine);
 

@@ -159,18 +159,22 @@ static void irq_enable(struct intel_engine_cs *engine)
 	 */
 	set_bit(ENGINE_IRQ_BREADCRUMB, &engine->irq_posted);
 
-	/* Caller disables interrupts */
-	spin_lock(&engine->i915->irq_lock);
-	engine->irq_enable(engine);
-	spin_unlock(&engine->i915->irq_lock);
+	if (engine->irq_enable) {
+		/* Caller disables interrupts */
+		spin_lock(&engine->i915->irq_lock);
+		engine->irq_enable(engine);
+		spin_unlock(&engine->i915->irq_lock);
+	}
 }
 
 static void irq_disable(struct intel_engine_cs *engine)
 {
-	/* Caller disables interrupts */
-	spin_lock(&engine->i915->irq_lock);
-	engine->irq_disable(engine);
-	spin_unlock(&engine->i915->irq_lock);
+	if (engine->irq_disable) {
+		/* Caller disables interrupts */
+		spin_lock(&engine->i915->irq_lock);
+		engine->irq_disable(engine);
+		spin_unlock(&engine->i915->irq_lock);
+	}
 }
 
 void __intel_engine_disarm_breadcrumbs(struct intel_engine_cs *engine)

@@ -1939,8 +1939,15 @@ logical_ring_default_vfuncs(struct intel_engine_cs *engine)
 
 	engine->set_default_submission = execlists_set_default_submission;
 
-	engine->irq_enable = gen8_logical_ring_enable_irq;
-	engine->irq_disable = gen8_logical_ring_disable_irq;
+	if (INTEL_GEN(engine->i915) < 11) {
+		engine->irq_enable = gen8_logical_ring_enable_irq;
+		engine->irq_disable = gen8_logical_ring_disable_irq;
+	} else {
+		/*
+		 * On Gen11 interrupts are permanently unmasked and there
+		 * are no per-engine instance mask bits.
+		 */
+	}
 	engine->emit_bb_start = gen8_emit_bb_start;
 }
 
