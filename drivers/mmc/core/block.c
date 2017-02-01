@@ -70,6 +70,12 @@ MODULE_ALIAS("mmc:block");
 				  (rq_data_dir(req) == WRITE))
 static DEFINE_MUTEX(block_mutex);
 
+#define MMC_GET_CARD(a, b, ...) mmc_get_card(a,b)
+#define mmc_get_card(...) MMC_GET_CARD(__VA_ARGS__,NULL)
+
+#define MMC_PUT_CARD(a, b, ...) mmc_put_card(a,b)
+#define mmc_put_card(...) MMC_PUT_CARD(__VA_ARGS__,NULL)
+
 /*
  * The defaults come from config options but can be overriden by module
  * or bootarg options.
@@ -109,7 +115,6 @@ struct mmc_blk_data {
 #define MMC_BLK_WRITE		BIT(1)
 #define MMC_BLK_DISCARD		BIT(2)
 #define MMC_BLK_SECDISCARD	BIT(3)
-#define MMC_BLK_CQE_RECOVERY	BIT(4)
 
 	/*
 	 * Only set in main mmc_blk_data associated
@@ -1741,6 +1746,8 @@ static void mmc_blk_cqe_complete_rq(struct mmc_queue *mq, struct request *req)
 	if (put_card)
 		mmc_put_card(mq->card, &mq->ctx);
 }
+
+#define MMC_BLK_CQE_RECOVERY	BIT(5)
 
 void mmc_blk_cqe_recovery(struct mmc_queue *mq)
 {
