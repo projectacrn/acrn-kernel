@@ -81,15 +81,15 @@
 /*
  * Helper macro for string representation of a boolean value.
  */
-#define GET_BOOL_STRING(b) ( (b) ? "TRUE" : "FALSE" )
+#define GET_BOOL_STRING(b) ((b) ? "TRUE" : "FALSE")
 
 /*
  * Circularly increment 'i' MODULO 'l'.
  * ONLY WORKS IF 'l' is (power of 2 - 1) ie.
  * l == (2 ^ x) - 1
  */
-#define CIRCULAR_INC(index, mask) ( ( (index) + 1) & (mask) )
-#define CIRCULAR_ADD(index, val, mask) ( ( (index) + (val) ) & (mask) )
+#define CIRCULAR_INC(index, mask) (((index) + 1) & (mask))
+#define CIRCULAR_ADD(index, val, mask) (((index) + (val)) & (mask))
 /*
  * Circularly decrement 'i'.
  */
@@ -101,13 +101,13 @@
 /*
  * Retrieve size of an array.
  */
-#define SW_ARRAY_SIZE(array) ( sizeof(array) / sizeof((array)[0]) )
+#define SW_ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 /*
  * Extract F/W major, minor versions.
  * Assumes version numbers are 8b unsigned ints.
  */
-#define SW_GET_SCU_FW_VERSION_MAJOR(ver) ( ( (ver) >> 8 ) & 0xff )
-#define SW_GET_SCU_FW_VERSION_MINOR(ver) ( (ver) & 0xff )
+#define SW_GET_SCU_FW_VERSION_MAJOR(ver) (((ver) >> 8) & 0xff)
+#define SW_GET_SCU_FW_VERSION_MINOR(ver) ((ver) & 0xff)
 /*
  * Max size of process name retrieved from kernel.
  */

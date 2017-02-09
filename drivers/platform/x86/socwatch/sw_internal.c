@@ -45,8 +45,7 @@ void sw_schedule_work(const struct cpumask *mask, void (*work) (void *),
 			 */
 			smp_call_function_many(mask, work, data,
 					       true
-					       /* Wait for all funcs to complete */
-					       );
+					       /* Wait for all funcs to complete */);
 		}
 		preempt_enable();
 	}

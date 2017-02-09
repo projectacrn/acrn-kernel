@@ -89,7 +89,7 @@ typedef struct sw_collector_data {
 	u64 last_update_jiffies;
 	struct sw_driver_msg *msg;
 } sw_collector_data_t;
-#define GET_MSG_SLOT_FOR_CPU(msgs, cpu, size) ( (struct sw_driver_msg *) &(((char *)(msgs))[(cpu) * (sizeof(struct sw_driver_msg) + (size))]) )
+#define GET_MSG_SLOT_FOR_CPU(msgs, cpu, size) ((struct sw_driver_msg *) &(((char *)(msgs))[(cpu) * (sizeof(struct sw_driver_msg) + (size))]))
 
 struct sw_collector_data *sw_alloc_collector_node(void);
 void sw_free_collector_node(struct sw_collector_data *node);

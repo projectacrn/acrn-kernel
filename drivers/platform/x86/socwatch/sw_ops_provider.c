@@ -335,7 +335,7 @@ void sw_read_pci_info_i(char *dst_vals, int cpu,
 	u32 data =
 	    sw_platform_pci_read32(bus, device, function, 0 /* CTRL-OFFSET */ ,
 				   0 /* CTRL-DATA, don't care */ ,
-				   offset /* DATA-OFFSET */ );
+				   offset /* DATA-OFFSET */);
 	/*
 	 * 'counter_size_in_bytes' is ignored, for now.
 	 */
@@ -389,7 +389,7 @@ u32 sw_platform_configdb_read32(u32 address)
 				      0 /*function */ ,
 				      SW_PCI_MSG_CTRL_REG /*ctrl-offset */ ,
 				      address /*ctrl-value */ ,
-				      SW_PCI_MSG_DATA_REG /*data-offset */ );
+				      SW_PCI_MSG_DATA_REG /*data-offset */);
 #else // !DO_DIRECT_PCI_READ_WRITE
 	read_value = intel_mid_msgbus_read32_raw(address);
 	pw_pr_debug("address = %u, value = %u\n", address, read_value);

@@ -329,7 +329,7 @@ int sw_register_trace_notifiers(void)
 	 * First, the tracepoints.
 	 */
 	if (sw_for_each_tracepoint_node
-	    (&sw_reg_unreg_node_i, REG_FLAG, true /* return on error */ )) {
+	    (&sw_reg_unreg_node_i, REG_FLAG, true /* return on error */)) {
 		pw_pr_error("ERROR registering some tracepoints\n");
 		return -EIO;
 	}
@@ -337,7 +337,7 @@ int sw_register_trace_notifiers(void)
 	 * And then the notifiers.
 	 */
 	if (sw_for_each_notifier_node
-	    (&sw_reg_unreg_node_i, REG_FLAG, true /* return on error */ )) {
+	    (&sw_reg_unreg_node_i, REG_FLAG, true /* return on error */)) {
 		pw_pr_error("ERROR registering some tracepoints\n");
 		return -EIO;
 	}
@@ -353,7 +353,7 @@ int sw_unregister_trace_notifiers(void)
 	 * First, the notifiers.
 	 */
 	if (sw_for_each_notifier_node
-	    (&sw_reg_unreg_node_i, UNREG_FLAG, true /* return on error */ )) {
+	    (&sw_reg_unreg_node_i, UNREG_FLAG, true /* return on error */)) {
 		pw_pr_error("ERROR registering some tracepoints\n");
 		return -EIO;
 	}
@@ -361,7 +361,7 @@ int sw_unregister_trace_notifiers(void)
 	 * And then the tracepoints.
 	 */
 	if (sw_for_each_tracepoint_node
-	    (&sw_reg_unreg_node_i, UNREG_FLAG, true /* return on error */ )) {
+	    (&sw_reg_unreg_node_i, UNREG_FLAG, true /* return on error */)) {
 		pw_pr_error("ERROR registering some tracepoints\n");
 		return -EIO;
 	}

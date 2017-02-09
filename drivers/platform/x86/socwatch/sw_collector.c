@@ -640,8 +640,7 @@ void sw_handle_per_cpu_msg_on_cpu(int cpu, void *info)
 		 */
 		smp_call_function_single(cpu, &sw_handle_per_cpu_msg, info,
 					 false
-					 /* false ==> do NOT wait for function completion */
-					 );
+					 /* false ==> do NOT wait for function completion */);
 	}
 }
 

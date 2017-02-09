@@ -122,16 +122,16 @@
  * This is useful when comparing versions, for example.
  * Pretty much identical to the 'KERNEL_VERSION(...)' macro.
  */
-//#define WUWATCH_VERSION(major, minor, other) ( (2^16) * (major) + (2^8) * (minor) + (other) )
-// #define COLLECTOR_VERSION(major, minor, other) ( (2^16) * (major) + (2^8) * (minor) + (other) )
-#define COLLECTOR_VERSION(major, minor, other) ( ((pw_u32_t)(major) << 16) + ((pw_u32_t)(minor) << 8) + (pw_u32_t)(other) )
+//#define WUWATCH_VERSION(major, minor, other) ((2^16) * (major) + (2^8) * (minor) + (other))
+// #define COLLECTOR_VERSION(major, minor, other) ((2^16) * (major) + (2^8) * (minor) + (other))
+#define COLLECTOR_VERSION(major, minor, other) (((pw_u32_t)(major) << 16) + ((pw_u32_t)(minor) << 8) + (pw_u32_t)(other))
 
 #define PW_SWA_RESULT_FILE_MAGIC_HEADER (0x8000000000000000ULL)
-#define PW_EXTRACT_SWA_MAGIC_HEADER(m) ( (m) & PW_SWA_RESULT_FILE_MAGIC_HEADER )
-#define PW_EXTRACT_SWA_VERSION_NUMBER(m) (pw_u32_t)( (m) & ~PW_SWA_RESULT_FILE_MAGIC_HEADER )
-#define PW_GET_MAJOR_FROM_COLLECTOR(v) (pw_u8_t) ( (v) >> 16 & 0xff )
-#define PW_GET_MINOR_FROM_COLLECTOR(v) (pw_u8_t) ( (v) >> 8 & 0xff )
-#define PW_GET_OTHER_FROM_COLLECTOR(v) (pw_u8_t) ( (v) & 0xff )
+#define PW_EXTRACT_SWA_MAGIC_HEADER(m) ((m) & PW_SWA_RESULT_FILE_MAGIC_HEADER)
+#define PW_EXTRACT_SWA_VERSION_NUMBER(m) (pw_u32_t)((m) & ~PW_SWA_RESULT_FILE_MAGIC_HEADER)
+#define PW_GET_MAJOR_FROM_COLLECTOR(v) (pw_u8_t) ((v) >> 16 & 0xff)
+#define PW_GET_MINOR_FROM_COLLECTOR(v) (pw_u8_t) ((v) >> 8 & 0xff)
+#define PW_GET_OTHER_FROM_COLLECTOR(v) (pw_u8_t) ((v) & 0xff)
 #define PW_CONVERT_COLLECTOR_VERSION_TO_STRING(v) ([&]{std::stringstream __stream; \
         __stream << (int)PW_GET_MAJOR_FROM_COLLECTOR(v) << "." << (int)PW_GET_MINOR_FROM_COLLECTOR(v) \
         << "." << (int)PW_GET_OTHER_FROM_COLLECTOR(v); return __stream.str();}())
@@ -198,7 +198,7 @@ enum pw_log_level_t {
 #endif // SWW_MERGE
 
 #define PW_LOG_OUTPUT(level, fp, format, ...) do { if (unlikely(g_pluginEnvironment->getVerbosity() && (level) <= g_pluginEnvironment->getVerbosity())){ fprintf(fp, format, ##__VA_ARGS__); fflush(fp);}} while(0);
-#define PW_GET_STREAM_HELPER(level, stream) ( (g_pluginEnvironment->getVerbosity() && (level) <= g_pluginEnvironment->getVerbosity()) ? (stream) : g_pluginEnvironment->getNullStream())
+#define PW_GET_STREAM_HELPER(level, stream) ((g_pluginEnvironment->getVerbosity() && (level) <= g_pluginEnvironment->getVerbosity()) ? (stream) : g_pluginEnvironment->getNullStream())
 /*
  * Helper macros to print information
  */

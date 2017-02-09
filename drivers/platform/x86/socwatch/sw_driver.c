@@ -81,7 +81,7 @@
 /*
  * Check if tracepoint/notifier ID is in (user-supplied) mask
  */
-#define IS_TRACE_NOTIFIER_ID_IN_MASK(id, mask) ( (id) >= 0 && ( ( (mask) >> (id) ) & 0x1 ) )
+#define IS_TRACE_NOTIFIER_ID_IN_MASK(id, mask) ((id) >= 0 && (((mask) >> (id)) & 0x1))
 
 /* -------------------------------------------------
  *  Local function declarations.
@@ -309,13 +309,13 @@ void sw_iterate_driver_info_lists_i(void)
 
 	if (sw_for_each_tracepoint_node
 	    (&sw_iterate_trace_notifier_list_i, NULL,
-	     false /*return-on-error */ )) {
+	     false /*return-on-error */)) {
 		pw_pr_error
 		    ("WARNING: error occured while printing tracepoint values!\n");
 	}
 	if (sw_for_each_notifier_node
 	    (&sw_iterate_trace_notifier_list_i, NULL,
-	     false /*return-on-error */ )) {
+	     false /*return-on-error */)) {
 		pw_pr_error
 		    ("WARNING: error occured while printing notifier values!\n");
 	}
@@ -412,9 +412,9 @@ int sw_init_collector_lists_i(void)
 		sw_init_collector_list(&sw_collector_lists[i]);
 	}
 	sw_for_each_tracepoint_node(&sw_init_destroy_trace_notifier_lists_i,
-				    INIT_FLAG, false /*return-on-error */ );
+				    INIT_FLAG, false /*return-on-error */);
 	sw_for_each_notifier_node(&sw_init_destroy_trace_notifier_lists_i,
-				  INIT_FLAG, false /*return-on-error */ );
+				  INIT_FLAG, false /*return-on-error */);
 
 	return PW_SUCCESS;
 }
@@ -426,9 +426,9 @@ void sw_destroy_collector_lists_i(void)
 		sw_destroy_collector_list(&sw_collector_lists[i]);
 	}
 	sw_for_each_tracepoint_node(&sw_init_destroy_trace_notifier_lists_i,
-				    DESTROY_FLAG, false /*return-on-error */ );
+				    DESTROY_FLAG, false /*return-on-error */);
 	sw_for_each_notifier_node(&sw_init_destroy_trace_notifier_lists_i,
-				  DESTROY_FLAG, false /*return-on-error */ );
+				  DESTROY_FLAG, false /*return-on-error */);
 }
 
 /*
@@ -691,7 +691,7 @@ static long sw_set_driver_infos_i(struct sw_driver_interface_msg __user *
 					sw_for_each_tracepoint_node
 					    (&sw_add_trace_notifier_driver_info_i,
 					     &tn_data,
-					     false /*return-on-error */ );
+					     false /*return-on-error */);
 				} else if (i == SW_WHEN_TYPE_NOTIFIER) {
 					struct tn_data tn_data =
 					    { local_info,
@@ -702,7 +702,7 @@ static long sw_set_driver_infos_i(struct sw_driver_interface_msg __user *
 					sw_for_each_notifier_node
 					    (&sw_add_trace_notifier_driver_info_i,
 					     &tn_data,
-					     false /*return-on-error */ );
+					     false /*return-on-error */);
 				} else {
 					if (sw_add_driver_info
 					    (&sw_collector_lists[i],
@@ -851,11 +851,11 @@ static long sw_get_available_trace_notifiers_i(enum sw_name_id_type type,
 		retVal =
 		    sw_for_each_tracepoint_node(&sw_gather_tracepoint_i,
 						local_info,
-						false /*return-on-error */ );
+						false /*return-on-error */);
 	} else {
 		retVal =
 		    sw_for_each_notifier_node(&sw_gather_notifier_i, local_info,
-					      false /*return-on-error */ );
+					      false /*return-on-error */);
 	}
 	pw_pr_debug
 	    ("There are %u extracted traces/notifiers for a total of %u bytes!\n",
@@ -901,7 +901,7 @@ static int sw_gather_hw_op_i(const struct sw_hw_ops *op, void *priv)
 static long sw_get_available_collectors_i(struct sw_name_info_msg *local_info)
 {
 	return sw_for_each_hw_op(&sw_gather_hw_op_i, local_info,
-				 false /*return-on-error */ );
+				 false /*return-on-error */);
 }
 
 static long sw_get_available_name_id_mappings_i(enum sw_name_id_type type,
@@ -935,9 +935,9 @@ static long sw_get_available_name_id_mappings_i(enum sw_name_id_type type,
 }
 
 #if defined(CONFIG_COMPAT) && defined(CONFIG_X86_64)
-#define MATCH_IOCTL(num, pred) ( (num) == (pred) || (num) == (pred##32) )
+#define MATCH_IOCTL(num, pred) ((num) == (pred) || (num) == (pred##32))
 #else
-#define MATCH_IOCTL(num, pred) ( (num) == (pred) )
+#define MATCH_IOCTL(num, pred) ((num) == (pred))
 #endif
 
 static long sw_unlocked_handle_ioctl_i(unsigned int ioctl_num,

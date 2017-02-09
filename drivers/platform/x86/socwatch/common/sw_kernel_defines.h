@@ -79,10 +79,10 @@
 #define TID() (current->pid)
 #define PID() (current->tgid)
 #define NAME() (current->comm)
-#define PKG(c) ( cpu_data(c).phys_proc_id )
+#define PKG(c) (cpu_data(c).phys_proc_id)
 #define IT_REAL_INCR() (current->signal->it_real_incr.tv64)
 
-#define ATOMIC_CAS(ptr, old_val, new_val) ( cmpxchg( (ptr), (old_val), (new_val) ) == (old_val) )
+#define ATOMIC_CAS(ptr, old_val, new_val) (cmpxchg((ptr), (old_val), (new_val)) == (old_val))
 
 /*
  * Should we measure overheads?

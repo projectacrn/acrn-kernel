@@ -98,7 +98,7 @@
     SEG_SET_FULL(seg, EMPTY_TSC); \
     /*smp_mb(); */ \
 } while(0)
-#define SPACE_AVAIL(seg) (SW_SEG_DATA_SIZE - (seg)->bytes_written )
+#define SPACE_AVAIL(seg) (SW_SEG_DATA_SIZE - (seg)->bytes_written)
 #define SEG_IS_EMPTY(seg) (SPACE_AVAIL(seg) == SW_SEG_DATA_SIZE)
 
 #define GET_OUTPUT_BUFFER(cpu) &per_cpu_output_buffers[(cpu)]

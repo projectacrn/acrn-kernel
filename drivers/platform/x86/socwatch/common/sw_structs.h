@@ -112,7 +112,7 @@ struct sw_msr_info {
 	u16 num_msr_addrs;	// The number of MSR addresses pointed to by the 'data' field
 	char data[1];		// The list of 'sw_msr_addr_t' instances to read.
 };
-#define SW_MSR_INFO_HEADER_SIZE() ( sizeof(sw_msr_info_t) - sizeof(char[1]) )
+#define SW_MSR_INFO_HEADER_SIZE() (sizeof(sw_msr_info_t) - sizeof(char[1]))
 
 typedef enum sw_kernel_wakelock_type {
 	SW_WAKE_LOCK = 0,	// A kernel wakelock was acquired

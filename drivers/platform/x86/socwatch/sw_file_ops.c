@@ -19,7 +19,7 @@
 /*
  * Get current command.
  */
-#define GET_CMD() ( (*s_file_ops->get_current_cmd)() )
+#define GET_CMD() ((*s_file_ops->get_current_cmd)())
 /*
  * Check if we're currently collecting data.
  */

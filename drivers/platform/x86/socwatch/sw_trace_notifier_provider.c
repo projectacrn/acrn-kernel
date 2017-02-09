@@ -43,15 +43,15 @@ struct cpu_workqueue_struct;	// Forward declaration to avoid compiler warnings
 /*
  * CAS{32,64}
  */
-#define CAS32(p, o, n) ( cmpxchg((p), (o), (n)) == (o) )
-#define CAS64(p, o, n) ( cmpxchg64((p), (o), (n)) == (o) )
+#define CAS32(p, o, n) (cmpxchg((p), (o), (n)) == (o))
+#define CAS64(p, o, n) (cmpxchg64((p), (o), (n)) == (o))
 /*
  * Timer start pid accessor macros
  */
 #ifdef CONFIG_TIMER_STATS
-#define GET_TIMER_THREAD_ID(t) ( (t)->start_pid )	/* 'start_pid' is actually the thread ID of the thread that initialized the timer */
+#define GET_TIMER_THREAD_ID(t) ((t)->start_pid)	/* 'start_pid' is actually the thread ID of the thread that initialized the timer */
 #else
-#define GET_TIMER_THREAD_ID(t) ( -1 )
+#define GET_TIMER_THREAD_ID(t) (-1)
 #endif // CONFIG_TIMER_STATS
 /*
  * Tracepoint probe register/unregister functions and
@@ -143,7 +143,7 @@ struct cpu_workqueue_struct;	// Forward declaration to avoid compiler warnings
  * Use these macros if all tracepoint ID numbers ARE contiguous from 0 -- max tracepoint ID #
  */
 #if 0
-#define IS_VALID_TRACE_NOTIFIER_ID(id) ( (id) >= 0 && (id) < SW_ARRAY_SIZE(s_trace_collector_lists) )
+#define IS_VALID_TRACE_NOTIFIER_ID(id) ((id) >= 0 && (id) < SW_ARRAY_SIZE(s_trace_collector_lists))
 #define GET_COLLECTOR_TRACE_NODE(id) (&s_trace_collector_lists[id])
 #define FOR_EACH_trace_notifier_id(idx) for (idx=0; idx < SW_ARRAY_SIZE(s_trace_collector_lists); ++idx)
 #endif // if 0
@@ -387,10 +387,10 @@ static const struct sw_trace_notifier_name s_notifier_names[] = {
 /*
  * Macros to retrieve tracepoint and notifier IDs.
  */
-#define GET_TRACE_ID_FROM_NODE(node) ( (node)->name - s_trace_names )
-#define GET_NOTIFIER_ID_FROM_NODE(node) ( (node)->name - s_notifier_names )
+#define GET_TRACE_ID_FROM_NODE(node) ((node)->name - s_trace_names)
+#define GET_NOTIFIER_ID_FROM_NODE(node) ((node)->name - s_notifier_names)
 
-#define GET_TRACE_NOTIFIER_ID(node) (int)( ( (node)->type == SW_TRACE_COLLECTOR_TRACEPOINT) ? GET_TRACE_ID_FROM_NODE(node) : GET_NOTIFIER_ID_FROM_NODE(node) )
+#define GET_TRACE_NOTIFIER_ID(node) (int)(((node)->type == SW_TRACE_COLLECTOR_TRACEPOINT) ? GET_TRACE_ID_FROM_NODE(node) : GET_NOTIFIER_ID_FROM_NODE(node))
 
 /*
  * A list of supported tracepoints.
@@ -1054,7 +1054,7 @@ DEFINE_PROBE_FUNCTION(PROBE_PROCESS_FORK_PARAMS)
 	}
 	list_for_each_entry(curr, &node->list, list) {
 		DO_PER_CPU_OVERHEAD_FUNC(sw_process_fork_exit_helper_i, curr,
-					 child, true /* true ==> fork */ );
+					 child, true /* true ==> fork */);
 	}
 };
 
@@ -1074,7 +1074,7 @@ DEFINE_PROBE_FUNCTION(PROBE_SCHED_PROCESS_EXIT_PARAMS)
 	}
 	list_for_each_entry(curr, &node->list, list) {
 		DO_PER_CPU_OVERHEAD_FUNC(sw_process_fork_exit_helper_i, curr,
-					 task, false /* false ==> exit */ );
+					 task, false /* false ==> exit */);
 	}
 };
 
@@ -1213,7 +1213,7 @@ DEFINE_PROBE_FUNCTION(PROBE_WAKE_UNLOCK_PARAMS)
 		pw_pr_debug("NODE = %p\n", node);
 	}
 	DO_PER_CPU_OVERHEAD_FUNC(sw_handle_wakelock_i, cpu, node, name,
-				 (int)type, 0 /*timeout */ );
+				 (int)type, 0 /*timeout */);
 };
 #endif // CONFIG_SOCWATCH_ANDROID
 
