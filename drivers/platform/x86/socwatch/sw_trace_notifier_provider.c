@@ -33,10 +33,10 @@ struct cpu_workqueue_struct;	// Forward declaration to avoid compiler warnings
 #endif // __get_cpu_var
 
 #define BEGIN_LOCAL_IRQ_STATS_READ(p) do{	\
-    p = &__get_cpu_var(irq_stat);
+	p = &__get_cpu_var(irq_stat);
 
 #define END_LOCAL_IRQ_STATS_READ(p)		\
-    }while(0)
+	}while(0)
 /*
  * CAS{32,64}
  */
@@ -89,10 +89,10 @@ struct cpu_workqueue_struct;	// Forward declaration to avoid compiler warnings
 #define PROBE_THERMAL_APIC_EXIT_PARAMS sw_probe_thermal_apic_exit_i, int vector
 
 #define IS_VALID_WAKEUP_EVENT(cpu) ({ \
-        bool *per_cpu_event = &per_cpu(sw_is_valid_wakeup_event, (cpu)); \
-        bool old_value = CAS32(per_cpu_event, true, sw_wakeup_event_flag); \
-        old_value; \
-        })
+	bool *per_cpu_event = &per_cpu(sw_is_valid_wakeup_event, (cpu)); \
+	bool old_value = CAS32(per_cpu_event, true, sw_wakeup_event_flag); \
+	old_value; \
+	})
 #define SHOULD_PRODUCE_WAKEUP_SAMPLE(cpu) (IS_VALID_WAKEUP_EVENT(cpu))
 #define RESET_VALID_WAKEUP_EVENT_COUNTER(cpu) (per_cpu(sw_is_valid_wakeup_event, (cpu)) = true)
 
@@ -113,21 +113,21 @@ struct cpu_workqueue_struct;	// Forward declaration to avoid compiler warnings
  * Use these macros if all tracepoint ID numbers are NOT contiguous from 0 -- max tracepoint ID #
  */
 #define GET_COLLECTOR_TRACE_NODE(idx) ({int __idx=0; struct sw_trace_notifier_data *__node=NULL, *__retVal=NULL; \
-        FOR_EACH_TRACEPOINT_NODE(__idx, __node) { \
-            if ((idx) == GET_TRACE_NOTIFIER_ID(__node)) { \
-                __retVal = __node; break; \
-            } \
-        } \
-        __retVal;})
+	FOR_EACH_TRACEPOINT_NODE(__idx, __node) { \
+		if ((idx) == GET_TRACE_NOTIFIER_ID(__node)) { \
+			__retVal = __node; break; \
+		} \
+	} \
+	__retVal;})
 #define IS_VALID_TRACE_NOTIFIER_ID(idx) (GET_COLLECTOR_TRACE_NODE(idx) != NULL)
 
 #define GET_COLLECTOR_NOTIFIER_NODE(idx) ({int __idx=0; struct sw_trace_notifier_data *__node=NULL, *__retVal=NULL; \
-        FOR_EACH_NOTIFIER_NODE(__idx, __node) { \
-            if ((idx) == GET_TRACE_NOTIFIER_ID(__node)) { \
-                __retVal = __node; break; \
-            } \
-        } \
-        __retVal;})
+	FOR_EACH_NOTIFIER_NODE(__idx, __node) { \
+		if ((idx) == GET_TRACE_NOTIFIER_ID(__node)) { \
+			__retVal = __node; break; \
+		} \
+	} \
+	__retVal;})
 #define IS_VALID_NOTIFIER_ID(idx) (GET_COLLECTOR_NOTIFIER_NODE(idx) != NULL)
 
 /* -------------------------------------------------

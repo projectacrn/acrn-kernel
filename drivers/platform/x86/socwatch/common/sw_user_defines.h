@@ -133,8 +133,8 @@
 #define PW_GET_MINOR_FROM_COLLECTOR(v) (pw_u8_t) ((v) >> 8 & 0xff)
 #define PW_GET_OTHER_FROM_COLLECTOR(v) (pw_u8_t) ((v) & 0xff)
 #define PW_CONVERT_COLLECTOR_VERSION_TO_STRING(v) ([&]{std::stringstream __stream; \
-        __stream << (int)PW_GET_MAJOR_FROM_COLLECTOR(v) << "." << (int)PW_GET_MINOR_FROM_COLLECTOR(v) \
-        << "." << (int)PW_GET_OTHER_FROM_COLLECTOR(v); return __stream.str();}())
+	__stream << (int)PW_GET_MAJOR_FROM_COLLECTOR(v) << "." << (int)PW_GET_MINOR_FROM_COLLECTOR(v) \
+	<< "." << (int)PW_GET_OTHER_FROM_COLLECTOR(v); return __stream.str();}())
 /*
  * Stringify.
  */
@@ -148,10 +148,10 @@
  * Find a string 'str' in an array of 'std::string' instances
  */
 #define FIND_STRING_IN_ARRAY(ptr, str, array) \
-    ([&]() { \
-        int s = SW_ARRAY_SIZE(array); \
-        bool found = (ptr = std::find((array), (array)+s, (str))) != &((array)[s]); \
-        return found; }())
+	([&]() { \
+		int s = SW_ARRAY_SIZE(array); \
+		bool found = (ptr = std::find((array), (array)+s, (str))) != &((array)[s]); \
+		return found; }())
 
 /* **************************************
  * Debugging tools.
@@ -204,16 +204,14 @@ enum pw_log_level_t {
  */
 #define PW_LOG_FATAL(format, ...) PW_LOG_OUTPUT(PW_LOG_LEVEL_FATAL, g_pluginEnvironment->getErrorLogFP(), "FATAL:   " format, ##__VA_ARGS__);
 #define PW_LOG_ERROR(format, ...) PW_LOG_OUTPUT(PW_LOG_LEVEL_ERROR, g_pluginEnvironment->getErrorLogFP(), "ERROR:   " format, ##__VA_ARGS__);
-#define PW_LOG_FATAL_LINE(format, ...) \
-    do { \
-        PW_LOG_OUTPUT(PW_LOG_LEVEL_FATAL, g_pluginEnvironment->getErrorLogFP(), "FATAL:   " format, ##__VA_ARGS__); \
-        PW_LOG_OUTPUT(PW_LOG_LEVEL_DEBUG, g_pluginEnvironment->getErrorLogFP(), "         at %s:%d\n", __FILE__, __LINE__);\
-    } while (0);
-#define PW_LOG_ERROR_LINE(format, ...) \
-    do { \
-        PW_LOG_OUTPUT(PW_LOG_LEVEL_ERROR, g_pluginEnvironment->getErrorLogFP(), "ERROR:   " format, ##__VA_ARGS__); \
-        PW_LOG_OUTPUT(PW_LOG_LEVEL_DEBUG, g_pluginEnvironment->getErrorLogFP(), "         at %s:%d\n", __FILE__, __LINE__);\
-    } while (0);
+#define PW_LOG_FATAL_LINE(format, ...) do { \
+	PW_LOG_OUTPUT(PW_LOG_LEVEL_FATAL, g_pluginEnvironment->getErrorLogFP(), "FATAL:   " format, ##__VA_ARGS__); \
+	PW_LOG_OUTPUT(PW_LOG_LEVEL_DEBUG, g_pluginEnvironment->getErrorLogFP(), "         at %s:%d\n", __FILE__, __LINE__);\
+} while (0);
+#define PW_LOG_ERROR_LINE(format, ...) do { \
+	PW_LOG_OUTPUT(PW_LOG_LEVEL_ERROR, g_pluginEnvironment->getErrorLogFP(), "ERROR:   " format, ##__VA_ARGS__); \
+	PW_LOG_OUTPUT(PW_LOG_LEVEL_DEBUG, g_pluginEnvironment->getErrorLogFP(), "         at %s:%d\n", __FILE__, __LINE__);\
+} while (0);
 #define PW_LOG_WARNING(format, ...) PW_LOG_OUTPUT(PW_LOG_LEVEL_WARNING, g_pluginEnvironment->getDebugLogFP(), "WARNING: " format, ##__VA_ARGS__)
 #define PW_LOG_DEBUG(format, ...) PW_LOG_OUTPUT(PW_LOG_LEVEL_DEBUG, g_pluginEnvironment->getDebugLogFP(),     "DEBUG:   " format, ##__VA_ARGS__)
 #define PW_LOG_INFO(format, ...) PW_LOG_OUTPUT(PW_LOG_LEVEL_INFO, g_pluginEnvironment->getDebugLogFP(),       "INFO:    " format, ##__VA_ARGS__)
@@ -232,15 +230,15 @@ enum pw_log_level_t {
  * Macros to copy and or assert.
  */
 #define PW_DEBUG_COPY(level, ...) do { \
-    if (unlikely(g_pluginEnvironment->getVerbosity() && (PW_LOG_LEVEL_##level) <= g_pluginEnvironment->getVerbosity())) { \
-        std::copy(__VA_ARGS__); \
-    } \
+	if (unlikely(g_pluginEnvironment->getVerbosity() && (PW_LOG_LEVEL_##level) <= g_pluginEnvironment->getVerbosity())) { \
+		std::copy(__VA_ARGS__); \
+	} \
 } while (0)
 #define PW_DEBUG_ASSERT(level, cond, ...) do { \
-    if (unlikely(g_pluginEnvironment->getVerbosity() && (PW_LOG_LEVEL_##level) <= g_pluginEnvironment->getVerbosity() && !(cond))) { \
-        PW_LOG_ERROR(__VA_ARGS__); \
-        PW_ASSERT(false); \
-    } \
+	if (unlikely(g_pluginEnvironment->getVerbosity() && (PW_LOG_LEVEL_##level) <= g_pluginEnvironment->getVerbosity() && !(cond))) { \
+		PW_LOG_ERROR(__VA_ARGS__); \
+		PW_ASSERT(false); \
+	} \
 } while (0)
 
 /*
@@ -248,32 +246,32 @@ enum pw_log_level_t {
  */
 #if DEVELOPMENT_MODE		// Development code; NOT meant for production
 #define PW_TRACE_FUNCTION_ENTER() do { \
-        PW_LOG_INFO("Entering function %s\n", __FUNCTION__); \
-    } while(0)
+	PW_LOG_INFO("Entering function %s\n", __FUNCTION__); \
+} while(0)
 
 #define PW_TRACE_FUNCTION_EXIT() do { \
-        PW_LOG_INFO("Exiting function %s\n", __FUNCTION__); \
-    } while(0)
+	PW_LOG_INFO("Exiting function %s\n", __FUNCTION__); \
+} while(0)
 
 #define PW_TRACE_FUNCTION_ENTER_VERBOSE() do { \
-        PW_LOG_INFO("Entering function %s\n", __PRETTY_FUNCTION__); \
-    } while(0)
+	PW_LOG_INFO("Entering function %s\n", __PRETTY_FUNCTION__); \
+} while(0)
 
 #define PW_TRACE_FUNCTION_EXIT_VERBOSE() do { \
-        PW_LOG_INFO("Exiting function %s\n", __PRETTY_FUNCTION__); \
-    } while(0)
+	PW_LOG_INFO("Exiting function %s\n", __PRETTY_FUNCTION__); \
+} while(0)
     /*
      * Basic timer-based profiling functions.
      * Every 'ENTER' MUST be accompanied by
      * a corresponding 'EXIT'!
      */
 #define PW_TIME_FUNCTION_ENTER() { \
-        PW_LOG_INFO("Entering function %s\n", __PRETTY_FUNCTION__); \
-        pwr::Timer __timer(__FUNCTION__);
+	PW_LOG_INFO("Entering function %s\n", __PRETTY_FUNCTION__); \
+	pwr::Timer __timer(__FUNCTION__);
 
 #define PW_TIME_FUNCTION_EXIT() \
-        PW_LOG_INFO("Exiting function %s\n", __PRETTY_FUNCTION__); \
-    }
+	PW_LOG_INFO("Exiting function %s\n", __PRETTY_FUNCTION__); \
+}
 #else // Production code
 #define PW_TRACE_FUNCTION_ENTER()	/* NOP */
 
@@ -289,11 +287,11 @@ enum pw_log_level_t {
 #endif // DEVELOPMENT_MODE
 
 #define PW_DO_REPORT_FILE_ERROR(msg, path) do { \
-    PW_LOG_ERROR(msg, (path).c_str(), strerror(errno)); \
+	PW_LOG_ERROR(msg, (path).c_str(), strerror(errno)); \
 } while(0)
 
 #define PW_TODO_MSG(msg) do { \
-    PW_LOG_ERROR("%s functionality is TODO!\n", (msg)); \
+	PW_LOG_ERROR("%s functionality is TODO!\n", (msg)); \
 } while(0)
 
 #ifdef SWW_MERGE
@@ -301,11 +299,11 @@ enum pw_log_level_t {
 #endif // SWW_MERGE
 
 #define PW_TODO() do { \
-    PW_TODO_MSG(__PRETTY_FUNCTION__); \
+	PW_TODO_MSG(__PRETTY_FUNCTION__); \
 } while(0)
 
 #define PW_PERROR_LEVEL(msg, level) do { \
-    PW_GET_STREAM(level) << msg << ": " << strerror(errno) << std::endl; \
+	PW_GET_STREAM(level) << msg << ": " << strerror(errno) << std::endl; \
 } while(0)
 
 #define PW_PERROR(msg) PW_PERROR_LEVEL(msg, ERROR)

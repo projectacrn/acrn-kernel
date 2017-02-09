@@ -69,27 +69,27 @@
 #define SW_DESTROY_SPINLOCK(s)	/* NOP */
 
 #define LOCK(l) { \
-    unsigned long _tmp_l_flags; \
-    spin_lock_irqsave(&(l), _tmp_l_flags);
+	unsigned long _tmp_l_flags; \
+	spin_lock_irqsave(&(l), _tmp_l_flags);
 
 #define UNLOCK(l) \
-    spin_unlock_irqrestore(&(l), _tmp_l_flags); \
-    }
+	spin_unlock_irqrestore(&(l), _tmp_l_flags); \
+	}
 
 #define READ_LOCK(l) { \
-    unsigned long _tmp_l_flags; \
-    read_lock_irqsave(&(l), _tmp_l_flags);
+	unsigned long _tmp_l_flags; \
+	read_lock_irqsave(&(l), _tmp_l_flags);
 
 #define READ_UNLOCK(l) \
-    read_unlock_irqrestore(&(l), _tmp_l_flags); \
-    }
+	read_unlock_irqrestore(&(l), _tmp_l_flags); \
+	}
 
 #define WRITE_LOCK(l) { \
-    unsigned long _tmp_l_flags; \
-    write_lock_irqsave(&(l), _tmp_l_flags);
+	unsigned long _tmp_l_flags; \
+	write_lock_irqsave(&(l), _tmp_l_flags);
 
 #define WRITE_UNLOCK(l) \
-    write_unlock_irqrestore(&(l), _tmp_l_flags); \
-    }
+	write_unlock_irqrestore(&(l), _tmp_l_flags); \
+	}
 
 #endif // __SW_LOCK_DEFS_H__

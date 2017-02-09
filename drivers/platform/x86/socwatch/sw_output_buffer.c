@@ -85,18 +85,18 @@
  */
 #define EMPTY_TSC ((u64)-1)
 #define SEG_IS_FULL(seg) ({bool __full = false; \
-        smp_mb(); \
-        __full = ((seg)->is_full != EMPTY_TSC); \
-        __full;})
+	smp_mb(); \
+	__full = ((seg)->is_full != EMPTY_TSC); \
+	__full;})
 #define SEG_SET_FULL(seg, tsc) do { \
-    (seg)->is_full = (tsc); \
-    smp_mb(); \
+	(seg)->is_full = (tsc); \
+	smp_mb(); \
 } while(0)
 #define SEG_SET_EMPTY(seg) do { \
-    barrier(); \
-    (seg)->bytes_written = 0; \
-    SEG_SET_FULL(seg, EMPTY_TSC); \
-    /*smp_mb(); */ \
+	barrier(); \
+	(seg)->bytes_written = 0; \
+	SEG_SET_FULL(seg, EMPTY_TSC); \
+	/*smp_mb(); */ \
 } while(0)
 #define SPACE_AVAIL(seg) (SW_SEG_DATA_SIZE - (seg)->bytes_written)
 #define SEG_IS_EMPTY(seg) (SPACE_AVAIL(seg) == SW_SEG_DATA_SIZE)
