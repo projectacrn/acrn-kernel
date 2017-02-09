@@ -11,23 +11,23 @@
 #include <linux/slab.h>
 #include <linux/cpumask.h>
 #include <linux/hrtimer.h>
-#include <linux/fs.h>      // inode
-#include <linux/device.h>  // class_create
-#include <linux/cdev.h>    // cdev_alloc
-#include <asm/uaccess.h>   // copy_to_user
-#include <linux/vmalloc.h> // vmalloc
-#include <linux/sched.h>   // TASK_INTERRUPTIBLE
-#include <linux/wait.h>    // wait_event_interruptible
-#include <linux/pci.h>     // pci_get_bus_and_slot
-#include <linux/version.h> // LINUX_VERSION_CODE
-#include <linux/sfi.h>     // For SFI F/W version
+#include <linux/fs.h>		// inode
+#include <linux/device.h>	// class_create
+#include <linux/cdev.h>		// cdev_alloc
+#include <asm/uaccess.h>	// copy_to_user
+#include <linux/vmalloc.h>	// vmalloc
+#include <linux/sched.h>	// TASK_INTERRUPTIBLE
+#include <linux/wait.h>		// wait_event_interruptible
+#include <linux/pci.h>		// pci_get_bus_and_slot
+#include <linux/version.h>	// LINUX_VERSION_CODE
+#include <linux/sfi.h>		// For SFI F/W version
 #include <asm/hardirq.h>
 #include <linux/cpufreq.h>
-#include <asm/local.h>     // local_t
-#include <linux/hardirq.h> // "in_atomic"
+#include <asm/local.h>		// local_t
+#include <linux/hardirq.h>	// "in_atomic"
 
 #ifdef CONFIG_X86_WANT_INTEL_MID
-    #include <asm/intel-mid.h>
+#include <asm/intel-mid.h>
 #endif // CONFIG_X86_WANT_INTEL_MID
 /*
  * End taken from sw_driver
@@ -51,11 +51,13 @@
  * Output to user.
  */
 unsigned long sw_copy_to_user(void *dst, char *src, size_t bytes_to_copy);
-bool sw_check_output_buffer_params(void *buffer, size_t bytes_to_read, size_t buff_size);
+bool sw_check_output_buffer_params(void *buffer, size_t bytes_to_read,
+				   size_t buff_size);
 /*
  * smp call function.
  */
-void sw_schedule_work(const struct cpumask *mask, void (*work)(void *), void *data);
+void sw_schedule_work(const struct cpumask *mask, void (*work) (void *),
+		      void *data);
 /*
  * Save IRQ flags and retrieve cpu number.
  */

@@ -75,9 +75,9 @@ struct sw_driver_msg;
  * Data structures.
  */
 enum sw_wakeup_action {
-    SW_WAKEUP_ACTION_DIRECT,
-    SW_WAKEUP_ACTION_TIMER,
-    SW_WAKEUP_ACTION_NONE,
+	SW_WAKEUP_ACTION_DIRECT,
+	SW_WAKEUP_ACTION_TIMER,
+	SW_WAKEUP_ACTION_NONE,
 };
 
 /*
@@ -99,7 +99,7 @@ void sw_count_samples_produced_dropped(void);
 
 int sw_produce_generic_msg(struct sw_driver_msg *, enum sw_wakeup_action);
 
-bool sw_any_seg_full(u32 *val, bool is_flush_mode);
+bool sw_any_seg_full(u32 * val, bool is_flush_mode);
 size_t sw_consume_data(u32 mask, void *buffer, size_t bytes_to_read);
 
 unsigned int sw_get_output_buffer_size(void);

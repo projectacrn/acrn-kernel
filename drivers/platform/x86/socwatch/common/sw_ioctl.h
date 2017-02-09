@@ -57,14 +57,14 @@
 #define __SW_IOCTL_H__ 1
 
 #if defined (__linux__)
-    #if __KERNEL__
-        #include <linux/ioctl.h>
-        #if defined(CONFIG_COMPAT) && defined(CONFIG_X86_64)
-            #include <linux/compat.h>
-        #endif // COMPAT && x64
-    #else // !__KERNEL__
-        #include <sys/ioctl.h>
-    #endif // __KERNEL__
+#if __KERNEL__
+#include <linux/ioctl.h>
+#if defined(CONFIG_COMPAT) && defined(CONFIG_X86_64)
+#include <linux/compat.h>
+#endif // COMPAT && x64
+#else // !__KERNEL__
+#include <sys/ioctl.h>
+#endif // __KERNEL__
 #endif // __linux__
 /*
  * Ensure we pull in definition of 'DO_COUNT_DROPPED_SAMPLES'!
@@ -88,17 +88,17 @@
 #define PW_DEVICE_NAME "apwr_driver_char_dev"
 
 enum sw_ioctl_cmd {
-    sw_ioctl_cmd_none=0,
-    sw_ioctl_cmd_config,
-    sw_ioctl_cmd_cmd,
-    sw_ioctl_cmd_poll,
-    sw_ioctl_cmd_immediate_io,
-    sw_ioctl_cmd_scu_version,
-    sw_ioctl_cmd_read_immediate,
-    sw_ioctl_cmd_driver_version,
-    sw_ioctl_cmd_avail_trace,
-    sw_ioctl_cmd_avail_notify,
-    sw_ioctl_cmd_avail_collect,
+	sw_ioctl_cmd_none = 0,
+	sw_ioctl_cmd_config,
+	sw_ioctl_cmd_cmd,
+	sw_ioctl_cmd_poll,
+	sw_ioctl_cmd_immediate_io,
+	sw_ioctl_cmd_scu_version,
+	sw_ioctl_cmd_read_immediate,
+	sw_ioctl_cmd_driver_version,
+	sw_ioctl_cmd_avail_trace,
+	sw_ioctl_cmd_avail_notify,
+	sw_ioctl_cmd_avail_collect,
 };
 /*
  * The actual IOCTL commands.
@@ -112,35 +112,35 @@ enum sw_ioctl_cmd {
  * (similar to the file "read" and "write" calls).
  */
 #if !defined (__APPLE__)
-    #define PW_IOCTL_CONFIG _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_config, struct sw_driver_ioctl_arg *)
-    #if DO_COUNT_DROPPED_SAMPLES
-        #define PW_IOCTL_CMD _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg *)
-    #else
-        #define PW_IOCTL_CMD _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg *)
-    #endif // DO_COUNT_DROPPED_SAMPLES
-    #define PW_IOCTL_POLL _IO(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_poll)
-    #define PW_IOCTL_IMMEDIATE_IO _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_immediate_io, struct sw_driver_ioctl_arg *)
-    #define PW_IOCTL_GET_SCU_FW_VERSION _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_scu_version, struct sw_driver_ioctl_arg *)
-    #define PW_IOCTL_READ_IMMEDIATE _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_read_immediate, struct sw_driver_ioctl_arg *)
-    #define PW_IOCTL_GET_DRIVER_VERSION _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_driver_version, struct sw_driver_ioctl_arg *)
-    #define PW_IOCTL_GET_AVAILABLE_TRACEPOINTS _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_trace, struct sw_driver_ioctl_arg *)
-    #define PW_IOCTL_GET_AVAILABLE_NOTIFIERS _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_notify, struct sw_driver_ioctl_arg *)
-    #define PW_IOCTL_GET_AVAILABLE_COLLECTORS _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_collect, struct sw_driver_ioctl_arg *)
+#define PW_IOCTL_CONFIG _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_config, struct sw_driver_ioctl_arg *)
+#if DO_COUNT_DROPPED_SAMPLES
+#define PW_IOCTL_CMD _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg *)
+#else
+#define PW_IOCTL_CMD _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg *)
+#endif // DO_COUNT_DROPPED_SAMPLES
+#define PW_IOCTL_POLL _IO(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_poll)
+#define PW_IOCTL_IMMEDIATE_IO _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_immediate_io, struct sw_driver_ioctl_arg *)
+#define PW_IOCTL_GET_SCU_FW_VERSION _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_scu_version, struct sw_driver_ioctl_arg *)
+#define PW_IOCTL_READ_IMMEDIATE _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_read_immediate, struct sw_driver_ioctl_arg *)
+#define PW_IOCTL_GET_DRIVER_VERSION _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_driver_version, struct sw_driver_ioctl_arg *)
+#define PW_IOCTL_GET_AVAILABLE_TRACEPOINTS _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_trace, struct sw_driver_ioctl_arg *)
+#define PW_IOCTL_GET_AVAILABLE_NOTIFIERS _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_notify, struct sw_driver_ioctl_arg *)
+#define PW_IOCTL_GET_AVAILABLE_COLLECTORS _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_collect, struct sw_driver_ioctl_arg *)
 #else // __APPLE__
-    #define PW_IOCTL_CONFIG _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_config, struct sw_driver_ioctl_arg)
-    #if DO_COUNT_DROPPED_SAMPLES
-        #define PW_IOCTL_CMD _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg)
-    #else
-        #define PW_IOCTL_CMD _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg)
-    #endif // DO_COUNT_DROPPED_SAMPLES
-    #define PW_IOCTL_POLL _IO(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_poll)
-    #define PW_IOCTL_IMMEDIATE_IO _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_immediate_io, struct sw_driver_ioctl_arg)
-    #define PW_IOCTL_GET_SCU_FW_VERSION _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_scu_version, struct sw_driver_ioctl_arg)
-    #define PW_IOCTL_READ_IMMEDIATE _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_read_immediate, struct sw_driver_ioctl_arg)
-    #define PW_IOCTL_GET_DRIVER_VERSION _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_driver_version, struct sw_driver_ioctl_arg)
-    #define PW_IOCTL_GET_AVAILABLE_TRACEPOINTS _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_trace, struct sw_driver_ioctl_arg)
-    #define PW_IOCTL_GET_AVAILABLE_NOTIFIERS _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_notify, struct sw_driver_ioctl_arg)
-    #define PW_IOCTL_GET_AVAILABLE_COLLECTORS _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_collect, struct sw_driver_ioctl_arg)
+#define PW_IOCTL_CONFIG _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_config, struct sw_driver_ioctl_arg)
+#if DO_COUNT_DROPPED_SAMPLES
+#define PW_IOCTL_CMD _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg)
+#else
+#define PW_IOCTL_CMD _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg)
+#endif // DO_COUNT_DROPPED_SAMPLES
+#define PW_IOCTL_POLL _IO(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_poll)
+#define PW_IOCTL_IMMEDIATE_IO _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_immediate_io, struct sw_driver_ioctl_arg)
+#define PW_IOCTL_GET_SCU_FW_VERSION _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_scu_version, struct sw_driver_ioctl_arg)
+#define PW_IOCTL_READ_IMMEDIATE _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_read_immediate, struct sw_driver_ioctl_arg)
+#define PW_IOCTL_GET_DRIVER_VERSION _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_driver_version, struct sw_driver_ioctl_arg)
+#define PW_IOCTL_GET_AVAILABLE_TRACEPOINTS _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_trace, struct sw_driver_ioctl_arg)
+#define PW_IOCTL_GET_AVAILABLE_NOTIFIERS _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_notify, struct sw_driver_ioctl_arg)
+#define PW_IOCTL_GET_AVAILABLE_COLLECTORS _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_collect, struct sw_driver_ioctl_arg)
 #endif // __APPLE__
 
 /*
@@ -150,19 +150,19 @@ enum sw_ioctl_cmd {
  * and ONLY by the driver.
  */
 #if defined(CONFIG_COMPAT) && defined(CONFIG_X86_64)
-    #define PW_IOCTL_CONFIG32 _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_config, compat_uptr_t)
+#define PW_IOCTL_CONFIG32 _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_config, compat_uptr_t)
 #if DO_COUNT_DROPPED_SAMPLES
-        #define PW_IOCTL_CMD32 _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, compat_uptr_t)
+#define PW_IOCTL_CMD32 _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, compat_uptr_t)
 #else
-        #define PW_IOCTL_CMD32 _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, compat_uptr_t)
+#define PW_IOCTL_CMD32 _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, compat_uptr_t)
 #endif // DO_COUNT_DROPPED_SAMPLES
-    #define PW_IOCTL_POLL32 _IO(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_poll)
-    #define PW_IOCTL_IMMEDIATE_IO32 _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_immediate_io, compat_uptr_t)
-    #define PW_IOCTL_GET_SCU_FW_VERSION32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_scu_version, compat_uptr_t)
-    #define PW_IOCTL_READ_IMMEDIATE32 _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_read_immediate, compat_uptr_t)
-    #define PW_IOCTL_GET_DRIVER_VERSION32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_driver_version, compat_uptr_t)
-    #define PW_IOCTL_GET_AVAILABLE_TRACEPOINTS32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_trace, compat_uptr_t)
-    #define PW_IOCTL_GET_AVAILABLE_NOTIFIERS32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_notify, compat_uptr_t)
-    #define PW_IOCTL_GET_AVAILABLE_COLLECTORS32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_collect, compat_uptr_t)
+#define PW_IOCTL_POLL32 _IO(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_poll)
+#define PW_IOCTL_IMMEDIATE_IO32 _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_immediate_io, compat_uptr_t)
+#define PW_IOCTL_GET_SCU_FW_VERSION32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_scu_version, compat_uptr_t)
+#define PW_IOCTL_READ_IMMEDIATE32 _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_read_immediate, compat_uptr_t)
+#define PW_IOCTL_GET_DRIVER_VERSION32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_driver_version, compat_uptr_t)
+#define PW_IOCTL_GET_AVAILABLE_TRACEPOINTS32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_trace, compat_uptr_t)
+#define PW_IOCTL_GET_AVAILABLE_NOTIFIERS32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_notify, compat_uptr_t)
+#define PW_IOCTL_GET_AVAILABLE_COLLECTORS32 _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_collect, compat_uptr_t)
 #endif // defined(CONFIG_COMPAT) && defined(CONFIG_X86_64)
 #endif // __SW_IOCTL_H__

@@ -59,19 +59,19 @@
 
 #ifndef __KERNEL__
 
-#include <stdio.h> // for "FILE *"
-#include <errno.h> // for "PW_PERROR"
-#include <string.h> // for "PW_PERROR"
+#include <stdio.h>		// for "FILE *"
+#include <errno.h>		// for "PW_PERROR"
+#include <string.h>		// for "PW_PERROR"
 #ifndef _WIN32
-    #include <sys/time.h> // for "gettimeofday"
+#include <sys/time.h>		// for "gettimeofday"
 #endif // windows
 #if defined (__APPLE__)
-    #include <mach/clock.h>
-    #include <mach/mach.h>
+#include <mach/clock.h>
+#include <mach/mach.h>
 #endif // __APPLE__
-#include <fstream> // for "std::ofstream"
-#include <errno.h> // for "perror"
-#include <string.h> // for "strerror"
+#include <fstream>		// for "std::ofstream"
+#include <errno.h>		// for "perror"
+#include <string.h>		// for "strerror"
 #include "sw_types.h"
 #include "plugin_environment.h"
 
@@ -105,18 +105,16 @@
  */
 #ifdef SWW_MERGE
 #define DEFAULT_SWA_CONFIG_FILE_DIRECTORY "configs\\"
-#define SW_COLLECTION_FILE_EXTENSION "_" // sww
+#define SW_COLLECTION_FILE_EXTENSION "_"	// sww
 #else
 #define DEFAULT_SWA_CONFIG_FILE_DIRECTORY "configs/"
-#define SW_COLLECTION_FILE_EXTENSION ".sw2" // swa
+#define SW_COLLECTION_FILE_EXTENSION ".sw2"	// swa
 #endif
 
 /*
  * Default SWA 2.0 polling interval.
  */
 #define DEFAULT_SWA_POLLING_INTERVAL_MSECS 100
-
-
 
 /*
  * Macro to convert a {major.minor.other} version into a
@@ -160,19 +158,19 @@
  * **************************************
  */
 enum pw_log_level_t {
-    PW_LOG_LEVEL_FATAL=0, /* Print FATALs */
-    PW_LOG_LEVEL_ERROR=1, /* Print ERRORs */
-    PW_LOG_LEVEL_WARNING=2, /* Print ERRORs + WARNINGs */
-    PW_LOG_LEVEL_DEBUG=3, /* Print ERRORs + WARNINGs + DEBUGs */
-    PW_LOG_LEVEL_INFO=4, /* Print ERRORs + WARNINGs + DEBUGs + INFORMATIONALs */
+	PW_LOG_LEVEL_FATAL = 0,	/* Print FATALs */
+	PW_LOG_LEVEL_ERROR = 1,	/* Print ERRORs */
+	PW_LOG_LEVEL_WARNING = 2,	/* Print ERRORs + WARNINGs */
+	PW_LOG_LEVEL_DEBUG = 3,	/* Print ERRORs + WARNINGs + DEBUGs */
+	PW_LOG_LEVEL_INFO = 4,	/* Print ERRORs + WARNINGs + DEBUGs + INFORMATIONALs */
 #ifdef SWW_MERGE
-    // Windows cannot stringize a macro and then use the result to stringize
-    // another macro like g++ can.
-    PW_LOG_LEVEL_0 = PW_LOG_LEVEL_FATAL,
-    PW_LOG_LEVEL_1 = PW_LOG_LEVEL_ERROR,
-    PW_LOG_LEVEL_2 = PW_LOG_LEVEL_WARNING,
-    PW_LOG_LEVEL_3 = PW_LOG_LEVEL_DEBUG,
-    PW_LOG_LEVEL_4 = PW_LOG_LEVEL_INFO
+	// Windows cannot stringize a macro and then use the result to stringize
+	// another macro like g++ can.
+	PW_LOG_LEVEL_0 = PW_LOG_LEVEL_FATAL,
+	PW_LOG_LEVEL_1 = PW_LOG_LEVEL_ERROR,
+	PW_LOG_LEVEL_2 = PW_LOG_LEVEL_WARNING,
+	PW_LOG_LEVEL_3 = PW_LOG_LEVEL_DEBUG,
+	PW_LOG_LEVEL_4 = PW_LOG_LEVEL_INFO
 #endif // SWW_MERGE
 };
 
@@ -192,11 +190,11 @@ enum pw_log_level_t {
 #ifdef SWW_MERGE
     // Windows cannot stringize a macro and then use the result to stringize
     // another macro like g++ can. NOTE: The numbers must match the pw_log_level_t enum!
-    #define PW_0_STREAM PW_FATAL_STREAM
-    #define PW_1_STREAM PW_ERROR_STREAM
-    #define PW_2_STREAM PW_WARNING_STREAM
-    #define PW_3_STREAM PW_INFO_STREAM
-    #define PW_4_STREAM PW_DEBUG_STREAM
+#define PW_0_STREAM PW_FATAL_STREAM
+#define PW_1_STREAM PW_ERROR_STREAM
+#define PW_2_STREAM PW_WARNING_STREAM
+#define PW_3_STREAM PW_INFO_STREAM
+#define PW_4_STREAM PW_DEBUG_STREAM
 #endif // SWW_MERGE
 
 #define PW_LOG_OUTPUT(level, fp, format, ...) do { if (unlikely(g_pluginEnvironment->getVerbosity() && (level) <= g_pluginEnvironment->getVerbosity())){ fprintf(fp, format, ##__VA_ARGS__); fflush(fp);}} while(0);
@@ -220,7 +218,7 @@ enum pw_log_level_t {
 #define PW_LOG_DEBUG(format, ...) PW_LOG_OUTPUT(PW_LOG_LEVEL_DEBUG, g_pluginEnvironment->getDebugLogFP(),     "DEBUG:   " format, ##__VA_ARGS__)
 #define PW_LOG_INFO(format, ...) PW_LOG_OUTPUT(PW_LOG_LEVEL_INFO, g_pluginEnvironment->getDebugLogFP(),       "INFO:    " format, ##__VA_ARGS__)
 #define PW_LOG(type, ...) PW_LOG_OUTPUT(PW_LOG_LEVEL_##type, s_##type##LogFP, __VA_ARGS__)
-#define PW_LOG_FORCE(format, ...) fprintf(g_pluginEnvironment->getDebugLogFP(), format, ##__VA_ARGS__) /* Force a debug printf */
+#define PW_LOG_FORCE(format, ...) fprintf(g_pluginEnvironment->getDebugLogFP(), format, ##__VA_ARGS__)	/* Force a debug printf */
 
 #define PW_GET_FATAL_STREAM() PW_GET_STREAM_HELPER(PW_LOG_LEVEL_FATAL, std::cerr << "FATAL:   ")
 #define PW_GET_ERROR_STREAM() PW_GET_STREAM_HELPER(PW_LOG_LEVEL_ERROR, std::cerr << "ERROR:   ")
@@ -245,24 +243,23 @@ enum pw_log_level_t {
     } \
 } while (0)
 
-
 /*
  * Macros to trace function enters and exits.
  */
-#if DEVELOPMENT_MODE // Development code; NOT meant for production
-    #define PW_TRACE_FUNCTION_ENTER() do { \
+#if DEVELOPMENT_MODE		// Development code; NOT meant for production
+#define PW_TRACE_FUNCTION_ENTER() do { \
         PW_LOG_INFO("Entering function %s\n", __FUNCTION__); \
     } while(0)
 
-    #define PW_TRACE_FUNCTION_EXIT() do { \
+#define PW_TRACE_FUNCTION_EXIT() do { \
         PW_LOG_INFO("Exiting function %s\n", __FUNCTION__); \
     } while(0)
 
-    #define PW_TRACE_FUNCTION_ENTER_VERBOSE() do { \
+#define PW_TRACE_FUNCTION_ENTER_VERBOSE() do { \
         PW_LOG_INFO("Entering function %s\n", __PRETTY_FUNCTION__); \
     } while(0)
 
-    #define PW_TRACE_FUNCTION_EXIT_VERBOSE() do { \
+#define PW_TRACE_FUNCTION_EXIT_VERBOSE() do { \
         PW_LOG_INFO("Exiting function %s\n", __PRETTY_FUNCTION__); \
     } while(0)
     /*
@@ -270,25 +267,25 @@ enum pw_log_level_t {
      * Every 'ENTER' MUST be accompanied by
      * a corresponding 'EXIT'!
      */
-    #define PW_TIME_FUNCTION_ENTER() { \
+#define PW_TIME_FUNCTION_ENTER() { \
         PW_LOG_INFO("Entering function %s\n", __PRETTY_FUNCTION__); \
         pwr::Timer __timer(__FUNCTION__);
 
-    #define PW_TIME_FUNCTION_EXIT() \
+#define PW_TIME_FUNCTION_EXIT() \
         PW_LOG_INFO("Exiting function %s\n", __PRETTY_FUNCTION__); \
     }
 #else // Production code
-    #define PW_TRACE_FUNCTION_ENTER() /* NOP */
+#define PW_TRACE_FUNCTION_ENTER()	/* NOP */
 
-    #define PW_TRACE_FUNCTION_EXIT() /* NOP */
+#define PW_TRACE_FUNCTION_EXIT()	/* NOP */
 
-    #define PW_TRACE_FUNCTION_ENTER_VERBOSE() /* NOP */
+#define PW_TRACE_FUNCTION_ENTER_VERBOSE()	/* NOP */
 
-    #define PW_TRACE_FUNCTION_EXIT_VERBOSE() /* NOP */
+#define PW_TRACE_FUNCTION_EXIT_VERBOSE()	/* NOP */
 
-    #define PW_TIME_FUNCTION_ENTER() { /* NOP */
+#define PW_TIME_FUNCTION_ENTER() {	/* NOP */
 
-    #define PW_TIME_FUNCTION_EXIT() } /* NOP */
+#define PW_TIME_FUNCTION_EXIT() }	/* NOP */
 #endif // DEVELOPMENT_MODE
 
 #define PW_DO_REPORT_FILE_ERROR(msg, path) do { \
@@ -324,23 +321,23 @@ enum pw_log_level_t {
  * and 'unlikely()' -- GCC SPECIFIC ONLY!
  */
 #if defined (__linux__)
-    #define likely(x) __builtin_expect(!!(x), 1)
-    #define unlikely(x) __builtin_expect(!!(x), 0)
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
 #elif defined (__APPLE__)
-    #define likely(x)   (x)
-    #define unlikely(x) (x)
+#define likely(x)   (x)
+#define unlikely(x) (x)
 #else // windows
-    #define likely(x) (!!(x))
-    #define unlikely(x) (!!(x))
+#define likely(x) (!!(x))
+#define unlikely(x) (!!(x))
 
-    #define __attribute__(a) // ignore __attribute__ macros on Windows
+#define __attribute__(a)	// ignore __attribute__ macros on Windows
 #endif // linux
 
 /* Nanoseconds in a second */
 #define NANOSEC_PER_SEC (1000000000ULL)
 #define MILLISEC_PER_SEC (1000ULL)
 #define SEC_PER_MILLISEC ((double)1.0/MILLISEC_PER_SEC)
-#ifndef USEC_PER_SEC /* avoid redefinition in driver build */
+#ifndef USEC_PER_SEC		/* avoid redefinition in driver build */
 #define USEC_PER_SEC (1000000ULL)
 #endif
 #define SEC_PER_USEC ((double)1.0/USEC_PER_SEC)

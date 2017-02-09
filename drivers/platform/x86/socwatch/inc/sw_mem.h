@@ -69,7 +69,8 @@ void sw_kfree(const void *obj);
 /*
  * Allocate free pages.
  */
-unsigned long sw_allocate_pages(unsigned int flags, unsigned int alloc_size_in_bytes);
+unsigned long sw_allocate_pages(unsigned int flags,
+				unsigned int alloc_size_in_bytes);
 /*
  * Free up previously allocated pages.
  */

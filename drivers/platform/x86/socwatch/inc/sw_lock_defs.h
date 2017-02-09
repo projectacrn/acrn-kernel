@@ -66,7 +66,7 @@
 #define SW_DECLARE_SPINLOCK(s)  static spinlock_t s
 
 #define SW_INIT_SPINLOCK(s)     spin_lock_init(&s)
-#define SW_DESTROY_SPINLOCK(s)  /* NOP */
+#define SW_DESTROY_SPINLOCK(s)	/* NOP */
 
 #define LOCK(l) { \
     unsigned long _tmp_l_flags; \
@@ -91,6 +91,5 @@
 #define WRITE_UNLOCK(l) \
     write_unlock_irqrestore(&(l), _tmp_l_flags); \
     }
-
 
 #endif // __SW_LOCK_DEFS_H__

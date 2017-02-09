@@ -61,27 +61,29 @@
 extern pw_u16_t sw_min_polling_interval_msecs;
 
 enum sw_trace_data_type {
-    SW_TRACE_COLLECTOR_TRACEPOINT,
-    SW_TRACE_COLLECTOR_NOTIFIER
+	SW_TRACE_COLLECTOR_TRACEPOINT,
+	SW_TRACE_COLLECTOR_NOTIFIER
 };
 
 struct sw_trace_notifier_name {
-    const char *kernel_name; // The tracepoint name; used by the kernel to identify tracepoints
-    const char *abstract_name; // An abstract name used by plugins to specify tracepoints-of-interest; shared with Ring-3
+	const char *kernel_name;	// The tracepoint name; used by the kernel to identify tracepoints
+	const char *abstract_name;	// An abstract name used by plugins to specify tracepoints-of-interest; shared with Ring-3
 };
 
 typedef struct sw_trace_notifier_data sw_trace_notifier_data_t;
-typedef int (*sw_trace_notifier_register_func)(struct sw_trace_notifier_data *node);
-typedef int (*sw_trace_notifier_unregister_func)(struct sw_trace_notifier_data *node);
+typedef int (*sw_trace_notifier_register_func) (struct sw_trace_notifier_data *
+						node);
+typedef int (*sw_trace_notifier_unregister_func) (struct sw_trace_notifier_data
+						  * node);
 
 struct sw_trace_notifier_data {
-    enum sw_trace_data_type type; // Tracepoint or Notifier
-    const struct sw_trace_notifier_name *name; // Tracepoint name(s)
-    sw_trace_notifier_register_func probe_register; // probe register function
-    sw_trace_notifier_unregister_func probe_unregister; // probe unregister function
-    struct tracepoint *tp;
-    bool was_registered;
-    SW_LIST_HEAD(list, sw_collector_data); // List of 'sw_collector_data' instances for this tracepoint or notifier
+	enum sw_trace_data_type type;	// Tracepoint or Notifier
+	const struct sw_trace_notifier_name *name;	// Tracepoint name(s)
+	sw_trace_notifier_register_func probe_register;	// probe register function
+	sw_trace_notifier_unregister_func probe_unregister;	// probe unregister function
+	struct tracepoint *tp;
+	bool was_registered;
+	 SW_LIST_HEAD(list, sw_collector_data);	// List of 'sw_collector_data' instances for this tracepoint or notifier
 };
 
 int sw_extract_tracepoints(void);
@@ -102,12 +104,20 @@ void sw_reset_trace_notifier_lists(void);
 
 void sw_print_trace_notifier_overheads(void);
 
-int sw_for_each_tracepoint_node(int (*func)(struct sw_trace_notifier_data *node, void *priv), void *priv, bool return_on_error);
-int sw_for_each_notifier_node(int (*func)(struct sw_trace_notifier_data *node, void *priv), void *priv, bool return_on_error);
+int
+sw_for_each_tracepoint_node(int (*func)
+			    (struct sw_trace_notifier_data * node, void *priv),
+			    void *priv, bool return_on_error);
+int
+sw_for_each_notifier_node(int (*func)
+			  (struct sw_trace_notifier_data * node, void *priv),
+			  void *priv, bool return_on_error);
 
 int sw_get_trace_notifier_id(struct sw_trace_notifier_data *node);
 
-const char *sw_get_trace_notifier_kernel_name(struct sw_trace_notifier_data *node);
-const char *sw_get_trace_notifier_abstract_name(struct sw_trace_notifier_data *node);
+const char *sw_get_trace_notifier_kernel_name(struct sw_trace_notifier_data
+					      *node);
+const char *sw_get_trace_notifier_abstract_name(struct sw_trace_notifier_data
+						*node);
 
 #endif // __SW_TRACEPOINT_HANDLERS_H__

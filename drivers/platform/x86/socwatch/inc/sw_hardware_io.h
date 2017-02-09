@@ -58,11 +58,16 @@
 
 #include "sw_structs.h"
 
-typedef int (*sw_io_desc_init_func_t)(struct sw_driver_io_descriptor *descriptor);
-typedef void (*sw_hardware_op_func_t)(char *dst_vals, int cpu, const struct sw_driver_io_descriptor *descriptor, u16 counter_size_in_bytes);
-typedef int (*sw_io_desc_print_func_t)(const struct sw_driver_io_descriptor *descriptor);
-typedef int (*sw_io_desc_reset_func_t)(const struct sw_driver_io_descriptor *descriptor);
-typedef bool (*sw_io_desc_available_func_t)(void);
+typedef int (*sw_io_desc_init_func_t) (struct sw_driver_io_descriptor *
+				       descriptor);
+typedef void (*sw_hardware_op_func_t) (char *dst_vals, int cpu,
+				       const struct sw_driver_io_descriptor *
+				       descriptor, u16 counter_size_in_bytes);
+typedef int (*sw_io_desc_print_func_t) (const struct sw_driver_io_descriptor *
+					descriptor);
+typedef int (*sw_io_desc_reset_func_t) (const struct sw_driver_io_descriptor *
+					descriptor);
+typedef bool(*sw_io_desc_available_func_t) (void);
 
 /**
  * struct sw_hw_ops - Operations for each of the HW collection mechanisms
@@ -76,13 +81,13 @@ typedef bool (*sw_io_desc_available_func_t)(void);
  * @available:  Decide whether this H/W op is available on the current platform.
  */
 struct sw_hw_ops {
-    const char *name;
-    sw_io_desc_init_func_t       init;
-    sw_hardware_op_func_t        read;
-    sw_hardware_op_func_t        write;
-    sw_io_desc_print_func_t      print;
-    sw_io_desc_reset_func_t      reset;
-    sw_io_desc_available_func_t  available;
+	const char *name;
+	sw_io_desc_init_func_t init;
+	sw_hardware_op_func_t read;
+	sw_hardware_op_func_t write;
+	sw_io_desc_print_func_t print;
+	sw_io_desc_reset_func_t reset;
+	sw_io_desc_available_func_t available;
 };
 
 bool sw_is_valid_hw_op_id(int id);
@@ -90,8 +95,8 @@ int sw_get_hw_op_id(const struct sw_hw_ops *op);
 const struct sw_hw_ops *sw_get_hw_ops_for(int id);
 const char *sw_get_hw_op_abstract_name(const struct sw_hw_ops *op);
 
-int sw_for_each_hw_op(int (*func)(const struct sw_hw_ops *op, void *priv),
-                      void *priv, bool return_on_error);
+int sw_for_each_hw_op(int (*func) (const struct sw_hw_ops * op, void *priv),
+		      void *priv, bool return_on_error);
 
 /**
  * Add an operation to the list of providers.

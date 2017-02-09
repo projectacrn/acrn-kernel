@@ -63,12 +63,12 @@
 /*
  * Called from Ring-3.
  */
-#include <stdint.h> // Grab 'uint64_t' etc.
-#include <unistd.h> // Grab 'pid_t'
+#include <stdint.h>		// Grab 'uint64_t' etc.
+#include <unistd.h>		// Grab 'pid_t'
 /*
  * UNSIGNED types...
  */
-typedef uint8_t  u8;
+typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
@@ -85,9 +85,9 @@ typedef int64_t s64;
 #include <linux/types.h>
 #else // __APPLE__
 #include <sys/types.h>
-#include <stdint.h> // Grab 'uint64_t' etc.
+#include <stdint.h>		// Grab 'uint64_t' etc.
 
-typedef uint8_t  u8;
+typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;

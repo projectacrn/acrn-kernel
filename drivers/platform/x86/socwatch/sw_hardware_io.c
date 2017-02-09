@@ -61,11 +61,10 @@
 #include "sw_internal.h"
 #include "sw_hardware_io.h"
 
-
 struct sw_ops_node {
-    const struct sw_hw_ops *op;
-    int id;
-    SW_LIST_ENTRY(list, sw_ops_node);
+	const struct sw_hw_ops *op;
+	int id;
+	 SW_LIST_ENTRY(list, sw_ops_node);
 };
 
 static SW_LIST_HEAD(s_ops, sw_ops_node) = SW_LIST_HEAD_INITIALIZER(s_ops);
@@ -77,100 +76,103 @@ static int s_op_idx = -1;
  */
 int sw_get_hw_op_id(const struct sw_hw_ops *ops)
 {
-    if (ops && ops->name) {
-        struct sw_ops_node *node = NULL;
-        SW_LIST_FOR_EACH_ENTRY(node, &s_ops, list) {
-            if (node->op->name && !strcmp(node->op->name, ops->name)) {
-                return node->id;
-            }
-        }
-    }
-    return -1;
+	if (ops && ops->name) {
+		struct sw_ops_node *node = NULL;
+		SW_LIST_FOR_EACH_ENTRY(node, &s_ops, list) {
+			if (node->op->name
+			    && !strcmp(node->op->name, ops->name)) {
+				return node->id;
+			}
+		}
+	}
+	return -1;
 }
 
 const struct sw_hw_ops *sw_get_hw_ops_for(int id)
 {
-    struct sw_ops_node *node = NULL;
-    SW_LIST_FOR_EACH_ENTRY(node, &s_ops, list) {
-        if (node->id == id) {
-            return node->op;
-        }
-    }
-    return NULL;
+	struct sw_ops_node *node = NULL;
+	SW_LIST_FOR_EACH_ENTRY(node, &s_ops, list) {
+		if (node->id == id) {
+			return node->op;
+		}
+	}
+	return NULL;
 }
 
 bool sw_is_valid_hw_op_id(int id)
 {
-    struct sw_ops_node *node = NULL;
-    SW_LIST_FOR_EACH_ENTRY(node, &s_ops, list) {
-        if (node->id == id) {
-            return true;
-        }
-    }
-    return false;
+	struct sw_ops_node *node = NULL;
+	SW_LIST_FOR_EACH_ENTRY(node, &s_ops, list) {
+		if (node->id == id) {
+			return true;
+		}
+	}
+	return false;
 }
 
 const char *sw_get_hw_op_abstract_name(const struct sw_hw_ops *op)
 {
-    if (op) {
-        return op->name;
-    }
-    return NULL;
+	if (op) {
+		return op->name;
+	}
+	return NULL;
 }
 
-int sw_for_each_hw_op(int (*func)(const struct sw_hw_ops *op, void *priv), void *priv, bool return_on_error)
+int sw_for_each_hw_op(int (*func) (const struct sw_hw_ops * op, void *priv),
+		      void *priv, bool return_on_error)
 {
-    int retval = PW_SUCCESS;
-    struct sw_ops_node *node = NULL;
-    if (func) {
-        SW_LIST_FOR_EACH_ENTRY(node, &s_ops, list) {
-            if ((*func)(node->op, priv)) {
-                retval = -EIO;
-                if (return_on_error) {
-                    break;
-                }
-            }
-        }
-    }
-    return retval;
+	int retval = PW_SUCCESS;
+	struct sw_ops_node *node = NULL;
+	if (func) {
+		SW_LIST_FOR_EACH_ENTRY(node, &s_ops, list) {
+			if ((*func) (node->op, priv)) {
+				retval = -EIO;
+				if (return_on_error) {
+					break;
+				}
+			}
+		}
+	}
+	return retval;
 }
 
 int sw_register_hw_op(const struct sw_hw_ops *op)
 {
-    struct sw_ops_node *node = NULL;
-    if (!op) {
-        pw_pr_error("NULL input node in \"sw_register_hw_op\"");
-        return -EIO;
-    }
-    node = sw_kmalloc(sizeof(struct sw_ops_node), GFP_KERNEL);
-    if (!node) {
-        pw_pr_error("sw_kmalloc error in \"sw_register_hw_op\"");
-        return -ENOMEM;
-    }
-    node->op = op;
-    node->id = ++s_op_idx;
-    SW_LIST_ENTRY_INIT(node, list);
-    SW_LIST_ADD(&s_ops, node, list);
-    return PW_SUCCESS;
+	struct sw_ops_node *node = NULL;
+	if (!op) {
+		pw_pr_error("NULL input node in \"sw_register_hw_op\"");
+		return -EIO;
+	}
+	node = sw_kmalloc(sizeof(struct sw_ops_node), GFP_KERNEL);
+	if (!node) {
+		pw_pr_error("sw_kmalloc error in \"sw_register_hw_op\"");
+		return -ENOMEM;
+	}
+	node->op = op;
+	node->id = ++s_op_idx;
+	SW_LIST_ENTRY_INIT(node, list);
+	SW_LIST_ADD(&s_ops, node, list);
+	return PW_SUCCESS;
 }
 
 int sw_register_hw_ops(void)
 {
-    return sw_register_ops_providers();
+	return sw_register_ops_providers();
 }
 
 void sw_free_hw_ops(void)
 {
-    /*
-     * Free all nodes.
-     */
-    while (!SW_LIST_EMPTY(&s_ops)) {
-        struct sw_ops_node *node = SW_LIST_GET_HEAD_ENTRY(&s_ops, sw_ops_node, list);
-        SW_LIST_UNLINK(node, list);
-        sw_kfree(node);
-    }
-    /*
-     * Call our providers to deallocate resources.
-     */
-    sw_free_ops_providers();
+	/*
+	 * Free all nodes.
+	 */
+	while (!SW_LIST_EMPTY(&s_ops)) {
+		struct sw_ops_node *node =
+		    SW_LIST_GET_HEAD_ENTRY(&s_ops, sw_ops_node, list);
+		SW_LIST_UNLINK(node, list);
+		sw_kfree(node);
+	}
+	/*
+	 * Call our providers to deallocate resources.
+	 */
+	sw_free_ops_providers();
 }

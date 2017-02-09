@@ -85,14 +85,14 @@
      * Kernels >= 3.19 don't include a definition
      * of '__get_cpu_var'. Create one now.
      */
-    #define __get_cpu_var(var) *this_cpu_ptr(&var)
+#define __get_cpu_var(var) *this_cpu_ptr(&var)
 #endif // __get_cpu_var
 #ifndef __raw_get_cpu_var
     /*
      * Kernels >= 3.19 don't include a definition
      * of '__raw_get_cpu_var'. Create one now.
      */
-    #define __raw_get_cpu_var(var) *raw_cpu_ptr(&var)
+#define __raw_get_cpu_var(var) *raw_cpu_ptr(&var)
 #endif // __get_cpu_var
 
 #define DECLARE_OVERHEAD_VARS(name)					\

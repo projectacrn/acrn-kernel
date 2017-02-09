@@ -64,16 +64,16 @@
  */
 
 #if defined (__APPLE__)
-    #define likely(x)   (x)
-    #define unlikely(x) (x)
+#define likely(x)   (x)
+#define unlikely(x) (x)
 #endif // __APPLE__
 
 #if !defined(__APPLE__)
-    #define CPU() (raw_smp_processor_id())
-    #define RAW_CPU() (raw_smp_processor_id())
+#define CPU() (raw_smp_processor_id())
+#define RAW_CPU() (raw_smp_processor_id())
 #else
-    #define CPU() (cpu_number())
-    #define RAW_CPU() (cpu_number())
+#define CPU() (cpu_number())
+#define RAW_CPU() (cpu_number())
 #endif // __APPLE__
 
 #define TID() (current->pid)
@@ -102,14 +102,14 @@
  * and 'DO_TRACK_MEMORY_USAGE' to be TRUE.
  */
 #if IS_ENABLED(CONFIG_SOCWATCH_DRIVER_PROFILING)
-    #if !DO_OVERHEAD_MEASUREMENTS
-        #undef DO_OVERHEAD_MEASUREMENTS
-        #define DO_OVERHEAD_MEASUREMENTS 1
-    #endif // DO_OVERHEAD_MEASUREMENTS
-    #if !DO_TRACK_MEMORY_USAGE
-        #undef DO_TRACK_MEMORY_USAGE
-        #define DO_TRACK_MEMORY_USAGE 1
-    #endif // DO_TRACK_MEMORY_USAGE
+#if !DO_OVERHEAD_MEASUREMENTS
+#undef DO_OVERHEAD_MEASUREMENTS
+#define DO_OVERHEAD_MEASUREMENTS 1
+#endif // DO_OVERHEAD_MEASUREMENTS
+#if !DO_TRACK_MEMORY_USAGE
+#undef DO_TRACK_MEMORY_USAGE
+#define DO_TRACK_MEMORY_USAGE 1
+#endif // DO_TRACK_MEMORY_USAGE
 #endif // CONFIG_SOCWATCH_DRIVER_PROFILING
 /*
  * Should we allow debug output.
@@ -129,40 +129,40 @@
  * Macros to control output printing.
  */
 #if !defined(__APPLE__)
-    #if DO_DEBUG_OUTPUT
-        #define pw_pr_debug(...) printk(KERN_INFO __VA_ARGS__)
-        #define pw_pr_warn(...) printk(KERN_WARNING __VA_ARGS__)
-    #else
-        #define pw_pr_debug(...)
-        #define pw_pr_warn(...)
-    #endif
-    #define pw_pr_force(...) printk(KERN_INFO __VA_ARGS__)
+#if DO_DEBUG_OUTPUT
+#define pw_pr_debug(...) printk(KERN_INFO __VA_ARGS__)
+#define pw_pr_warn(...) printk(KERN_WARNING __VA_ARGS__)
 #else
-    #if DO_DEBUG_OUTPUT
-        #define pw_pr_debug(...) IOLog(__VA_ARGS__)
-        #define pw_pr_warn(...) IOLog(__VA_ARGS__)
-    #else
-        #define pw_pr_debug(...)
-        #define pw_pr_warn(...)
-    #endif
-    #define pw_pr_force(...) IOLog(__VA_ARGS__)
+#define pw_pr_debug(...)
+#define pw_pr_warn(...)
+#endif
+#define pw_pr_force(...) printk(KERN_INFO __VA_ARGS__)
+#else
+#if DO_DEBUG_OUTPUT
+#define pw_pr_debug(...) IOLog(__VA_ARGS__)
+#define pw_pr_warn(...) IOLog(__VA_ARGS__)
+#else
+#define pw_pr_debug(...)
+#define pw_pr_warn(...)
+#endif
+#define pw_pr_force(...) IOLog(__VA_ARGS__)
 #endif // __APPLE__
 
 /*
  * Macro for driver error messages.
  */
 #if !defined(__APPLE__)
-    #if (DO_PRINT_DRIVER_ERROR_MESSAGES || DO_DEBUG_OUTPUT)
-        #define pw_pr_error(...) printk(KERN_ERR __VA_ARGS__)
-    #else
-        #define pw_pr_error(...)
-    #endif
+#if (DO_PRINT_DRIVER_ERROR_MESSAGES || DO_DEBUG_OUTPUT)
+#define pw_pr_error(...) printk(KERN_ERR __VA_ARGS__)
 #else
-    #if (DO_PRINT_DRIVER_ERROR_MESSAGES || DO_DEBUG_OUTPUT)
-        #define pw_pr_error(...) IOLog(__VA_ARGS__)
-    #else
-        #define pw_pr_error(...)
-    #endif
+#define pw_pr_error(...)
+#endif
+#else
+#if (DO_PRINT_DRIVER_ERROR_MESSAGES || DO_DEBUG_OUTPUT)
+#define pw_pr_error(...) IOLog(__VA_ARGS__)
+#else
+#define pw_pr_error(...)
+#endif
 #endif // __APPLE__
 
 #endif // __KERNEL__

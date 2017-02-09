@@ -81,13 +81,13 @@ struct sw_hw_ops;
  * @msg:                    Ptr to collected data
  */
 typedef struct sw_collector_data {
-    SW_LIST_ENTRY(list, sw_collector_data);
-    struct cpumask                  cpumask;
-    struct sw_driver_interface_info *info;
-    const struct sw_hw_ops          **ops;
-    size_t                          per_msg_payload_size;
-    u64                             last_update_jiffies;
-    struct sw_driver_msg *msg;
+	SW_LIST_ENTRY(list, sw_collector_data);
+	struct cpumask cpumask;
+	struct sw_driver_interface_info *info;
+	const struct sw_hw_ops **ops;
+	size_t per_msg_payload_size;
+	u64 last_update_jiffies;
+	struct sw_driver_msg *msg;
 } sw_collector_data_t;
 #define GET_MSG_SLOT_FOR_CPU(msgs, cpu, size) ( (struct sw_driver_msg *) &(((char *)(msgs))[(cpu) * (sizeof(struct sw_driver_msg) + (size))]) )
 
@@ -98,13 +98,17 @@ int sw_write_collector_node(struct sw_collector_data *data);
 
 void sw_init_collector_list(void *list_head);
 void sw_destroy_collector_list(void *list_head);
-int sw_handle_collector_list(void *list_head, int (*func)(struct sw_collector_data *data));
+int sw_handle_collector_list(void *list_head,
+			     int (*func) (struct sw_collector_data * data));
 
-int sw_handle_driver_io_descriptor(char *dst_vals, int cpu, const struct sw_driver_io_descriptor *descriptor, const struct sw_hw_ops *hw_ops);
+int sw_handle_driver_io_descriptor(char *dst_vals, int cpu,
+				   const struct sw_driver_io_descriptor
+				   *descriptor, const struct sw_hw_ops *hw_ops);
 int sw_init_driver_io_descriptor(struct sw_driver_io_descriptor *descriptor);
 int sw_reset_driver_io_descriptor(struct sw_driver_io_descriptor *descriptor);
 
-int sw_add_driver_info(void *list_head, const struct sw_driver_interface_info *info);
+int sw_add_driver_info(void *list_head,
+		       const struct sw_driver_interface_info *info);
 
 void sw_handle_per_cpu_msg(void *info);
 void sw_handle_per_cpu_msg_no_sched(void *info);
