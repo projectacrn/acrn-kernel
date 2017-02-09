@@ -1,4 +1,3 @@
-#include <linux/version.h>	// "LINUX_VERSION_CODE"
 #include <linux/hrtimer.h>
 #include <asm/cputime.h>
 #include <asm/hardirq.h>
@@ -9,9 +8,7 @@
 #include <trace/events/timer.h>
 #include <trace/events/power.h>
 #include <trace/events/sched.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 #include <asm/trace/irq_vectors.h>	// for the various APIC vector tracepoints (e.g. "thermal_apic", "local_timer" etc.)
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 struct pool_workqueue;		// Forward declaration to avoid compiler warnings
 struct cpu_workqueue_struct;	// Forward declaration to avoid compiler warnings
 #include <trace/events/workqueue.h>
@@ -57,62 +54,27 @@ struct cpu_workqueue_struct;	// Forward declaration to avoid compiler warnings
  * Tracepoint probe register/unregister functions and
  * helper macros.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
-#define DO_REGISTER_SW_TRACEPOINT_PROBE(node, name, probe) WARN_ON(register_trace_##name(probe))
-#define DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, name, probe) unregister_trace_##name(probe)
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(3,15,0)
-#define DO_REGISTER_SW_TRACEPOINT_PROBE(node, name, probe) WARN_ON(register_trace_##name(probe, NULL))
-#define DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, name, probe) unregister_trace_##name(probe, NULL)
-#else
 #define DO_REGISTER_SW_TRACEPOINT_PROBE(node, name, probe) WARN_ON(tracepoint_probe_register(node->tp, probe, NULL))
 #define DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, name, probe) tracepoint_probe_unregister(node->tp, probe, NULL)
-#endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
-#define _DEFINE_PROBE_FUNCTION(name, ...) static void name(__VA_ARGS__)
-#else
 #define _DEFINE_PROBE_FUNCTION(name, ...) static void name(void *ignore, __VA_ARGS__)
-#endif
 #define DEFINE_PROBE_FUNCTION(x) _DEFINE_PROBE_FUNCTION(x)
 
 /*
  * Tracepoint probe function parameters.
  * These tracepoint signatures depend on kernel version.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,36)
-#define PROBE_TPS_PARAMS sw_probe_power_start_i, unsigned int type, unsigned int state
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-#define PROBE_TPS_PARAMS sw_probe_power_start_i, unsigned int type, unsigned int state, unsigned int cpu_id
-#else
 #define PROBE_TPS_PARAMS sw_probe_cpu_idle_i, unsigned int state, unsigned int cpu_id
-#endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-#define PROBE_TPF_PARAMS sw_probe_power_frequency_i, unsigned int type, unsigned int state
-#else
 #define PROBE_TPF_PARAMS sw_probe_cpu_frequency_i, unsigned int new_freq, unsigned int cpu
-#endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
-#define PROBE_SCHED_WAKEUP_PARAMS sw_probe_sched_wakeup_i, struct rq *rq, struct task_struct *task, int success
-#else
 #define PROBE_SCHED_WAKEUP_PARAMS sw_probe_sched_wakeup_i, struct task_struct *task, int success
-#endif
 
 #if IS_ENABLED(CONFIG_SOCWATCH_ANDROID)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
-#define PROBE_WAKE_LOCK_PARAMS sw_probe_wake_lock_i, struct wake_lock *lock
-#define PROBE_WAKE_UNLOCK_PARAMS sw_probe_wake_unlock_i, struct wake_unlock *unlock
-#else
 #define PROBE_WAKE_LOCK_PARAMS sw_probe_wakeup_source_activate_i, const char *name, unsigned int state
 #define PROBE_WAKE_UNLOCK_PARAMS sw_probe_wakeup_source_deactivate_i, const char *name, unsigned int state
-#endif // version
 #endif // CONFIG_SOCWATCH_ANDROID
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,35)
-#define PROBE_WORKQUEUE_PARAMS sw_probe_workqueue_execution_i, struct task_struct *wq_thread, struct work_struct *work
-#else
 #define PROBE_WORKQUEUE_PARAMS sw_probe_workqueue_execute_start_i, struct work_struct *work
-#endif
 
 #define PROBE_SCHED_SWITCH_PARAMS sw_probe_sched_switch_i, struct task_struct *prev, struct task_struct *next
 /*
@@ -197,21 +159,13 @@ int sw_unregister_trace_sched_process_fork_i(struct sw_trace_notifier_data
 int sw_register_trace_sched_process_exit_i(struct sw_trace_notifier_data *node);
 int sw_unregister_trace_sched_process_exit_i(struct sw_trace_notifier_data
 					     *node);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 int sw_register_trace_thermal_apic_entry_i(struct sw_trace_notifier_data *node);
 int sw_unregister_trace_thermal_apic_entry_i(struct sw_trace_notifier_data
 					     *node);
 int sw_register_trace_thermal_apic_exit_i(struct sw_trace_notifier_data *node);
 int sw_unregister_trace_thermal_apic_exit_i(struct sw_trace_notifier_data
 					    *node);
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 #if IS_ENABLED(CONFIG_SOCWATCH_ANDROID)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
-int sw_register_trace_wake_lock_i(struct sw_trace_notifier_data *node);
-int sw_unregister_trace_wake_lock_i(struct sw_trace_notifier_data *node);
-int sw_register_trace_wake_unlock_i(struct sw_trace_notifier_data *node);
-int sw_unregister_trace_wake_unlock_i(struct sw_trace_notifier_data *node);
-#else // LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 int sw_register_trace_wakeup_source_activate_i(struct sw_trace_notifier_data
 					       *node);
 int sw_unregister_trace_wakeup_source_activate_i(struct sw_trace_notifier_data
@@ -220,7 +174,6 @@ int sw_register_trace_wakeup_source_deactivate_i(struct sw_trace_notifier_data
 						 *node);
 int sw_unregister_trace_wakeup_source_deactivate_i(struct sw_trace_notifier_data
 						   *node);
-#endif // LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 #endif // CONFIG_SOCWATCH_ANDROID
 int sw_register_trace_workqueue_execution_i(struct sw_trace_notifier_data
 					    *node);
@@ -353,20 +306,13 @@ static const struct sw_trace_notifier_name s_trace_names[] = {
 	    {"sched_process_fork", "PROCESS-FORK"},
 	[SW_TRACE_ID_SCHED_PROCESS_EXIT] =
 	    {"sched_process_exit", "PROCESS-EXIT"},
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 	[SW_TRACE_ID_THERMAL_APIC_ENTRY] =
 	    {"thermal_apic_entry", "THERMAL-THROTTLE-ENTRY"},
 	[SW_TRACE_ID_THERMAL_APIC_EXIT] =
 	    {"thermal_apic_exit", "THERMAL-THROTTLE-EXIT"},
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 #if IS_ENABLED(CONFIG_SOCWATCH_ANDROID)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
-	[SW_TRACE_ID_WAKE_LOCK] = {"wake_lock", "WAKE-LOCK"},
-	[SW_TRACE_ID_WAKE_UNLOCK] = {"wake_unlock", "WAKE-UNLOCK"},
-#else // LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 	[SW_TRACE_ID_WAKE_LOCK] = {"wakeup_source_activate", "WAKE-LOCK"},
 	[SW_TRACE_ID_WAKE_UNLOCK] = {"wakeup_source_deactivate", "WAKE-UNLOCK"},
-#endif
 #endif
 	[SW_TRACE_ID_WORKQUEUE_EXECUTE_START] =
 	    {"workqueue_execute_start", "WORKQUEUE-START"},
@@ -429,7 +375,6 @@ static struct sw_trace_notifier_data s_trace_collector_lists[] = {
 	 &s_trace_names[SW_TRACE_ID_SCHED_PROCESS_EXIT],
 	 &sw_register_trace_sched_process_exit_i,
 	 &sw_unregister_trace_sched_process_exit_i, NULL},
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 	/*
 	 * For thermal throttling.
 	 * We probably only need one of either 'entry' or 'exit'. Use
@@ -446,24 +391,14 @@ static struct sw_trace_notifier_data s_trace_collector_lists[] = {
 	 &s_trace_names[SW_TRACE_ID_THERMAL_APIC_EXIT],
 	 &sw_register_trace_thermal_apic_exit_i,
 	 &sw_unregister_trace_thermal_apic_exit_i, NULL},
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 	/* Wakelocks have multiple tracepoints, depending on kernel version */
 #if IS_ENABLED(CONFIG_SOCWATCH_ANDROID)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
-	{SW_TRACE_COLLECTOR_TRACEPOINT, &s_trace_names[SW_TRACE_ID_WAKE_LOCK],
-	 &sw_register_trace_wake_lock_i, &sw_unregister_trace_wake_lock_i,
-	 NULL},
-	{SW_TRACE_COLLECTOR_TRACEPOINT, &s_trace_names[SW_TRACE_ID_WAKE_UNLOCK],
-	 &sw_register_trace_wake_unlock_i, &sw_unregister_trace_wake_unlock_i,
-	 NULL},
-#else // LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 	{SW_TRACE_COLLECTOR_TRACEPOINT, &s_trace_names[SW_TRACE_ID_WAKE_LOCK],
 	 &sw_register_trace_wakeup_source_activate_i,
 	 &sw_unregister_trace_wakeup_source_activate_i, NULL},
 	{SW_TRACE_COLLECTOR_TRACEPOINT, &s_trace_names[SW_TRACE_ID_WAKE_UNLOCK],
 	 &sw_register_trace_wakeup_source_deactivate_i,
 	 &sw_unregister_trace_wakeup_source_deactivate_i, NULL},
-#endif // LINUX_VERSION_CODE < KERNEL_VERSION(3,14,0)
 #endif // CONFIG_SOCWATCH_ANDROID
 	{SW_TRACE_COLLECTOR_TRACEPOINT,
 	 &s_trace_names[SW_TRACE_ID_WORKQUEUE_EXECUTE_START],
@@ -517,13 +452,9 @@ u64 sw_my_local_arch_irq_stats_cpu_i(void)
 // #ifdef CONFIG_X86_LOCAL_APIC
 		sum += stats->apic_timer_irqs;
 // #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 		sum += stats->x86_platform_ipis;
-#endif // 2,6,34
 		sum += stats->apic_perf_irqs;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,5,0)
 		sum += stats->apic_irq_work_irqs;
-#endif // 3,5,0
 #ifdef CONFIG_SMP
 		sum += stats->irq_call_count;
 		sum += stats->irq_resched_count;
@@ -874,11 +805,9 @@ void sw_tps_i(void)
 
 DEFINE_PROBE_FUNCTION(PROBE_TPS_PARAMS)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
 	if (state == PWR_EVENT_EXIT) {
 		return;
 	}
-#endif
 	DO_PER_CPU_OVERHEAD_FUNC(sw_tps_i);
 };
 
@@ -895,9 +824,6 @@ void sw_tpf_i(int cpu, struct sw_trace_notifier_data *node)
 
 DEFINE_PROBE_FUNCTION(PROBE_TPF_PARAMS)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-	int cpu = RAW_CPU();
-#endif // version < 2.6.38
 	static struct sw_trace_notifier_data *node = NULL;
 	if (unlikely(node == NULL)) {
 		node = GET_COLLECTOR_TRACE_NODE(SW_TRACE_ID_CPU_FREQUENCY);
@@ -1078,7 +1004,6 @@ DEFINE_PROBE_FUNCTION(PROBE_SCHED_PROCESS_EXIT_PARAMS)
 	}
 };
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 /*
  * 10. THERMAL_APIC entry
  */
@@ -1106,7 +1031,6 @@ DEFINE_PROBE_FUNCTION(PROBE_THERMAL_APIC_EXIT_PARAMS)
 	}
 	DO_PER_CPU_OVERHEAD_FUNC(sw_tpf_i, (int)cpu, node);
 };
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 
 #if IS_ENABLED(CONFIG_SOCWATCH_ANDROID)
 /*
@@ -1174,24 +1098,11 @@ DEFINE_PROBE_FUNCTION(PROBE_WAKE_LOCK_PARAMS)
 	static struct sw_trace_notifier_data *node = NULL;
 	enum sw_kernel_wakelock_type type = SW_WAKE_LOCK;
 	u64 timeout = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
-	const char *name = lock->name;
-#endif
 
 	if (unlikely(node == NULL)) {
 		node = GET_COLLECTOR_TRACE_NODE(SW_TRACE_ID_WAKE_LOCK);
 		pw_pr_debug("NODE = %p\n", node);
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
-	/*
-	 * Was this wakelock acquired with a timeout i.e.
-	 * is this an auto expire wakelock?
-	 */
-	if (lock->flags & (1U << 10)) {
-		type = SW_WAKE_LOCK_TIMEOUT;
-		timeout = jiffies_to_msecs(lock->expires - jiffies);
-	}
-#endif //LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 	DO_PER_CPU_OVERHEAD_FUNC(sw_handle_wakelock_i, cpu, node, name,
 				 (int)type, timeout);
 };
@@ -1204,9 +1115,6 @@ DEFINE_PROBE_FUNCTION(PROBE_WAKE_UNLOCK_PARAMS)
 	int cpu = RAW_CPU();
 	static struct sw_trace_notifier_data *node = NULL;
 	enum sw_kernel_wakelock_type type = SW_WAKE_UNLOCK;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
-	const char *name = lock->name;
-#endif
 
 	if (unlikely(node == NULL)) {
 		node = GET_COLLECTOR_TRACE_NODE(SW_TRACE_ID_WAKE_UNLOCK);
@@ -1290,23 +1198,13 @@ int sw_probe_suspend_notifier_i(struct notifier_block *block,
  */
 int sw_register_trace_cpu_idle_i(struct sw_trace_notifier_data *node)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-	DO_REGISTER_SW_TRACEPOINT_PROBE(node, power_start,
-					sw_probe_power_start_i);
-#else // kernel version >= 2.6.38
 	DO_REGISTER_SW_TRACEPOINT_PROBE(node, cpu_idle, sw_probe_cpu_idle_i);
-#endif // LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 	return PW_SUCCESS;
 };
 
 int sw_unregister_trace_cpu_idle_i(struct sw_trace_notifier_data *node)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-	DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, power_start,
-					  sw_probe_power_start_i);
-#else // kernel version >= 2.6.38
 	DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, cpu_idle, sw_probe_cpu_idle_i);
-#endif // LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 	return PW_SUCCESS;
 };
 
@@ -1315,25 +1213,15 @@ int sw_unregister_trace_cpu_idle_i(struct sw_trace_notifier_data *node)
  */
 int sw_register_trace_cpu_frequency_i(struct sw_trace_notifier_data *node)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-	DO_REGISTER_SW_TRACEPOINT_PROBE(node, power_frequency,
-					sw_probe_power_frequency_i);
-#else // kernel version >= 2.6.38
 	DO_REGISTER_SW_TRACEPOINT_PROBE(node, cpu_frequency,
 					sw_probe_cpu_frequency_i);
-#endif // LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 	return PW_SUCCESS;
 };
 
 int sw_unregister_trace_cpu_frequency_i(struct sw_trace_notifier_data *node)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
-	DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, power_frequency,
-					  sw_probe_power_frequency_i);
-#else // kernel version >= 2.6.38
 	DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, cpu_frequency,
 					  sw_probe_cpu_frequency_i);
-#endif // LINUX_VERSION_CODE < KERNEL_VERSION(2,6,38)
 	return PW_SUCCESS;
 };
 
@@ -1447,7 +1335,6 @@ int sw_unregister_trace_sched_process_exit_i(struct sw_trace_notifier_data
 /*
  * 10. THERMAL_APIC entry
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 int sw_register_trace_thermal_apic_entry_i(struct sw_trace_notifier_data *node)
 {
 	DO_REGISTER_SW_TRACEPOINT_PROBE(node, thermal_apic_entry,
@@ -1479,25 +1366,10 @@ int sw_unregister_trace_thermal_apic_exit_i(struct sw_trace_notifier_data *node)
 					  sw_probe_thermal_apic_exit_i);
 	return PW_SUCCESS;
 };
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,0)
 /*
  * 11. WAKE lock / WAKEUP source activate.
  */
 #if IS_ENABLED(CONFIG_SOCWATCH_ANDROID)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
-int sw_register_trace_wake_lock_i(struct sw_trace_notifier_data *node)
-{
-	DO_REGISTER_SW_TRACEPOINT_PROBE(node, wake_lock, sw_probe_wake_lock_i);
-	return PW_SUCCESS;
-};
-
-int sw_unregister_trace_wake_lock_i(struct sw_trace_notifier_data *node)
-{
-	DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, wake_lock,
-					  sw_probe_wake_lock_i);
-	return PW_SUCCESS;
-};
-#else // LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 int sw_register_trace_wakeup_source_activate_i(struct sw_trace_notifier_data
 					       *node)
 {
@@ -1513,25 +1385,9 @@ int sw_unregister_trace_wakeup_source_activate_i(struct sw_trace_notifier_data
 					  sw_probe_wakeup_source_activate_i);
 	return PW_SUCCESS;
 };
-#endif // LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 /*
  * 11. WAKE unlock / WAKEUP source deactivate.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
-int sw_register_trace_wake_unlock_i(struct sw_trace_notifier_data *node)
-{
-	DO_REGISTER_SW_TRACEPOINT_PROBE(node, wake_unlock,
-					sw_probe_wake_unlock_i);
-	return PW_SUCCESS;
-};
-
-int sw_unregister_trace_wake_unlock_i(struct sw_trace_notifier_data *node)
-{
-	DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, wake_unlock,
-					  sw_probe_wake_unlock_i);
-	return PW_SUCCESS;
-};
-#else // LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,0)
 int sw_register_trace_wakeup_source_deactivate_i(struct sw_trace_notifier_data
 						 *node)
 {
@@ -1547,33 +1403,22 @@ int sw_unregister_trace_wakeup_source_deactivate_i(struct sw_trace_notifier_data
 					  sw_probe_wakeup_source_deactivate_i);
 	return PW_SUCCESS;
 };
-#endif // LINUX_VERSION_CODE < KERNEL_VERSION(3,4,0)
 #endif // CONFIG_SOCWATCH_ANDROID
 /*
  * 12. WORKQUEUE execution.
  */
 int sw_register_trace_workqueue_execution_i(struct sw_trace_notifier_data *node)
 {
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,35)
-	DO_REGISTER_SW_TRACEPOINT_PROBE(node, workqueue_execution,
-					sw_probe_workqueue_execution_i);
-#else
 	DO_REGISTER_SW_TRACEPOINT_PROBE(node, workqueue_execute_start,
 					sw_probe_workqueue_execute_start_i);
-#endif
 	return PW_SUCCESS;
 };
 
 int sw_unregister_trace_workqueue_execution_i(struct sw_trace_notifier_data
 					      *node)
 {
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2,6,35)
-	DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, workqueue_execution,
-					  sw_probe_workqueue_execution_i);
-#else
 	DO_UNREGISTER_SW_TRACEPOINT_PROBE(node, workqueue_execute_start,
 					  sw_probe_workqueue_execute_start_i);
-#endif
 	return PW_SUCCESS;
 };
 
@@ -1632,7 +1477,6 @@ int sw_unregister_suspend_notifier_i(struct sw_trace_notifier_data *node)
  * Tracepoint extraction routines.
  * Required for newer kernels (>=3.15)
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
 static void sw_extract_tracepoint_callback(struct tracepoint *tp, void *priv)
 {
 	struct sw_trace_notifier_data *node = NULL;
@@ -1659,7 +1503,6 @@ static void sw_extract_tracepoint_callback(struct tracepoint *tp, void *priv)
 		}
 	}
 };
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
 
 /*
  * Retrieve the list of tracepoint structs to use when registering and unregistering
@@ -1667,7 +1510,6 @@ static void sw_extract_tracepoint_callback(struct tracepoint *tp, void *priv)
  */
 int sw_extract_trace_notifier_providers(void)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
 	int numCallbacks = 0;
 	for_each_kernel_tracepoint(&sw_extract_tracepoint_callback,
 				   &numCallbacks);
@@ -1679,7 +1521,6 @@ int sw_extract_trace_notifier_providers(void)
 		    ("ERROR: Could NOT find tracepoint structs for some required tracepoints!\n");
 		return -PW_ERROR;
 	}
-#endif // LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,0)
 	return PW_SUCCESS;
 };
 
