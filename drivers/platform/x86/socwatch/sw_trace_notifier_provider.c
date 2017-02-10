@@ -32,11 +32,11 @@ struct cpu_workqueue_struct;	// Forward declaration to avoid compiler warnings
 #define __get_cpu_var(var) *this_cpu_ptr(&var)
 #endif // __get_cpu_var
 
-#define BEGIN_LOCAL_IRQ_STATS_READ(p) do{	\
+#define BEGIN_LOCAL_IRQ_STATS_READ(p) do {	\
 	p = &__get_cpu_var(irq_stat);
 
 #define END_LOCAL_IRQ_STATS_READ(p)		\
-	}while(0)
+	} while (0)
 /*
  * CAS{32,64}
  */
@@ -88,46 +88,52 @@ struct cpu_workqueue_struct;	// Forward declaration to avoid compiler warnings
 #define PROBE_THERMAL_APIC_ENTRY_PARAMS sw_probe_thermal_apic_entry_i, int vector
 #define PROBE_THERMAL_APIC_EXIT_PARAMS sw_probe_thermal_apic_exit_i, int vector
 
-#define IS_VALID_WAKEUP_EVENT(cpu) ({ \
-	bool *per_cpu_event = &per_cpu(sw_is_valid_wakeup_event, (cpu)); \
-	bool old_value = CAS32(per_cpu_event, true, sw_wakeup_event_flag); \
-	old_value; \
-	})
+#define IS_VALID_WAKEUP_EVENT(cpu) ({						\
+	bool *per_cpu_event = &per_cpu(sw_is_valid_wakeup_event, (cpu));	\
+	bool old_value = CAS32(per_cpu_event, true, sw_wakeup_event_flag);	\
+	old_value;								\
+})
 #define SHOULD_PRODUCE_WAKEUP_SAMPLE(cpu) (IS_VALID_WAKEUP_EVENT(cpu))
 #define RESET_VALID_WAKEUP_EVENT_COUNTER(cpu) (per_cpu(sw_is_valid_wakeup_event, (cpu)) = true)
 
 #define NUM_TRACEPOINT_NODES SW_ARRAY_SIZE(s_trace_collector_lists)
 #define NUM_VALID_TRACEPOINTS (NUM_TRACEPOINT_NODES - 1)	/* "-1" for IPI */
-#define FOR_EACH_TRACEPOINT_NODE(idx, node) for (idx=0; idx<NUM_TRACEPOINT_NODES && (node=&s_trace_collector_lists[idx]); ++idx)
+#define FOR_EACH_TRACEPOINT_NODE(idx, node) for (idx = 0; idx < NUM_TRACEPOINT_NODES && (node = &s_trace_collector_lists[idx]); ++idx)
 
-#define FOR_EACH_NOTIFIER_NODE(idx, node) for (idx=0; idx<SW_ARRAY_SIZE(s_notifier_collector_lists) && (node = &s_notifier_collector_lists[idx]); ++idx)
+#define FOR_EACH_NOTIFIER_NODE(idx, node) for (idx = 0; idx < SW_ARRAY_SIZE(s_notifier_collector_lists) && (node = &s_notifier_collector_lists[idx]); ++idx)
 /*
  * Use these macros if all tracepoint ID numbers ARE contiguous from 0 -- max tracepoint ID #
  */
 #if 0
 #define IS_VALID_TRACE_NOTIFIER_ID(id) ((id) >= 0 && (id) < SW_ARRAY_SIZE(s_trace_collector_lists))
 #define GET_COLLECTOR_TRACE_NODE(id) (&s_trace_collector_lists[id])
-#define FOR_EACH_trace_notifier_id(idx) for (idx=0; idx < SW_ARRAY_SIZE(s_trace_collector_lists); ++idx)
+#define FOR_EACH_trace_notifier_id(idx) for (idx = 0; idx < SW_ARRAY_SIZE(s_trace_collector_lists); ++idx)
 #endif // if 0
 /*
  * Use these macros if all tracepoint ID numbers are NOT contiguous from 0 -- max tracepoint ID #
  */
-#define GET_COLLECTOR_TRACE_NODE(idx) ({int __idx=0; struct sw_trace_notifier_data *__node=NULL, *__retVal=NULL; \
-	FOR_EACH_TRACEPOINT_NODE(__idx, __node) { \
-		if ((idx) == GET_TRACE_NOTIFIER_ID(__node)) { \
-			__retVal = __node; break; \
-		} \
-	} \
-	__retVal;})
+#define GET_COLLECTOR_TRACE_NODE(idx) ({				\
+	int __idx = 0;							\
+	struct sw_trace_notifier_data *__node = NULL, *__retVal = NULL;	\
+	FOR_EACH_TRACEPOINT_NODE(__idx, __node) {			\
+		if ((idx) == GET_TRACE_NOTIFIER_ID(__node)) {		\
+			__retVal = __node; break;			\
+		}							\
+	}								\
+	__retVal;							\
+})
 #define IS_VALID_TRACE_NOTIFIER_ID(idx) (GET_COLLECTOR_TRACE_NODE(idx) != NULL)
 
-#define GET_COLLECTOR_NOTIFIER_NODE(idx) ({int __idx=0; struct sw_trace_notifier_data *__node=NULL, *__retVal=NULL; \
-	FOR_EACH_NOTIFIER_NODE(__idx, __node) { \
-		if ((idx) == GET_TRACE_NOTIFIER_ID(__node)) { \
-			__retVal = __node; break; \
-		} \
-	} \
-	__retVal;})
+#define GET_COLLECTOR_NOTIFIER_NODE(idx) ({				\
+	int __idx = 0;							\
+	struct sw_trace_notifier_data *__node = NULL, *__retVal = NULL;	\
+	FOR_EACH_NOTIFIER_NODE(__idx, __node) {				\
+		if ((idx) == GET_TRACE_NOTIFIER_ID(__node)) {		\
+			__retVal = __node; break;			\
+		}							\
+	}								\
+	__retVal;							\
+})
 #define IS_VALID_NOTIFIER_ID(idx) (GET_COLLECTOR_NOTIFIER_NODE(idx) != NULL)
 
 /* -------------------------------------------------
@@ -293,30 +299,23 @@ enum sw_notifier_id {
  * specify which tracepoints to use during a collection.
  */
 static const struct sw_trace_notifier_name s_trace_names[] = {
-	[SW_TRACE_ID_CPU_IDLE] = {"cpu_idle", "CPU-IDLE"},
-	[SW_TRACE_ID_CPU_FREQUENCY] = {"cpu_frequency", "CPU-FREQUENCY"},
-	[SW_TRACE_ID_IRQ_HANDLER_ENTRY] = {"irq_handler_entry", "IRQ-ENTRY"},
-	[SW_TRACE_ID_TIMER_EXPIRE_ENTRY] =
-	    {"timer_expire_entry", "TIMER-ENTRY"},
-	[SW_TRACE_ID_HRTIMER_EXPIRE_ENTRY] =
-	    {"hrtimer_expire_entry", "HRTIMER-ENTRY"},
-	[SW_TRACE_ID_SCHED_WAKEUP] = {"sched_wakeup", "SCHED-WAKEUP"},
-	[SW_TRACE_ID_IPI] = {NULL, "IPI"},
-	[SW_TRACE_ID_SCHED_PROCESS_FORK] =
-	    {"sched_process_fork", "PROCESS-FORK"},
-	[SW_TRACE_ID_SCHED_PROCESS_EXIT] =
-	    {"sched_process_exit", "PROCESS-EXIT"},
-	[SW_TRACE_ID_THERMAL_APIC_ENTRY] =
-	    {"thermal_apic_entry", "THERMAL-THROTTLE-ENTRY"},
-	[SW_TRACE_ID_THERMAL_APIC_EXIT] =
-	    {"thermal_apic_exit", "THERMAL-THROTTLE-EXIT"},
+	[SW_TRACE_ID_CPU_IDLE]			= {"cpu_idle", "CPU-IDLE"},
+	[SW_TRACE_ID_CPU_FREQUENCY]		= {"cpu_frequency", "CPU-FREQUENCY"},
+	[SW_TRACE_ID_IRQ_HANDLER_ENTRY]		= {"irq_handler_entry", "IRQ-ENTRY"},
+	[SW_TRACE_ID_TIMER_EXPIRE_ENTRY]	= {"timer_expire_entry", "TIMER-ENTRY"},
+	[SW_TRACE_ID_HRTIMER_EXPIRE_ENTRY]	= {"hrtimer_expire_entry", "HRTIMER-ENTRY"},
+	[SW_TRACE_ID_SCHED_WAKEUP]		= {"sched_wakeup", "SCHED-WAKEUP"},
+	[SW_TRACE_ID_IPI]			= {NULL, "IPI"},
+	[SW_TRACE_ID_SCHED_PROCESS_FORK]	= {"sched_process_fork", "PROCESS-FORK"},
+	[SW_TRACE_ID_SCHED_PROCESS_EXIT]	= {"sched_process_exit", "PROCESS-EXIT"},
+	[SW_TRACE_ID_THERMAL_APIC_ENTRY]	= {"thermal_apic_entry", "THERMAL-THROTTLE-ENTRY"},
+	[SW_TRACE_ID_THERMAL_APIC_EXIT]		= {"thermal_apic_exit", "THERMAL-THROTTLE-EXIT"},
 #if IS_ENABLED(CONFIG_SOCWATCH_ANDROID)
-	[SW_TRACE_ID_WAKE_LOCK] = {"wakeup_source_activate", "WAKE-LOCK"},
-	[SW_TRACE_ID_WAKE_UNLOCK] = {"wakeup_source_deactivate", "WAKE-UNLOCK"},
+	[SW_TRACE_ID_WAKE_LOCK]			= {"wakeup_source_activate", "WAKE-LOCK"},
+	[SW_TRACE_ID_WAKE_UNLOCK]		= {"wakeup_source_deactivate", "WAKE-UNLOCK"},
 #endif
-	[SW_TRACE_ID_WORKQUEUE_EXECUTE_START] =
-	    {"workqueue_execute_start", "WORKQUEUE-START"},
-	[SW_TRACE_ID_SCHED_SWITCH] = {"sched_switch", "CONTEXT-SWITCH"},
+	[SW_TRACE_ID_WORKQUEUE_EXECUTE_START]	= {"workqueue_execute_start", "WORKQUEUE-START"},
+	[SW_TRACE_ID_SCHED_SWITCH]		= {"sched_switch", "CONTEXT-SWITCH"},
 };
 
 /*
@@ -326,8 +325,7 @@ static const struct sw_trace_notifier_name s_trace_names[] = {
  * specify which notifiers to use during a collection.
  */
 static const struct sw_trace_notifier_name s_notifier_names[] = {
-	[SW_NOTIFIER_ID_SUSPEND_NOTIFIER] =
-	    {"suspend_notifier" /* don't care */ , "SUSPEND-NOTIFIER"},
+	[SW_NOTIFIER_ID_SUSPEND_NOTIFIER]	= {"suspend_notifier" /* don't care */, "SUSPEND-NOTIFIER"},
 };
 
 /*

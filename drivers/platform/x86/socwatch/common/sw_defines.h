@@ -93,7 +93,7 @@
 /*
  * Circularly decrement 'i'.
  */
-#define CIRCULAR_DEC(i,m) ({int __tmp1 = (i); if(--__tmp1 < 0) __tmp1 = (m); __tmp1;})
+#define CIRCULAR_DEC(i, m) ({int __tmp1 = (i); if (--__tmp1 < 0) __tmp1 = (m); __tmp1; })
 /*
  * Should the driver count number of dropped samples?
  */

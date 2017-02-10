@@ -84,20 +84,25 @@
  * How much space is available in a given segment?
  */
 #define EMPTY_TSC ((u64)-1)
-#define SEG_IS_FULL(seg) ({bool __full = false; \
-	smp_mb(); \
+#define SEG_IS_FULL(seg) ({			\
+	bool __full = false;			\
+	smp_mb();				\
 	__full = ((seg)->is_full != EMPTY_TSC); \
-	__full;})
-#define SEG_SET_FULL(seg, tsc) do { \
-	(seg)->is_full = (tsc); \
-	smp_mb(); \
-} while(0)
-#define SEG_SET_EMPTY(seg) do { \
-	barrier(); \
-	(seg)->bytes_written = 0; \
-	SEG_SET_FULL(seg, EMPTY_TSC); \
-	/*smp_mb(); */ \
-} while(0)
+	__full;					\
+})
+
+#define SEG_SET_FULL(seg, tsc) do {		\
+	(seg)->is_full = (tsc);			\
+	smp_mb();				\
+} while (0)
+
+#define SEG_SET_EMPTY(seg) do {			\
+	barrier();				\
+	(seg)->bytes_written = 0;		\
+	SEG_SET_FULL(seg, EMPTY_TSC);		\
+	/*smp_mb(); */				\
+} while (0)
+
 #define SPACE_AVAIL(seg) (SW_SEG_DATA_SIZE - (seg)->bytes_written)
 #define SEG_IS_EMPTY(seg) (SPACE_AVAIL(seg) == SW_SEG_DATA_SIZE)
 
@@ -105,8 +110,8 @@
 /*
  * Convenience macro: iterate over each segment in a per-cpu output buffer.
  */
-#define for_each_segment(i) for (i=0; i<NUM_SEGS_PER_BUFFER; ++i)
-#define for_each_seg(buffer, seg) for (int i=0; i<NUM_SEGS_PER_BUFFER && (seg=(buffer)->segments[i]); ++i)
+#define for_each_segment(i) for (i = 0; i < NUM_SEGS_PER_BUFFER; ++i)
+#define for_each_seg(buffer, seg) for (int i = 0; i < NUM_SEGS_PER_BUFFER && (seg = (buffer)->segments[i]); ++i)
 /*
  * How many buffers are we using?
  */
@@ -114,7 +119,7 @@
 /*
  * Convenience macro: iterate over each per-cpu output buffer.
  */
-#define for_each_output_buffer(i) for (i=0; i<GET_NUM_OUTPUT_BUFFERS(); ++i)
+#define for_each_output_buffer(i) for (i = 0; i < GET_NUM_OUTPUT_BUFFERS(); ++i)
 
 /* -------------------------------------------------
  * Local data structures.
@@ -177,8 +182,8 @@ static inline u64 tscval(void)
 	return tsc;
 };
 
-static char *reserve_seg_space_i(size_t size, int cpu, bool * should_wakeup,
-				 u64 * reservation_tsc)
+static char *reserve_seg_space_i(size_t size, int cpu, bool *should_wakeup,
+				 u64 *reservation_tsc)
 {
 	sw_output_buffer_t *buffer = GET_OUTPUT_BUFFER(cpu);
 	int i = 0;
@@ -432,7 +437,7 @@ void sw_reset_per_cpu_buffers(void)
 	pw_pr_debug("OK, reset per-cpu output buffers!\n");
 };
 
-bool sw_any_seg_full(u32 * val, bool is_flush_mode)
+bool sw_any_seg_full(u32 *val, bool is_flush_mode)
 {
 	int num_visited = 0, i = 0;
 

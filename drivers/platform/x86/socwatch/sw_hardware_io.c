@@ -118,7 +118,7 @@ const char *sw_get_hw_op_abstract_name(const struct sw_hw_ops *op)
 	return NULL;
 }
 
-int sw_for_each_hw_op(int (*func) (const struct sw_hw_ops * op, void *priv),
+int sw_for_each_hw_op(int (*func) (const struct sw_hw_ops *op, void *priv),
 		      void *priv, bool return_on_error)
 {
 	int retval = PW_SUCCESS;

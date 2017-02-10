@@ -108,7 +108,7 @@ static long sw_unlocked_handle_ioctl_i(unsigned int ioctl_num,
 static long sw_set_driver_infos_i(struct sw_driver_interface_msg __user *
 				  remote_msg, int local_len);
 static long sw_handle_cmd_i(sw_driver_collection_cmd_t cmd,
-			    u64 __user * remote_out_args);
+			    u64 __user *remote_out_args);
 static void sw_do_extract_scu_fw_version(void);
 static long sw_get_available_name_id_mappings_i(enum sw_name_id_type type,
 						struct sw_name_info_msg __user *
@@ -536,7 +536,7 @@ int sw_collection_stop_i(void)
 	s_internal_state.drain_buffers = true;
 	smp_mb();
 	/*
-	 * Wakeup any sleeping readers, and cleanup any 
+	 * Wakeup any sleeping readers, and cleanup any
 	 * timers in the reader subsys.
 	 */
 	sw_cancel_reader();
@@ -682,8 +682,8 @@ static long sw_set_driver_infos_i(struct sw_driver_interface_msg __user *
 			if (read_triggers & 0x1) {	// Bit 'i' is set
 				pw_pr_debug("BIT %d is SET!\n", i);
 				if (i == SW_WHEN_TYPE_TRACEPOINT) {
-					struct tn_data tn_data =
-					    { local_info,
+					struct tn_data tn_data = {
+					    local_info,
 			       local_info->tracepoint_id_mask };
 					pw_pr_debug
 					    ("TRACEPOINT, MASK = 0x%llx\n",
@@ -693,8 +693,8 @@ static long sw_set_driver_infos_i(struct sw_driver_interface_msg __user *
 					     &tn_data,
 					     false /*return-on-error */);
 				} else if (i == SW_WHEN_TYPE_NOTIFIER) {
-					struct tn_data tn_data =
-					    { local_info,
+					struct tn_data tn_data = {
+					    local_info,
 			       local_info->notifier_id_mask };
 					pw_pr_debug("NOTIFIER, MASK = 0x%llx\n",
 						    local_info->
@@ -725,7 +725,7 @@ static long sw_set_driver_infos_i(struct sw_driver_interface_msg __user *
 }
 
 static long sw_handle_cmd_i(sw_driver_collection_cmd_t cmd,
-			    u64 __user * remote_out_args)
+			    u64 __user *remote_out_args)
 {
 	/*
 	 * First, handle the command.
@@ -755,8 +755,8 @@ static long sw_handle_cmd_i(sw_driver_collection_cmd_t cmd,
 	 */
 #if DO_COUNT_DROPPED_SAMPLES
 	if (cmd == SW_DRIVER_STOP_COLLECTION) {
-		u64 local_args[2] =
-		    { sw_num_samples_produced, sw_num_samples_dropped };
+		u64 local_args[2] = {
+		    sw_num_samples_produced, sw_num_samples_dropped };
 		if (copy_to_user
 		    (remote_out_args, local_args, sizeof(local_args))) {
 			pw_pr_error
@@ -1095,8 +1095,8 @@ static long sw_unlocked_handle_ioctl_i(unsigned int ioctl_num,
 		 * OK, perform the actual IO.
 		 */
 		{
-			struct sw_immediate_request_info request_info =
-			    { local_descriptor, dst_vals, &retVal };
+			struct sw_immediate_request_info request_info = {
+			    local_descriptor, dst_vals, &retVal };
 			struct cpumask cpumask;
 			cpumask_clear(&cpumask);
 			switch (local_info->cpu_mask) {

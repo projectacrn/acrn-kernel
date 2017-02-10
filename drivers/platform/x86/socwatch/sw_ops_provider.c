@@ -333,8 +333,8 @@ void sw_read_pci_info_i(char *dst_vals, int cpu,
 	u32 function = descriptors->pci_descriptor.function, offset =
 	    descriptors->pci_descriptor.offset;
 	u32 data =
-	    sw_platform_pci_read32(bus, device, function, 0 /* CTRL-OFFSET */ ,
-				   0 /* CTRL-DATA, don't care */ ,
+	    sw_platform_pci_read32(bus, device, function, 0 /* CTRL-OFFSET */,
+				   0 /* CTRL-DATA, don't care */,
 				   offset /* DATA-OFFSET */);
 	/*
 	 * 'counter_size_in_bytes' is ignored, for now.
@@ -385,10 +385,10 @@ u32 sw_platform_configdb_read32(u32 address)
 {
 	u32 read_value = 0;
 #if DO_DIRECT_PCI_READ_WRITE
-	return sw_platform_pci_read32(0 /*bus */ , 0 /*device */ ,
-				      0 /*function */ ,
-				      SW_PCI_MSG_CTRL_REG /*ctrl-offset */ ,
-				      address /*ctrl-value */ ,
+	return sw_platform_pci_read32(0 /*bus */, 0 /*device */,
+				      0 /*function */,
+				      SW_PCI_MSG_CTRL_REG /*ctrl-offset */,
+				      address /*ctrl-value */,
 				      SW_PCI_MSG_DATA_REG /*data-offset */);
 #else // !DO_DIRECT_PCI_READ_WRITE
 	read_value = intel_mid_msgbus_read32_raw(address);
@@ -484,7 +484,7 @@ int sw_ipc_mmio_descriptor_reset_func_i(const struct sw_driver_io_descriptor
 }
 
 #define NUM_HW_OPS SW_ARRAY_SIZE(s_hw_ops)
-#define FOR_EACH_HW_OP(idx, op) for (idx=0; idx<NUM_HW_OPS && (op=&s_hw_ops[idx]); ++idx)
+#define FOR_EACH_HW_OP(idx, op) for (idx = 0; idx < NUM_HW_OPS && (op = &s_hw_ops[idx]); ++idx)
 
 int sw_register_ops_providers(void)
 {

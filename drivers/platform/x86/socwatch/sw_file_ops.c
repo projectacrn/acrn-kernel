@@ -23,11 +23,11 @@
 /*
  * Check if we're currently collecting data.
  */
-#define IS_COLLECTING() ({sw_driver_collection_cmd_t __cmd = GET_CMD(); bool __val = (__cmd == SW_DRIVER_START_COLLECTION || __cmd == SW_DRIVER_RESUME_COLLECTION); __val;})
+#define IS_COLLECTING() ({sw_driver_collection_cmd_t __cmd = GET_CMD(); bool __val = (__cmd == SW_DRIVER_START_COLLECTION || __cmd == SW_DRIVER_RESUME_COLLECTION); __val; })
 /*
  * Check if we're currently paused.
  */
-#define IS_SLEEPING() ({sw_driver_collection_cmd_t __cmd = GET_CMD(); bool __val = __cmd == SW_DRIVER_PAUSE_COLLECTION; __val;})
+#define IS_SLEEPING() ({sw_driver_collection_cmd_t __cmd = GET_CMD(); bool __val = __cmd == SW_DRIVER_PAUSE_COLLECTION; __val; })
 /* -------------------------------------------------
  * Typedefs
  * -------------------------------------------------
@@ -40,8 +40,8 @@ typedef unsigned long sw_bits_t;
  */
 static int sw_device_open_i(struct inode *inode, struct file *file);
 static int sw_device_release_i(struct inode *inode, struct file *file);
-static ssize_t sw_device_read_i(struct file *file, char __user * buffer,
-				size_t length, loff_t * offset);
+static ssize_t sw_device_read_i(struct file *file, char __user *buffer,
+				size_t length, loff_t *offset);
 static long sw_device_unlocked_ioctl_i(struct file *filp,
 				       unsigned int ioctl_num,
 				       unsigned long ioctl_param);
@@ -129,8 +129,8 @@ static int sw_device_release_i(struct inode *inode, struct file *file)
 	return retVal;
 }
 
-static ssize_t sw_device_read_i(struct file *file, char __user * user_buffer,
-				size_t length, loff_t * offset)
+static ssize_t sw_device_read_i(struct file *file, char __user *user_buffer,
+				size_t length, loff_t *offset)
 {
 	size_t bytes_read = 0;
 	u32 val = 0;

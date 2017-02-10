@@ -71,10 +71,10 @@ struct sw_trace_notifier_name {
 };
 
 typedef struct sw_trace_notifier_data sw_trace_notifier_data_t;
-typedef int (*sw_trace_notifier_register_func) (struct sw_trace_notifier_data *
-						node);
+typedef int (*sw_trace_notifier_register_func) (struct sw_trace_notifier_data
+						*node);
 typedef int (*sw_trace_notifier_unregister_func) (struct sw_trace_notifier_data
-						  * node);
+						  *node);
 
 struct sw_trace_notifier_data {
 	enum sw_trace_data_type type;	// Tracepoint or Notifier
@@ -106,11 +106,11 @@ void sw_print_trace_notifier_overheads(void);
 
 int
 sw_for_each_tracepoint_node(int (*func)
-			    (struct sw_trace_notifier_data * node, void *priv),
+			    (struct sw_trace_notifier_data *node, void *priv),
 			    void *priv, bool return_on_error);
 int
 sw_for_each_notifier_node(int (*func)
-			  (struct sw_trace_notifier_data * node, void *priv),
+			  (struct sw_trace_notifier_data *node, void *priv),
 			  void *priv, bool return_on_error);
 
 int sw_get_trace_notifier_id(struct sw_trace_notifier_data *node);

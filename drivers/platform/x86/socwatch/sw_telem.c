@@ -116,17 +116,17 @@ extern int __weak telemetry_raw_read_eventlog(enum telemetry_unit telem_unit,
 					      int evcount);
 extern int __weak telemetry_reset(void);
 extern int __weak telemetry_reset_events(void);
-extern int __weak telemetry_get_sampling_period(u8 * punit_min,
-						u8 * punit_max,
-						u8 * pmc_min, u8 * pmc_max);
+extern int __weak telemetry_get_sampling_period(u8 *punit_min,
+						u8 *punit_max,
+						u8 *pmc_min, u8 *pmc_max);
 extern int __weak telemetry_set_sampling_period(u8 punit_period, u8 pmc_period);
-extern int __weak telemetry_get_eventconfig(u8 * num_punit_evts,
-					    u8 * num_pmc_evts,
-					    u32 * punit_evtmap,
-					    u32 * pmc_evtmap,
+extern int __weak telemetry_get_eventconfig(u8 *num_punit_evts,
+					    u8 *num_pmc_evts,
+					    u32 *punit_evtmap,
+					    u32 *pmc_evtmap,
 					    int punit_len, int pmc_len);
 extern int __weak telemetry_add_events(u8 num_punit_evts, u8 num_pmc_evts,
-				       u32 * punit_evtmap, u32 * pmc_evtmap);
+				       u32 *punit_evtmap, u32 *pmc_evtmap);
 
 /*
  * Some telemetry IDs have multiple instances, indexed by cpu ID.  We
@@ -192,7 +192,7 @@ static int telemetry_available(void)
  *
  * Returns:   -1 if id not found, array offset if it is found.
  */
-static int sw_telem_find_event(u32 id, const u32 * events, unsigned int ecount)
+static int sw_telem_find_event(u32 id, const u32 *events, unsigned int ecount)
 {
 	unsigned int i;
 	id &= ~TELEM_EVENT_ENABLE;	/* Returned events have enable cleared */
@@ -510,7 +510,7 @@ int sw_telem_init_func(struct sw_driver_io_descriptor *descriptor)
  * Returns: Nothing, but stores SW_TELEM_READ_FAIL_VALUE to dest if the read fails.
  */
 void sw_read_telem_info(char *dest, int cpu,
-			const sw_driver_io_descriptor_t * descriptor,
+			const sw_driver_io_descriptor_t *descriptor,
 			u16 data_size_in_bytes)
 {
 	int len;

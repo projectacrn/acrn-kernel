@@ -94,10 +94,10 @@ void sw_print_trace_notifier_overheads(void)
 	sw_print_trace_notifier_provider_overheads();
 }
 
-static int sw_for_each_node_i(void *list_head,
-			      int (*func) (struct sw_trace_notifier_data * node,
-					   void *priv), void *priv,
-			      bool return_on_error)
+static int
+sw_for_each_node_i(void *list_head,
+		   int (*func)(struct sw_trace_notifier_data *node, void *priv),
+		   void *priv, bool return_on_error)
 {
 	SW_LIST_HEAD_VAR(sw_trace_list_node) * head = list_head;
 	int retval = PW_SUCCESS;
@@ -114,8 +114,7 @@ static int sw_for_each_node_i(void *list_head,
 }
 
 int
-sw_for_each_tracepoint_node(int (*func)
-			    (struct sw_trace_notifier_data * node, void *priv),
+sw_for_each_tracepoint_node(int (*func) (struct sw_trace_notifier_data *node, void *priv),
 			    void *priv, bool return_on_error)
 {
 	if (func) {
@@ -127,7 +126,7 @@ sw_for_each_tracepoint_node(int (*func)
 
 int
 sw_for_each_notifier_node(int (*func)
-			  (struct sw_trace_notifier_data * node, void *priv),
+			  (struct sw_trace_notifier_data *node, void *priv),
 			  void *priv, bool return_on_error)
 {
 	if (func) {

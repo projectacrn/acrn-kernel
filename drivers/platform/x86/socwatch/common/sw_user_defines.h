@@ -134,7 +134,7 @@
 #define PW_GET_OTHER_FROM_COLLECTOR(v) (pw_u8_t) ((v) & 0xff)
 #define PW_CONVERT_COLLECTOR_VERSION_TO_STRING(v) ([&]{std::stringstream __stream; \
 	__stream << (int)PW_GET_MAJOR_FROM_COLLECTOR(v) << "." << (int)PW_GET_MINOR_FROM_COLLECTOR(v) \
-	<< "." << (int)PW_GET_OTHER_FROM_COLLECTOR(v); return __stream.str();}())
+	<< "." << (int)PW_GET_OTHER_FROM_COLLECTOR(v); return __stream.str(); } ())
 /*
  * Stringify.
  */
@@ -143,7 +143,7 @@
 /*
  * Iterate over vectors, deques and ranges.
  */
-#define for_each_ptr_in_vector(ptr, vector) for (size_t __curr=0, __end=(vector).size(); __curr!=__end && (ptr=(vector)[__curr]); ++__curr)
+#define for_each_ptr_in_vector(ptr, vector) for (size_t __curr = 0, __end = (vector).size(); __curr != __end && (ptr = (vector)[__curr]); ++__curr)
 /*
  * Find a string 'str' in an array of 'std::string' instances
  */
@@ -151,7 +151,7 @@
 	([&]() { \
 		int s = SW_ARRAY_SIZE(array); \
 		bool found = (ptr = std::find((array), (array)+s, (str))) != &((array)[s]); \
-		return found; }())
+		return found; } ())
 
 /* **************************************
  * Debugging tools.
@@ -197,7 +197,13 @@ enum pw_log_level_t {
 #define PW_4_STREAM PW_DEBUG_STREAM
 #endif // SWW_MERGE
 
-#define PW_LOG_OUTPUT(level, fp, format, ...) do { if (unlikely(g_pluginEnvironment->getVerbosity() && (level) <= g_pluginEnvironment->getVerbosity())){ fprintf(fp, format, ##__VA_ARGS__); fflush(fp);}} while(0);
+#define PW_LOG_OUTPUT(level, fp, format, ...) do {		\
+	if (unlikely(g_pluginEnvironment->getVerbosity() &&	\
+	    (level) <= g_pluginEnvironment->getVerbosity())) {	\
+		fprintf(fp, format, ##__VA_ARGS__);		\
+		fflush(fp);					\
+	}							\
+} while (0);
 #define PW_GET_STREAM_HELPER(level, stream) ((g_pluginEnvironment->getVerbosity() && (level) <= g_pluginEnvironment->getVerbosity()) ? (stream) : g_pluginEnvironment->getNullStream())
 /*
  * Helper macros to print information
@@ -247,19 +253,19 @@ enum pw_log_level_t {
 #if DEVELOPMENT_MODE		// Development code; NOT meant for production
 #define PW_TRACE_FUNCTION_ENTER() do { \
 	PW_LOG_INFO("Entering function %s\n", __FUNCTION__); \
-} while(0)
+} while (0)
 
 #define PW_TRACE_FUNCTION_EXIT() do { \
 	PW_LOG_INFO("Exiting function %s\n", __FUNCTION__); \
-} while(0)
+} while (0)
 
 #define PW_TRACE_FUNCTION_ENTER_VERBOSE() do { \
 	PW_LOG_INFO("Entering function %s\n", __PRETTY_FUNCTION__); \
-} while(0)
+} while (0)
 
 #define PW_TRACE_FUNCTION_EXIT_VERBOSE() do { \
 	PW_LOG_INFO("Exiting function %s\n", __PRETTY_FUNCTION__); \
-} while(0)
+} while (0)
     /*
      * Basic timer-based profiling functions.
      * Every 'ENTER' MUST be accompanied by
@@ -288,11 +294,11 @@ enum pw_log_level_t {
 
 #define PW_DO_REPORT_FILE_ERROR(msg, path) do { \
 	PW_LOG_ERROR(msg, (path).c_str(), strerror(errno)); \
-} while(0)
+} while (0)
 
 #define PW_TODO_MSG(msg) do { \
 	PW_LOG_ERROR("%s functionality is TODO!\n", (msg)); \
-} while(0)
+} while (0)
 
 #ifdef SWW_MERGE
 #define __PRETTY_FUNCTION__ __FUNCTION__
@@ -300,11 +306,11 @@ enum pw_log_level_t {
 
 #define PW_TODO() do { \
 	PW_TODO_MSG(__PRETTY_FUNCTION__); \
-} while(0)
+} while (0)
 
 #define PW_PERROR_LEVEL(msg, level) do { \
 	PW_GET_STREAM(level) << msg << ": " << strerror(errno) << std::endl; \
-} while(0)
+} while (0)
 
 #define PW_PERROR(msg) PW_PERROR_LEVEL(msg, ERROR)
 

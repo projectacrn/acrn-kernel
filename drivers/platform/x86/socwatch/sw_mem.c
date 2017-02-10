@@ -79,8 +79,16 @@ static atomic_t pw_mem_should_panic = ATOMIC_INIT(0);
 /*
  * Macro to check if PANIC is on.
  */
-#define MEM_PANIC() do{ atomic_set(&pw_mem_should_panic, 1); smp_mb(); }while(0)
-#define SHOULD_TRACE() ({bool __tmp = false; smp_mb(); __tmp = (atomic_read(&pw_mem_should_panic) == 0); __tmp;})
+#define MEM_PANIC() do {					\
+	atomic_set(&pw_mem_should_panic, 1); smp_mb();		\
+} while (0)
+
+#define SHOULD_TRACE() ({					\
+	bool __tmp = false;					\
+	smp_mb();						\
+	__tmp = (atomic_read(&pw_mem_should_panic) == 0);	\
+	__tmp;							\
+})
 
 #else // if !DO_MEM_PANIC_ON_ALLOC_ERROR
 
@@ -186,12 +194,33 @@ static SW_DEFINE_SPINLOCK(sw_kmalloc_lock);
  */
 #define PW_MEM_MAGIC 0xdeadbeef
 
-#define PW_ADD_MAGIC(x) ({char *__tmp1 = (char *)(x); *((int *)__tmp1) = PW_MEM_MAGIC; __tmp1 += sizeof(int); __tmp1;})
-#define PW_ADD_SIZE(x,s) ({char *__tmp1 = (char *)(x); *((int *)__tmp1) = (s); __tmp1 += sizeof(int); __tmp1;})
-#define PW_ADD_STAMP(x,s) PW_ADD_MAGIC(PW_ADD_SIZE((x), (s)))
+#define PW_ADD_MAGIC(x) ({			\
+	char *__tmp1 = (char *)(x);		\
+	*((int *)__tmp1) = PW_MEM_MAGIC;	\
+	__tmp1 += sizeof(int);			\
+	__tmp1;					\
+})
 
-#define PW_IS_MAGIC(x) ({int *__tmp1 = (int *)((char *)(x) - sizeof(int)); *__tmp1 == PW_MEM_MAGIC;})
-#define PW_REMOVE_STAMP(x) ({char *__tmp1 = (char *)(x); __tmp1 -= sizeof(int) * 2; __tmp1;})
+#define PW_ADD_SIZE(x, s) ({			\
+	char *__tmp1 = (char *)(x);		\
+	*((int *)__tmp1) = (s);			\
+	__tmp1 += sizeof(int);			\
+	__tmp1;					\
+})
+
+#define PW_ADD_STAMP(x, s) PW_ADD_MAGIC(PW_ADD_SIZE((x), (s)))
+
+#define PW_IS_MAGIC(x) ({					\
+	int *__tmp1 = (int *)((char *)(x) - sizeof(int));	\
+	*__tmp1 == PW_MEM_MAGIC;				\
+})
+
+#define PW_REMOVE_STAMP(x) ({			\
+	char *__tmp1 = (char *)(x);		\
+	__tmp1 -= sizeof(int) * 2;		\
+	__tmp1;					\
+})
+
 #define PW_GET_SIZE(x) (*((int *)(x)))
 
 void *sw_kmalloc(size_t size, unsigned flags)

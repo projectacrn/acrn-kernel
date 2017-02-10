@@ -95,7 +95,7 @@ int sw_get_hw_op_id(const struct sw_hw_ops *op);
 const struct sw_hw_ops *sw_get_hw_ops_for(int id);
 const char *sw_get_hw_op_abstract_name(const struct sw_hw_ops *op);
 
-int sw_for_each_hw_op(int (*func) (const struct sw_hw_ops * op, void *priv),
+int sw_for_each_hw_op(int (*func) (const struct sw_hw_ops *op, void *priv),
 		      void *priv, bool return_on_error);
 
 /**

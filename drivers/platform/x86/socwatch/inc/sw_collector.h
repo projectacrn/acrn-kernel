@@ -99,7 +99,7 @@ int sw_write_collector_node(struct sw_collector_data *data);
 void sw_init_collector_list(void *list_head);
 void sw_destroy_collector_list(void *list_head);
 int sw_handle_collector_list(void *list_head,
-			     int (*func) (struct sw_collector_data * data));
+			     int (*func)(struct sw_collector_data *data));
 
 int sw_handle_driver_io_descriptor(char *dst_vals, int cpu,
 				   const struct sw_driver_io_descriptor

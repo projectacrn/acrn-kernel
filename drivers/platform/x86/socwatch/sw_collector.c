@@ -78,7 +78,7 @@ int sw_init_ops_i(const struct sw_hw_ops **ops,
 		  const struct sw_driver_interface_info *info);
 sw_driver_msg_t *sw_alloc_collector_msg_i(const struct sw_driver_interface_info
 					  *info, size_t per_msg_payload_size);
-void sw_free_collector_msg_i(sw_driver_msg_t * msg);
+void sw_free_collector_msg_i(sw_driver_msg_t *msg);
 size_t sw_get_payload_size_i(const struct sw_driver_interface_info *info);
 void sw_handle_per_cpu_msg_i(void *info, enum sw_wakeup_action action);
 /* -------------------------------------------------
@@ -412,7 +412,7 @@ int sw_handle_driver_io_descriptor(char *dst_vals, int cpu,
 }
 
 sw_driver_msg_t *sw_alloc_collector_msg_i(const struct sw_driver_interface_info
-					  * info, size_t per_msg_payload_size)
+					  *info, size_t per_msg_payload_size)
 {
 	size_t per_msg_size = 0, total_size = 0;
 	sw_driver_msg_t *msg = NULL;
@@ -445,7 +445,7 @@ sw_driver_msg_t *sw_alloc_collector_msg_i(const struct sw_driver_interface_info
 	return msg;
 }
 
-void sw_free_collector_msg_i(sw_driver_msg_t * msg)
+void sw_free_collector_msg_i(sw_driver_msg_t *msg)
 {
 	if (msg) {
 		sw_kfree(msg);
@@ -458,10 +458,9 @@ size_t sw_get_payload_size_i(const struct sw_driver_interface_info *info)
 	int i = 0;
 
 	if (info) {
-		for (i = 0; i < info->num_io_descriptors;
-		     size +=
-		     ((struct sw_driver_io_descriptor *)info->descriptors)[i].
-		     counter_size_in_bytes, ++i) ;
+		for (i = 0;
+		     i < info->num_io_descriptors;
+		     size += ((struct sw_driver_io_descriptor *)info->descriptors)[i].counter_size_in_bytes, ++i);
 	}
 	return size;
 }
@@ -602,7 +601,7 @@ void sw_destroy_collector_list(void *list_head)
  * Returns: PW_SUCCESS on success, -PW_ERROR on error.
  */
 int sw_handle_collector_list(void *list_head,
-			     int (*func) (struct sw_collector_data * data))
+			     int (*func)(struct sw_collector_data *data))
 {
 	SW_LIST_HEAD_VAR(sw_collector_data) * head = list_head;
 	int retVal = PW_SUCCESS;

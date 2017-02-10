@@ -3,10 +3,10 @@
 
 enum sw_driver_collection_cmd;
 struct sw_file_ops {
-	long (*ioctl_handler) (unsigned int ioctl_num, void *local_args);
-	int (*stop_handler) (void);
-	enum sw_driver_collection_cmd (*get_current_cmd) (void);
-	 bool(*should_flush) (void);
+	long (*ioctl_handler)(unsigned int ioctl_num, void *local_args);
+	int (*stop_handler)(void);
+	enum sw_driver_collection_cmd (*get_current_cmd)(void);
+	bool(*should_flush)(void);
 };
 
 int sw_register_dev(struct sw_file_ops *ops);
