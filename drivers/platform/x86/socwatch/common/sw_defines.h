@@ -131,10 +131,6 @@
 /* Data value read when a telemetry data read fails. */
 #define SW_TELEM_READ_FAIL_VALUE 0xF00DF00DF00DF00D
 
-#ifdef __KERNEL__
 #include "sw_kernel_defines.h"
-#else // __KERNEL__
-#include "sw_user_defines.h"
-#endif // __KERNEL__
 
 #endif // _PW_DEFINES_H_

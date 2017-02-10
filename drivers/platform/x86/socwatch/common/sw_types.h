@@ -57,75 +57,7 @@
 #ifndef _PW_TYPES_H_
 #define _PW_TYPES_H_
 
-#if defined (__linux__) || defined (__APPLE__)
-
-#ifndef __KERNEL__
-/*
- * Called from Ring-3.
- */
-#include <stdint.h>		// Grab 'uint64_t' etc.
-#include <unistd.h>		// Grab 'pid_t'
-/*
- * UNSIGNED types...
- */
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-/*
- * SIGNED types...
- */
-typedef int8_t s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-
-#else // __KERNEL__
-#if !defined (__APPLE__)
 #include <linux/types.h>
-#else // __APPLE__
-#include <sys/types.h>
-#include <stdint.h>		// Grab 'uint64_t' etc.
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-/*
-* SIGNED types...
-*/
-typedef int8_t s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-#endif // __APPLE__
-#endif // __KERNEL__
-
-#elif defined (_WIN32)
-typedef __int32 int32_t;
-typedef unsigned __int32 uint32_t;
-typedef __int64 int64_t;
-typedef unsigned __int64 uint64_t;
-
-/*
- * UNSIGNED types...
- */
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef unsigned long long u64;
-
-/*
- * SIGNED types...
- */
-typedef signed char s8;
-typedef signed short s16;
-typedef signed int s32;
-typedef signed long long s64;
-typedef s32 pid_t;
-typedef s32 ssize_t;
-
-#endif // _WIN32
 
 /* ************************************
  * Common to both operating systems.

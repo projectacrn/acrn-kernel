@@ -56,25 +56,8 @@
 #ifndef _PW_KERNEL_DEFINES_H_
 #define _PW_KERNEL_DEFINES_H_ 1
 
-#ifdef __KERNEL__
-
-/* ***************************************************
- * The following is only valid for kernel code.
- * ***************************************************
- */
-
-#if defined (__APPLE__)
-#define likely(x)   (x)
-#define unlikely(x) (x)
-#endif // __APPLE__
-
-#if !defined(__APPLE__)
 #define CPU() (raw_smp_processor_id())
 #define RAW_CPU() (raw_smp_processor_id())
-#else
-#define CPU() (cpu_number())
-#define RAW_CPU() (cpu_number())
-#endif // __APPLE__
 
 #define TID() (current->pid)
 #define PID() (current->tgid)
@@ -128,7 +111,6 @@
 /*
  * Macros to control output printing.
  */
-#if !defined(__APPLE__)
 #if DO_DEBUG_OUTPUT
 #define pw_pr_debug(...) printk(KERN_INFO __VA_ARGS__)
 #define pw_pr_warn(...) printk(KERN_WARNING __VA_ARGS__)
@@ -137,34 +119,14 @@
 #define pw_pr_warn(...)
 #endif
 #define pw_pr_force(...) printk(KERN_INFO __VA_ARGS__)
-#else
-#if DO_DEBUG_OUTPUT
-#define pw_pr_debug(...) IOLog(__VA_ARGS__)
-#define pw_pr_warn(...) IOLog(__VA_ARGS__)
-#else
-#define pw_pr_debug(...)
-#define pw_pr_warn(...)
-#endif
-#define pw_pr_force(...) IOLog(__VA_ARGS__)
-#endif // __APPLE__
 
 /*
  * Macro for driver error messages.
  */
-#if !defined(__APPLE__)
 #if (DO_PRINT_DRIVER_ERROR_MESSAGES || DO_DEBUG_OUTPUT)
 #define pw_pr_error(...) printk(KERN_ERR __VA_ARGS__)
 #else
 #define pw_pr_error(...)
 #endif
-#else
-#if (DO_PRINT_DRIVER_ERROR_MESSAGES || DO_DEBUG_OUTPUT)
-#define pw_pr_error(...) IOLog(__VA_ARGS__)
-#else
-#define pw_pr_error(...)
-#endif
-#endif // __APPLE__
-
-#endif // __KERNEL__
 
 #endif // _PW_KERNEL_DEFINES_H_

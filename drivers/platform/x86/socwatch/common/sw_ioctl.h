@@ -56,16 +56,10 @@
 #ifndef __SW_IOCTL_H__
 #define __SW_IOCTL_H__ 1
 
-#if defined (__linux__)
-#if __KERNEL__
 #include <linux/ioctl.h>
 #if defined(CONFIG_COMPAT) && defined(CONFIG_X86_64)
 #include <linux/compat.h>
 #endif // COMPAT && x64
-#else // !__KERNEL__
-#include <sys/ioctl.h>
-#endif // __KERNEL__
-#endif // __linux__
 /*
  * Ensure we pull in definition of 'DO_COUNT_DROPPED_SAMPLES'!
  */
@@ -111,7 +105,6 @@ enum sw_ioctl_cmd {
  * Where "Read" and "Write" are from the user's perspective
  * (similar to the file "read" and "write" calls).
  */
-#if !defined (__APPLE__)
 #define PW_IOCTL_CONFIG _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_config, struct sw_driver_ioctl_arg *)
 #if DO_COUNT_DROPPED_SAMPLES
 #define PW_IOCTL_CMD _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg *)
@@ -126,22 +119,6 @@ enum sw_ioctl_cmd {
 #define PW_IOCTL_GET_AVAILABLE_TRACEPOINTS _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_trace, struct sw_driver_ioctl_arg *)
 #define PW_IOCTL_GET_AVAILABLE_NOTIFIERS _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_notify, struct sw_driver_ioctl_arg *)
 #define PW_IOCTL_GET_AVAILABLE_COLLECTORS _IOR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_collect, struct sw_driver_ioctl_arg *)
-#else // __APPLE__
-#define PW_IOCTL_CONFIG _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_config, struct sw_driver_ioctl_arg)
-#if DO_COUNT_DROPPED_SAMPLES
-#define PW_IOCTL_CMD _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg)
-#else
-#define PW_IOCTL_CMD _IOW(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_cmd, struct sw_driver_ioctl_arg)
-#endif // DO_COUNT_DROPPED_SAMPLES
-#define PW_IOCTL_POLL _IO(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_poll)
-#define PW_IOCTL_IMMEDIATE_IO _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_immediate_io, struct sw_driver_ioctl_arg)
-#define PW_IOCTL_GET_SCU_FW_VERSION _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_scu_version, struct sw_driver_ioctl_arg)
-#define PW_IOCTL_READ_IMMEDIATE _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_read_immediate, struct sw_driver_ioctl_arg)
-#define PW_IOCTL_GET_DRIVER_VERSION _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_driver_version, struct sw_driver_ioctl_arg)
-#define PW_IOCTL_GET_AVAILABLE_TRACEPOINTS _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_trace, struct sw_driver_ioctl_arg)
-#define PW_IOCTL_GET_AVAILABLE_NOTIFIERS _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_notify, struct sw_driver_ioctl_arg)
-#define PW_IOCTL_GET_AVAILABLE_COLLECTORS _IOWR(APWR_IOCTL_MAGIC_NUM, sw_ioctl_cmd_avail_collect, struct sw_driver_ioctl_arg)
-#endif // __APPLE__
 
 /*
  * 32b-compatible version of the above
