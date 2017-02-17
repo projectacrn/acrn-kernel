@@ -445,4 +445,15 @@ const struct stmmac_desc_ops dwmac4_desc_ops = {
 	.set_mss = dwmac4_set_mss_ctxt,
 };
 
-const struct stmmac_mode_ops dwmac4_ring_mode_ops = { };
+static int stmmac_set_16kib_bfsize(int mtu)
+{
+	int ret = 0;
+
+	if (unlikely(mtu >= BUF_SIZE_8KiB))
+		ret = BUF_SIZE_16KiB;
+	return ret;
+}
+
+const struct stmmac_mode_ops dwmac4_ring_mode_ops = {
+	.set_16kib_bfsize = stmmac_set_16kib_bfsize,
+};
