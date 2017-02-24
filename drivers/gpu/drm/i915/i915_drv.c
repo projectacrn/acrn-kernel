@@ -147,6 +147,8 @@ static enum intel_pch intel_virt_detect_pch(struct drm_i915_private *dev_priv)
 	} else if (IS_COFFEELAKE(dev_priv) || IS_CANNONLAKE(dev_priv)) {
 		ret = PCH_CNP;
 		DRM_DEBUG_KMS("Assuming CannonPoint PCH\n");
+	} else if (IS_ICELAKE(dev_priv)) {
+		ret = PCH_ICP; /* FIXME: have a proper commit for this */
 	}
 
 	return ret;
