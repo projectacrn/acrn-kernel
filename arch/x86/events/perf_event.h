@@ -898,6 +898,12 @@ ssize_t events_sysfs_show(struct device *dev, struct device_attribute *attr,
 ssize_t events_ht_sysfs_show(struct device *dev, struct device_attribute *attr,
 			  char *page);
 
+static inline bool fixed_counter_disabled(int i)
+{
+	return x86_pmu.intel_ctrl &&
+		((1ULL << (i + INTEL_PMC_IDX_FIXED)) & x86_pmu.intel_ctrl);
+}
+
 #ifdef CONFIG_CPU_SUP_AMD
 
 int amd_pmu_init(void);
