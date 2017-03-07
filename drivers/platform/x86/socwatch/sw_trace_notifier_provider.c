@@ -1,5 +1,4 @@
 #include <linux/hrtimer.h>
-#include <asm/cputime.h>
 #include <asm/hardirq.h>
 #include <asm/local.h>
 
