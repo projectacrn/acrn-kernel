@@ -1505,6 +1505,8 @@ static const struct pci_device_id pci_ids[] = {
 	SDHCI_PCI_DEVICE(INTEL, ICP_SD,    intel_byt_sd),
 	SDHCI_PCI_DEVICE(INTEL, ICPN_SD,   intel_byt_sd),
 	SDHCI_PCI_DEVICE(INTEL, ICPH_SD,   intel_byt_sd),
+	SDHCI_PCI_DEVICE(INTEL, EHL_EMMC,  intel_glk_emmc),
+	SDHCI_PCI_DEVICE(INTEL, EHL_SD,    intel_byt_sd),
 	SDHCI_PCI_DEVICE(O2, 8120,     o2),
 	SDHCI_PCI_DEVICE(O2, 8220,     o2),
 	SDHCI_PCI_DEVICE(O2, 8221,     o2),
