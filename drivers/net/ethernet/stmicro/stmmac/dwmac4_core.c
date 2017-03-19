@@ -927,6 +927,19 @@ static void dwmac4_set_vlan_mode(void __iomem *ioaddr,
 	writel(val, ioaddr + GMAC_VLAN_TAG_CTRL);
 }
 
+static void dwmac4_set_loopback_mode(struct mac_device_info *hw, bool mode)
+{
+	void __iomem *ioaddr = hw->pcsr;
+	u32 value = readl(ioaddr + GMAC_CONFIG);
+
+	if (mode)
+		value |= GMAC_CONFIG_LM;
+	else
+		value &= ~GMAC_CONFIG_LM;
+
+	writel(value, ioaddr + GMAC_CONFIG);
+}
+
 static const struct stmmac_ops dwmac4_ops = {
 	.core_init = dwmac4_core_init,
 	.set_mac = stmmac_set_mac,
@@ -992,6 +1005,7 @@ static const struct stmmac_ops dwmac410_ops = {
 	.vlan_rx_add_vid = dwmac4_vlan_rx_add_vid,
 	.vlan_rx_kill_vid = dwmac4_vlan_rx_kill_vid,
 	.restore_vlan = dwmac4_restore_vlan,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
 };
 
 static u32 dwmac4_get_num_vlan(void __iomem *ioaddr)

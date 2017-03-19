@@ -547,6 +547,8 @@ struct stmmac_ops {
 				struct mac_device_info *hw);
 	void (*restore_vlan)(struct net_device *dev,
 			     struct mac_device_info *hw);
+	/* self-test */
+	void (*set_loopback_mode)(struct mac_device_info *hw, bool mode);
 };
 
 /* PTP and HW Timer helpers */
