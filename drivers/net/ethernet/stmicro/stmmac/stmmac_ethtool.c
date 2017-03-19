@@ -256,6 +256,23 @@ static const struct stmmac_stats stmmac_mmc[] = {
 };
 #define STMMAC_MMC_STATS_LEN ARRAY_SIZE(stmmac_mmc)
 
+/* All test entries will be added before MAX_TEST_CASES */
+enum stmmac_diagnostics_cases {
+	MAX_TEST_CASES,
+	TOTAL_PASSED,
+	TOTAL_FAILED,
+	TOTAL_NOT_TESTED
+};
+
+static const char stmmac_gstrings_test[][ETH_GSTRING_LEN] = {
+	[MAX_TEST_CASES]   = "8888888888888888888888888888888",
+	[TOTAL_PASSED]     = "Total test passed             ",
+	[TOTAL_FAILED]     = "Total test failed             ",
+	[TOTAL_NOT_TESTED] = "Total not tested              ",
+};
+
+#define STMMAC_TEST_LEN (sizeof(stmmac_gstrings_test) / ETH_GSTRING_LEN)
+
 static void stmmac_ethtool_getdrvinfo(struct net_device *dev,
 				      struct ethtool_drvinfo *info)
 {
@@ -510,6 +527,16 @@ stmmac_set_pauseparam(struct net_device *netdev,
 	return 0;
 }
 
+static void stmmac_diag_test(struct net_device *netdev,
+			     struct ethtool_test *eth_test, u64 *data)
+{
+	/* ToDo: self-test mechanism */
+	data[MAX_TEST_CASES] = 888888;
+	data[TOTAL_PASSED] = 0;
+	data[TOTAL_FAILED] = 0;
+	data[TOTAL_NOT_TESTED] = MAX_TEST_CASES;
+}
+
 static void stmmac_get_ethtool_stats(struct net_device *dev,
 				 struct ethtool_stats *dummy, u64 *data)
 {
@@ -585,6 +612,8 @@ static int stmmac_get_sset_count(struct net_device *netdev, int sset)
 		}
 
 		return len;
+	case ETH_SS_TEST:
+		return STMMAC_TEST_LEN;
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -620,6 +649,10 @@ static void stmmac_get_strings(struct net_device *dev, u32 stringset, u8 *data)
 				ETH_GSTRING_LEN);
 			p += ETH_GSTRING_LEN;
 		}
+		break;
+	case ETH_SS_TEST:
+		memcpy(data, *stmmac_gstrings_test,
+		       STMMAC_TEST_LEN * ETH_GSTRING_LEN);
 		break;
 	default:
 		WARN_ON(1);
@@ -878,6 +911,7 @@ static const struct ethtool_ops stmmac_ethtool_ops = {
 	.nway_reset = phy_ethtool_nway_reset,
 	.get_pauseparam = stmmac_get_pauseparam,
 	.set_pauseparam = stmmac_set_pauseparam,
+	.self_test = stmmac_diag_test,
 	.get_ethtool_stats = stmmac_get_ethtool_stats,
 	.get_strings = stmmac_get_strings,
 	.get_wol = stmmac_get_wol,
