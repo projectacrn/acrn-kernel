@@ -1,6 +1,6 @@
 config STMMAC_ETH
 	tristate "STMicroelectronics 10/100/1000/EQOS Ethernet driver"
-	depends on HAS_IOMEM && HAS_DMA
+	depends on HAS_IOMEM && HAS_DMA && INET
 	select MII
 	select PHYLIB
 	select CRC32
