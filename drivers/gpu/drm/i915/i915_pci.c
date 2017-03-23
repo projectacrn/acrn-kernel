@@ -594,6 +594,13 @@ static const struct intel_device_info intel_icelake_11_info = {
 	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING | BSD3_RING,
 };
 
+static const struct intel_device_info intel_icelake_11_5_info = {
+	GEN11_FEATURES,
+	.platform = INTEL_ICELAKE,
+	.is_alpha_support = 1,
+	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING | BSD3_RING,
+};
+
 /*
  * Make sure any device matches here are from most specific to most
  * general.  For example, since the Quanta match is based on the subsystem
