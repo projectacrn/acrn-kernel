@@ -6,6 +6,7 @@
 #include <linux/bitops.h>
 #include <linux/device.h>
 #include <linux/types.h>
+#include <linux/usb/typec.h>
 
 /* -------------------------------------------------------------------------- */
 
@@ -60,6 +61,20 @@ struct ucsi_uor_cmd {
 	u16:6; /* reserved */
 } __packed;
 
+/* Get Alternate Modes Command structure */
+struct ucsi_altmode_cmd {
+	u8 cmd;
+	u8 length;
+	u8 recipient;
+#define UCSI_RECIPIENT_CON			0
+#define UCSI_RECIPIENT_SOP			1
+#define UCSI_RECIPIENT_SOP_P			2
+#define UCSI_RECIPIENT_SOP_PP			3
+	u8 con_num;
+	u8 offset;
+	u8 num_altmodes;
+} __packed;
+
 struct ucsi_control {
 	union {
 		u64 raw_cmd;
@@ -67,6 +82,7 @@ struct ucsi_control {
 		struct ucsi_uor_cmd uor;
 		struct ucsi_ack_cmd ack;
 		struct ucsi_con_rst con_rst;
+		struct ucsi_altmode_cmd alt;
 	};
 };
 
@@ -110,6 +126,23 @@ struct ucsi_control {
 {									\
 	__UCSI_CMD(_ctrl_, UCSI_GET_CONNECTOR_CAPABILITY)		\
 	(_ctrl_).cmd.data = _con_;					\
+}
+
+/* Helper for preparing ucsi_control for GET_ALTERNATE_MODES command. */
+#define UCSI_CMD_GET_ALTERNATE_MODES(_ctrl_, _r_, _con_num_, _o_)	\
+{									\
+	__UCSI_CMD(_ctrl_, UCSI_GET_ALTERNATE_MODES)			\
+	_ctrl_.alt.recipient = _r_;					\
+	_ctrl_.alt.con_num = _con_num_;					\
+	_ctrl_.alt.offset = _o_;					\
+	_ctrl_.alt.num_altmodes = 1;					\
+}
+
+/* Helper for preparing ucsi_control for GET_CAM_SUPPORTED command. */
+#define UCSI_CMD_GET_CAM_SUPPORTED(_ctrl_, _con_)			\
+{									\
+	__UCSI_CMD(_ctrl_, UCSI_GET_CAM_SUPPORTED)			\
+	_ctrl_.cmd.data = _con_;					\
 }
 
 /* Helper for preparing ucsi_control for GET_CONNECTOR_STATUS command. */
@@ -333,5 +366,50 @@ struct ucsi_ppm {
 struct ucsi *ucsi_register_ppm(struct device *dev, struct ucsi_ppm *ppm);
 void ucsi_unregister_ppm(struct ucsi *ucsi);
 void ucsi_notify(struct ucsi *ucsi);
+
+/* -------------------------------------------------------------------------- */
+
+struct ucsi;
+
+#define UCSI_MAX_SVID		5
+#define UCSI_MAX_ALTMODES	(UCSI_MAX_SVID * 6)
+
+struct ucsi_connector {
+	int num;
+
+	struct ucsi *ucsi;
+	struct mutex lock; /* port lock */
+	struct work_struct work;
+	struct completion complete;
+
+	struct typec_port *port;
+	struct typec_partner *partner;
+
+	struct typec_altmode *port_altmode[UCSI_MAX_ALTMODES];
+	struct typec_altmode *partner_altmode[UCSI_MAX_ALTMODES];
+
+	struct typec_capability typec_cap;
+
+	struct ucsi_connector_status status;
+	struct ucsi_connector_capability cap;
+};
+
+int ucsi_send_command(struct ucsi *ucsi, struct ucsi_control *ctrl,
+		      void *retval, size_t size);
+
+#if IS_ENABLED(CONFIG_TYPEC_DP_ALTMODE)
+struct typec_altmode *
+ucsi_register_displayport(struct ucsi_connector *con,
+			  bool override,
+			  struct typec_altmode_desc *desc);
+#else
+static inline struct typec_altmode *
+ucsi_register_displayport(struct ucsi_connector *con,
+			  bool override,
+			  struct typec_altmode_desc *desc)
+{
+	return NULL;
+}
+#endif
 
 #endif /* __DRIVER_USB_TYPEC_UCSI_H */
