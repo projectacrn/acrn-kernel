@@ -226,12 +226,53 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 {
 	plat->bus_id = 1;
 	plat->phy_addr = 0;
-	plat->interface = PHY_INTERFACE_MODE_GMII;
+	plat->interface = PHY_INTERFACE_MODE_SGMII;
 	plat->clk_csr = 5;
 	plat->has_gmac = 0;
 	plat->has_gmac4 = 1;
-	plat->force_sf_dma_mode = 1;
+	plat->force_sf_dma_mode = 0;
 	plat->tso_en = 1;
+
+	plat->rx_queues_to_use = 4;
+	plat->tx_queues_to_use = 4;
+
+	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
+
+	plat->rx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[3].mode_to_use = MTL_QUEUE_DCB;
+
+	plat->tx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[3].mode_to_use = MTL_QUEUE_DCB;
+
+	plat->tx_queues_cfg[1].send_slope = 0xCCC;
+	plat->tx_queues_cfg[1].idle_slope = 0x1333;
+	plat->tx_queues_cfg[1].high_credit = 0x4B0000;
+	plat->tx_queues_cfg[1].low_credit = 0xFFB50000;
+
+	plat->rx_queues_cfg[0].chan = 0;
+	plat->rx_queues_cfg[1].chan = 1;
+	plat->rx_queues_cfg[2].chan = 2;
+	plat->rx_queues_cfg[3].chan = 3;
+
+	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
+	plat->tx_queues_cfg[0].weight = 0x10;
+	plat->tx_queues_cfg[1].weight = 0x11;
+	plat->tx_queues_cfg[2].weight = 0x12;
+	plat->tx_queues_cfg[3].weight = 0x13;
+
+	/* Disable Priority config by default */
+	plat->tx_queues_cfg[0].use_prio = false;
+	plat->rx_queues_cfg[0].use_prio = false;
+
+	/* Disable RX queues routing by default */
+	plat->rx_queues_cfg[0].pkt_route = 0x0;
+	plat->rx_queues_cfg[1].pkt_route = 0x0;
+	plat->rx_queues_cfg[2].pkt_route = 0x0;
+	plat->rx_queues_cfg[3].pkt_route = 0x0;
 
 	plat->mdio_bus_data->phy_reset = NULL;
 	plat->mdio_bus_data->phy_mask = 0;
