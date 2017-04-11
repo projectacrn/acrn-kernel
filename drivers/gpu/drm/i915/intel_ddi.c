@@ -893,6 +893,37 @@ static uint32_t hsw_pll_to_ddi_pll_sel(const struct intel_shared_dpll *pll)
 	}
 }
 
+static uint32_t icl_pll_to_ddi_pll_sel(struct intel_encoder *encoder,
+				       const struct intel_shared_dpll *pll)
+{
+	struct intel_crtc *crtc = to_intel_crtc(encoder->base.crtc);
+	int clock = crtc->config->port_clock;
+
+	switch (pll->id) {
+	default:
+	case DPLL_ID_ICL_DPLL0:
+	case DPLL_ID_ICL_DPLL1:
+		MISSING_CASE(pll->id);
+		return DDI_CLK_SEL_NONE;
+	case DPLL_ID_ICL_TBTPLL:
+		switch (clock) {
+		case 162000:
+			return DDI_CLK_SEL_TBT_162;
+		case 270000:
+			return DDI_CLK_SEL_TBT_270;
+		case 540000:
+			return DDI_CLK_SEL_TBT_540;
+		case 810000:
+			return DDI_CLK_SEL_TBT_810;
+		}
+	case DPLL_ID_ICL_MGPLL1:
+	case DPLL_ID_ICL_MGPLL2:
+	case DPLL_ID_ICL_MGPLL3:
+	case DPLL_ID_ICL_MGPLL4:
+		return DDI_CLK_SEL_MG;
+	}
+}
+
 /* Starting with Haswell, different DDI ports can work in FDI mode for
  * connection to the PCH-located connectors. For this, it is necessary to train
  * both the DDI port and PCH receiver for the desired DDI buffer settings.
@@ -2095,7 +2126,29 @@ static void intel_ddi_clk_select(struct intel_encoder *encoder,
 	if (WARN_ON(!pll))
 		return;
 
-	if (IS_CANNONLAKE(dev_priv)) {
+	if (IS_ICELAKE(dev_priv)) {
+		if (port >= PORT_C)
+			I915_WRITE(DDI_CLK_SEL(port),
+				   icl_pll_to_ddi_pll_sel(encoder, pll));
+
+		mutex_lock(&dev_priv->dpll_lock);
+
+		val = I915_READ(DPCLKA_CFGCR0_ICL);
+		WARN_ON((val & DPCLKA_CFGCR0_DDI_CLK_OFF(port)) == 0);
+
+		if (port == PORT_A || port == PORT_B) {
+			val &= ~DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(port);
+			val |= DPCLKA_CFGCR0_DDI_CLK_SEL(pll->id, port);
+			I915_WRITE(DPCLKA_CFGCR0_ICL, val);
+			POSTING_READ(DPCLKA_CFGCR0_ICL);
+		}
+
+		val &= ~DPCLKA_CFGCR0_DDI_CLK_OFF(port);
+		I915_WRITE(DPCLKA_CFGCR0_ICL, val);
+
+		mutex_unlock(&dev_priv->dpll_lock);
+
+	} else if (IS_CANNONLAKE(dev_priv)) {
 		/* Configure DPCLKA_CFGCR0 to map the DPLL to the DDI. */
 		val = I915_READ(DPCLKA_CFGCR0);
 		val |= DPCLKA_CFGCR0_DDI_CLK_SEL(pll->id, port);
@@ -2130,14 +2183,24 @@ static void intel_ddi_clk_disable(struct intel_encoder *encoder)
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	enum port port = encoder->port;
 
-	if (IS_CANNONLAKE(dev_priv))
+	if (IS_ICELAKE(dev_priv)) {
+		if (port >= PORT_C)
+			I915_WRITE(DDI_CLK_SEL(port), DDI_CLK_SEL_NONE);
+
+		mutex_lock(&dev_priv->dpll_lock);
+		I915_WRITE(DPCLKA_CFGCR0_ICL,
+			   I915_READ(DPCLKA_CFGCR0_ICL) |
+			   DPCLKA_CFGCR0_DDI_CLK_OFF(port));
+		mutex_unlock(&dev_priv->dpll_lock);
+	} else if (IS_CANNONLAKE(dev_priv)) {
 		I915_WRITE(DPCLKA_CFGCR0, I915_READ(DPCLKA_CFGCR0) |
 			   DPCLKA_CFGCR0_DDI_CLK_OFF(port));
-	else if (IS_GEN9_BC(dev_priv))
+	} else if (IS_GEN9_BC(dev_priv)) {
 		I915_WRITE(DPLL_CTRL2, I915_READ(DPLL_CTRL2) |
 			   DPLL_CTRL2_DDI_CLK_OFF(port));
-	else if (INTEL_GEN(dev_priv) < 9)
+	} else if (INTEL_GEN(dev_priv) < 9) {
 		I915_WRITE(PORT_CLK_SEL(port), PORT_CLK_SEL_NONE);
+	}
 }
 
 static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
