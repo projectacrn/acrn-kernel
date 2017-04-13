@@ -1809,6 +1809,9 @@ void intel_display_power_put(struct drm_i915_private *dev_priv,
 #define CNL_DISPLAY_DDI_A_IO_POWER_DOMAINS (		\
 	BIT_ULL(POWER_DOMAIN_PORT_DDI_A_IO) |		\
 	BIT_ULL(POWER_DOMAIN_INIT))
+#define CNL_H_DISPLAY_DDI_A_IO_POWER_DOMAINS (		\
+	BIT_ULL(POWER_DOMAIN_PORT_DDI_A_IO) |		\
+	BIT_ULL(POWER_DOMAIN_INIT))
 #define CNL_DISPLAY_DDI_B_IO_POWER_DOMAINS (		\
 	BIT_ULL(POWER_DOMAIN_PORT_DDI_B_IO) |		\
 	BIT_ULL(POWER_DOMAIN_INIT))
@@ -1817,6 +1820,9 @@ void intel_display_power_put(struct drm_i915_private *dev_priv,
 	BIT_ULL(POWER_DOMAIN_INIT))
 #define CNL_DISPLAY_DDI_D_IO_POWER_DOMAINS (		\
 	BIT_ULL(POWER_DOMAIN_PORT_DDI_D_IO) |		\
+	BIT_ULL(POWER_DOMAIN_INIT))
+#define CNL_DISPLAY_DDI_E_IO_POWER_DOMAINS (		\
+	BIT_ULL(POWER_DOMAIN_PORT_DDI_E_IO) |		\
 	BIT_ULL(POWER_DOMAIN_INIT))
 #define CNL_DISPLAY_AUX_A_POWER_DOMAINS (		\
 	BIT_ULL(POWER_DOMAIN_AUX_A) |			\
@@ -2381,6 +2387,93 @@ static struct i915_power_well cnl_power_wells[] = {
 	},
 };
 
+static struct i915_power_well cnl_h_power_wells[] = {
+	{
+		.name = "always-on",
+		.always_on = 1,
+		.domains = POWER_DOMAIN_MASK,
+		.ops = &i9xx_always_on_power_well_ops,
+		.id = I915_DISP_PW_ALWAYS_ON,
+	},
+	{
+		.name = "power well 1",
+		/* Handled by the DMC firmware */
+		.domains = 0,
+		.ops = &hsw_power_well_ops,
+		.id = SKL_DISP_PW_1,
+		.hsw.has_fuses = true,
+	},
+	{
+		.name = "AUX A",
+		.domains = CNL_DISPLAY_AUX_A_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = CNL_DISP_PW_AUX_A,
+	},
+	{
+		.name = "AUX B",
+		.domains = CNL_DISPLAY_AUX_B_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = CNL_DISP_PW_AUX_B,
+	},
+	{
+		.name = "AUX C",
+		.domains = CNL_DISPLAY_AUX_C_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = CNL_DISP_PW_AUX_C,
+	},
+	{
+		.name = "AUX D",
+		.domains = CNL_DISPLAY_AUX_D_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = CNL_DISP_PW_AUX_D,
+	},
+	{
+		.name = "DC off",
+		.domains = CNL_DISPLAY_DC_OFF_POWER_DOMAINS,
+		.ops = &gen9_dc_off_power_well_ops,
+		.id = SKL_DISP_PW_DC_OFF,
+	},
+	{
+		.name = "power well 2",
+		.domains = CNL_DISPLAY_POWERWELL_2_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = SKL_DISP_PW_2,
+		.hsw.irq_pipe_mask = BIT(PIPE_B) | BIT(PIPE_C),
+		.hsw.has_vga = true,
+		.hsw.has_fuses = true,
+	},
+	{
+		.name = "DDI A IO power well",
+		.domains = CNL_H_DISPLAY_DDI_A_IO_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = CNL_DISP_PW_DDI_A,
+	},
+	{
+		.name = "DDI B IO power well",
+		.domains = CNL_DISPLAY_DDI_B_IO_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = SKL_DISP_PW_DDI_B,
+	},
+	{
+		.name = "DDI C IO power well",
+		.domains = CNL_DISPLAY_DDI_C_IO_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = SKL_DISP_PW_DDI_C,
+	},
+	{
+		.name = "DDI D IO power well",
+		.domains = CNL_DISPLAY_DDI_D_IO_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = SKL_DISP_PW_DDI_D,
+	},
+	{
+		.name = "DDI E IO power well",
+		.domains = CNL_DISPLAY_DDI_E_IO_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = CNL_DISP_PW_DDI_E,
+	},
+};
+
 static int
 sanitize_disable_power_well_option(const struct drm_i915_private *dev_priv,
 				   int disable_power_well)
@@ -2493,7 +2586,10 @@ int intel_power_domains_init(struct drm_i915_private *dev_priv)
 	} else if (IS_GEN9_BC(dev_priv)) {
 		set_power_wells(power_domains, skl_power_wells);
 	} else if (IS_CANNONLAKE(dev_priv)) {
-		set_power_wells(power_domains, cnl_power_wells);
+		if (IS_CNL_H(dev_priv))
+			set_power_wells(power_domains, cnl_h_power_wells);
+		else
+			set_power_wells(power_domains, cnl_power_wells);
 	} else if (IS_BROXTON(dev_priv)) {
 		set_power_wells(power_domains, bxt_power_wells);
 	} else if (IS_GEMINILAKE(dev_priv)) {
