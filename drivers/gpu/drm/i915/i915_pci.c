@@ -612,7 +612,8 @@ static const struct intel_device_info intel_icelake_11_5_info = {
 	GEN11_FEATURES,
 	PLATFORM(INTEL_ICELAKE),
 	.is_alpha_support = 1,
-	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING | BSD3_RING,
+	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | VEBOX2_RING |
+		     BSD_RING | BSD2_RING | BSD3_RING | BSD4_RING,
 };
 
 #undef GEN
