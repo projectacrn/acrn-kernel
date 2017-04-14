@@ -2406,6 +2406,7 @@ static u32
 make_rpcs(struct drm_i915_private *dev_priv)
 {
 	u32 rpcs = 0;
+	u32 s_count, ss_count;
 
 	/*
 	 * No explicit RPCS request is needed to ensure full
@@ -2414,6 +2415,25 @@ make_rpcs(struct drm_i915_private *dev_priv)
 	if (INTEL_GEN(dev_priv) < 9)
 		return 0;
 
+	s_count = hweight8(INTEL_INFO(dev_priv)->sseu.slice_mask);
+	ss_count = hweight8(INTEL_INFO(dev_priv)->sseu.subslice_mask[0]);
+
+	/*
+	 * ICL 11 1x8 must be programmed as if GT consists of 2 slices with
+	 * 4 subslices in each slice (2x4). HW will map it to the 1x8 config.
+	 */
+	if (IS_GEN11(dev_priv) && s_count == 1 && ss_count > 4) {
+		s_count = 2;
+
+		/*
+		 * in Gen11 the subslice count only applies when slice count is
+		 * set to 1, so if it's known that we have more than 4 available
+		 * subslices in the 1x8 config we can set the default config for
+		 * 1 "virtual" slice to 4 subslices.
+		 */
+		ss_count = 4;
+	}
+
 	/*
 	 * Starting in Gen9, render power gating can leave
 	 * slice/subslice/EU in a partially enabled state. We
@@ -2421,16 +2441,17 @@ make_rpcs(struct drm_i915_private *dev_priv)
 	 * enablement.
 	*/
 	if (INTEL_INFO(dev_priv)->sseu.has_slice_pg) {
+		u32 shift = (INTEL_GEN(dev_priv) >= 11) ?
+			GEN11_RPCS_S_CNT_SHIFT : GEN8_RPCS_S_CNT_SHIFT;
+
 		rpcs |= GEN8_RPCS_S_CNT_ENABLE;
-		rpcs |= hweight8(INTEL_INFO(dev_priv)->sseu.slice_mask) <<
-			GEN8_RPCS_S_CNT_SHIFT;
+		rpcs |= s_count << shift;
 		rpcs |= GEN8_RPCS_ENABLE;
 	}
 
 	if (INTEL_INFO(dev_priv)->sseu.has_subslice_pg) {
 		rpcs |= GEN8_RPCS_SS_CNT_ENABLE;
-		rpcs |= hweight8(INTEL_INFO(dev_priv)->sseu.subslice_mask[0]) <<
-			GEN8_RPCS_SS_CNT_SHIFT;
+		rpcs |= ss_count << GEN8_RPCS_SS_CNT_SHIFT;
 		rpcs |= GEN8_RPCS_ENABLE;
 	}
 
