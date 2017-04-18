@@ -415,6 +415,9 @@ void gen6_enable_rps_interrupts(struct drm_i915_private *dev_priv)
 	if (READ_ONCE(rps->interrupts_enabled))
 		return;
 
+	if (WARN_ON_ONCE(IS_GEN11(dev_priv)))
+		return;
+
 	spin_lock_irq(&dev_priv->irq_lock);
 	WARN_ON_ONCE(rps->pm_iir);
 	WARN_ON_ONCE(I915_READ(gen6_pm_iir(dev_priv)) & dev_priv->pm_rps_events);
@@ -429,6 +432,9 @@ void gen6_disable_rps_interrupts(struct drm_i915_private *dev_priv)
 	struct intel_rps *rps = &dev_priv->gt_pm.rps;
 
 	if (!READ_ONCE(rps->interrupts_enabled))
+		return;
+
+	if (WARN_ON_ONCE(IS_GEN11(dev_priv)))
 		return;
 
 	spin_lock_irq(&dev_priv->irq_lock);
@@ -2757,6 +2763,131 @@ static void __fini_wedge(struct wedge_me *w)
 	     (W)->i915;							\
 	     __fini_wedge((W)))
 
+static __always_inline void
+gen11_cs_irq_handler(struct intel_engine_cs *engine, u32 iir)
+{
+	gen8_cs_irq_handler(engine, iir, 0);
+}
+
+static irqreturn_t
+gen11_gt_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
+{
+	irqreturn_t ret = IRQ_NONE;
+	u16 irq[2][32];
+	u32 dw, ident;
+	unsigned long tmp;
+	unsigned int bank, bit, engine;
+	unsigned long wait_start, wait_end;
+
+	memset(irq, 0, sizeof(irq));
+
+	for (bank = 0; bank < 2; bank++) {
+		if (master_ctl & GEN11_GT_DW_IRQ(bank)) {
+			dw = I915_READ_FW(GEN11_GT_INTR_DW(bank));
+			if (!dw)
+				DRM_ERROR("GT_INTR_DW%u blank!\n", bank);
+			tmp = dw;
+			for_each_set_bit(bit, &tmp, 32) {
+				I915_WRITE_FW(GEN11_IIR_REG_SELECTOR(bank), 1 << bit);
+				wait_start = local_clock() >> 10;
+				/* NB: Specs do not specify how long to spin wait.
+				 * Taking 100us as an educated guess */
+				wait_end = wait_start + 100;
+				do {
+					ident = I915_READ_FW(GEN11_INTR_IDENTITY_REG(bank));
+				} while (!(ident & GEN11_INTR_DATA_VALID) &&
+					 !time_after((unsigned long)local_clock() >> 10, wait_end));
+
+				if (!(ident & GEN11_INTR_DATA_VALID))
+					DRM_ERROR("INTR_IDENTITY_REG%u:%u timed out!\n",
+						  bank, bit);
+
+				irq[bank][bit] = ident & GEN11_INTR_ENGINE_MASK;
+				if (!irq[bank][bit])
+					DRM_ERROR("INTR_IDENTITY_REG%u:%u blank!\n",
+						  bank, bit);
+				I915_WRITE_FW(GEN11_INTR_IDENTITY_REG(bank), ident);
+			}
+			I915_WRITE_FW(GEN11_GT_INTR_DW(bank), dw);
+		}
+	}
+
+	if (irq[0][GEN11_RCS0]) {
+		gen11_cs_irq_handler(dev_priv->engine[RCS],
+				     irq[0][GEN11_RCS0]);
+		ret = IRQ_HANDLED;
+	}
+
+	if (irq[0][GEN11_BCS]) {
+		gen11_cs_irq_handler(dev_priv->engine[BCS],
+				     irq[0][GEN11_BCS]);
+		ret = IRQ_HANDLED;
+	}
+
+	for (engine = 0; engine < 4; engine++) {
+		if (irq[1][GEN11_VCS(engine)]) {
+			gen11_cs_irq_handler(dev_priv->engine[_VCS(engine)],
+					     irq[1][GEN11_VCS(engine)]);
+			ret = IRQ_HANDLED;
+		}
+	}
+
+	for (engine = 0; engine < 2; engine++) {
+		if (irq[1][GEN11_VECS(engine)]) {
+			gen11_cs_irq_handler(dev_priv->engine[_VECS(engine)],
+					     irq[1][GEN11_VECS(engine)]);
+			ret = IRQ_HANDLED;
+		}
+	}
+
+	if (irq[0][GEN11_GTPM] & dev_priv->pm_rps_events) {
+		ret = IRQ_HANDLED;
+		gen6_rps_irq_handler(dev_priv, tmp);
+	}
+
+	return ret;
+}
+
+static irqreturn_t gen11_irq_handler(int irq, void *arg)
+{
+	struct drm_device *dev = arg;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	u32 master_ctl;
+	u32 disp_ctl;
+	irqreturn_t ret;
+
+	if (!intel_irqs_enabled(dev_priv))
+		return IRQ_NONE;
+
+	master_ctl = I915_READ_FW(GEN11_GFX_MSTR_IRQ);
+
+	master_ctl &= ~GEN11_MASTER_IRQ;
+	if (!master_ctl)
+		return IRQ_NONE;
+
+	/* Disable interrupts. */
+	I915_WRITE_FW(GEN11_GFX_MSTR_IRQ, 0);
+
+	/* IRQs are synced during runtime_suspend, we don't require a wakeref */
+	disable_rpm_wakeref_asserts(dev_priv);
+
+	/* Find, clear, then process each source of interrupt. */
+	ret = gen11_gt_irq_handler(dev_priv, master_ctl);
+
+	if (master_ctl & GEN11_DISPLAY_IRQ) {
+		disp_ctl = I915_READ_FW(GEN11_DISPLAY_INT_CTL);
+		ret |= gen8_de_irq_handler(dev_priv, disp_ctl);
+	}
+
+	/* Acknowledge and enable interrupts. */
+	I915_WRITE_FW(GEN11_GFX_MSTR_IRQ, GEN11_MASTER_IRQ | master_ctl);
+	POSTING_READ_FW(GEN11_GFX_MSTR_IRQ);
+
+	enable_rpm_wakeref_asserts(dev_priv);
+
+	return ret;
+}
+
 /**
  * i915_reset_device - do process context error handling work
  * @dev_priv: i915 device private
@@ -3168,6 +3299,42 @@ static void gen8_irq_reset(struct drm_device *dev)
 
 	if (HAS_PCH_SPLIT(dev_priv))
 		ibx_irq_reset(dev_priv);
+}
+
+static void gen11_gt_irq_reset(struct drm_i915_private *dev_priv)
+{
+	/* Disable RCS, BCS, VCS and VECS class engines. */
+	I915_WRITE(GEN11_RENDER_COPY_INTR_ENABLE, 0);
+	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE,	  0);
+
+	/* Restore masks irqs on RCS, BCS, VCS and VECS engines. */
+	I915_WRITE(GEN11_RCS0_RSVD_INTR_MASK,	~0);
+	I915_WRITE(GEN11_BCS_RSVD_INTR_MASK,	~0);
+	I915_WRITE(GEN11_VCS0_VCS1_INTR_MASK,	~0);
+	I915_WRITE(GEN11_VCS2_VCS3_INTR_MASK,	~0);
+	I915_WRITE(GEN11_VECS0_VECS1_INTR_MASK,	~0);
+}
+
+static void gen11_irq_reset(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	int pipe;
+
+	I915_WRITE(GEN11_GFX_MSTR_IRQ, 0);
+	POSTING_READ(GEN11_GFX_MSTR_IRQ);
+
+	gen11_gt_irq_reset(dev_priv);
+
+	I915_WRITE(GEN11_DISPLAY_INT_CTL, 0);
+
+	for_each_pipe(dev_priv, pipe)
+		if (intel_display_power_is_enabled(dev_priv,
+						   POWER_DOMAIN_PIPE(pipe)))
+			GEN8_IRQ_RESET_NDX(DE_PIPE, pipe);
+
+	GEN3_IRQ_RESET(GEN8_DE_PORT_);
+	GEN3_IRQ_RESET(GEN8_DE_MISC_);
+	GEN3_IRQ_RESET(GEN8_PCU_);
 }
 
 void gen8_irq_power_well_post_enable(struct drm_i915_private *dev_priv,
@@ -3667,6 +3834,41 @@ static int gen8_irq_postinstall(struct drm_device *dev)
 	return 0;
 }
 
+static void gen11_gt_irq_postinstall(struct drm_i915_private *dev_priv)
+{
+	const u32 irqs = GT_RENDER_USER_INTERRUPT | GT_CONTEXT_SWITCH_INTERRUPT;
+
+	BUILD_BUG_ON(irqs & 0xffff0000);
+
+	/* Enable RCS, BCS, VCS and VECS class interrupts. */
+	I915_WRITE(GEN11_RENDER_COPY_INTR_ENABLE, irqs << 16 | irqs);
+	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE,	  irqs << 16 | irqs);
+
+	/* Unmask irqs on RCS, BCS, VCS and VECS engines. */
+	I915_WRITE(GEN11_RCS0_RSVD_INTR_MASK,	~(irqs << 16));
+	I915_WRITE(GEN11_BCS_RSVD_INTR_MASK,	~(irqs << 16));
+	I915_WRITE(GEN11_VCS0_VCS1_INTR_MASK,	~(irqs | irqs << 16));
+	I915_WRITE(GEN11_VCS2_VCS3_INTR_MASK,	~(irqs | irqs << 16));
+	I915_WRITE(GEN11_VECS0_VECS1_INTR_MASK,	~(irqs | irqs << 16));
+
+	dev_priv->pm_imr = 0xffffffff; /* TODO */
+}
+
+static int gen11_irq_postinstall(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	gen11_gt_irq_postinstall(dev_priv);
+	gen8_de_irq_postinstall(dev_priv);
+
+	I915_WRITE(GEN11_DISPLAY_INT_CTL, GEN11_DISPLAY_IRQ_ENABLE);
+
+	I915_WRITE(GEN11_GFX_MSTR_IRQ, GEN11_MASTER_IRQ);
+	POSTING_READ(GEN11_GFX_MSTR_IRQ);
+
+	return 0;
+}
+
 static int cherryview_irq_postinstall(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = to_i915(dev);
@@ -4115,6 +4317,14 @@ void intel_irq_init(struct drm_i915_private *dev_priv)
 		dev->driver->enable_vblank = i965_enable_vblank;
 		dev->driver->disable_vblank = i965_disable_vblank;
 		dev_priv->display.hpd_irq_setup = i915_hpd_irq_setup;
+	} else if (INTEL_GEN(dev_priv) >= 11) {
+		dev->driver->irq_handler = gen11_irq_handler;
+		dev->driver->irq_preinstall = gen11_irq_reset;
+		dev->driver->irq_postinstall = gen11_irq_postinstall;
+		dev->driver->irq_uninstall = gen11_irq_reset;
+		dev->driver->enable_vblank = gen8_enable_vblank;
+		dev->driver->disable_vblank = gen8_disable_vblank;
+		dev_priv->display.hpd_irq_setup = spt_hpd_irq_setup;
 	} else if (INTEL_GEN(dev_priv) >= 8) {
 		dev->driver->irq_handler = gen8_irq_handler;
 		dev->driver->irq_preinstall = gen8_irq_reset;
