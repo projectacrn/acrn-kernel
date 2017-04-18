@@ -158,6 +158,9 @@ struct i915_ctx_workarounds {
 
 struct drm_i915_gem_request;
 
+#define I915_MAX_VCS	4
+#define I915_MAX_VECS	2
+
 /*
  * Engine IDs definitions.
  * Keep instances of the same type engine together.
@@ -167,8 +170,12 @@ enum intel_engine_id {
 	BCS,
 	VCS,
 	VCS2,
+	VCS3,
+	VCS4,
 #define _VCS(n) (VCS + (n))
-	VECS
+	VECS,
+	VECS2
+#define _VECS(n) (VECS + (n))
 };
 
 struct i915_priolist {

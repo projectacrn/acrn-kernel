@@ -178,6 +178,9 @@ static inline bool i915_mmio_reg_valid(i915_reg_t reg)
 #define BCS_HW		2
 #define VECS_HW		3
 #define VCS2_HW		4
+#define VCS3_HW		6
+#define VCS4_HW		7
+#define VECS2_HW	12
 
 /* Engine class */
 

@@ -858,6 +858,8 @@ enum intel_platform {
 	INTEL_MAX_PLATFORMS
 };
 
+typedef u8 intel_ring_mask_t;
+
 struct intel_device_info {
 	u16 device_id;
 	u16 gen_mask;
@@ -865,7 +867,7 @@ struct intel_device_info {
 	u8 gen;
 	u8 gt; /* GT number, 0 if undefined */
 	u8 num_rings;
-	u8 ring_mask; /* Rings supported by the HW */
+	intel_ring_mask_t ring_mask; /* Rings supported by the HW */
 
 	enum intel_platform platform;
 	u32 platform_mask;
@@ -3145,6 +3147,9 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define BLT_RING	ENGINE_MASK(BCS)
 #define VEBOX_RING	ENGINE_MASK(VECS)
 #define BSD2_RING	ENGINE_MASK(VCS2)
+#define BSD3_RING	ENGINE_MASK(VCS3)
+#define BSD4_RING	ENGINE_MASK(VCS4)
+#define VEBOX2_RING	ENGINE_MASK(VECS2)
 #define ALL_ENGINES	(~0)
 
 #define HAS_ENGINE(dev_priv, id) \
