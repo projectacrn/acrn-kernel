@@ -213,12 +213,13 @@ uncore_Write_PMU (
     U64                        mmio_offset     = 0;
     U32                        i               = 0;
     U32                        map_size        = 0;
-    U32                        cur_grp         = LWPMU_DEVICE_cur_group(device_uncore);
+    U32                        cur_grp;
 
     if (device_uncore == NULL) {
         SOCPERF_PRINT_ERROR("ERROR: NULL device_uncore!\n");
         return;
     }
+    cur_grp  = LWPMU_DEVICE_cur_group(device_uncore);
     pecb     = (ECB)LWPMU_DEVICE_PMU_register_data(device_uncore)[cur_grp];
     if (pecb == NULL) {
         SOCPERF_PRINT_ERROR("ERROR: null pecb!\n");

@@ -341,13 +341,14 @@ uncore_Write_PMU (
     U64                        mmio_offset     = 0;
     U64                        map_base        = 0;
     U32                        i               = 0;
-    U32                        cur_grp         = LWPMU_DEVICE_cur_group(device_uncore);
+    U32                        cur_grp;
 
     dev_idx  = *((U32*)param);
     if (device_uncore == NULL) {
         SOCPERF_PRINT_ERROR("ERROR: NULL device_uncore!\n");
         return;
     }
+    cur_grp  = LWPMU_DEVICE_cur_group(device_uncore);
     pecb     = (ECB)LWPMU_DEVICE_PMU_register_data(device_uncore)[cur_grp];
     if (pecb == NULL) {
         SOCPERF_PRINT_ERROR("ERROR: null pecb!\n");
@@ -480,12 +481,13 @@ uncore_Stop_Mem (
     U64                   mmio_offset     = 0;
     U32                   dev_index       = 0;
     U32                   data_val        = 0;
-    U32                   cur_grp         = LWPMU_DEVICE_cur_group(device_uncore);
+    U32                   cur_grp;
 
     if (device_uncore == NULL) {
         SOCPERF_PRINT_ERROR("ERROR: NULL device_uncore!\n");
         return;
     }
+    cur_grp  = LWPMU_DEVICE_cur_group(device_uncore);
     pecb     = (ECB)LWPMU_DEVICE_PMU_register_data(device_uncore)[cur_grp];
     if (pecb == NULL) {
         SOCPERF_PRINT_ERROR("ERROR: null pecb!\n");

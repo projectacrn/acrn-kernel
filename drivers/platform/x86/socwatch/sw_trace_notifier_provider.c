@@ -662,10 +662,14 @@ void sw_handle_sched_switch_helper_i(void)
 	unsigned long delta_msecs = 0x0;
 	unsigned long curr_jiff = jiffies, prev_jiff =
 	    __get_cpu_var(sw_pcpu_polling_jiff);
-	if (unlikely(node == NULL)) {
-		node = GET_COLLECTOR_TRACE_NODE(SW_TRACE_ID_SCHED_SWITCH);
+
+	node = GET_COLLECTOR_TRACE_NODE(SW_TRACE_ID_SCHED_SWITCH);
+	if (NULL != node) {
 		pw_pr_debug("SCHED SWITCH NODE = %p\n", node);
+	} else {
+		return;
 	}
+
 	/*
 	 * Has it been enough time since the last collection point?
 	 */

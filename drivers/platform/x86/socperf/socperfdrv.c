@@ -596,12 +596,17 @@ socperf_Configure_Events_Uncore (
         in_ecb = SOCPERF_Free_Memory(in_ecb);
         return OS_NO_MEM;
     }
-    group_id                        = ECB_group_id(in_ecb);
-    PMU_register_data_unc[group_id] = in_ecb;
-    if (!PMU_register_data_unc[group_id]) {
+    if (!in_ecb) {
         SOCPERF_PRINT_ERROR("ECB memory allocation failed\n");
         return OS_NO_MEM;
     }
+    group_id                        = ECB_group_id(in_ecb);
+    if (unlikely(group_id > U32_MAX)) {
+        SOCPERF_PRINT_ERROR("group ID of ECB is over limit\n");
+        in_ecb = SOCPERF_Free_Memory(in_ecb);
+        return OS_INVALID;
+    }
+    PMU_register_data_unc[group_id] = in_ecb;
 
     //
     // Make a copy of the data for global use.
