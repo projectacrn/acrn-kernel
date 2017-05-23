@@ -6654,6 +6654,14 @@ static int ufshcd_probe_hba(struct ufs_hba *hba)
 			dev_err(hba->dev, "%s: UFS attribute bRefClkFreq %u, error %d\n", __func__, refclkfreq, ret);
 		else
 			dev_info(hba->dev, "%s: UFS attribute bRefClkFreq %u\n", __func__, refclkfreq);
+		if (!ret && refclkfreq != 0) {
+			refclkfreq = 0;
+			ret = ufshcd_query_attr_retry(hba, UPIU_QUERY_OPCODE_WRITE_ATTR, QUERY_ATTR_IDN_REF_CLK_FREQ, 0, 0, &refclkfreq);
+			if (ret)
+				dev_err(hba->dev, "%s: UFS failed to write attribute bRefClkFreq %u, error %d\n", __func__, refclkfreq, ret);
+			else
+				dev_info(hba->dev, "%s: UFS wrote attribute bRefClkFreq %u\n", __func__, refclkfreq);
+		}
 	}
 
 out:
