@@ -6645,6 +6645,17 @@ static int ufshcd_probe_hba(struct ufs_hba *hba)
 	if (!hba->is_init_prefetch)
 		hba->is_init_prefetch = true;
 
+	{
+		u32 refclkfreq;
+
+		/* index = 0, selector = 0 */
+		ret = ufshcd_query_attr_retry(hba, UPIU_QUERY_OPCODE_READ_ATTR, QUERY_ATTR_IDN_REF_CLK_FREQ, 0, 0, &refclkfreq);
+		if (ret)
+			dev_err(hba->dev, "%s: UFS attribute bRefClkFreq %u, error %d\n", __func__, refclkfreq, ret);
+		else
+			dev_info(hba->dev, "%s: UFS attribute bRefClkFreq %u\n", __func__, refclkfreq);
+	}
+
 out:
 	/*
 	 * If we failed to initialize the device or the device is not
