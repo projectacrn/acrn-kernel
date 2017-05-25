@@ -67,9 +67,49 @@ static int ufs_intel_link_startup_notify(struct ufs_hba *hba,
 	return err;
 }
 
+static int ufs_intel_pwr_change_notify(struct ufs_hba *hba,
+				enum ufs_notify_change_status notify,
+				struct ufs_pa_layer_attr *desired_pwr_info,
+				struct ufs_pa_layer_attr *final_pwr_info)
+{
+	struct pci_dev *pdev = to_pci_dev(hba->dev);
+	int ret = 0;
+
+	if (!desired_pwr_info || !final_pwr_info) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	switch (notify) {
+	case PRE_CHANGE:
+		dev_dbg(hba->dev, "PWR change PRE_CHANGE start\n");
+		memcpy(final_pwr_info, desired_pwr_info,
+				sizeof(struct ufs_pa_layer_attr));
+
+		if (pdev->device == 0x9DFA &&
+		    (final_pwr_info->pwr_tx == FASTAUTO_MODE ||
+		     final_pwr_info->pwr_tx == FAST_MODE ||
+		     final_pwr_info->pwr_rx == FASTAUTO_MODE ||
+		     final_pwr_info->pwr_rx == FAST_MODE)) {
+			/* Currently, only RATE A is supported for HS mode */
+			final_pwr_info->hs_rate = PA_HS_MODE_A;
+		}
+		break;
+	case POST_CHANGE:
+		break;
+	default:
+		ret = -EINVAL;
+		break;
+	}
+
+out:
+	return ret;
+}
+
 static struct ufs_hba_variant_ops ufs_intel_cnl_hba_vops = {
 	.name                   = "intel-pci",
 	.link_startup_notify	= ufs_intel_link_startup_notify,
+	.pwr_change_notify	= ufs_intel_pwr_change_notify,
 };
 
 #ifdef CONFIG_PM_SLEEP
