@@ -2553,6 +2553,10 @@ static int stmmac_hw_setup(struct net_device *dev, bool init_ptp)
 			priv->hw->dma->enable_tso(priv->ioaddr, 1, chan);
 	}
 
+	/* Set VLAN stripping mode */
+	if (priv->hw->mac->set_vlan_mode)
+		priv->hw->mac->set_vlan_mode(priv->ioaddr, dev->features);
+
 	return 0;
 }
 
@@ -3471,7 +3475,11 @@ static int stmmac_rx(struct stmmac_priv *priv, int limit, u32 queue)
 
 			stmmac_get_rx_hwtstamp(priv, p, np, skb);
 
-			stmmac_rx_vlan(priv->dev, skb);
+			if (priv->hw->mac->rx_vlan)
+				priv->hw->mac->rx_vlan(priv->dev, priv->hw, p,
+						       skb);
+			else
+				stmmac_rx_vlan(priv->dev, skb);
 
 			skb->protocol = eth_type_trans(skb, priv->dev);
 
@@ -3623,6 +3631,7 @@ static int stmmac_set_features(struct net_device *netdev,
 			       netdev_features_t features)
 {
 	struct stmmac_priv *priv = netdev_priv(netdev);
+	netdev_features_t changed = netdev->features ^ features;
 
 	/* Keep the COE Type in case of csum is supporting */
 	if (features & NETIF_F_RXCSUM)
@@ -3633,6 +3642,12 @@ static int stmmac_set_features(struct net_device *netdev,
 	 * fixed in case of issue.
 	 */
 	priv->hw->mac->rx_ipc(priv->hw);
+
+	if ((changed & NETIF_F_HW_VLAN_CTAG_RX) &&
+	    (priv->hw->mac->set_vlan_mode))
+		priv->hw->mac->set_vlan_mode(priv->ioaddr, features);
+
+	netdev->features = features;
 
 	return 0;
 }

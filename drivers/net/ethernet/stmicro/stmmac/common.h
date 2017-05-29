@@ -388,6 +388,10 @@ struct stmmac_desc_ops {
 	void (*set_tx_ic)(struct dma_desc *p);
 	/* Last tx segment reports the transmit status */
 	int (*get_tx_ls) (struct dma_desc *p);
+	/* RX VLAN TCI */
+	int (*get_rx_vlan_tci)(struct dma_desc *p);
+	/* RX VLAN valid */
+	bool (*get_rx_vlan_valid)(struct dma_desc *p);
 	/* Return the transmit status looking at the TDES1 */
 	int (*tx_status) (void *data, struct stmmac_extra_stats *x,
 			  struct dma_desc *p, void __iomem *ioaddr);
@@ -532,6 +536,9 @@ struct stmmac_ops {
 			     bool loopback);
 	void (*pcs_rane)(void __iomem *ioaddr, bool restart);
 	void (*pcs_get_adv_lp)(void __iomem *ioaddr, struct rgmii_adv *adv);
+	void (*rx_vlan)(struct net_device *dev, struct mac_device_info *hw,
+			struct dma_desc *rx_desc, struct sk_buff *skb);
+	void (*set_vlan_mode)(void __iomem *ioaddr, netdev_features_t features);
 };
 
 /* PTP and HW Timer helpers */
