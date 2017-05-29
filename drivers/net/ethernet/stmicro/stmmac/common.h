@@ -48,6 +48,8 @@
 #undef FRAME_FILTER_DEBUG
 /* #define FRAME_FILTER_DEBUG */
 
+#define STMMAC_FLAG_VLAN_PROMISC	BIT(0)
+
 /* Extra statistic and debug information exposed by ethtool */
 struct stmmac_extra_stats {
 	/* Transmit errors */
@@ -611,6 +613,7 @@ struct mac_device_info {
 	unsigned int ps;
 	unsigned int num_vlan;
 	u32 vlan_filter[32];
+	u32 flags;
 };
 
 struct stmmac_rx_routing {

@@ -443,11 +443,17 @@ static int dwmac4_vlan_rx_add_vid(struct net_device *dev,
 				  __be16 proto, u16 vid,
 				  struct mac_device_info *hw)
 {
+	bool vlan_promisc = !!(hw->flags & STMMAC_FLAG_VLAN_PROMISC);
 	u32 val = 0;
 	int i, index = -1, ret;
 
 	if (vid > 4095)
 		return -EINVAL;
+
+	if (vlan_promisc) {
+		netdev_err(dev, "Adding VLAN in promisc mode not supported\n");
+		return -EPERM;
+	}
 
 	/* Single Rx VLAN Filter */
 	if (hw->num_vlan == 1) {
@@ -496,7 +502,13 @@ static int dwmac4_vlan_rx_kill_vid(struct net_device *dev,
 				   __be16 proto, u16 vid,
 				   struct mac_device_info *hw)
 {
+	bool vlan_promisc = !!(hw->flags & STMMAC_FLAG_VLAN_PROMISC);
 	int i, ret = 0;
+
+	if (vlan_promisc) {
+		netdev_err(dev, "Delete VLAN in promisc mode not supported\n");
+		return -EPERM;
+	}
 
 	/* Single Rx VLAN Filter */
 	if (hw->num_vlan == 1) {
@@ -520,6 +532,27 @@ static int dwmac4_vlan_rx_kill_vid(struct net_device *dev,
 	}
 
 	return ret;
+}
+
+static void dwmac4_vlan_promisc_enable(struct net_device *dev,
+				       struct mac_device_info *hw)
+{
+	int i;
+	u32 val;
+
+	/* Single Rx VLAN Filter */
+	if (hw->num_vlan == 1) {
+		dwmac4_write_single_vlan(dev, 0);
+		return;
+	}
+
+	/* Extended Rx VLAN Filter Enable */
+	for (i = 0; i < hw->num_vlan; i++) {
+		if (hw->vlan_filter[i] & GMAC_VLAN_TAG_DATA_VEN) {
+			val = hw->vlan_filter[i] & ~GMAC_VLAN_TAG_DATA_VEN;
+			dwmac4_write_vlan_filter(dev, hw, i, val);
+		}
+	}
 }
 
 static void dwmac4_restore_vlan(struct net_device *dev,
@@ -605,6 +638,18 @@ static void dwmac4_set_filter(struct mac_device_info *hw,
 		value |= GMAC_PACKET_FILTER_VTFE;
 
 	writel(value, ioaddr + GMAC_PACKET_FILTER);
+
+	if (dev->flags & IFF_PROMISC) {
+		if (!(hw->flags & STMMAC_FLAG_VLAN_PROMISC)) {
+			hw->flags |= STMMAC_FLAG_VLAN_PROMISC;
+			dwmac4_vlan_promisc_enable(dev, hw);
+		}
+	} else {
+		if (hw->flags & STMMAC_FLAG_VLAN_PROMISC) {
+			hw->flags &= ~STMMAC_FLAG_VLAN_PROMISC;
+			dwmac4_restore_vlan(dev, hw);
+		}
+	}
 }
 
 static void dwmac4_flow_ctrl(struct mac_device_info *hw, unsigned int duplex,
