@@ -4238,15 +4238,15 @@ int stmmac_dvr_probe(struct device *device,
 		priv->tso = true;
 		dev_info(priv->device, "TSO feature enabled\n");
 	}
-	ndev->features |= ndev->hw_features | NETIF_F_HIGHDMA;
-	ndev->watchdog_timeo = msecs_to_jiffies(watchdog);
 #ifdef STMMAC_VLAN_TAG_USED
 	/* Both mac100 and gmac support receive VLAN tag detection */
-	ndev->features |= NETIF_F_HW_VLAN_CTAG_RX;
+	ndev->hw_features |= NETIF_F_HW_VLAN_CTAG_RX;
 
 	if (priv->synopsys_id >= DWMAC_CORE_4_00)
 		ndev->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
 #endif
+	ndev->features |= ndev->hw_features | NETIF_F_HIGHDMA;
+	ndev->watchdog_timeo = msecs_to_jiffies(watchdog);
 	priv->msg_enable = netif_msg_init(debug, default_msg_level);
 
 	/* MTU range: 46 - hw-specific max */
