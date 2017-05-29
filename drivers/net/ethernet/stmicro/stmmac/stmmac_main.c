@@ -3787,6 +3787,29 @@ static int stmmac_set_mac_address(struct net_device *ndev, void *addr)
 	return ret;
 }
 
+static int stmmac_vlan_rx_add_vid(struct net_device *dev, __be16 proto, u16 vid)
+{
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (likely(priv->hw->mac->vlan_rx_add_vid))
+		return priv->hw->mac->vlan_rx_add_vid(dev, proto, vid,
+						      priv->hw);
+	else
+		return -EPERM;
+}
+
+static int stmmac_vlan_rx_kill_vid(struct net_device *dev, __be16 proto,
+				   u16 vid)
+{
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (likely(priv->hw->mac->vlan_rx_kill_vid))
+		return priv->hw->mac->vlan_rx_kill_vid(dev, proto, vid,
+						       priv->hw);
+	else
+		return -EPERM;
+}
+
 #ifdef CONFIG_DEBUG_FS
 static struct dentry *stmmac_fs_dir;
 
@@ -4015,6 +4038,8 @@ static const struct net_device_ops stmmac_netdev_ops = {
 	.ndo_poll_controller = stmmac_poll_controller,
 #endif
 	.ndo_set_mac_address = stmmac_set_mac_address,
+	.ndo_vlan_rx_add_vid = stmmac_vlan_rx_add_vid,
+	.ndo_vlan_rx_kill_vid = stmmac_vlan_rx_kill_vid,
 };
 
 /**
@@ -4218,6 +4243,9 @@ int stmmac_dvr_probe(struct device *device,
 #ifdef STMMAC_VLAN_TAG_USED
 	/* Both mac100 and gmac support receive VLAN tag detection */
 	ndev->features |= NETIF_F_HW_VLAN_CTAG_RX;
+
+	if (priv->synopsys_id >= DWMAC_CORE_4_00)
+		ndev->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
 #endif
 	priv->msg_enable = netif_msg_init(debug, default_msg_level);
 
@@ -4472,6 +4500,9 @@ int stmmac_resume(struct device *dev)
 	stmmac_hw_setup(ndev, false);
 	stmmac_init_tx_coalesce(priv);
 	stmmac_set_rx_mode(ndev);
+
+	if (priv->hw->mac->restore_vlan)
+		priv->hw->mac->restore_vlan(ndev, priv->hw);
 
 	stmmac_enable_all_queues(priv);
 

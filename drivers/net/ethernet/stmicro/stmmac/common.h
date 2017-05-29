@@ -539,6 +539,12 @@ struct stmmac_ops {
 	void (*rx_vlan)(struct net_device *dev, struct mac_device_info *hw,
 			struct dma_desc *rx_desc, struct sk_buff *skb);
 	void (*set_vlan_mode)(void __iomem *ioaddr, netdev_features_t features);
+	int (*vlan_rx_add_vid)(struct net_device *dev, __be16 proto, u16 vid,
+			       struct mac_device_info *hw);
+	int (*vlan_rx_kill_vid)(struct net_device *dev, __be16 proto, u16 vid,
+				struct mac_device_info *hw);
+	void (*restore_vlan)(struct net_device *dev,
+			     struct mac_device_info *hw);
 };
 
 /* PTP and HW Timer helpers */
@@ -603,6 +609,8 @@ struct mac_device_info {
 	unsigned int pcs;
 	unsigned int pmt;
 	unsigned int ps;
+	unsigned int num_vlan;
+	u32 vlan_filter[32];
 };
 
 struct stmmac_rx_routing {
