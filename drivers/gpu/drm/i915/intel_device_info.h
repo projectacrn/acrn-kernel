@@ -71,6 +71,8 @@ enum intel_platform {
 	INTEL_CANNONLAKE,
 	/* gen11 */
 	INTEL_ICELAKE,
+	/* gen12 */
+	INTEL_TIGERLAKE,
 	INTEL_MAX_PLATFORMS
 };
 

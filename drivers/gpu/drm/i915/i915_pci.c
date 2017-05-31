@@ -620,6 +620,18 @@ static const struct intel_device_info intel_icelake_11_5_info = {
 		     BSD_RING | BSD2_RING | BSD3_RING | BSD4_RING,
 };
 
+#define GEN12_FEATURES \
+	GEN11_FEATURES, \
+	GEN(12)
+
+static const struct intel_device_info intel_tigerlake_12_info = {
+	GEN12_FEATURES,
+	PLATFORM(INTEL_TIGERLAKE),
+	.is_alpha_support = 1,
+	.has_resource_streamer = 0,
+	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING | BSD3_RING,
+};
+
 #undef GEN
 #undef PLATFORM
 
