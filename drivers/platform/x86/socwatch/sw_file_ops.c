@@ -2,7 +2,7 @@
 #include <linux/fs.h>		// inode
 #include <linux/device.h>	// class_create
 #include <linux/cdev.h>		// cdev_alloc
-#include <asm/uaccess.h>	// copy_to_user
+#include <linux/uaccess.h>	// copy_to_user
 #include <linux/wait.h>		// wait_event_interruptible
 #include <linux/sched.h>	// TASK_INTERRUPTIBLE
 
