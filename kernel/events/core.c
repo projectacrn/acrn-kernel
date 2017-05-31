@@ -4622,6 +4622,20 @@ static void _perf_event_reset(struct perf_event *event)
 {
 	(void)perf_event_read(event, false);
 	local64_set(&event->count, 0);
+	if (event->pmu->reset) {
+		raw_spin_lock_irq(&event->ctx->lock);
+		/*
+		 * Only handle simple cases of currently active events,
+		 * because this is mainly interesting with RDPMC,
+		 * and there shouldn't normally be multiplexing.
+		 *
+		 * Should report an error otherwise.
+		 */
+		if (event->state == PERF_EVENT_STATE_ACTIVE ||
+		    READ_ONCE(event->oncpu) == raw_smp_processor_id())
+			event->pmu->reset(event);
+		raw_spin_unlock_irq(&event->ctx->lock);
+	}
 	perf_event_update_userpage(event);
 }
 

@@ -410,6 +410,11 @@ struct pmu {
 
 
 	/*
+	 * Reset the underlying counter.
+	 */
+	void (*reset)			(struct perf_event *event); /*optional*/
+
+	/*
 	 * Set up pmu-private data structures for an AUX area
 	 */
 	void *(*setup_aux)		(int cpu, void **pages,

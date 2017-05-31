@@ -3904,6 +3904,23 @@ static void icl_update_counter(struct perf_event *event)
 		wrmsrl(MSR_PERF_METRICS, event->hw.saved_metric);
 }
 
+static void icl_reset(struct perf_event *event)
+{
+	struct hw_perf_event *hwc = &event->hw;
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+
+	if (!is_metric_idx(event->hw.idx))
+		return;
+	/* Prevent races with NMI */
+	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL, 0);
+	local64_set(&hwc->prev_count, 0);
+	wrmsrl(hwc->event_base, 0);
+	wrmsrl(MSR_PERF_METRICS, 0);
+	event->hw.saved_metric = 0;
+	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL,
+	       x86_pmu.intel_ctrl & ~cpuc->intel_ctrl_guest_mask);
+}
+
 EVENT_ATTR_STR(mem-loads,	mem_ld_hsw,	"event=0xcd,umask=0x1,ldlat=3");
 EVENT_ATTR_STR(mem-stores,	mem_st_hsw,	"event=0xd0,umask=0x82")
 
@@ -4545,6 +4562,7 @@ __init int intel_pmu_init(void)
 		x86_pmu.has_metric = x86_pmu.intel_cap.perf_metrics_available;
 		x86_pmu.metric_update_event = icl_metric_update_event;
 		x86_pmu.update_counter = icl_update_counter;
+		x86_pmu.reset = icl_reset;
 		pr_cont("Icelake events, ");
 		name = "icelake";
 		break;

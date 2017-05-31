@@ -593,6 +593,7 @@ struct x86_pmu {
 	int		events_mask_len;
 	int		apic;
 	u64		max_period;
+	void		(*reset)(struct perf_event *event);
 	struct event_constraint *
 			(*get_event_constraints)(struct cpu_hw_events *cpuc,
 						 int idx,
