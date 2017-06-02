@@ -126,6 +126,8 @@ static void sr_oa_regs(struct intel_vgpu_workload *workload,
 	}
 }
 
+static bool enable_lazy_shadow_ctx = false;
+
 static int populate_shadow_context(struct intel_vgpu_workload *workload)
 {
 	struct intel_vgpu *vgpu = workload->vgpu;
@@ -137,6 +139,10 @@ static int populate_shadow_context(struct intel_vgpu_workload *workload)
 	struct page *page;
 	void *dst;
 	unsigned long context_gpa, context_page_num;
+	struct drm_i915_private *dev_priv = gvt->dev_priv;
+	struct i915_ggtt *ggtt = &gvt->dev_priv->ggtt;
+	dma_addr_t addr;
+	gen8_pte_t __iomem *pte;
 	int i;
 
 	page = i915_gem_object_get_page(ctx_obj, LRC_STATE_PN);
@@ -188,6 +194,7 @@ static int populate_shadow_context(struct intel_vgpu_workload *workload)
 		context_page_num = 19;
 
 	i = 2;
+
 	while (i < context_page_num) {
 		context_gpa = intel_vgpu_gma_to_gpa(vgpu->gtt.ggtt_mm,
 				(u32)((workload->ctx_desc.lrca + i) <<
@@ -197,13 +204,40 @@ static int populate_shadow_context(struct intel_vgpu_workload *workload)
 			return -EFAULT;
 		}
 
-		page = i915_gem_object_get_page(ctx_obj, LRC_HEADER_PAGES + i);
-		dst = kmap(page);
-		intel_gvt_hypervisor_read_gpa(vgpu, context_gpa, dst,
-				I915_GTT_PAGE_SIZE);
-		kunmap(page);
+		if (!enable_lazy_shadow_ctx) {
+			page = i915_gem_object_get_page(ctx_obj, LRC_HEADER_PAGES + i);
+			dst = kmap(page);
+			intel_gvt_hypervisor_read_gpa(vgpu, context_gpa, dst,
+					I915_GTT_PAGE_SIZE);
+			kunmap(page);
+		} else {
+			unsigned long mfn;
+			struct i915_gem_context *shadow_ctx =
+				workload->vgpu->submission.shadow[ring_id]->gem_context;
+
+			addr = i915_ggtt_offset(
+					shadow_ctx->engines->engines[ring_id]->state) +
+					(LRC_PPHWSP_PN + i) * PAGE_SIZE;
+			pte = (gen8_pte_t __iomem *)ggtt->gsm +
+					(addr >> PAGE_SHIFT);
+
+			mfn = intel_gvt_hypervisor_gfn_to_mfn(vgpu,
+					context_gpa >> 12);
+			if (mfn == INTEL_GVT_INVALID_ADDR) {
+				gvt_vgpu_err("fail to translate gfn during context shadow\n");
+				return -ENXIO;
+			}
+
+			mfn <<= 12;
+			mfn |= _PAGE_PRESENT | _PAGE_RW | PPAT_CACHED;
+			writeq(mfn, pte);
+		}
 		i++;
 	}
+
+	I915_WRITE(GFX_FLSH_CNTL_GEN6, GFX_FLSH_CNTL_EN);
+	POSTING_READ(GFX_FLSH_CNTL_GEN6);
+
 	return 0;
 }
 
@@ -871,29 +905,31 @@ static void update_guest_context(struct intel_vgpu_workload *workload)
 	vgpu_vreg_t(vgpu, RING_TAIL(ring_base)) = tail;
 	vgpu_vreg_t(vgpu, RING_HEAD(ring_base)) = head;
 
-	context_page_num = rq->engine->context_size;
-	context_page_num = context_page_num >> PAGE_SHIFT;
+	if (!enable_lazy_shadow_ctx) {
+		context_page_num = rq->engine->context_size;
+		context_page_num = context_page_num >> PAGE_SHIFT;
 
-	if (IS_BROADWELL(gvt->dev_priv) && rq->engine->id == RCS0)
-		context_page_num = 19;
+		if (IS_BROADWELL(gvt->dev_priv) && rq->engine->id == RCS0)
+			context_page_num = 19;
 
-	i = 2;
+		i = 2;
 
-	while (i < context_page_num) {
-		context_gpa = intel_vgpu_gma_to_gpa(vgpu->gtt.ggtt_mm,
-				(u32)((workload->ctx_desc.lrca + i) <<
+		while (i < context_page_num) {
+			context_gpa = intel_vgpu_gma_to_gpa(vgpu->gtt.ggtt_mm,
+					(u32)((workload->ctx_desc.lrca + i) <<
 					I915_GTT_PAGE_SHIFT));
-		if (context_gpa == INTEL_GVT_INVALID_ADDR) {
-			gvt_vgpu_err("invalid guest context descriptor\n");
-			return;
-		}
+			if (context_gpa == INTEL_GVT_INVALID_ADDR) {
+				gvt_vgpu_err("invalid guest context descriptor\n");
+				return;
+			}
 
-		page = i915_gem_object_get_page(ctx_obj, LRC_HEADER_PAGES + i);
-		src = kmap(page);
-		intel_gvt_hypervisor_write_gpa(vgpu, context_gpa, src,
-				I915_GTT_PAGE_SIZE);
-		kunmap(page);
-		i++;
+			page = i915_gem_object_get_page(ctx_obj, LRC_HEADER_PAGES + i);
+			src = kmap(page);
+			intel_gvt_hypervisor_write_gpa(vgpu, context_gpa, src,
+					I915_GTT_PAGE_SIZE);
+			kunmap(page);
+			i++;
+		}
 	}
 
 	intel_gvt_hypervisor_write_gpa(vgpu, workload->ring_context_gpa +
