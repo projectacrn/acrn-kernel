@@ -278,6 +278,7 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->mdio_bus_data->phy_mask = 0;
 
 	plat->dma_cfg->pbl = 32;
+	plat->dma_cfg->pblx8 = true;
 	plat->dma_cfg->fixed_burst = 0;
 	plat->dma_cfg->mixed_burst = 0;
 	plat->dma_cfg->aal = 0;
