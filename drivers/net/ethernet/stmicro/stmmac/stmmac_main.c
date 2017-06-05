@@ -2175,21 +2175,6 @@ static int stmmac_init_dma_engine(struct stmmac_priv *priv)
 		priv->hw->dma->init(priv->ioaddr, priv->plat->dma_cfg,
 				    dummy_dma_tx_phy, dummy_dma_rx_phy, atds);
 
-		/* DMA RX Channel Configuration */
-		for (chan = 0; chan < rx_channels_count; chan++) {
-			rx_q = &priv->rx_queue[chan];
-
-			priv->hw->dma->init_rx_chan(priv->ioaddr,
-						    priv->plat->dma_cfg,
-						    rx_q->dma_rx_phy, chan);
-
-			rx_q->rx_tail_addr = rx_q->dma_rx_phy +
-				    (DMA_RX_SIZE * sizeof(struct dma_desc));
-			priv->hw->dma->set_rx_tail_ptr(priv->ioaddr,
-						       rx_q->rx_tail_addr,
-						       chan);
-		}
-
 		/* DMA TX Channel Configuration */
 		for (chan = 0; chan < tx_channels_count; chan++) {
 			tx_q = &priv->tx_queue[chan];
@@ -2206,6 +2191,21 @@ static int stmmac_init_dma_engine(struct stmmac_priv *priv)
 				    (DMA_TX_SIZE * sizeof(struct dma_desc));
 			priv->hw->dma->set_tx_tail_ptr(priv->ioaddr,
 						       tx_q->tx_tail_addr,
+						       chan);
+		}
+
+		/* DMA RX Channel Configuration */
+		for (chan = 0; chan < rx_channels_count; chan++) {
+			rx_q = &priv->rx_queue[chan];
+
+			priv->hw->dma->init_rx_chan(priv->ioaddr,
+						    priv->plat->dma_cfg,
+						    rx_q->dma_rx_phy, chan);
+
+			rx_q->rx_tail_addr = rx_q->dma_rx_phy +
+				    (DMA_RX_SIZE * sizeof(struct dma_desc));
+			priv->hw->dma->set_rx_tail_ptr(priv->ioaddr,
+						       rx_q->rx_tail_addr,
 						       chan);
 		}
 	} else {
