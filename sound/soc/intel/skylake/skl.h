@@ -46,6 +46,11 @@ struct skl_dsp_resource {
 
 struct skl_debug;
 
+struct ep_group_cnt {
+	int cnt;
+	int *vbus_id;
+};
+
 struct skl {
 	struct hdac_ext_bus ebus;
 	struct pci_dev *pci;
@@ -79,6 +84,7 @@ struct skl {
 	bool use_tplg_pcm;
 	bool nhlt_override;
 	bool mod_set_get_status;
+	struct ep_group_cnt grp_cnt;
 };
 
 #define skl_to_ebus(s)	(&(s)->ebus)
@@ -112,6 +118,7 @@ int skl_platform_unregister(struct device *dev);
 int skl_platform_register(struct device *dev);
 
 int skl_get_nhlt_version(struct device *dev);
+void skl_nhlt_get_ep_cnt(struct skl *skl, int link_type);
 struct nhlt_acpi_table *skl_nhlt_init(struct device *dev);
 void skl_nhlt_free(struct nhlt_acpi_table *addr);
 struct nhlt_specific_cfg *skl_get_ep_blob(struct skl *skl, u32 instance,
