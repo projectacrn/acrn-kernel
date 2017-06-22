@@ -1020,6 +1020,8 @@ static int i915_driver_init_mmio(struct drm_i915_private *dev_priv)
 	if (ret < 0)
 		goto err_bridge;
 
+	intel_device_info_fused_off_engines(dev_priv);
+
 	intel_uncore_init(dev_priv);
 
 	intel_uc_init_mmio(dev_priv);

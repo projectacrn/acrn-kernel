@@ -566,3 +566,56 @@ void intel_device_info_runtime_init(struct drm_i915_private *dev_priv)
 	DRM_DEBUG_DRIVER("CS timestamp frequency: %u kHz\n",
 			 info->cs_timestamp_frequency_khz);
 }
+
+/*
+ * Determine which engines are fused off in our particular hardware.
+ *
+ * This function needs to be called after the MMIO has been setup (as we need
+ * to read registers) but before uncore init (because the powerwell for the
+ * fused off engines doesn't exist, so we cannot initialize forcewake for them)
+ */
+void intel_device_info_fused_off_engines(struct drm_i915_private *dev_priv)
+{
+	struct intel_device_info *info = mkwrite_device_info(dev_priv);
+	u32 media_fuse;
+	int i;
+
+	if (INTEL_GEN(dev_priv) < 11)
+		return;
+
+	GEM_BUG_ON(!dev_priv->regs);
+
+	media_fuse = I915_READ_FW(GEN11_GT_VEBOX_VDBOX_DISABLE);
+
+	info->vdbox_disable = media_fuse & GEN11_GT_VDBOX_DISABLE_MASK;
+	info->vebox_disable = (media_fuse & GEN11_GT_VEBOX_DISABLE_MASK) >>
+				GEN11_GT_VEBOX_DISABLE_SHIFT;
+
+	DRM_DEBUG_DRIVER("vdbox disable: %04x\n", info->vdbox_disable);
+	for (i = 0; i < I915_MAX_VCS; i++) {
+		if (!HAS_ENGINE(dev_priv, _VCS(i)))
+			continue;
+
+		if (!(BIT(i) & info->vdbox_disable))
+			continue;
+
+		info->ring_mask &= ~ENGINE_MASK(_VCS(i));
+		WARN_ON(dev_priv->uncore.fw_domains &
+				BIT(FW_DOMAIN_ID_MEDIA_VDBOX0 + i));
+		DRM_DEBUG_DRIVER("vcs%u fused off\n", i);
+	}
+
+	DRM_DEBUG_DRIVER("vebox disable: %04x\n", info->vebox_disable);
+	for (i = 0; i < I915_MAX_VECS; i++) {
+		if (!HAS_ENGINE(dev_priv, _VECS(i)))
+			continue;
+
+		if (!(BIT(i) & info->vebox_disable))
+			continue;
+
+		info->ring_mask &= ~ENGINE_MASK(_VECS(i));
+		WARN_ON(dev_priv->uncore.fw_domains &
+				BIT(FW_DOMAIN_ID_MEDIA_VEBOX0 + i));
+		DRM_DEBUG_DRIVER("vecs%u fused off\n", i);
+	}
+}

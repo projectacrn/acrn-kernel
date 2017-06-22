@@ -896,6 +896,10 @@ struct intel_device_info {
 
 	u32 cs_timestamp_frequency_khz;
 
+	/* Fused-off engine info */
+	u8 vdbox_disable;
+	u8 vebox_disable;
+
 	struct color_luts {
 		u16 degamma_lut_size;
 		u16 gamma_lut_size;
@@ -4143,6 +4147,7 @@ mkwrite_device_info(struct drm_i915_private *dev_priv)
 }
 
 const char *intel_platform_name(enum intel_platform platform);
+void intel_device_info_fused_off_engines(struct drm_i915_private *dev_priv);
 void intel_device_info_runtime_init(struct drm_i915_private *dev_priv);
 void intel_device_info_dump(struct drm_i915_private *dev_priv);
 
