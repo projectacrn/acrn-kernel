@@ -2734,6 +2734,17 @@ static void icl_dbuf_disable(struct drm_i915_private *dev_priv)
 		DRM_ERROR("DBuf power disable timeout!\n");
 }
 
+static void icl_mbus_init(struct drm_i915_private *dev_priv)
+{
+	uint32_t val;
+
+	val = MBUS_ABOX_BT_CREDIT_POOL1(16) |
+	      MBUS_ABOX_BT_CREDIT_POOL2(16) |
+	      MBUS_ABOX_B_CREDIT(1) |
+	      MBUS_ABOX_BW_CREDIT(1);
+
+	I915_WRITE(MBUS_ABOX_CTL, val);
+}
 
 static void skl_display_core_init(struct drm_i915_private *dev_priv,
 				   bool resume)
@@ -3049,8 +3060,7 @@ static void icl_display_core_init(struct drm_i915_private *dev_priv,
 	icl_dbuf_enable(dev_priv);
 
 	/* 7. Setup MBUS. */
-	/* FIXME: MBUS code not here yet. */
-	WARN_ON(1);
+	icl_mbus_init(dev_priv);
 }
 
 static void icl_display_core_uninit(struct drm_i915_private *dev_priv)
