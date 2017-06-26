@@ -2543,6 +2543,8 @@ enum i915_power_well_id {
 
 #define GEN8_FAULT_TLB_DATA0		_MMIO(0x4b10)
 #define GEN8_FAULT_TLB_DATA1		_MMIO(0x4b14)
+#define GEN12_FAULT_TLB_DATA0		_MMIO(0xceb8)
+#define GEN12_FAULT_TLB_DATA1		_MMIO(0xcebc)
 #define   FAULT_VA_HIGH_BITS		(0xf << 0)
 #define   FAULT_GTT_SEL			(1 << 4)
 

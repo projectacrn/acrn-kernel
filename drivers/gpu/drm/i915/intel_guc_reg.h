@@ -98,6 +98,7 @@
 #define   GEN12_SQIDIS_DOORBELL_EXIST	  (0xffff)
 
 #define GEN8_GTCR			_MMIO(0x4274)
+#define GEN12_GTCR			_MMIO(0xcee8)
 #define   GEN8_GTCR_INVALIDATE		  (1<<0)
 
 #define GUC_ARAT_C6DIS			_MMIO(0xA178)
