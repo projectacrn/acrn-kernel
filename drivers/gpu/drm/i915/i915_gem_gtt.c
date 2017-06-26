@@ -120,7 +120,10 @@ static void gen6_ggtt_invalidate(struct drm_i915_private *dev_priv)
 static void guc_ggtt_invalidate(struct drm_i915_private *dev_priv)
 {
 	gen6_ggtt_invalidate(dev_priv);
-	I915_WRITE(GEN8_GTCR, GEN8_GTCR_INVALIDATE);
+	if (INTEL_GEN(dev_priv) >= 12)
+		I915_WRITE(GEN12_GTCR, GEN8_GTCR_INVALIDATE);
+	else
+		I915_WRITE(GEN8_GTCR, GEN8_GTCR_INVALIDATE);
 }
 
 static void gmch_ggtt_invalidate(struct drm_i915_private *dev_priv)
@@ -2326,8 +2329,13 @@ static void gen8_check_and_clear_faults(struct drm_i915_private *dev_priv)
 		u32 fault_data0, fault_data1;
 		u64 fault_addr;
 
-		fault_data0 = I915_READ(GEN8_FAULT_TLB_DATA0);
-		fault_data1 = I915_READ(GEN8_FAULT_TLB_DATA1);
+		if (INTEL_GEN(dev_priv) >= 12) {
+			fault_data0 = I915_READ(GEN12_FAULT_TLB_DATA0);
+			fault_data1 = I915_READ(GEN12_FAULT_TLB_DATA1);
+		} else {
+			fault_data0 = I915_READ(GEN8_FAULT_TLB_DATA0);
+			fault_data1 = I915_READ(GEN8_FAULT_TLB_DATA1);
+		}
 		fault_addr = ((u64)(fault_data1 & FAULT_VA_HIGH_BITS) << 44) |
 			     ((u64)fault_data0 << 12);
 

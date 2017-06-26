@@ -1636,7 +1636,10 @@ static void capture_reg_state(struct i915_gpu_state *error)
 	if (IS_GEN7(dev_priv))
 		error->err_int = I915_READ(GEN7_ERR_INT);
 
-	if (INTEL_GEN(dev_priv) >= 8) {
+	if (INTEL_GEN(dev_priv) >= 12) {
+		error->fault_data0 = I915_READ(GEN12_FAULT_TLB_DATA0);
+		error->fault_data1 = I915_READ(GEN12_FAULT_TLB_DATA1);
+	} else if (INTEL_GEN(dev_priv) >= 8) {
 		error->fault_data0 = I915_READ(GEN8_FAULT_TLB_DATA0);
 		error->fault_data1 = I915_READ(GEN8_FAULT_TLB_DATA1);
 	}
