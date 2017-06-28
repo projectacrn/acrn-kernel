@@ -1188,7 +1188,10 @@ static void error_record_engine_registers(struct i915_gpu_state *error,
 	if (INTEL_GEN(dev_priv) >= 6) {
 		ee->rc_psmi = I915_READ(RING_PSMI_CTL(engine->mmio_base));
 		if (INTEL_GEN(dev_priv) >= 8) {
-			ee->fault_reg = I915_READ(GEN8_RING_FAULT_REG);
+			if (INTEL_GEN(dev_priv) >= 12)
+				ee->fault_reg = I915_READ(GEN12_RING_FAULT_REG);
+			else
+				ee->fault_reg = I915_READ(GEN8_RING_FAULT_REG);
 		} else {
 			gen6_record_semaphore_state(engine, ee);
 			ee->fault_reg = I915_READ(RING_FAULT_REG(engine));
@@ -1656,8 +1659,10 @@ static void capture_reg_state(struct i915_gpu_state *error)
 
 	if (INTEL_GEN(dev_priv) >= 6) {
 		error->derrmr = I915_READ(DERRMR);
-		error->error = I915_READ(ERROR_GEN6);
-		error->done_reg = I915_READ(DONE_REG);
+		if (INTEL_GEN(dev_priv) < 12) {
+			error->error = I915_READ(ERROR_GEN6);
+			error->done_reg = I915_READ(DONE_REG);
+		}
 	}
 
 	if (INTEL_GEN(dev_priv) >= 5)

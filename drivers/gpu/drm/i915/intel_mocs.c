@@ -179,7 +179,7 @@ static bool get_mocs_settings(struct drm_i915_private *dev_priv,
 	bool result = false;
 
 	if (IS_GEN9_BC(dev_priv) || IS_CANNONLAKE(dev_priv) ||
-	    IS_ICELAKE(dev_priv)) {
+	    IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		table->size  = ARRAY_SIZE(skylake_mocs_table);
 		table->table = skylake_mocs_table;
 		result = true;
@@ -293,7 +293,7 @@ int intel_mocs_init_global(struct drm_i915_private *dev_priv)
 		return -ENODEV;
 
 	for (index = 0; index < table.size; index++)
-		I915_WRITE(GEN11_5_GLOBAL_MOCS(index),
+		I915_WRITE(GEN1X_GLOBAL_MOCS(dev_priv, index),
 			   table.table[index].control_value);
 
 	/*
@@ -305,7 +305,7 @@ int intel_mocs_init_global(struct drm_i915_private *dev_priv)
 	 * that value to all the used entries.
 	 */
 	for (; index < GEN9_NUM_MOCS_ENTRIES; index++)
-		I915_WRITE(GEN11_5_GLOBAL_MOCS(index),
+		I915_WRITE(GEN1X_GLOBAL_MOCS(dev_priv, index),
 			   table.table[0].control_value);
 
 	return 0;

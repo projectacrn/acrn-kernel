@@ -2414,6 +2414,7 @@ enum i915_power_well_id {
 #define RENDER_HWS_PGA_GEN7	_MMIO(0x04080)
 #define RING_FAULT_REG(engine)	_MMIO(0x4094 + 0x100*(engine)->hw_id)
 #define GEN8_RING_FAULT_REG	_MMIO(0x4094)
+#define GEN12_RING_FAULT_REG	_MMIO(0xcec4)
 #define   GEN8_RING_FAULT_ENGINE_ID(x)	(((x) >> 12) & 0x7)
 #define   RING_FAULT_GTTSEL_MASK (1<<11)
 #define   RING_FAULT_SRCID(x)	(((x) >> 3) & 0xff)
@@ -10536,6 +10537,10 @@ enum skl_power_gate {
 #define   PMFLUSHDONE_LNEBLK		(1 << 22)
 
 #define GEN11_5_GLOBAL_MOCS(i)	GEN9_GFX_MOCS(i)	/* Global MOCS regs */
+#define GEN12_GLOBAL_MOCS(i)	_MMIO(0x4000 + (i) * 4) /* Global MOCS regs */
+#define GEN1X_GLOBAL_MOCS(dev_priv, i)	(INTEL_GEN(dev_priv) >= 12 ? \
+						GEN12_GLOBAL_MOCS(i) :\
+						GEN11_5_GLOBAL_MOCS(i))
 
 /* gamt regs */
 #define GEN8_L3_LRA_1_GPGPU _MMIO(0x4dd4)

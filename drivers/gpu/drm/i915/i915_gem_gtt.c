@@ -2323,7 +2323,9 @@ static void gen6_check_and_clear_faults(struct drm_i915_private *dev_priv)
 
 static void gen8_check_and_clear_faults(struct drm_i915_private *dev_priv)
 {
-	u32 fault = I915_READ(GEN8_RING_FAULT_REG);
+	i915_reg_t fault_reg = (INTEL_GEN(dev_priv) >= 12) ?
+				GEN12_RING_FAULT_REG : GEN8_RING_FAULT_REG;
+	u32 fault = I915_READ(fault_reg);
 
 	if (fault & RING_FAULT_VALID) {
 		u32 fault_data0, fault_data1;
@@ -2351,11 +2353,11 @@ static void gen8_check_and_clear_faults(struct drm_i915_private *dev_priv)
 				 GEN8_RING_FAULT_ENGINE_ID(fault),
 				 RING_FAULT_SRCID(fault),
 				 RING_FAULT_FAULT_TYPE(fault));
-		I915_WRITE(GEN8_RING_FAULT_REG,
+		I915_WRITE(fault_reg,
 			   fault & ~RING_FAULT_VALID);
 	}
 
-	POSTING_READ(GEN8_RING_FAULT_REG);
+	POSTING_READ(fault_reg);
 }
 
 void i915_check_and_clear_faults(struct drm_i915_private *dev_priv)
