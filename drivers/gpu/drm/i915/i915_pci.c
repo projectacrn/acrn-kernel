@@ -623,6 +623,7 @@ static const struct intel_device_info intel_icelake_11_5_info = {
 #define GEN12_FEATURES \
 	GEN11_FEATURES, \
 	GEN(12), \
+	.has_global_mocs = 1, \
 	.has_guc_dist_db = 1
 
 static const struct intel_device_info intel_tigerlake_12_info = {
