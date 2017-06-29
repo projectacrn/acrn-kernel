@@ -271,6 +271,7 @@ config SND_SOC_INTEL_CNL_FPGA
 
 config SND_SOC_INTEL_CNL_CS42L42_MACH
         tristate "SOC Machine Audio driver for CNL Platform"
+	depends on X86 && ACPI && I2C
         select SND_SOC_CS42L42
 	select SND_SOC_INTEL_SST
 	select SND_SOC_INTEL_SKYLAKE
@@ -282,6 +283,7 @@ config SND_SOC_INTEL_CNL_CS42L42_MACH
 
 config SND_SOC_INTEL_CNL_SVFPGA_MACH
         tristate "SND_SOC_INTEL_CNL_SVFPGA_MACH for CNL Platform"
+	depends on X86 && ACPI && I2C
 	select SND_SOC_SVFPGA
 	select SND_SOC_INTEL_SST
 	select SND_SOC_INTEL_SKYLAKE
@@ -290,6 +292,7 @@ config SND_SOC_INTEL_CNL_SVFPGA_MACH
 
 config SND_SOC_INTEL_CNL_RT700_MACH
         tristate "SOC Machine Audio driver for CNL Platform"
+	depends on X86 && ACPI && I2C
 	select SND_SOC_RT700
 	select SND_SOC_INTEL_SST
 	select SND_SOC_INTEL_SKYLAKE
@@ -302,11 +305,11 @@ config SND_SOC_INTEL_CNL_RT700_MACH
 
 config SND_SOC_INTEL_CNL_RT274_MACH
         tristate "ASoC Audio driver for CNL with RT274 in I2S Mode"
+	depends on X86 && ACPI && I2C
 	select SND_SOC_RT274
 	select SND_SOC_INTEL_SST
 	select SND_SOC_INTEL_SKYLAKE
 	select SND_SOC_DMIC
-	select SND_SOC_COMPRESS
         help
 	This adds support for ASoC machine driver for CNL and codec RT274. This
 	will create an alsa sound card.  Say Y if you have such a device If
@@ -319,6 +322,7 @@ config SND_SOC_SDW_AGGM1M2
 
 config SND_SOC_INTEL_BXT_TDF8532_MACH
         tristate "ASoC Audio driver for BXT with TDF8532 in I2S mode"
+	depends on X86 && ACPI && I2C
         select SND_SOC_INTEL_SST
         select SND_SOC_INTEL_SKYLAKE
         select SND_SOC_TDF8532
