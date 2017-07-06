@@ -126,6 +126,7 @@ struct hw_perf_event {
 			unsigned long	event_base;
 			int		event_base_rdpmc;
 			int		idx;
+			int		reg_idx;
 			int		last_cpu;
 			int		flags;
 
