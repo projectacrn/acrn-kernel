@@ -2184,12 +2184,34 @@ static void intel_pmu_add_event(struct perf_event *event)
 		intel_pmu_lbr_add(event);
 }
 
+/* When SLOTS overflowed update all the active topdown-* events */
+static void intel_pmu_update_metrics(struct perf_event *event)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+	int idx;
+	u64 slots_events;
+
+	slots_events = *(u64 *)cpuc->enabled_events & INTEL_PMC_MSK_ANY_SLOTS;
+
+	for_each_set_bit (idx, (unsigned long *)&slots_events, 64) {
+		struct perf_event *ev = cpuc->events[idx];
+		if (ev == event)
+			continue;
+		x86_perf_event_update(event);
+	}
+}
+
 /*
  * Save and restart an expired event. Called by NMI contexts,
  * so it has to be careful about preempting normal event ops:
  */
 int intel_pmu_save_and_restart(struct perf_event *event)
 {
+	struct hw_perf_event *hwc = &event->hw;
+
+	if (unlikely(hwc->reg_idx == INTEL_PMC_IDX_FIXED_SLOTS))
+		intel_pmu_update_metrics(event);
+
 	x86_perf_event_update(event);
 	/*
 	 * For a checkpointed counter always reset back to 0.  This
