@@ -4586,6 +4586,15 @@ __init int intel_pmu_init(void)
 		 * counter, so do not extend mask to generic counters
 		 */
 		for_each_event_constraint(c, x86_pmu.event_constraints) {
+			/*
+			 * Don't limit the event mask for topdown sub event
+			 * counters.
+			 */
+			if (x86_pmu.num_counters_fixed >= 3 &&
+			    c->idxmsk64 & INTEL_PMC_MSK_ANY_SLOTS) {
+				c->weight = hweight64(c->idxmsk64);
+				continue;
+			}
 			if (c->cmask == FIXED_EVENT_FLAGS
 			    && c->idxmsk64 != INTEL_PMC_MSK_FIXED_REF_CYCLES) {
 				c->idxmsk64 |= (1ULL << x86_pmu.num_counters) - 1;
