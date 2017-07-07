@@ -262,4 +262,10 @@ config SND_SOC_INTEL_KBL_RT5663_RT5514_MAX98927_MACH
           Say Y if you have such a device.
           If unsure select "N".
 
+config SND_SOC_INTEL_CNL_FPGA
+	tristate "Enable CNL FPGA board settings"
+	depends on X86
+	help
+	  Select Y if you are using FPGA.
+	  If unsure select "N".
 endif
