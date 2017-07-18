@@ -1,0 +1,82 @@
+[
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC7",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x1",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "FP_ARITH_INST_RETIRED.SCALAR_DOUBLE",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Number of Scalar Double-Precision FP arithmetic instructions(1) retired. SW should use operation multiplier of 1."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC7",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x2",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "FP_ARITH_INST_RETIRED.SCALAR_SINGLE",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Number of Scalar Single-Precision FP arithmetic instructions(1) retired. SW should use operation multiplier of 1."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC7",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x4",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "FP_ARITH_INST_RETIRED.128B_PACKED_DOUBLE",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Number of Packed Double-Precision FP arithmetic instructions(1) retired. SW should use operation multiplier of 2."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC7",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x8",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "FP_ARITH_INST_RETIRED.128B_PACKED_SINGLE",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Number of Packed Single-Precision FP arithmetic instructions(1) retired. SW should use operation multiplier of 4."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC7",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x10",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "FP_ARITH_INST_RETIRED.256B_PACKED_DOUBLE",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Number of Packed Double-Precision FP arithmetic instructions(1) retired. SW should use operation multiplier of 4."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC7",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x20",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "FP_ARITH_INST_RETIRED.256B_PACKED_SINGLE",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Number of Packed Single-Precision FP arithmetic instructions(1) retired. SW should use operation multiplier of 8."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC7",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x40",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "FP_ARITH_INST_RETIRED.512B_PACKED_DOUBLE",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Number of Packed Double-Precision FP arithmetic instructions(1) retired. SW should use operation multiplier of 8."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC7",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x80",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "FP_ARITH_INST_RETIRED.512B_PACKED_SINGLE",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Number of Packed Single-Precision FP arithmetic instructions(1) retired. SW should use operation multiplier of 16."
+    }
+]
