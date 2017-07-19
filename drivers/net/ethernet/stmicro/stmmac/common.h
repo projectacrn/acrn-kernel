@@ -538,6 +538,14 @@ struct stmmac_ops {
 			     bool loopback);
 	void (*pcs_rane)(void __iomem *ioaddr, bool restart);
 	void (*pcs_get_adv_lp)(void __iomem *ioaddr, struct rgmii_adv *adv);
+	/* xPCS calls */
+	void (*xpcs_init)(struct net_device *ndev, int pcs_mode);
+	void (*xpcs_ctrl_ane)(struct net_device *ndev, bool ane, bool loopback);
+	void (*xpcs_rane)(struct net_device *ndev, bool restart);
+	void (*xpcs_get_adv_lp)(struct net_device *ndev, struct rgmii_adv *adv);
+	int (*xpcs_irq_status)(struct net_device *ndev,
+			       struct stmmac_extra_stats *x);
+	/* VLAN calls */
 	void (*rx_vlan)(struct net_device *dev, struct mac_device_info *hw,
 			struct dma_desc *rx_desc, struct sk_buff *skb);
 	void (*set_vlan_mode)(void __iomem *ioaddr, netdev_features_t features);
