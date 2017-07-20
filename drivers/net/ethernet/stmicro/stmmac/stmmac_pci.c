@@ -24,6 +24,7 @@
 #include <linux/dmi.h>
 
 #include "stmmac.h"
+#include "dw_xpcs.h"
 
 /*
  * This struct is used to associate PCI Function of MAC controller on a board,
@@ -230,6 +231,9 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->clk_csr = 5;
 	plat->has_gmac = 0;
 	plat->has_gmac4 = 1;
+	plat->has_xpcs = 1;
+	plat->xpcs_phy_addr = 0x16;
+	plat->pcs_mode = AN_CTRL_PCS_MD_C37_SGMII;
 	plat->force_sf_dma_mode = 0;
 	plat->tso_en = 1;
 
@@ -397,6 +401,7 @@ static int stmmac_pci_probe(struct pci_dev *pdev,
 	res.addr = pcim_iomap_table(pdev)[i];
 	res.wol_irq = pdev->irq;
 	res.irq = pdev->irq;
+	res.xpcs_irq = pdev->irq;
 
 	return stmmac_dvr_probe(&pdev->dev, plat, &res);
 }
