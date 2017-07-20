@@ -4247,7 +4247,8 @@ static int stmmac_hw_init(struct stmmac_priv *priv)
 		mac = dwmac4_setup(priv->ioaddr,
 				   priv->plat->multicast_filter_bins,
 				   priv->plat->unicast_filter_entries,
-				   &priv->synopsys_id);
+				   &priv->synopsys_id,
+				   priv->plat->has_xpcs);
 	} else {
 		mac = dwmac100_setup(priv->ioaddr, &priv->synopsys_id);
 	}

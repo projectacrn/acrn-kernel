@@ -20,6 +20,7 @@
 #include <net/dsa.h>
 #include <linux/if_vlan.h>
 #include "stmmac_pcs.h"
+#include "dw_xpcs.h"
 #include "dwmac4.h"
 #include "dwmac5.h"
 
@@ -703,6 +704,34 @@ static void dwmac4_get_adv_lp(void __iomem *ioaddr, struct rgmii_adv *adv)
 	dwmac_get_adv_lp(ioaddr, GMAC_PCS_BASE, adv);
 }
 
+static void dwmac_xpcs_init(struct net_device *ndev, int pcs_mode)
+{
+	dw_xpcs_init(ndev, pcs_mode);
+}
+
+static void dwmac_xpcs_ctrl_ane(struct net_device *ndev, bool ane,
+				bool loopback)
+{
+	dw_xpcs_ctrl_ane(ndev, ane, loopback);
+}
+
+static void dwmac_xpcs_rane(struct net_device *ndev, bool restart)
+{
+	dw_xpcs_rane(ndev, restart);
+}
+
+static void dwmac_xpcs_get_adv_lp(struct net_device *ndev,
+				  struct rgmii_adv *adv)
+{
+	dw_xpcs_get_adv_lp(ndev, adv);
+}
+
+static int dwmac_xpcs_irq_status(struct net_device *ndev,
+				 struct stmmac_extra_stats *x)
+{
+	return dw_xpcs_irq_status(ndev, x);
+}
+
 /* RGMII or SMII interface */
 static void dwmac4_phystatus(void __iomem *ioaddr, struct stmmac_extra_stats *x)
 {
@@ -1047,6 +1076,22 @@ static const struct stmmac_ops dwmac510_ops = {
 	.safety_feat_dump = dwmac5_safety_feat_dump,
 };
 
+static const struct stmmac_ops dwmac5_xpcs_ops = {
+	.xpcs_init = dwmac_xpcs_init,
+	.xpcs_ctrl_ane = dwmac_xpcs_ctrl_ane,
+	.xpcs_rane = dwmac_xpcs_rane,
+	.xpcs_get_adv_lp = dwmac_xpcs_get_adv_lp,
+	.xpcs_irq_status = dwmac_xpcs_irq_status,
+	.debug = dwmac4_debug,
+	.set_filter = dwmac4_set_filter,
+	.rx_vlan = dwmac4_rx_vlan,
+	.set_vlan_mode = dwmac4_set_vlan_mode,
+	.vlan_rx_add_vid = dwmac4_vlan_rx_add_vid,
+	.vlan_rx_kill_vid = dwmac4_vlan_rx_kill_vid,
+	.restore_vlan = dwmac4_restore_vlan,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
+};
+
 static u32 dwmac4_get_num_vlan(void __iomem *ioaddr)
 {
 	u32 val, num_vlan;
@@ -1079,7 +1124,8 @@ static u32 dwmac4_get_num_vlan(void __iomem *ioaddr)
 }
 
 struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
-				     int perfect_uc_entries, int *synopsys_id)
+				     int perfect_uc_entries, int *synopsys_id,
+				     int xpcs)
 {
 	struct mac_device_info *mac;
 	u32 hwid = readl(ioaddr + GMAC_VERSION);
@@ -1118,8 +1164,13 @@ struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
 	else
 		mac->dma = &dwmac4_dma_ops;
 
+<<<<<<< HEAD
 	if (*synopsys_id >= DWMAC_CORE_5_10)
 		mac->mac = &dwmac510_ops;
+=======
+	if ((*synopsys_id == DWMAC_CORE_5_00) && xpcs)
+		mac->mac = &dwmac5_xpcs_ops;
+>>>>>>> net: stmmac: add xPCS functions for device with DWMACv5.0
 	else if (*synopsys_id >= DWMAC_CORE_4_00)
 		mac->mac = &dwmac410_ops;
 	else

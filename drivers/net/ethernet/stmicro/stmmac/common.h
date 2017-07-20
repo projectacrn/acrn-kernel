@@ -658,7 +658,8 @@ struct mac_device_info *dwmac1000_setup(void __iomem *ioaddr, int mcbins,
 					int *synopsys_id);
 struct mac_device_info *dwmac100_setup(void __iomem *ioaddr, int *synopsys_id);
 struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
-				     int perfect_uc_entries, int *synopsys_id);
+				     int perfect_uc_entries, int *synopsys_id,
+				     int xpcs);
 
 void stmmac_set_mac_addr(void __iomem *ioaddr, u8 addr[6],
 			 unsigned int high, unsigned int low);
