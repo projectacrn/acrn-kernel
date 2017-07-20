@@ -419,6 +419,8 @@ stmmac_ethtool_set_link_ksettings(struct net_device *dev,
 		if (priv->hw->mac->pcs_ctrl_ane)
 			priv->hw->mac->pcs_ctrl_ane(priv->ioaddr, 1,
 						    priv->hw->ps, 0);
+		else if (priv->hw->mac->xpcs_ctrl_ane)
+			priv->hw->mac->xpcs_ctrl_ane(dev, 1, 0);
 
 		spin_unlock(&priv->lock);
 
@@ -487,6 +489,13 @@ stmmac_get_pauseparam(struct net_device *netdev,
 		priv->hw->mac->pcs_get_adv_lp(priv->ioaddr, &adv_lp);
 		if (!adv_lp.pause)
 			return;
+	} else if (priv->plat->has_xpcs && priv->hw->mac->xpcs_get_adv_lp) {
+		struct rgmii_adv adv_lp;
+
+		pause->autoneg = 1;
+		priv->hw->mac->xpcs_get_adv_lp(netdev, &adv_lp);
+		if (!adv_lp.pause)
+			return;
 	} else {
 		if (!(netdev->phydev->supported & SUPPORTED_Pause) ||
 		    !(netdev->phydev->supported & SUPPORTED_Asym_Pause))
@@ -518,6 +527,14 @@ stmmac_set_pauseparam(struct net_device *netdev,
 		priv->hw->mac->pcs_get_adv_lp(priv->ioaddr, &adv_lp);
 		if (!adv_lp.pause)
 			return -EOPNOTSUPP;
+	} else if (priv->plat->has_xpcs && priv->hw->mac->xpcs_get_adv_lp) {
+		struct rgmii_adv adv_lp;
+
+		pause->autoneg = 1;
+		priv->hw->mac->xpcs_get_adv_lp(priv->ioaddr, &adv_lp);
+		if (!adv_lp.pause)
+			return -EOPNOTSUPP;
+
 	} else {
 		if (!(phy->supported & SUPPORTED_Pause) ||
 		    !(phy->supported & SUPPORTED_Asym_Pause))
