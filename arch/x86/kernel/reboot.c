@@ -591,6 +591,11 @@ static void native_machine_emergency_restart(void)
 		switch (reboot_type) {
 		case BOOT_ACPI:
 			acpi_reboot();
+#if defined(CONFIG_X86_PRESI_ICL_SIMICS) || \
+	defined(CONFIG_X86_PRESI_TGL_SIMICS) || \
+	defined(CONFIG_X86_PRESI_EHL_SIMICS)
+			mdelay(500);
+#endif /* ICL || TGL || EHL */
 			reboot_type = BOOT_KBD;
 			break;
 
