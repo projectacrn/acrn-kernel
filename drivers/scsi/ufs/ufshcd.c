@@ -6318,6 +6318,13 @@ static int ufshcd_probe_hba(struct ufs_hba *hba)
 	int ret;
 	ktime_t start = ktime_get();
 
+	ret = ufshcd_vops_phy_initialization(hba);
+	if (ret) {
+		dev_err(hba->dev, "%s: Failed to initialize phy, err: %d\n",
+				__func__, ret);
+		goto out;
+	}
+
 	ret = ufshcd_link_startup(hba);
 	if (ret)
 		goto out;
