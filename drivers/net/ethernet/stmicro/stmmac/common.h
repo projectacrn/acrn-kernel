@@ -38,6 +38,7 @@
 #define	DWMAC_CORE_3_40	0x34
 #define	DWMAC_CORE_3_50	0x35
 #define	DWMAC_CORE_4_00	0x40
+#define	DWMAC_CORE_5_00	0x50
 #define STMMAC_CHAN0	0	/* Always supported and default for all chips */
 
 /* These need to be power of two, and >= 4 */
@@ -636,7 +637,8 @@ struct mac_device_info *dwmac1000_setup(void __iomem *ioaddr, int mcbins,
 					int *synopsys_id);
 struct mac_device_info *dwmac100_setup(void __iomem *ioaddr, int *synopsys_id);
 struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
-				     int perfect_uc_entries, int *synopsys_id);
+				     int perfect_uc_entries, int *synopsys_id,
+				     int xpcs);
 
 void stmmac_set_mac_addr(void __iomem *ioaddr, u8 addr[6],
 			 unsigned int high, unsigned int low);
