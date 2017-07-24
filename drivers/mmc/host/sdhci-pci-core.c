@@ -893,6 +893,15 @@ static const struct sdhci_pci_fixes sdhci_intel_byt_sd = {
 	.priv_size	= sizeof(struct intel_host),
 };
 
+static const struct sdhci_pci_fixes sdhci_intel_icl_sd = {
+	.quirks         = SDHCI_QUIRK_BROKEN_TIMEOUT_VAL,
+	.quirks2        = SDHCI_QUIRK2_CARD_ON_NEEDS_BUS_ON |
+			  SDHCI_QUIRK2_STOP_WITH_TC |
+			  SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
+	.allow_runtime_pm = false,
+	.own_cd_for_runtime_pm = false,
+};
+
 /* Define Host controllers for Intel Merrifield platform */
 #define INTEL_MRFLD_EMMC_0	0
 #define INTEL_MRFLD_EMMC_1	1
@@ -1460,7 +1469,7 @@ static const struct pci_device_id pci_ids[] = {
 	SDHCI_PCI_DEVICE(INTEL, CNP_SD,    intel_byt_sd),
 	SDHCI_PCI_DEVICE(INTEL, CNPH_SD,   intel_byt_sd),
 	SDHCI_PCI_DEVICE(INTEL, ICP_EMMC,  intel_glk_emmc),
-	SDHCI_PCI_DEVICE(INTEL, ICP_SD,    intel_byt_sd),
+	SDHCI_PCI_DEVICE(INTEL, ICP_SD,    intel_icl_sd),
 	SDHCI_PCI_DEVICE(INTEL, ICPN_SD,   intel_byt_sd),
 	SDHCI_PCI_DEVICE(INTEL, ICPH_SD,   intel_byt_sd),
 	SDHCI_PCI_DEVICE(O2, 8120,     o2),
