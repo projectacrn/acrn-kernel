@@ -1374,6 +1374,12 @@ static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
 		DRM_DEBUG_KMS("VBT DP max link rate for port %c: %d\n",
 			      port_name(port), info->dp_max_link_rate);
 	}
+
+	/*
+	 * Parse Enable/Disable support for DP display through USB Type C port.
+	 */
+	if (bdb_version >= 195)
+		info->supports_dp_typec = child->dp_usb_type_c;
 }
 
 static void parse_ddi_ports(struct drm_i915_private *dev_priv, u8 bdb_version)
