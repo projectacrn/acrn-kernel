@@ -1380,6 +1380,13 @@ static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
 	 */
 	if (bdb_version >= 195)
 		info->supports_dp_typec = child->dp_usb_type_c;
+
+	/*
+	 * Parse Enable/Disable feature flag indicating whether this port is a
+	 * Thunderbolt port (applicable from ICL onwards).
+	 */
+	if (bdb_version >= 209)
+		info->supports_tbt = child->tbt;
 }
 
 static void parse_ddi_ports(struct drm_i915_private *dev_priv, u8 bdb_version)
