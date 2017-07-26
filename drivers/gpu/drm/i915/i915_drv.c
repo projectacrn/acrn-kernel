@@ -194,6 +194,10 @@ intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 		DRM_DEBUG_KMS("Found Ice Lake PCH\n");
 		WARN_ON(!IS_ICELAKE(dev_priv));
 		return PCH_ICP;
+	case INTEL_PCH_ICP_LP_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found Ice Lake LP PCH\n");
+		WARN_ON(!IS_ICELAKE(dev_priv));
+		return PCH_ICP;
 	default:
 		return PCH_NONE;
 	}

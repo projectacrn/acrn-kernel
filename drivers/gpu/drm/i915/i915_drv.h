@@ -2643,7 +2643,8 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define INTEL_PCH_KBP_DEVICE_ID_TYPE		0xA280
 #define INTEL_PCH_CNP_DEVICE_ID_TYPE		0xA300
 #define INTEL_PCH_CNP_LP_DEVICE_ID_TYPE		0x9D80
-#define INTEL_PCH_ICP_DEVICE_ID_TYPE		0x3480
+#define INTEL_PCH_ICP_LP_DEVICE_ID_TYPE		0x3480
+#define INTEL_PCH_ICP_DEVICE_ID_TYPE		0xFFFF /* FIXME: Replace with real ID when available as IC */
 #define INTEL_PCH_P2X_DEVICE_ID_TYPE		0x7100
 #define INTEL_PCH_P3X_DEVICE_ID_TYPE		0x7000
 #define INTEL_PCH_QEMU_DEVICE_ID_TYPE		0x2900 /* qemu q35 has 2918 */
@@ -2651,6 +2652,8 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define INTEL_PCH_TYPE(dev_priv) ((dev_priv)->pch_type)
 #define INTEL_PCH_ID(dev_priv) ((dev_priv)->pch_id)
 #define HAS_PCH_ICP(dev_priv) (INTEL_PCH_TYPE(dev_priv) == PCH_ICP)
+#define HAS_PCH_ICP_LP(dev_priv) \
+	(INTEL_PCH_ID(dev_priv) == INTEL_PCH_ICP_LP_DEVICE_ID_TYPE)
 #define HAS_PCH_CNP(dev_priv) (INTEL_PCH_TYPE(dev_priv) == PCH_CNP)
 #define HAS_PCH_CNP_LP(dev_priv) \
 	(INTEL_PCH_ID(dev_priv) == INTEL_PCH_CNP_LP_DEVICE_ID_TYPE)
