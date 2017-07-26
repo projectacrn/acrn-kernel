@@ -262,6 +262,10 @@ static void intel_detect_pch(struct drm_i915_private *dev_priv)
 				dev_priv->pch_type = PCH_ICP;
 				DRM_DEBUG_KMS("Found Ice Lake LP PCH\n");
 				WARN_ON(!IS_ICELAKE(dev_priv));
+			} else if (id == INTEL_PCH_ICP_H_DEVICE_ID_TYPE) {
+				dev_priv->pch_type = PCH_ICP;
+				DRM_DEBUG_KMS("Found Ice Lake H PCH\n");
+				WARN_ON(!IS_ICELAKE(dev_priv));
 			} else if (id == INTEL_PCH_P2X_DEVICE_ID_TYPE ||
 				   id == INTEL_PCH_P3X_DEVICE_ID_TYPE ||
 				   (id == INTEL_PCH_QEMU_DEVICE_ID_TYPE &&
