@@ -1865,7 +1865,7 @@ intel_panel_init_backlight_funcs(struct intel_panel *panel)
 		panel->backlight.set = bxt_set_backlight;
 		panel->backlight.get = bxt_get_backlight;
 		panel->backlight.hz_to_pwm = bxt_hz_to_pwm;
-	} else if (HAS_PCH_CNP(dev_priv)) {
+	} else if (HAS_PCH_CNP(dev_priv) || HAS_PCH_ICP(dev_priv)) {
 		panel->backlight.setup = cnp_setup_backlight;
 		panel->backlight.enable = cnp_enable_backlight;
 		panel->backlight.disable = cnp_disable_backlight;
