@@ -21,6 +21,7 @@
 #include "stmmac_pcs.h"
 #include "dw_xpcs.h"
 #include "dwmac4.h"
+#include "dwmac5.h"
 
 static void dwmac4_core_init(struct mac_device_info *hw, int mtu)
 {
@@ -1074,6 +1075,16 @@ static const struct stmmac_ops dwmac5_xpcs_ops = {
 	.vlan_rx_kill_vid = dwmac4_vlan_rx_kill_vid,
 	.restore_vlan = dwmac4_restore_vlan,
 	.set_loopback_mode = dwmac4_set_loopback_mode,
+	.set_tsn_hwtunable = dwmac_set_tsn_hwtunable,
+	.get_tsn_hwtunable = dwmac_get_tsn_hwtunable,
+	.get_est_bank = dwmac_get_est_bank,
+	.set_est_gce = dwmac_set_est_gce,
+	.get_est_gcrr_llr = dwmac_get_est_gcrr_llr,
+	.set_est_gcrr_llr = dwmac_set_est_gcrr_llr,
+	.set_est_gcrr_times = dwmac_set_est_gcrr_times,
+	.set_est_enable = dwmac_set_est_enable,
+	.get_est_gcc = dwmac_get_est_gcc,
+
 };
 
 static u32 dwmac4_get_num_vlan(void __iomem *ioaddr)

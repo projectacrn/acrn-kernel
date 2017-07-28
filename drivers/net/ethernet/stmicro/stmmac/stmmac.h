@@ -87,6 +87,7 @@ struct stmmac_priv {
 	bool tx_path_in_lpi_mode;
 	struct timer_list txtimer;
 	bool tso;
+	bool tsn_est;
 
 	unsigned int dma_buf_sz;
 	unsigned int rx_copybreak;
@@ -116,6 +117,7 @@ struct stmmac_priv {
 	struct stmmac_extra_stats xstats ____cacheline_aligned_in_smp;
 	struct plat_stmmacenet_data *plat;
 	struct dma_features dma_cap;
+	struct tsn_hw_cap tsn_hwcap;
 	struct stmmac_counters mmc;
 	int hw_cap_support;
 	int synopsys_id;

@@ -4100,6 +4100,8 @@ static int stmmac_hw_init(struct stmmac_priv *priv)
 {
 	struct mac_device_info *mac;
 
+	dwmac_tsn_init(priv->dev);
+
 	/* Identify the MAC HW device */
 	if (priv->plat->setup) {
 		mac = priv->plat->setup(priv);
@@ -4286,6 +4288,14 @@ int stmmac_dvr_probe(struct device *device,
 		priv->tso = true;
 		dev_info(priv->device, "TSO feature enabled\n");
 	}
+
+	if (priv->plat->tsn_est_en &&
+	    priv->tsn_hwcap.est_support) {
+		ndev->hw_features |= NETIF_F_HW_EST;
+		priv->tsn_est = true;
+		dev_info(priv->device, "EST feature enabled\n");
+	}
+
 #ifdef STMMAC_VLAN_TAG_USED
 	/* Both mac100 and gmac support receive VLAN tag detection */
 	ndev->hw_features |= NETIF_F_HW_VLAN_CTAG_RX;
@@ -4294,6 +4304,10 @@ int stmmac_dvr_probe(struct device *device,
 		ndev->features |= NETIF_F_HW_VLAN_CTAG_FILTER;
 #endif
 	ndev->features |= ndev->hw_features | NETIF_F_HIGHDMA;
+
+	/* TSN features are disabled by default */
+	ndev->features &= ~(NETIF_F_HW_EST);
+
 	ndev->watchdog_timeo = msecs_to_jiffies(watchdog);
 	priv->msg_enable = netif_msg_init(debug, default_msg_level);
 

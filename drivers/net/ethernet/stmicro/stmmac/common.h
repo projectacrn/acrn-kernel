@@ -365,6 +365,53 @@ struct dma_features {
 
 #define JUMBO_LEN		9000
 
+/* TSN HW Capabilities */
+struct tsn_hw_cap {
+	bool est_support;		/* 1: supported */
+	u32 txqcnt;			/* Number of TxQ (control gate) */
+	u32 gcl_depth;			/* GCL depth. */
+	u32 ti_wid;			/* time interval width */
+	u32 tils_max;			/* Max of time interval left shift */
+	u32 ext_max;			/* Max of time extension */
+};
+
+/* TSN HW tunable */
+struct tsn_hw_tunable {
+	u32 tils;			/* time interval left-shift */
+	u32 ptov;			/* PTP time offset */
+	u32 ctov;			/* Current time offset */
+};
+
+/* EST Gate Control Entry */
+struct est_gc_entry {
+	u32 gates;		/* gate control: 0: closed, 1: open. */
+	u32 ti_nsec;		/* time interval in nsec */
+};
+
+/* EST GCL Related Registers */
+struct est_gcrr {
+	u32 base_nsec;			/* base time denominator (nsec) */
+	u32 base_sec;			/* base time numerator (sec) */
+	u32 cycle_nsec;			/* cycle time denominator (nsec) */
+	u32 cycle_sec;			/* cycle time numerator sec)*/
+	u32 ter_nsec;			/* time extension (nsec) */
+	u32 llr;			/* GC list length */
+};
+
+/* EST Gate Control bank */
+struct est_gc_bank {
+	struct est_gc_entry *gcl;	/* Gate Control List */
+	struct est_gcrr gcrr;		/* GCL Related Registers */
+};
+
+#define EST_GCL_BANK_MAX (2)
+
+/* EST Gate Control Configuration */
+struct est_gc_config {
+	struct est_gc_bank gcb[EST_GCL_BANK_MAX];
+	bool enable;			/* 1: enabled */
+};
+
 /* Descriptors helpers */
 struct stmmac_desc_ops {
 	/* DMA RX descriptor ring initialization */
@@ -558,6 +605,25 @@ struct stmmac_ops {
 			     struct mac_device_info *hw);
 	/* self-test */
 	void (*set_loopback_mode)(struct mac_device_info *hw, bool mode);
+	/* TSN calls */
+	int (*set_tsn_hwtunable)(struct net_device *ndev, u32 id,
+				 const void *data);
+	int (*get_tsn_hwtunable)(struct net_device *ndev, u32 id,
+				 void *data);
+	int (*get_est_bank)(struct net_device *ndev, u32 own);
+	int (*set_est_gce)(struct net_device *ndev,
+			   struct est_gc_entry *gce, u32 row,
+			   u32 dbgb, u32 dbgm);
+	int (*get_est_gcrr_llr)(struct net_device *ndev, u32 *gcl_len,
+				u32 dbgb, u32 dbgm);
+	int (*set_est_gcrr_llr)(struct net_device *ndev, u32 gcl_len,
+				u32 dbgb, u32 dbgm);
+	int (*set_est_gcrr_times)(struct net_device *ndev,
+				  struct est_gcrr *gcrr,
+				  u32 dbgb, u32 dbgm);
+	int (*set_est_enable)(struct net_device *ndev, bool enable);
+	int (*get_est_gcc)(struct net_device *ndev,
+			   struct est_gc_config **gcc, bool frmdrv);
 };
 
 /* PTP and HW Timer helpers */
@@ -653,6 +719,8 @@ void stmmac_dwmac4_get_mac_addr(void __iomem *ioaddr, unsigned char *addr,
 void stmmac_dwmac4_set_mac(void __iomem *ioaddr, bool enable);
 
 void dwmac_dma_flush_tx_fifo(void __iomem *ioaddr);
+
+int dwmac_tsn_init(struct net_device *ndev);
 
 extern const struct stmmac_mode_ops ring_mode_ops;
 extern const struct stmmac_mode_ops chain_mode_ops;
