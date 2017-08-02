@@ -1,4 +1,3 @@
-#include <asm/uaccess.h>	// for "copy_to_user"
 #include "sw_hardware_io.h"
 #include "sw_mem.h"
 #include "sw_internal.h"
