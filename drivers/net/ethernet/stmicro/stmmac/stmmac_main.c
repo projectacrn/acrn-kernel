@@ -4312,6 +4312,13 @@ int stmmac_dvr_probe(struct device *device,
 		dev_info(priv->device, "EST feature enabled\n");
 	}
 
+	if (priv->plat->tsn_fpe_en &&
+	    priv->tsn_hwcap.fpe_support) {
+		ndev->hw_features |= NETIF_F_HW_FPE;
+		priv->tsn_fpe = true;
+		dev_info(priv->device, "FPE feature enabled\n");
+	}
+
 #ifdef STMMAC_VLAN_TAG_USED
 	/* Both mac100 and gmac support receive VLAN tag detection */
 	ndev->hw_features |= NETIF_F_HW_VLAN_CTAG_RX;
@@ -4322,7 +4329,7 @@ int stmmac_dvr_probe(struct device *device,
 	ndev->features |= ndev->hw_features | NETIF_F_HIGHDMA;
 
 	/* TSN features are disabled by default */
-	ndev->features &= ~(NETIF_F_HW_EST);
+	ndev->features &= ~(NETIF_F_HW_EST | NETIF_F_HW_FPE);
 
 	ndev->watchdog_timeo = msecs_to_jiffies(watchdog);
 	priv->msg_enable = netif_msg_init(debug, default_msg_level);

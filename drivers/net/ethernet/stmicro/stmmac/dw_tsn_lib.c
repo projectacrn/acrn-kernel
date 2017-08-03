@@ -20,6 +20,7 @@
 static struct tsn_hw_tunable dw_tsn_hwtunable;
 static struct est_gc_config dw_est_gc_config;
 static struct tsn_err_stat dw_err_stat;
+static struct fpe_config dw_fpe_config;
 
 static u32 est_get_gcl_depth(u32 hw_cap)
 {
@@ -212,7 +213,7 @@ int dwmac_tsn_init(struct net_device *ndev)
 			 "EST NOT supported\n");
 		cap->est_support = 0;
 
-		return 0;
+		goto check_fpe;
 	}
 
 	gcl_depth = est_get_gcl_depth(hw_cap3);
@@ -262,7 +263,17 @@ int dwmac_tsn_init(struct net_device *ndev)
 		 "EST: depth=%u, ti_wid=%u, tils_max=%u tqcnt=%u\n",
 		 gcl_depth, ti_wid, tils_max, cap->txqcnt);
 
-	return ret;
+check_fpe:
+	if (!(hw_cap3 & GMAC_HW_FEAT_FPESEL)) {
+		dev_info(priv->device, "FPE NOT supported\n");
+		cap->fpe_support = 0;
+	} else {
+		dev_info(priv->device, "FPE capable\n");
+		cap->rxqcnt = (hw_cap2 & GMAC_HW_FEAT_RXQCNT) + 1;
+		cap->fpe_support = 1;
+	}
+
+	return 0;
 }
 
 /* dwmac_tsn_setup is called within stmmac_hw_setup() after
@@ -282,6 +293,16 @@ void dwmac_tsn_setup(struct net_device *ndev)
 			 MTL_EST_INT_EN_IEHF | MTL_EST_INT_EN_IEBE |
 			 MTL_EST_INT_EN_IECC);
 		writel(value, ioaddr + MTL_EST_INT_EN);
+	}
+
+	if (cap->fpe_support && priv->plat->fprq <= cap->rxqcnt) {
+		/* Update FPRQ */
+		value = readl(ioaddr + GMAC_RXQ_CTRL1);
+		value &= ~GMAC_RXQCTRL_FPRQ_MASK;
+		value |= priv->plat->fprq << GMAC_RXQCTRL_FPRQ_SHIFT;
+		writel(value, ioaddr + GMAC_RXQ_CTRL1);
+	} else {
+		dev_warn(priv->device, "FPE: FPRQ is out-of-bound.\n");
 	}
 }
 
@@ -364,6 +385,75 @@ static int est_set_ov(struct net_device *ndev, u32 *ptov, u32 *ctov)
 	return 0;
 }
 
+static int fpe_set_afsz(struct net_device *ndev, u32 afsz)
+{
+	u32 value;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+
+	if (!priv->tsn_fpe)
+		return -ENOTSUPP;
+
+	if (afsz > FPE_AFSZ_MAX) {
+		dev_warn(priv->device, "FPE: AFSZ is out-of-bound.\n");
+
+		return -EINVAL;
+	}
+
+	if (afsz != dw_tsn_hwtunable.afsz) {
+		value = readl(priv->ioaddr + MTL_FPE_CTRL_STS);
+		value &= ~MTL_FPE_CTRL_STS_AFSZ;
+		value |= afsz;
+		writel(value, priv->ioaddr + MTL_FPE_CTRL_STS);
+		dw_tsn_hwtunable.afsz = afsz;
+	}
+
+	return 0;
+}
+
+static int fpe_set_hr_adv(struct net_device *ndev, u32 *hadv, u32 *radv)
+{
+	u32 value;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+
+	if (!priv->tsn_fpe)
+		return -ENOTSUPP;
+
+	value = readl(priv->ioaddr + MTL_FPE_ADVANCE);
+
+	if (hadv) {
+		if (*hadv > FPE_ADV_MAX) {
+			dev_warn(priv->device,
+				 "FPE: invalid HADV(%u), max=%u\n",
+				 *hadv, FPE_ADV_MAX);
+
+			return -EINVAL;
+		} else if (*hadv != dw_tsn_hwtunable.hadv) {
+			value &= ~MTL_FPE_ADVANCE_HADV;
+			value |= (*hadv & MTL_FPE_ADVANCE_HADV);
+			dw_tsn_hwtunable.hadv = *hadv;
+		}
+	}
+
+	if (radv) {
+		if (*radv > FPE_ADV_MAX) {
+			dev_warn(priv->device,
+				 "FPE: invalid RADV(%u), max=%u\n",
+				 *radv, FPE_ADV_MAX);
+
+			return -EINVAL;
+		} else if (*radv != dw_tsn_hwtunable.radv) {
+			value &= ~MTL_FPE_ADVANCE_RADV;
+			value |= ((*radv << MTL_FPE_ADVANCE_RADV_SHIFT) &
+				  MTL_FPE_ADVANCE_RADV);
+			dw_tsn_hwtunable.radv = *radv;
+		}
+	}
+
+	writel(value, priv->ioaddr + MTL_FPE_ADVANCE);
+
+	return 0;
+}
+
 int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 			    const void *data)
 {
@@ -379,6 +469,15 @@ int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 		break;
 	case ETHTOOL_TX_EST_CTOV:
 		ret = est_set_ov(ndev, NULL, &value);
+		break;
+	case ETHTOOL_TX_FPE_AFSZ:
+		ret = fpe_set_afsz(ndev, value);
+		break;
+	case ETHTOOL_TX_FPE_HADV:
+		ret = fpe_set_hr_adv(ndev, &value, NULL);
+		break;
+	case ETHTOOL_TX_FPE_RADV:
+		ret = fpe_set_hr_adv(ndev, NULL, &value);
 		break;
 	default:
 		ret = -EINVAL;
@@ -401,6 +500,15 @@ int dwmac_get_tsn_hwtunable(struct net_device *ndev, u32 id,
 		break;
 	case ETHTOOL_TX_EST_CTOV:
 		*(u32 *)data = dw_tsn_hwtunable.ctov;
+		break;
+	case ETHTOOL_TX_FPE_AFSZ:
+		*(u32 *)data = dw_tsn_hwtunable.afsz;
+		break;
+	case ETHTOOL_TX_FPE_HADV:
+		*(u32 *)data = dw_tsn_hwtunable.hadv;
+		break;
+	case ETHTOOL_TX_FPE_RADV:
+		*(u32 *)data = dw_tsn_hwtunable.radv;
 		break;
 	default:
 		ret = -EINVAL;
@@ -971,7 +1079,7 @@ int dwmac_est_irq_status(struct net_device *ndev)
 	if (status & MTL_EST_STATUS_SWLC) {
 		writel(MTL_EST_STATUS_SWLC, ioaddr +
 		       MTL_EST_STATUS);
-		pr_info("SWOL has been switched\n");
+		dev_info(priv->device, "SWOL has been switched\n");
 	}
 
 	return status;
@@ -998,6 +1106,117 @@ int dwmac_clr_est_err_stat(struct net_device *ndev)
 		return -ENOTSUPP;
 
 	memset(&dw_err_stat, 0, sizeof(dw_err_stat));
+
+	return 0;
+}
+
+int dwmac_set_fpe_config(struct net_device *ndev, struct fpe_config *fpec)
+{
+	u32 txqmask, value;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct tsn_hw_cap *cap = &priv->tsn_hwcap;
+	void __iomem *ioaddr = priv->ioaddr;
+
+	if (!priv->tsn_fpe)
+		return -ENOTSUPP;
+
+	/* Check PEC is within TxQ range */
+	txqmask = (1 << cap->txqcnt) - 1;
+	if (fpec->txqpec & ~txqmask) {
+		dev_warn(priv->device, "FPE: Tx PEC is out-of-bound.\n");
+
+		return -EINVAL;
+	}
+
+	/* When EST and FPE are both enabled, TxQ0 is always preemptable
+	 * queue. If FPE is enabled, we expect at least lsb is set.
+	 * If FPE is not enabled, we also allow PEC = 0.
+	 */
+	if (fpec->txqpec && !(fpec->txqpec & FPE_PMAC_BIT)) {
+		dev_warn(priv->device,
+			 "FPE: TxQ0 must not be express queue.\n");
+
+		return -EINVAL;
+	}
+
+	/* Field masking not needed as condition checks have been done */
+	value = readl(ioaddr + MTL_FPE_CTRL_STS);
+	value &= ~(txqmask << MTL_FPE_CTRL_STS_PEC_SHIFT);
+	value |= (fpec->txqpec << MTL_FPE_CTRL_STS_PEC_SHIFT);
+	writel(value, ioaddr + MTL_FPE_CTRL_STS);
+
+	/* Update driver copy */
+	dw_fpe_config.txqpec = fpec->txqpec;
+
+	return 0;
+}
+
+int dwmac_set_fpe_enable(struct net_device *ndev, bool enable)
+{
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	void __iomem *ioaddr = priv->ioaddr;
+
+	if (!priv->tsn_fpe)
+		return -ENOTSUPP;
+
+	dw_fpe_config.enable = enable & MAC_FPE_CTRL_STS_EFPE;
+	writel((u32)dw_fpe_config.enable, ioaddr + MAC_FPE_CTRL_STS);
+
+	return 0;
+}
+
+int dwmac_get_fpe_config(struct net_device *ndev, struct fpe_config **fpec,
+			 bool frmdrv)
+{
+	u32 value;
+	struct fpe_config *pfpec;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	void __iomem *ioaddr = priv->ioaddr;
+
+	if (!priv->tsn_fpe)
+		return -ENOTSUPP;
+
+	/* Get FPE config from driver */
+	if (frmdrv) {
+		*fpec = &dw_fpe_config;
+
+		dev_info(priv->device,
+			 "FPE: read config from driver copy done.\n");
+
+		return 0;
+	}
+
+	pfpec = &dw_fpe_config;
+
+	value = readl(ioaddr + MTL_FPE_CTRL_STS);
+	pfpec->txqpec = (value & MTL_FPE_CTRL_STS_PEC) >>
+			MTL_FPE_CTRL_STS_PEC_SHIFT;
+
+	value = readl(ioaddr + MAC_FPE_CTRL_STS);
+	pfpec->enable = (bool)(value & MAC_FPE_CTRL_STS_EFPE);
+
+	*fpec = pfpec;
+	dev_info(priv->device, "FPE: read config from HW done.\n");
+
+	return 0;
+}
+
+int dwmac_get_fpe_pmac_sts(struct net_device *ndev, u32 *hrs)
+{
+	u32 value;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	void __iomem *ioaddr = priv->ioaddr;
+
+	if (!priv->tsn_fpe)
+		return -ENOTSUPP;
+
+	value = readl(ioaddr + MTL_FPE_CTRL_STS);
+	*hrs = (value & MTL_FPE_CTRL_STS_HRS) >> MTL_FPE_CTRL_STS_HRS_SHIFT;
+
+	if (hrs)
+		dev_info(priv->device, "FPE: pMAC is in Hold state.\n");
+	else
+		dev_info(priv->device, "FPE: pMAC is in Release state.\n");
 
 	return 0;
 }

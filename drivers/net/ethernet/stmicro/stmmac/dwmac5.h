@@ -25,7 +25,12 @@
  * In addition, the IP supports Time-based Scheduling (TBS).
  */
 
+/* FPRQ only available in EQoS ver5.00 MAC_RxQ_Ctrl1 */
+#define GMAC_RXQCTRL_FPRQ_MASK		GENMASK(26, 24)	/* FPE Residue Queue */
+#define GMAC_RXQCTRL_FPRQ_SHIFT		24
+
 /* MAC HW features3 bitmap */
+#define GMAC_HW_FEAT_FPESEL		BIT(26)
 #define GMAC_HW_FEAT_ESTTISW		GENMASK(24, 23)
 #define GMAC_HW_FEAT_ESTTISW_SHIFT	23
 #define GMAC_HW_FEAT_ESTWID		GENMASK(21, 20)
@@ -33,6 +38,10 @@
 #define GMAC_HW_FEAT_ESTDEP		GENMASK(19, 17)
 #define GMAC_HW_FEAT_ESTDEP_SHIFT	17
 #define GMAC_HW_FEAT_ESTSEL		BIT(16)
+
+/* MAC FPE control status */
+#define MAC_FPE_CTRL_STS		0x00000234
+#define MAC_FPE_CTRL_STS_EFPE		BIT(0)
 
 /* MTL EST control register */
 #define MTL_EST_CTRL			0x00000c50
@@ -97,11 +106,30 @@
 /* MTL EST GCL data register */
 #define MTL_EST_GCL_DATA		0x00000c84
 
+/* MTL FPE control status */
+#define MTL_FPE_CTRL_STS		0x00000c90
+#define MTL_FPE_CTRL_STS_HRS		BIT(28)	/* Hold/Release Status */
+#define MTL_FPE_CTRL_STS_HRS_SHIFT	28
+#define MTL_FPE_CTRL_STS_PEC		GENMASK(15, 8)	/* FPE Classification */
+#define MTL_FPE_CTRL_STS_PEC_SHIFT	8
+#define MTL_FPE_CTRL_STS_AFSZ		GENMASK(1, 0)	/* Extra Frag Size */
+
+/* MTL FPE Advance */
+#define MTL_FPE_ADVANCE			0x00000c94
+#define MTL_FPE_ADVANCE_RADV		GENMASK(31, 16)	/* Release Advance */
+#define MTL_FPE_ADVANCE_RADV_SHIFT	16
+#define MTL_FPE_ADVANCE_HADV		GENMASK(15, 0)	/* Hold Advance */
+
 /* EST Global defines */
 #define EST_CTR_HI_MAX			0xff	/* CTR Hi is 8-bit only */
 #define EST_PTOV_MAX			0xff	/* Max PTP time offset */
 #define EST_CTOV_MAX			0xfff	/* Max Current time offset */
 #define EST_TIWID_TO_EXTMAX(ti_wid)	((1 << (ti_wid + 7)) - 1)
+
+/* FPE Global defines */
+#define FPE_AFSZ_MAX			0x3	/* Max AFSZ */
+#define FPE_ADV_MAX			0xFFFF	/* Max Release/Hold advance */
+#define FPE_PMAC_BIT			0x01	/* pMAC bit in GC entry */
 
 int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 			    const void *data);
@@ -124,4 +152,9 @@ int dwmac_get_est_gcc(struct net_device *ndev,
 int dwmac_est_irq_status(struct net_device *ndev);
 int dwmac_get_est_err_stat(struct net_device *ndev,
 			   struct tsn_err_stat **err_stat);
+int dwmac_set_fpe_config(struct net_device *ndev, struct fpe_config *fpec);
+int dwmac_set_fpe_enable(struct net_device *ndev, bool enable);
+int dwmac_get_fpe_config(struct net_device *ndev, struct fpe_config **fpec,
+			 bool frmdrv);
+int dwmac_get_fpe_pmac_sts(struct net_device *ndev, u32 *hrs);
 #endif /* __DWMAC5_H__ */

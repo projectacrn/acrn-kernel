@@ -371,7 +371,9 @@ struct dma_features {
 /* TSN HW Capabilities */
 struct tsn_hw_cap {
 	bool est_support;		/* 1: supported */
+	bool fpe_support;		/* 1: supported */
 	u32 txqcnt;			/* Number of TxQ (control gate) */
+	u32 rxqcnt;			/* Number of RxQ (for FPRQ) */
 	u32 gcl_depth;			/* GCL depth. */
 	u32 ti_wid;			/* time interval width */
 	u32 tils_max;			/* Max of time interval left shift */
@@ -383,6 +385,9 @@ struct tsn_hw_tunable {
 	u32 tils;			/* time interval left-shift */
 	u32 ptov;			/* PTP time offset */
 	u32 ctov;			/* Current time offset */
+	u32 afsz;			/* Additional Frag Size */
+	u32 hadv;			/* Hold Advance */
+	u32 radv;			/* Release Advance */
 };
 
 /* EST Gate Control Entry */
@@ -424,6 +429,12 @@ struct tsn_err_stat {
 	u32 btre_max_n;			/* BTR error with BTR renewal fail */
 					/* count */
 	u32 btrl;			/* BTR error loop count */
+};
+
+/* FPE Configuration */
+struct fpe_config {
+	u32 txqpec;			/* TxQ Preemption Classification */
+	bool enable;			/* 1: enabled */
 };
 
 /* Descriptors helpers */
@@ -642,6 +653,12 @@ struct stmmac_ops {
 	int (*get_est_err_stat)(struct net_device *ndev,
 				struct tsn_err_stat **err_stat);
 	int (*clr_est_err_stat)(struct net_device *ndev);
+	int (*set_fpe_config)(struct net_device *ndev,
+			      struct fpe_config *fpec);
+	int (*set_fpe_enable)(struct net_device *ndev, bool enable);
+	int (*get_fpe_config)(struct net_device *ndev,
+			      struct fpe_config **fpec, bool frmdrv);
+	int (*get_fpe_pmac_sts)(struct net_device *ndev, u32 *hrs);
 };
 
 /* PTP and HW Timer helpers */

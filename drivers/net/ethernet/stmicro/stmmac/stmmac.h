@@ -88,6 +88,7 @@ struct stmmac_priv {
 	struct timer_list txtimer;
 	bool tso;
 	bool tsn_est;
+	bool tsn_fpe;
 
 	unsigned int dma_buf_sz;
 	unsigned int rx_copybreak;
