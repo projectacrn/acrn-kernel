@@ -312,6 +312,15 @@ bool ethtool_convert_link_mode_to_legacy_u32(u32 *legacy_u32,
  *	by kernel. Returns a negative error code or zero.
  * @get_fecparam: Get the network device Forward Error Correction parameters.
  * @set_fecparam: Set the network device Forward Error Correction parameters.
+ * @get_est_gcl_depth: Get the length of GCL.
+ * @get_est_gcl_length: Get the maximum length(depth) of GCL.
+ * @get_est_gcl: Get the entire GCL.
+ * @set_est_gcl: Set the entire GCL.
+ * @get_est_gce: Get a gate control entry.
+ * @set_est_gce: Set a gate control entry.
+ * @get_est_info: Get IEEE802.1 Qbv EST info, e.g. base time, cycle time
+ *	& cycle time extension.
+ * @set_est_info: Set IEEE802.1 Qbv EST info.
  *
  * All operations are optional (i.e. the function pointer may be set
  * to %NULL) and callers must take this into account.  Callers must
@@ -407,5 +416,17 @@ struct ethtool_ops {
 				      struct ethtool_fecparam *);
 	int	(*set_fecparam)(struct net_device *,
 				      struct ethtool_fecparam *);
+	int	(*get_est_gcl_depth)(struct net_device *);
+	int	(*get_est_gcl_length)(struct net_device *, int);
+	int	(*get_est_gcl)(struct net_device *,
+			       struct ethtool_gcl *, void *);
+	int	(*set_est_gcl)(struct net_device *,
+			       struct ethtool_gcl *, void *);
+	int	(*get_est_gce)(struct net_device *, struct ethtool_gce *);
+	int	(*set_est_gce)(struct net_device *, struct ethtool_gce *);
+	int	(*get_est_info)(struct net_device *,
+				struct ethtool_est_info *);
+	int	(*set_est_info)(struct net_device *,
+				struct ethtool_est_info *);
 };
 #endif /* _LINUX_ETHTOOL_H */
