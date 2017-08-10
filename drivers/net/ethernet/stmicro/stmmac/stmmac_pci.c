@@ -300,6 +300,12 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 						   "stmmac-clk", NULL, 0,
 						   62500000);
 
+	if (IS_ERR(plat->stmmac_clk)) {
+		dev_warn(&pdev->dev, "Fail to register stmmac-clk\n");
+		plat->stmmac_clk = NULL;
+	}
+	clk_prepare_enable(plat->stmmac_clk);
+
 	/* Set default value for multicast hash bins */
 	plat->multicast_filter_bins = HASH_TABLE_SIZE;
 
@@ -401,8 +407,12 @@ static int stmmac_pci_probe(struct pci_dev *pdev,
  */
 static void stmmac_pci_remove(struct pci_dev *pdev)
 {
+	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
+	struct stmmac_priv *priv = netdev_priv(ndev);
+
 	stmmac_dvr_remove(&pdev->dev);
 	pci_disable_device(pdev);
+	clk_unregister_fixed_rate(priv->plat->stmmac_clk);
 }
 
 static int stmmac_pci_suspend(struct device *dev)
