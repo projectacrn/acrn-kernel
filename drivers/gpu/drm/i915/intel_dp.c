@@ -2094,6 +2094,25 @@ void intel_dp_set_link_params(struct intel_dp *intel_dp,
 	intel_dp->link_mst = link_mst;
 }
 
+void intel_dp_set_fia_lane_count(struct intel_dp *intel_dp)
+{
+	struct drm_device *dev = intel_dp_to_dev(intel_dp);
+	struct drm_i915_private *dev_priv = to_i915(dev);
+	uint8_t lane_count = intel_dp->max_link_lane_count;
+	uint8_t i;
+	u32 val;
+
+	/* In case of legacy/static DP over Type-C port there is no muxing
+	 * with other controllers so this is set to max lane count.
+	 */
+	val = I915_READ(PORT_TX_DFLEXDPMLE1);
+	for (i = 0; i < 8; i++) {
+		val &= ~DFLEXDPMLE1_DPMLETC_MASK(i);
+		val |= DFLEXDPMLE1_DPMLETC(i, lane_count);
+	}
+	I915_WRITE(PORT_TX_DFLEXDPMLE1, val);
+}
+
 static void intel_dp_prepare(struct intel_encoder *encoder,
 			     const struct intel_crtc_state *pipe_config)
 {
