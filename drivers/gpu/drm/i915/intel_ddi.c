@@ -3066,6 +3066,22 @@ static void bxt_ddi_pre_pll_enable(struct intel_encoder *encoder,
 	bxt_ddi_phy_set_lane_optim_mask(encoder, mask);
 }
 
+static void icl_ddi_pre_pll_enable(struct intel_encoder *encoder,
+				   const struct intel_crtc_state *pipe_config,
+				   const struct drm_connector_state *conn_state)
+{
+	struct intel_dp *intel_dp = enc_to_intel_dp(&encoder->base);
+	enum port port = encoder->port;
+
+	/* Set lane count in FIA MLE register to max lanes for Legacy DP on Type-C Port */
+	if (!(port == PORT_A || port == PORT_B)) {
+		if (encoder->type == INTEL_OUTPUT_DP)
+			/* FIXME Add check that it is not Type_C or TBT from VBT */
+			intel_dp_set_fia_lane_count(intel_dp);
+	}
+	/* FIXME Set lane count in FIA MLE register for TypeC connectors */
+}
+
 void intel_ddi_prepare_link_retrain(struct intel_dp *intel_dp)
 {
 	struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
@@ -3580,6 +3596,8 @@ void intel_ddi_init(struct drm_i915_private *dev_priv, enum port port)
 	intel_encoder->enable = intel_enable_ddi;
 	if (IS_GEN9_LP(dev_priv))
 		intel_encoder->pre_pll_enable = bxt_ddi_pre_pll_enable;
+	if (IS_ICELAKE(dev_priv))
+		intel_encoder->pre_pll_enable = icl_ddi_pre_pll_enable;
 	intel_encoder->pre_enable = intel_ddi_pre_enable;
 	intel_encoder->disable = intel_disable_ddi;
 	intel_encoder->post_disable = intel_ddi_post_disable;
