@@ -4513,6 +4513,8 @@ static bool spt_digital_port_connected(struct drm_i915_private *dev_priv,
 	case PORT_A:
 		bit = SDE_PORTA_HOTPLUG_SPT;
 		break;
+	case PORT_F:
+		WARN_ON(!IS_CNL_H(dev_priv));
 	case PORT_E:
 		bit = SDE_PORTE_HOTPLUG_SPT;
 		break;
@@ -4612,7 +4614,7 @@ static bool bxt_digital_port_connected(struct drm_i915_private *dev_priv,
 	enum port port;
 	u32 bit;
 
-	port = intel_hpd_pin_to_port(intel_encoder->hpd_pin);
+	port = intel_hpd_pin_to_port(dev_priv, intel_encoder->hpd_pin);
 	switch (port) {
 	case PORT_A:
 		bit = BXT_DE_PORT_HP_DDIA;
@@ -5964,8 +5966,9 @@ intel_dp_init_connector_port_info(struct intel_digital_port *intel_dig_port)
 {
 	struct intel_encoder *encoder = &intel_dig_port->base;
 	struct intel_dp *intel_dp = &intel_dig_port->dp;
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 
-	encoder->hpd_pin = intel_hpd_pin(encoder->port);
+	encoder->hpd_pin = intel_hpd_pin(dev_priv ,encoder->port);
 
 	switch (encoder->port) {
 	case PORT_A:
