@@ -412,6 +412,15 @@ struct est_gc_config {
 	bool enable;			/* 1: enabled */
 };
 
+/* TSN Error Status */
+struct tsn_err_stat {
+	u32 cgce_n;			/* Constant gate error count */
+	u32 hlbs_q;			/* Queue with HLB due to Scheduling */
+	u32 hlbf_sz[MTL_MAX_TX_QUEUES];	/* Frame size that causes HLB */
+	u32 btre;			/* BTR error with BTR renewal */
+	u32 btre_max;			/* BTR error with BTR renewal fail */
+};
+
 /* Descriptors helpers */
 struct stmmac_desc_ops {
 	/* DMA RX descriptor ring initialization */
@@ -624,6 +633,10 @@ struct stmmac_ops {
 	int (*set_est_enable)(struct net_device *ndev, bool enable);
 	int (*get_est_gcc)(struct net_device *ndev,
 			   struct est_gc_config **gcc, bool frmdrv);
+	int (*est_irq_status)(struct net_device *ndev);
+	int (*get_est_err_stat)(struct net_device *ndev,
+				struct tsn_err_stat **err_stat);
+	int (*clr_est_err_stat)(struct net_device *ndev);
 };
 
 /* PTP and HW Timer helpers */
@@ -721,6 +734,7 @@ void stmmac_dwmac4_set_mac(void __iomem *ioaddr, bool enable);
 void dwmac_dma_flush_tx_fifo(void __iomem *ioaddr);
 
 int dwmac_tsn_init(struct net_device *ndev);
+void dwmac_tsn_setup(struct net_device *ndev);
 
 extern const struct stmmac_mode_ops ring_mode_ops;
 extern const struct stmmac_mode_ops chain_mode_ops;

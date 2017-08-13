@@ -2550,6 +2550,9 @@ static int stmmac_hw_setup(struct net_device *dev, bool init_ptp)
 	if (priv->hw->mac->set_vlan_mode)
 		priv->hw->mac->set_vlan_mode(priv->ioaddr, dev->features);
 
+	/* Setup for TSN capability */
+	dwmac_tsn_setup(dev);
+
 	return 0;
 }
 
