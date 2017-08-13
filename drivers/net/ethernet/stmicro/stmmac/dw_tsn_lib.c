@@ -19,6 +19,7 @@
 
 static struct tsn_hw_tunable dw_tsn_hwtunable;
 static struct est_gc_config dw_est_gc_config;
+static struct tsn_err_stat dw_err_stat;
 
 static u32 est_get_gcl_depth(u32 hw_cap)
 {
@@ -262,6 +263,26 @@ int dwmac_tsn_init(struct net_device *ndev)
 		 gcl_depth, ti_wid, tils_max, cap->txqcnt);
 
 	return ret;
+}
+
+/* dwmac_tsn_setup is called within stmmac_hw_setup() after
+ * stmmac_init_dma_engine() which resets MAC controller.
+ * This is so-that MAC registers are not cleared.
+ */
+void dwmac_tsn_setup(struct net_device *ndev)
+{
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	void __iomem *ioaddr = priv->ioaddr;
+	struct tsn_hw_cap *cap = &priv->tsn_hwcap;
+	u32 value;
+
+	if (cap->est_support) {
+		/* Enable EST interrupts */
+		value = (MTL_EST_INT_EN_CGCE | MTL_EST_INT_EN_IEHS |
+			 MTL_EST_INT_EN_IEHF | MTL_EST_INT_EN_IEBE |
+			 MTL_EST_INT_EN_IECC);
+		writel(value, ioaddr + MTL_EST_INT_EN);
+	}
 }
 
 static int est_set_tils(struct net_device *ndev, u32 tils)
@@ -867,6 +888,113 @@ int dwmac_get_est_gcc(struct net_device *ndev,
 
 	*gcc = pgcc;
 	dev_info(priv->device, "EST: read GCL from HW done.\n");
+
+	return 0;
+}
+
+int dwmac_est_irq_status(struct net_device *ndev)
+{
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	struct tsn_hw_cap *cap = &priv->tsn_hwcap;
+	struct tsn_err_stat *err_stat = &dw_err_stat;
+	void __iomem *ioaddr = priv->ioaddr;
+	u32 txqcnt_mask = (1 << cap->txqcnt) - 1;
+	u32 status;
+	u32 value = 0;
+	u32 feqn = 0;
+	u32 hbfq = 0;
+	u32 hbfs = 0;
+
+	status = readl(ioaddr + MTL_EST_STATUS);
+
+	value = (MTL_EST_STATUS_CGCE | MTL_EST_STATUS_HLBS |
+		 MTL_EST_STATUS_HLBF | MTL_EST_STATUS_BTRE |
+		 MTL_EST_STATUS_SWLC);
+
+	/* Return if there is no error */
+	if (!(status & value))
+		return 0;
+
+	/* spin_lock() is not needed here because of BTRE and SWLC
+	 * bit will not be altered. Both of the bit will be
+	 * polled in dwmac_set_est_gcrr_times()
+	 */
+	if (status & MTL_EST_STATUS_CGCE) {
+		/* Clear Interrupt */
+		writel(MTL_EST_STATUS_CGCE, ioaddr + MTL_EST_STATUS);
+
+		err_stat->cgce_n++;
+	}
+
+	if (status & MTL_EST_STATUS_HLBS) {
+		value = readl(ioaddr + MTL_EST_SCH_ERR);
+		value &= txqcnt_mask;
+
+		/* Clear Interrupt */
+		writel(value, ioaddr + MTL_EST_SCH_ERR);
+
+		/* Collecting info to shows all the queues that has HLBS */
+		/* issue. The only way to clear this is to clear the     */
+		/* statistic  */
+		err_stat->hlbs_q |= value;
+	}
+
+	if (status & MTL_EST_STATUS_HLBF) {
+		value = readl(ioaddr + MTL_EST_FRM_SZ_ERR);
+		feqn = value & txqcnt_mask;
+
+		value = readl(ioaddr + MTL_EST_FRM_SZ_CAP);
+		hbfq = (value & MTL_EST_FRM_SZ_CAP_HBFQ_MASK(cap->txqcnt))
+			>> MTL_EST_FRM_SZ_CAP_HBFQ_SHIFT;
+		hbfs = value & MTL_EST_FRM_SZ_CAP_HBFS_MASK;
+
+		/* Clear Interrupt */
+		writel(feqn, ioaddr + MTL_EST_FRM_SZ_ERR);
+
+		err_stat->hlbf_sz[hbfq] = hbfs;
+	}
+
+	if (status & MTL_EST_STATUS_BTRE) {
+		if ((status & MTL_EST_STATUS_BTRL) ==
+		    MTL_EST_STATUS_BTRL_MAX)
+			err_stat->btre_max++;
+		else
+			err_stat->btre++;
+
+		writel(MTL_EST_STATUS_BTRE, ioaddr +
+		       MTL_EST_STATUS);
+	}
+
+	if (status & MTL_EST_STATUS_SWLC) {
+		writel(MTL_EST_STATUS_SWLC, ioaddr +
+		       MTL_EST_STATUS);
+		pr_info("SWOL has been switched\n");
+	}
+
+	return status;
+}
+
+int dwmac_get_est_err_stat(struct net_device *ndev,
+			   struct tsn_err_stat **err_stat)
+{
+	struct stmmac_priv *priv = netdev_priv(ndev);
+
+	if (!priv->tsn_est)
+		return -ENOTSUPP;
+
+	*err_stat = &dw_err_stat;
+
+	return 0;
+}
+
+int dwmac_clr_est_err_stat(struct net_device *ndev)
+{
+	struct stmmac_priv *priv = netdev_priv(ndev);
+
+	if (!priv->tsn_est)
+		return -ENOTSUPP;
+
+	memset(&dw_err_stat, 0, sizeof(dw_err_stat));
 
 	return 0;
 }
