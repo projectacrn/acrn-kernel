@@ -41,6 +41,12 @@
 
 /* MAC FPE control status */
 #define MAC_FPE_CTRL_STS		0x00000234
+#define MAC_FPE_CTRL_STS_TRSP		BIT(19)
+#define MAC_FPE_CTRL_STS_TVER		BIT(18)
+#define MAC_FPE_CTRL_STS_RRSP		BIT(17)
+#define MAC_FPE_CTRL_STS_RVER		BIT(16)
+#define MAC_FPE_CTRL_STS_SRSP		BIT(2)
+#define MAC_FPE_CTRL_STS_SVER		BIT(1)
 #define MAC_FPE_CTRL_STS_EFPE		BIT(0)
 
 /* MTL EST control register */

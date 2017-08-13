@@ -846,11 +846,20 @@ static void stmmac_adjust_link(struct net_device *dev)
 			new_state = true;
 			priv->oldlink = true;
 		}
+
+		if ((dev->features & NETIF_F_HW_FPE) &&
+		    priv->hw->mac->set_fpe_enable)
+			priv->hw->mac->set_fpe_enable(dev, 1);
+
 	} else if (priv->oldlink) {
 		new_state = true;
 		priv->oldlink = false;
 		priv->speed = SPEED_UNKNOWN;
 		priv->oldduplex = DUPLEX_UNKNOWN;
+
+		if ((dev->features & NETIF_F_HW_FPE) &&
+		    priv->hw->mac->set_fpe_enable)
+			priv->hw->mac->set_fpe_enable(dev, 0);
 	}
 
 	if (new_state && netif_msg_link(priv))

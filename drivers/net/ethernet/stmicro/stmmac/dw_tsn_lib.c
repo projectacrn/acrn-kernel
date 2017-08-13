@@ -1159,8 +1159,16 @@ int dwmac_set_fpe_enable(struct net_device *ndev, bool enable)
 	if (!priv->tsn_fpe)
 		return -ENOTSUPP;
 
+	dw_fpe_config.lp_fpe_support = 0;
 	dw_fpe_config.enable = enable & MAC_FPE_CTRL_STS_EFPE;
-	writel((u32)dw_fpe_config.enable, ioaddr + MAC_FPE_CTRL_STS);
+
+	/* Verify mPacket is only sent if FPE is enabled. */
+	if (enable)
+		writel((u32)(dw_fpe_config.enable | MAC_FPE_CTRL_STS_SVER),
+		       ioaddr + MAC_FPE_CTRL_STS);
+	else
+		writel((u32)dw_fpe_config.enable,
+		       ioaddr + MAC_FPE_CTRL_STS);
 
 	return 0;
 }
@@ -1217,6 +1225,38 @@ int dwmac_get_fpe_pmac_sts(struct net_device *ndev, u32 *hrs)
 		dev_info(priv->device, "FPE: pMAC is in Hold state.\n");
 	else
 		dev_info(priv->device, "FPE: pMAC is in Release state.\n");
+
+	return 0;
+}
+
+int dwmac_fpe_irq_status(struct net_device *ndev)
+{
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	void __iomem *ioaddr = priv->ioaddr;
+	u32 status;
+
+	status = readl(ioaddr + MAC_FPE_CTRL_STS);
+
+	if (status & MAC_FPE_CTRL_STS_TRSP)
+		dev_info(priv->device, "Respond mPacket is transmitted\n");
+
+	if (status & MAC_FPE_CTRL_STS_TVER)
+		dev_info(priv->device, "Verify mPacket is transmitted\n");
+
+	if (status & MAC_FPE_CTRL_STS_RRSP) {
+		dw_fpe_config.lp_fpe_support = 1;
+		dev_info(priv->device, "Respond mPacket is received\n");
+	}
+
+	if (status & MAC_FPE_CTRL_STS_RVER) {
+		dev_info(priv->device, "Verify mPacket is received\n");
+
+		if (ndev->features & NETIF_F_HW_FPE) {
+			status &= ~MAC_FPE_CTRL_STS_SVER;
+			status |= MAC_FPE_CTRL_STS_SRSP;
+			writel(status, ioaddr + MAC_FPE_CTRL_STS);
+		}
+	}
 
 	return 0;
 }

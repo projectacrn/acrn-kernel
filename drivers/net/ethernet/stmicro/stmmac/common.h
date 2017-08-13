@@ -435,6 +435,7 @@ struct tsn_err_stat {
 struct fpe_config {
 	u32 txqpec;			/* TxQ Preemption Classification */
 	bool enable;			/* 1: enabled */
+	bool lp_fpe_support;		/* 1: link partner fpe supported */
 };
 
 /* Descriptors helpers */
@@ -659,6 +660,7 @@ struct stmmac_ops {
 	int (*get_fpe_config)(struct net_device *ndev,
 			      struct fpe_config **fpec, bool frmdrv);
 	int (*get_fpe_pmac_sts)(struct net_device *ndev, u32 *hrs);
+	int (*fpe_irq_status)(struct net_device *ndev);
 };
 
 /* PTP and HW Timer helpers */
