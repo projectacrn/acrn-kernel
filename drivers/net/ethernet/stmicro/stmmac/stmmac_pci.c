@@ -306,6 +306,9 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	}
 	clk_prepare_enable(plat->stmmac_clk);
 
+	/* Set PTP clock rate for HAPS as 62.5MHz */
+	plat->clk_ptp_rate = 62500000;
+
 	/* Set default value for multicast hash bins */
 	plat->multicast_filter_bins = HASH_TABLE_SIZE;
 
