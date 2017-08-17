@@ -3010,10 +3010,49 @@ static void gen9_dbuf_disable(struct drm_i915_private *dev_priv)
 		DRM_ERROR("DBuf power disable timeout!\n");
 }
 
-/*
- * TODO: we shouldn't always enable DBUF_CTL_S2, we should only enable it when
- * needed and keep it disabled as much as possible.
- */
+static uint8_t intel_dbuf_max_slices(struct drm_i915_private *dev_priv)
+{
+	if (INTEL_GEN(dev_priv) < 11)
+		return 1;
+	return 2;
+}
+
+void icl_dbuf_slices_update(struct drm_i915_private *dev_priv,
+			    uint8_t req_slices)
+{
+	uint8_t hw_enabled_slices = dev_priv->wm.skl_hw.ddb.enabled_slices;
+	u32 val;
+
+	if (req_slices > intel_dbuf_max_slices(dev_priv)) {
+		DRM_ERROR("Invalid number of dbuf slices requested\n");
+		return;
+	}
+
+	if (req_slices == hw_enabled_slices)
+		return;
+
+	val = I915_READ(DBUF_CTL_S2);
+	if (req_slices > hw_enabled_slices) {
+		I915_WRITE(DBUF_CTL_S2, val | DBUF_POWER_REQUEST);
+		POSTING_READ(DBUF_CTL_S2);
+
+		udelay(10);
+		if (!(I915_READ(DBUF_CTL_S2) & DBUF_POWER_STATE))
+			DRM_ERROR("DBuf power enable timeout\n");
+		else
+			dev_priv->wm.skl_hw.ddb.enabled_slices = req_slices;
+	} else {
+		I915_WRITE(DBUF_CTL_S2, val & ~DBUF_POWER_REQUEST);
+		POSTING_READ(DBUF_CTL_S2);
+
+		udelay(10);
+		if (I915_READ(DBUF_CTL_S2) & DBUF_POWER_STATE)
+			DRM_ERROR("DBuf power disable timeout!\n");
+		else
+			dev_priv->wm.skl_hw.ddb.enabled_slices = req_slices;
+	}
+}
+
 static void icl_dbuf_enable(struct drm_i915_private *dev_priv)
 {
 	I915_WRITE(DBUF_CTL_S1, I915_READ(DBUF_CTL_S1) | DBUF_POWER_REQUEST);
