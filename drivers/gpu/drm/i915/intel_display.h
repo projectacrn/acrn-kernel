@@ -137,6 +137,31 @@ enum dpio_phy {
 	DPIO_PHY2,
 };
 
+enum tc_port {
+	PORT_TC_NONE = -1,
+	PORT_TC1 = 0,
+	PORT_TC2,
+	PORT_TC3,
+	PORT_TC4,
+	I915_MAX_TC_PORTS
+};
+
+static inline enum tc_port gen11_port_to_tc(enum port port)
+{
+	switch (port) {
+	case PORT_C:
+		return PORT_TC1;
+	case PORT_D:
+		return PORT_TC2;
+	case PORT_E:
+		return PORT_TC3;
+	case PORT_F:
+		return PORT_TC4;
+	default:
+		return PORT_TC_NONE;
+	}
+}
+
 #define I915_NUM_PHYS_VLV 2
 
 enum aux_ch {
