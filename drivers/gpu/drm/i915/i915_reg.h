@@ -10470,6 +10470,8 @@ enum skl_power_gate {
 /* Media decoder 2 MOCS registers */
 #define GEN11_MFX2_MOCS(i)	_MMIO(0x10000 + (i) * 4)
 
+#define GEN11_5_GLOBAL_MOCS(i)	GEN9_GFX_MOCS(i)	/* Global MOCS regs */
+
 /* gamt regs */
 #define GEN8_L3_LRA_1_GPGPU _MMIO(0x4dd4)
 #define   GEN8_L3_LRA_1_GPGPU_DEFAULT_VALUE_BDW  0x67F1427F /* max/min for LRA1/2 */

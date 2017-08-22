@@ -817,6 +817,7 @@ struct intel_csr {
 	func(has_fpga_dbg); \
 	func(has_full_ppgtt); \
 	func(has_full_48bit_ppgtt); \
+	func(has_global_mocs); \
 	func(has_gmch_display); \
 	func(has_guc); \
 	func(has_guc_ct); \
@@ -3310,6 +3311,8 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define HAS_RESOURCE_STREAMER(dev_priv) ((dev_priv)->info.has_resource_streamer)
 
 #define HAS_POOLED_EU(dev_priv)	((dev_priv)->info.has_pooled_eu)
+
+#define HAS_GLOBAL_MOCS_REGISTERS(dev_priv)	((dev_priv)->info.has_global_mocs)
 
 #define INTEL_PCH_DEVICE_ID_MASK		0xff80
 #define INTEL_PCH_IBX_DEVICE_ID_TYPE		0x3b00
