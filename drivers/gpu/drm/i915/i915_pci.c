@@ -581,6 +581,7 @@ static const struct intel_device_info intel_cannonlake_gt2_info __initconst = {
 	GEN10_FEATURES, \
 	.gen = 11, \
 	.ddb_size = 2048, \
+	.has_guc_ct = 1, \
 	.has_csr = 0
 
 static const struct intel_device_info intel_icelake_11_info = {
