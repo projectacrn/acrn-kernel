@@ -89,7 +89,8 @@ enum intel_platform {
 	func(has_fpga_dbg); \
 	func(has_full_ppgtt); \
 	func(has_full_48bit_ppgtt); \
-	func(has_gmch_display); \
+	func(has_global_mocs); \
+	func(has_gmch_display);	\
 	func(has_guc); \
 	func(has_guc_ct); \
 	func(has_hotplug); \
