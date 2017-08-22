@@ -10426,6 +10426,8 @@ enum skl_power_gate {
 #define   PMFLUSH_GAPL3UNBLOCK		(1 << 21)
 #define   PMFLUSHDONE_LNEBLK		(1 << 22)
 
+#define GEN11_5_GLOBAL_MOCS(i)	GEN9_GFX_MOCS(i)	/* Global MOCS regs */
+
 /* gamt regs */
 #define GEN8_L3_LRA_1_GPGPU _MMIO(0x4dd4)
 #define   GEN8_L3_LRA_1_GPGPU_DEFAULT_VALUE_BDW  0x67F1427F /* max/min for LRA1/2 */

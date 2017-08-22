@@ -5258,6 +5258,12 @@ int i915_gem_init_hw(struct drm_i915_private *dev_priv)
 		goto out;
 	}
 
+	if (HAS_GLOBAL_MOCS_REGISTERS(dev_priv)) {
+		ret = intel_mocs_init_global(dev_priv);
+		if (ret)
+			goto out;
+	}
+
 	intel_mocs_init_l3cc_table(dev_priv);
 
 	/* Only when the HW is re-initialised, can we replay the requests */
