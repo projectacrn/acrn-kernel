@@ -56,8 +56,15 @@ void intel_guc_init_send_regs(struct intel_guc *guc)
 	enum forcewake_domains fw_domains = 0;
 	unsigned int i;
 
-	guc->send_regs.base = i915_mmio_reg_offset(SOFT_SCRATCH(0));
-	guc->send_regs.count = SOFT_SCRATCH_COUNT - 1;
+	/* For GuC CT we need to use Gen11 registers */
+	if (HAS_GUC_CT(dev_priv)) {
+		guc->send_regs.base =
+				i915_mmio_reg_offset(GEN11_SOFT_SCRATCH(0));
+		guc->send_regs.count = GEN11_SOFT_SCRATCH_COUNT;
+	} else {
+		guc->send_regs.base = i915_mmio_reg_offset(SOFT_SCRATCH(0));
+		guc->send_regs.count = SOFT_SCRATCH_COUNT - 1;
+	}
 
 	for (i = 0; i < guc->send_regs.count; i++) {
 		fw_domains |= intel_uncore_forcewake_for_reg(dev_priv,
