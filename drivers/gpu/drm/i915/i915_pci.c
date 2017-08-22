@@ -596,6 +596,7 @@ static const struct intel_device_info intel_cannonlake_info = {
 	GEN10_FEATURES, \
 	GEN(11), \
 	.ddb_size = 2048, \
+	.has_guc_ct = 1, \
 	.has_csr = 0, \
 	.has_logical_ring_elsq = 1
 
