@@ -411,5 +411,9 @@ struct ethtool_ops {
 				struct ethtool_est_info *);
 	int	(*set_est_info)(struct net_device *,
 				struct ethtool_est_info *);
+	int	(*get_fpe_info)(struct net_device *,
+				struct ethtool_fpe_info *);
+	int	(*set_fpe_info)(struct net_device *,
+				struct ethtool_fpe_info *);
 };
 #endif /* _LINUX_ETHTOOL_H */
