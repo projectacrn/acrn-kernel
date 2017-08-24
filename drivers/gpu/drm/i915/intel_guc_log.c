@@ -509,8 +509,9 @@ static void guc_flush_logs(struct intel_guc *guc)
 	    (i915_modparams.guc_log_level < 0))
 		return;
 
-	/* First disable the interrupts, will be renabled afterwards */
-	gen9_disable_guc_interrupts(dev_priv);
+	/* GuC logging maybe the only user of Guc2Host interrupts */
+	if (!HAS_GUC_CT(dev_priv))
+		gen9_disable_guc_interrupts(dev_priv);
 
 	/* Before initiating the forceful flush, wait for any pending/ongoing
 	 * flush to complete otherwise forceful flush may not actually happen.
@@ -669,8 +670,9 @@ void i915_guc_log_unregister(struct drm_i915_private *dev_priv)
 		return;
 
 	mutex_lock(&dev_priv->drm.struct_mutex);
-	/* GuC logging is currently the only user of Guc2Host interrupts */
-	gen9_disable_guc_interrupts(dev_priv);
+	/* GuC logging maybe the only user of Guc2Host interrupts */
+	if (!HAS_GUC_CT(dev_priv))
+		gen9_disable_guc_interrupts(dev_priv);
 	guc_log_runtime_destroy(&dev_priv->guc);
 	mutex_unlock(&dev_priv->drm.struct_mutex);
 }
