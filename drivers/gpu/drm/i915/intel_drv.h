@@ -1390,9 +1390,6 @@ void gen8_irq_power_well_post_enable(struct drm_i915_private *dev_priv,
 				     u8 pipe_mask);
 void gen8_irq_power_well_pre_disable(struct drm_i915_private *dev_priv,
 				     u8 pipe_mask);
-void gen9_reset_guc_interrupts(struct drm_i915_private *dev_priv);
-void gen9_enable_guc_interrupts(struct drm_i915_private *dev_priv);
-void gen9_disable_guc_interrupts(struct drm_i915_private *dev_priv);
 
 /* intel_crt.c */
 bool intel_crt_port_enabled(struct drm_i915_private *dev_priv,
