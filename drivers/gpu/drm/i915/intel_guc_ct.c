@@ -576,7 +576,8 @@ static inline unsigned int ct_header_get_action(u32 header)
 
 static inline bool ct_header_is_response(u32 header)
 {
-	return ct_header_get_action(header) == INTEL_GUC_ACTION_DEFAULT;
+#define GUC_CT_MSG_IS_RESPONSE  (1 << 8)
+	return !!(header & GUC_CT_MSG_IS_RESPONSE);
 }
 
 static int ctb_read(struct intel_guc_ct_buffer *ctb, u32 *data)
