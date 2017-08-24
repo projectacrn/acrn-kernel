@@ -84,7 +84,7 @@ struct intel_guc {
 	struct mutex send_mutex;
 
 	/* GuC's FW specific send function */
-	int (*send)(struct intel_guc *guc, const u32 *data, u32 len);
+	int (*send)(struct intel_guc *guc, const u32 *data, u32 len, u32 *resp);
 
 	/* GuC's FW specific notify function */
 	void (*notify)(struct intel_guc *guc);
@@ -104,7 +104,7 @@ struct intel_guc {
 static
 inline int intel_guc_send(struct intel_guc *guc, const u32 *action, u32 len)
 {
-	return guc->send(guc, action, len);
+	return guc->send(guc, action, len, NULL);
 }
 
 static inline void intel_guc_notify(struct intel_guc *guc)
@@ -131,8 +131,8 @@ static inline u32 guc_ggtt_offset(struct i915_vma *vma)
 void intel_guc_init_early(struct intel_guc *guc);
 void intel_guc_init_send_regs(struct intel_guc *guc);
 void intel_guc_init_params(struct intel_guc *guc);
-int intel_guc_send_nop(struct intel_guc *guc, const u32 *action, u32 len);
-int intel_guc_send_mmio(struct intel_guc *guc, const u32 *action, u32 len);
+int intel_guc_send_nop(struct intel_guc *guc, const u32 *action, u32 len, u32 *response);
+int intel_guc_send_mmio(struct intel_guc *guc, const u32 *action, u32 len, u32 *response);
 int intel_guc_sample_forcewake(struct intel_guc *guc);
 int intel_guc_auth_huc(struct intel_guc *guc, u32 rsa_offset);
 int intel_guc_suspend(struct drm_i915_private *dev_priv);
