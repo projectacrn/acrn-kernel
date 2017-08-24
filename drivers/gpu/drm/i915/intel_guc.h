@@ -149,6 +149,7 @@ int intel_guc_send_mmio(struct intel_guc *guc, const u32 *action, u32 len, u32 *
 void intel_guc_receive_nop(struct intel_guc *guc);
 void intel_guc_receive_mmio(struct intel_guc *guc);
 void intel_guc_notification_handler(struct intel_guc *guc);
+void intel_guc_process_default_action(struct intel_guc *guc, u32 msg);
 int intel_guc_sample_forcewake(struct intel_guc *guc);
 int intel_guc_auth_huc(struct intel_guc *guc, u32 rsa_offset);
 int intel_guc_suspend(struct drm_i915_private *dev_priv);

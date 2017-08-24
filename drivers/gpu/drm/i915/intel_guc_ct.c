@@ -687,6 +687,9 @@ static bool guc_process_incoming_requests(struct intel_guc *guc)
 	CT_DEBUG_DRIVER("CT: processing request %*phn\n", 4*len, request->data);
 
 	switch (action) {
+	case INTEL_GUC_ACTION_DEFAULT:
+		intel_guc_process_default_action(guc, request->data[1]);
+		break;
 	default:
 		DRM_ERROR("CT: unexpected request %*phn\n",
 			  4*len, request->data);
