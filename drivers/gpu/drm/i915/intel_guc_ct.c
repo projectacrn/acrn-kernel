@@ -415,6 +415,131 @@ static int intel_guc_send_ct(struct intel_guc *guc, const u32 *action, u32 len,
 	return ret;
 }
 
+static inline unsigned int ct_header_get_len(u32 header)
+{
+	return (header >> GUC_CT_MSG_LEN_SHIFT) & GUC_CT_MSG_LEN_MASK;
+}
+
+static inline unsigned int ct_header_get_action(u32 header)
+{
+	return (header >> GUC_CT_MSG_ACTION_SHIFT) & GUC_CT_MSG_ACTION_MASK;
+}
+
+static inline bool ct_header_is_response(u32 header)
+{
+	return ct_header_get_action(header) == INTEL_GUC_ACTION_DEFAULT;
+}
+
+static int ctb_read(struct intel_guc_ct_buffer *ctb, u32 *data)
+{
+	struct guc_ct_buffer_desc *desc = ctb->desc;
+	u32 head = desc->head / 4;	/* in dwords */
+	u32 tail = desc->tail / 4;	/* in dwords */
+	u32 size = desc->size / 4;	/* in dwords */
+	u32 *cmds = ctb->cmds;
+	s32 available;			/* in dwords */
+	unsigned int len;
+	unsigned int i;
+
+	GEM_BUG_ON(desc->size % 4);
+	GEM_BUG_ON(desc->head % 4);
+	GEM_BUG_ON(desc->tail % 4);
+	GEM_BUG_ON(tail >= size);
+	GEM_BUG_ON(head >= size);
+
+	/* tail == head condition indicates empty */
+	available = tail - head;
+	if (unlikely(available == 0))
+		return -ENODATA;
+
+	/* beware of buffer wrap case */
+	if (unlikely(available < 0))
+		available += size;
+	GEM_BUG_ON(available < 0);
+
+	data[0] = cmds[head];
+	head = (head + 1) % size;
+
+	/* message len with header */
+	len = ct_header_get_len(data[0]) + 1;
+	if (unlikely(len > (u32)available)) {
+		DRM_ERROR("CT: incomplete message %*phn %*phn %*phn\n",
+			  4, data,
+			  4 * (head + available - 1 > size ?
+			       size - head : available - 1), &cmds[head],
+			  4 * (head + available - 1 > size ?
+			       available - 1 - size + head : 0), &cmds[0]);
+		return -EPROTO;
+	}
+
+	for (i = 1; i < len; i++) {
+		data[i] = cmds[head];
+		head = (head + 1) % size;
+	}
+
+	desc->head = head * 4;
+	return 0;
+}
+
+static int guc_handle_response(struct intel_guc *guc, const u32 *msg)
+{
+	u32 header = msg[0];
+	u32 status = msg[2];
+	u32 len = ct_header_get_len(header) + 1; /* total len with header */
+
+	GEM_BUG_ON(!ct_header_is_response(header));
+
+	/* Response message shall at least include header, fence and status */
+	if (unlikely(len < 3)) {
+		DRM_ERROR("CT: corrupted response %*phn\n", 4*len, msg);
+		return -EPROTO;
+	}
+	if (unlikely(!INTEL_GUC_RECV_IS_RESPONSE(status))) {
+		DRM_ERROR("CT: corrupted status %*phn\n", 4*len, msg);
+		return -EPROTO;
+	}
+
+	/* XXX */
+	return 0;
+}
+
+static int guc_handle_request(struct intel_guc *guc, const u32 *msg)
+{
+	u32 header = msg[0];
+
+	GEM_BUG_ON(ct_header_is_response(header));
+
+	/* XXX */
+	return 0;
+}
+
+static void intel_guc_receive_ct(struct intel_guc *guc)
+{
+	struct intel_guc_ct_channel *ctch = &guc->ct.host_channel;
+	struct intel_guc_ct_buffer *ctb = &ctch->ctbs[CTB_RECV];
+	u32 msg[GUC_CT_MSG_LEN_MASK+1]; /* one extra dw for the header */
+	int err = 0;
+
+	if (!ctch_is_open(ctch))
+		return;
+
+	do {
+		err = ctb_read(ctb, msg);
+		if (err)
+			break;
+
+		if (ct_header_is_response(msg[0]))
+			err = guc_handle_response(guc, msg);
+		else
+			err = guc_handle_request(guc, msg);
+	} while (!err);
+
+	if (GEM_WARN_ON(err == -EPROTO)) {
+		DRM_ERROR("CT: corrupted message detected!\n");
+		ctb->desc->is_in_error = 1;
+	}
+}
+
 /**
  * Enable buffer based command transport
  * Shall only be called for platforms with HAS_GUC_CT.
@@ -436,6 +561,7 @@ int intel_guc_enable_ct(struct intel_guc *guc)
 
 	/* Switch into cmd transport buffer based send() */
 	guc->send = intel_guc_send_ct;
+	guc->recv = intel_guc_receive_ct;
 	DRM_INFO("CT: %s\n", enableddisabled(true));
 	return 0;
 }
@@ -459,5 +585,6 @@ void intel_guc_disable_ct(struct intel_guc *guc)
 
 	/* Disable send */
 	guc->send = intel_guc_send_nop;
+	guc->recv = intel_guc_receive_nop;
 	DRM_INFO("CT: %s\n", enableddisabled(false));
 }
