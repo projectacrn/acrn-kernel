@@ -388,9 +388,9 @@ static int ctch_send(struct intel_guc *guc,
 	err = wait_for_response(desc, fence, status);
 	if (unlikely(err))
 		return err;
-	if (*status != INTEL_GUC_STATUS_SUCCESS)
+	if (INTEL_GUC_RECV_TO_STATUS(*status) != INTEL_GUC_STATUS_SUCCESS)
 		return -EIO;
-	return 0;
+	return INTEL_GUC_RECV_TO_DATA(*status);
 }
 
 /*
@@ -400,18 +400,18 @@ static int intel_guc_send_ct(struct intel_guc *guc, const u32 *action, u32 len)
 {
 	struct intel_guc_ct_channel *ctch = &guc->ct.host_channel;
 	u32 status = ~0; /* undefined */
-	int err;
+	int ret;
 
 	mutex_lock(&guc->send_mutex);
 
-	err = ctch_send(guc, ctch, action, len, &status);
-	if (unlikely(err)) {
+	ret = ctch_send(guc, ctch, action, len, &status);
+	if (unlikely(ret < 0)) {
 		DRM_ERROR("CT: send action %#X failed; err=%d status=%#X\n",
-			  action[0], err, status);
+			  action[0], ret, status);
 	}
 
 	mutex_unlock(&guc->send_mutex);
-	return err;
+	return ret;
 }
 
 /**

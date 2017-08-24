@@ -765,10 +765,16 @@ enum intel_guc_report_status {
  * command in SS0. The response is distinguishable from a command
  * by the fact that all the MASK bits are set. The remaining bits
  * give more detail.
+ * Bits [27:16] are reserved for optional data reporting.
  */
 #define	INTEL_GUC_RECV_MASK	((u32)0xF0000000)
 #define	INTEL_GUC_RECV_IS_RESPONSE(x)	((u32)(x) >= INTEL_GUC_RECV_MASK)
 #define	INTEL_GUC_RECV_STATUS(x)	(INTEL_GUC_RECV_MASK | (x))
+#define INTEL_GUC_RECV_DATA_SHIFT	16
+#define INTEL_GUC_RECV_DATA_MASK	(0xFFF << INTEL_GUC_RECV_DATA_SHIFT)
+#define INTEL_GUC_RECV_TO_STATUS(x)	((x) & ~INTEL_GUC_RECV_DATA_MASK)
+#define INTEL_GUC_RECV_TO_DATA(x)	(((x) & INTEL_GUC_RECV_DATA_MASK) >> \
+					 INTEL_GUC_RECV_DATA_SHIFT)
 
 /* GUC will return status back to SOFT_SCRATCH_O_REG */
 enum intel_guc_status {

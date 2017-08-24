@@ -236,7 +236,7 @@ int intel_guc_send_mmio(struct intel_guc *guc, const u32 *action, u32 len)
 					   INTEL_GUC_RECV_MASK,
 					   INTEL_GUC_RECV_MASK,
 					   10, 10, &status);
-	if (status != INTEL_GUC_STATUS_SUCCESS) {
+	if (INTEL_GUC_RECV_TO_STATUS(status) != INTEL_GUC_STATUS_SUCCESS) {
 		/*
 		 * Either the GuC explicitly returned an error (which
 		 * we convert to -EIO here) or no response at all was
@@ -248,6 +248,9 @@ int intel_guc_send_mmio(struct intel_guc *guc, const u32 *action, u32 len)
 		DRM_WARN("INTEL_GUC_SEND: Action 0x%X failed;"
 			 " ret=%d status=0x%08X response=0x%08X\n",
 			 action[0], ret, status, I915_READ(SOFT_SCRATCH(15)));
+	} else {
+		/* Use data encoded by Guc in status dword as return value */
+		ret = INTEL_GUC_RECV_TO_DATA(status);
 	}
 
 	intel_uncore_forcewake_put(dev_priv, guc->send_regs.fw_domains);
