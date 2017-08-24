@@ -553,6 +553,52 @@ static void gen9_disable_guc_interrupts(struct drm_i915_private *dev_priv)
 	gen9_reset_guc_interrupts(dev_priv);
 }
 
+static void gen11_reset_guc_interrupts(struct drm_i915_private *dev_priv)
+{
+	u32 dw;
+
+	spin_lock_irq(&dev_priv->irq_lock);
+
+	/*
+	 * According to the BSpec, DW_IIR bits cannot be cleared without
+	 * first servicing the Selector & Shared IIR registers.
+	 */
+	dw = I915_READ_FW(GEN11_GT_INTR_DW0);
+	while (dw & BIT(GEN11_GUC)) {
+		gen11_service_shared_iir(dev_priv, 0, GEN11_GUC);
+		I915_WRITE_FW(GEN11_GT_INTR_DW0, BIT(GEN11_GUC));
+		dw = I915_READ_FW(GEN11_GT_INTR_DW0);
+	}
+
+	spin_unlock_irq(&dev_priv->irq_lock);
+}
+
+static void gen11_enable_guc_interrupts(struct drm_i915_private *dev_priv)
+{
+	spin_lock_irq(&dev_priv->irq_lock);
+	if (!dev_priv->guc.interrupts.enabled) {
+		WARN_ON_ONCE(I915_READ_FW(GEN11_GT_INTR_DW0) & BIT(GEN11_GUC));
+		dev_priv->guc.interrupts.enabled = true;
+		I915_WRITE(GEN11_GUC_SG_INTR_ENABLE, dev_priv->guc_events << 16);
+		I915_WRITE(GEN11_GUC_SG_INTR_MASK, ~(dev_priv->guc_events << 16));
+	}
+	spin_unlock_irq(&dev_priv->irq_lock);
+}
+
+static void gen11_disable_guc_interrupts(struct drm_i915_private *dev_priv)
+{
+	spin_lock_irq(&dev_priv->irq_lock);
+	dev_priv->guc.interrupts.enabled = false;
+
+	I915_WRITE(GEN11_GUC_SG_INTR_MASK, ~0);
+	I915_WRITE(GEN11_GUC_SG_INTR_ENABLE, 0);
+
+	spin_unlock_irq(&dev_priv->irq_lock);
+	synchronize_irq(dev_priv->drm.irq);
+
+	gen11_reset_guc_interrupts(dev_priv);
+}
+
 /**
  * bdw_update_port_irq - update DE port interrupt
  * @dev_priv: driver private
@@ -1835,6 +1881,12 @@ static void gen9_guc_irq_handler(struct drm_i915_private *dev_priv, u32 gt_iir)
 		intel_guc_notification_handler(&dev_priv->guc);
 }
 
+static void gen11_guc_irq_handler(struct drm_i915_private *dev_priv, u16 iir)
+{
+	if (iir & GEN11_GUC_INTR_GUC2HOST)
+		intel_guc_notification_handler(&dev_priv->guc);
+}
+
 static void i9xx_pipestat_irq_reset(struct drm_i915_private *dev_priv)
 {
 	enum pipe pipe;
@@ -2862,6 +2914,11 @@ gen11_gt_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 		ret = IRQ_HANDLED;
 	}
 
+	if (irq[0][GEN11_GUC] & dev_priv->guc_events) {
+		gen11_guc_irq_handler(dev_priv, irq[0][GEN11_GUC]);
+		ret = IRQ_HANDLED;
+	}
+
 	return ret;
 }
 
@@ -3333,6 +3390,8 @@ static void gen11_gt_irq_reset(struct drm_i915_private *dev_priv)
 
 	I915_WRITE(GEN11_GPM_WGBOXPERF_INTR_ENABLE, 0);
 	I915_WRITE(GEN11_GPM_WGBOXPERF_INTR_MASK,  ~0);
+	I915_WRITE(GEN11_GUC_SG_INTR_ENABLE, 0);
+	I915_WRITE(GEN11_GUC_SG_INTR_MASK,  ~0);
 }
 
 static void gen11_irq_reset(struct drm_device *dev)
@@ -3879,6 +3938,10 @@ static void gen11_gt_irq_postinstall(struct drm_i915_private *dev_priv)
 	dev_priv->pm_imr = ~dev_priv->pm_ier;
 	I915_WRITE(GEN11_GPM_WGBOXPERF_INTR_ENABLE, 0);
 	I915_WRITE(GEN11_GPM_WGBOXPERF_INTR_MASK,  ~0);
+
+	/* Same thing for GuC interrupts */
+	I915_WRITE(GEN11_GUC_SG_INTR_ENABLE, 0);
+	I915_WRITE(GEN11_GUC_SG_INTR_MASK,  ~0);
 }
 
 static int gen11_irq_postinstall(struct drm_device *dev)
@@ -4270,8 +4333,12 @@ void intel_irq_init(struct drm_i915_private *dev_priv)
 	for (i = 0; i < MAX_L3_SLICES; ++i)
 		dev_priv->l3_parity.remap_info[i] = NULL;
 
-	if (HAS_GUC_SCHED(dev_priv))
-		dev_priv->pm_guc_events = GEN9_GUC_TO_HOST_INT_EVENT;
+	if (HAS_GUC_SCHED(dev_priv)) {
+		if (INTEL_GEN(dev_priv) < 11)
+			dev_priv->pm_guc_events = GEN9_GUC_TO_HOST_INT_EVENT;
+		else
+			dev_priv->guc_events = GEN11_GUC_INTR_GUC2HOST;
+	}
 
 	/* Let's track the enabled rps events */
 	if (IS_VALLEYVIEW(dev_priv))
@@ -4294,7 +4361,11 @@ void intel_irq_init(struct drm_i915_private *dev_priv)
 	if (INTEL_GEN(dev_priv) >= 8 && INTEL_GEN(dev_priv) < 11)
 		rps->pm_intrmsk_mbz |= GEN8_PMINTR_DISABLE_REDIRECT_TO_GUC;
 
-	if (INTEL_GEN(dev_priv) >= 9) {
+	if (INTEL_GEN(dev_priv) >= 11) {
+		dev_priv->guc.interrupts.reset = gen11_reset_guc_interrupts;
+		dev_priv->guc.interrupts.enable = gen11_enable_guc_interrupts;
+		dev_priv->guc.interrupts.disable = gen11_disable_guc_interrupts;
+	} else if (INTEL_GEN(dev_priv) >= 9) {
 		dev_priv->guc.interrupts.reset = gen9_reset_guc_interrupts;
 		dev_priv->guc.interrupts.enable = gen9_enable_guc_interrupts;
 		dev_priv->guc.interrupts.disable = gen9_disable_guc_interrupts;
