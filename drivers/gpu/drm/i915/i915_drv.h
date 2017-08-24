@@ -1667,7 +1667,11 @@ struct drm_i915_private {
 	u32 pm_imr;
 	u32 pm_ier;
 	u32 pm_rps_events;
-	u32 pm_guc_events;
+	union {
+		/* RPS and GuC share a register pre-Gen11 */
+		u32 pm_guc_events;
+		u32 guc_events;
+	};
 	u32 pipestat_irq_mask[I915_MAX_PIPES];
 
 	struct i915_hotplug hotplug;
