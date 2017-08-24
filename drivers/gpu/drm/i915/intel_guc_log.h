@@ -52,6 +52,7 @@ struct intel_guc_log {
 
 int intel_guc_log_create(struct intel_guc *guc);
 void intel_guc_log_destroy(struct intel_guc *guc);
+void intel_guc_log_flush(struct intel_guc *guc);
 int i915_guc_log_control(struct drm_i915_private *dev_priv, u64 control_val);
 void i915_guc_log_register(struct drm_i915_private *dev_priv);
 void i915_guc_log_unregister(struct drm_i915_private *dev_priv);

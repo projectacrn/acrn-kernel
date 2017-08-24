@@ -291,11 +291,7 @@ void intel_guc_notification_handler(struct intel_guc *guc)
 		/* Clear the message bits that are handled */
 		I915_WRITE(SOFT_SCRATCH(15), msg & ~flush);
 
-		/* Handle flush interrupt in bottom half */
-		queue_work(dev_priv->guc.log.runtime.flush_wq,
-				&dev_priv->guc.log.runtime.flush_work);
-
-		dev_priv->guc.log.flush_interrupt_count++;
+		intel_guc_log_flush(&dev_priv->guc);
 	} else {
 		/*
 		 * Not clearing of unhandled event bits won't result in

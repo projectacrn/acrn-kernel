@@ -524,6 +524,14 @@ static void guc_flush_logs(struct intel_guc *guc)
 	guc_log_capture_logs(guc);
 }
 
+void intel_guc_log_flush(struct intel_guc *guc)
+{
+	/* Handle flush interrupt in bottom half */
+	queue_work(guc->log.runtime.flush_wq, &guc->log.runtime.flush_work);
+
+	guc->log.flush_interrupt_count++;
+}
+
 int intel_guc_log_create(struct intel_guc *guc)
 {
 	struct i915_vma *vma;
