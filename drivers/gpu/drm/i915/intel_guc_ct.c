@@ -32,9 +32,16 @@ struct ct_request {
 	u32 *response_buf;
 };
 
+struct ct_incoming_request {
+	struct list_head link;
+	u32 data[];
+};
+
 enum { CTB_SEND = 0, CTB_RECV = 1 };
 
 enum { CTB_OWNER_HOST = 0 };
+
+static void ct_worker_func(struct work_struct *w);
 
 void intel_guc_ct_init_early(struct intel_guc_ct *ct)
 {
@@ -43,6 +50,8 @@ void intel_guc_ct_init_early(struct intel_guc_ct *ct)
 
 	spin_lock_init(&ct->lock);
 	INIT_LIST_HEAD(&ct->pending_requests);
+	INIT_LIST_HEAD(&ct->incoming_requests);
+	INIT_WORK(&ct->worker, ct_worker_func);
 }
 
 static inline const char *guc_ct_buffer_type_to_str(u32 type)
@@ -613,11 +622,71 @@ static int guc_handle_response(struct intel_guc *guc, const u32 *msg)
 static int guc_handle_request(struct intel_guc *guc, const u32 *msg)
 {
 	u32 header = msg[0];
+	u32 len = ct_header_get_len(header) + 1; /* total len with header */
+	struct ct_incoming_request *request;
+	unsigned long flags;
 
 	GEM_BUG_ON(ct_header_is_response(header));
 
-	/* XXX */
+	request = kmalloc(sizeof(*request) + 4*len, GFP_ATOMIC);
+	if (unlikely(!request)) {
+		DRM_ERROR("CT: dropping request %*phn\n", 4*len, msg);
+		return 0; /* XXX: -ENOMEM ? */
+	}
+	memcpy(request->data, msg, 4*len);
+
+	spin_lock_irqsave(&guc->ct.lock, flags);
+	list_add_tail(&request->link, &guc->ct.incoming_requests);
+	spin_unlock_irqrestore(&guc->ct.lock, flags);
+
+	queue_work(system_unbound_wq, &guc->ct.worker);
 	return 0;
+}
+
+static bool guc_process_incoming_requests(struct intel_guc *guc)
+{
+	unsigned long flags;
+	struct ct_incoming_request *request;
+	bool done;
+	u32 header;
+	u32 action;
+	u32 len;
+
+	spin_lock_irqsave(&guc->ct.lock, flags);
+	request = list_first_entry_or_null(&guc->ct.incoming_requests,
+					   struct ct_incoming_request, link);
+	if (request)
+		list_del(&request->link);
+	done = !!list_empty(&guc->ct.incoming_requests);
+	spin_unlock_irqrestore(&guc->ct.lock, flags);
+
+	if (!request)
+		return true;
+
+	header = request->data[0];
+	action = ct_header_get_action(header);
+	len = ct_header_get_len(header) + 1; /* also count header dw */
+
+	switch (action) {
+	default:
+		DRM_ERROR("CT: unexpected request %*phn\n",
+			  4*len, request->data);
+		break;
+	}
+
+	kfree(request);
+	return done;
+}
+
+static void ct_worker_func(struct work_struct *w)
+{
+	struct intel_guc_ct *ct = container_of(w, struct intel_guc_ct, worker);
+	struct intel_guc *guc = container_of(ct, struct intel_guc, ct);
+	bool done;
+
+	done = guc_process_incoming_requests(guc);
+	if (!done)
+		queue_work(system_unbound_wq, &ct->worker);
 }
 
 static void intel_guc_receive_ct(struct intel_guc *guc)

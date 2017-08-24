@@ -73,6 +73,8 @@ struct intel_guc_ct_channel {
  * @host_channel: main channel used by the host
  * @lock: spin lock for pending requests list
  * @pending_requests: list of pending requests
+ * @incoming_requests: list of incoming requests
+ * @tasklet: tasklet for handling incoming requests
  */
 struct intel_guc_ct {
 	struct intel_guc_ct_channel host_channel;
@@ -80,6 +82,8 @@ struct intel_guc_ct {
 
 	spinlock_t lock;
 	struct list_head pending_requests;
+	struct list_head incoming_requests;
+	struct work_struct worker;
 };
 
 void intel_guc_ct_init_early(struct intel_guc_ct *ct);
