@@ -533,7 +533,7 @@ void gen6_disable_rps_interrupts(struct drm_i915_private *dev_priv)
 		gen6_reset_rps_interrupts(dev_priv);
 }
 
-void gen9_reset_guc_interrupts(struct drm_i915_private *dev_priv)
+static void gen9_reset_guc_interrupts(struct drm_i915_private *dev_priv)
 {
 	assert_rpm_wakelock_held(dev_priv);
 
@@ -542,26 +542,26 @@ void gen9_reset_guc_interrupts(struct drm_i915_private *dev_priv)
 	spin_unlock_irq(&dev_priv->irq_lock);
 }
 
-void gen9_enable_guc_interrupts(struct drm_i915_private *dev_priv)
+static void gen9_enable_guc_interrupts(struct drm_i915_private *dev_priv)
 {
 	assert_rpm_wakelock_held(dev_priv);
 
 	spin_lock_irq(&dev_priv->irq_lock);
-	if (!dev_priv->guc.interrupts_enabled) {
+	if (!dev_priv->guc.interrupts.enabled) {
 		WARN_ON_ONCE(I915_READ(gen6_pm_iir(dev_priv)) &
 				       dev_priv->pm_guc_events);
-		dev_priv->guc.interrupts_enabled = true;
+		dev_priv->guc.interrupts.enabled = true;
 		gen6_enable_pm_irq(dev_priv, dev_priv->pm_guc_events);
 	}
 	spin_unlock_irq(&dev_priv->irq_lock);
 }
 
-void gen9_disable_guc_interrupts(struct drm_i915_private *dev_priv)
+static void gen9_disable_guc_interrupts(struct drm_i915_private *dev_priv)
 {
 	assert_rpm_wakelock_held(dev_priv);
 
 	spin_lock_irq(&dev_priv->irq_lock);
-	dev_priv->guc.interrupts_enabled = false;
+	dev_priv->guc.interrupts.enabled = false;
 
 	gen6_disable_pm_irq(dev_priv, dev_priv->pm_guc_events);
 
@@ -4726,6 +4726,12 @@ void intel_irq_init(struct drm_i915_private *dev_priv)
 
 	if (INTEL_GEN(dev_priv) >= 8 && INTEL_GEN(dev_priv) < 11)
 		rps->pm_intrmsk_mbz |= GEN8_PMINTR_DISABLE_REDIRECT_TO_GUC;
+
+	if (INTEL_GEN(dev_priv) >= 9) {
+		dev_priv->guc.interrupts.reset = gen9_reset_guc_interrupts;
+		dev_priv->guc.interrupts.enable = gen9_enable_guc_interrupts;
+		dev_priv->guc.interrupts.disable = gen9_disable_guc_interrupts;
+	}
 
 	if (IS_GEN2(dev_priv)) {
 		/* Gen2 doesn't have a hardware frame counter */
