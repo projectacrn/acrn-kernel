@@ -6560,7 +6560,7 @@ static void gen6_init_rps_frequencies(struct drm_i915_private *dev_priv)
 
 	rps->efficient_freq = rps->rp1_freq;
 	if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv) ||
-	    IS_GEN9_BC(dev_priv) || IS_CANNONLAKE(dev_priv)) {
+	    IS_GEN9_BC(dev_priv) || INTEL_GEN(dev_priv) >= 10) {
 		u32 ddcc_status = 0;
 
 		if (sandybridge_pcode_read(dev_priv,
@@ -6573,7 +6573,7 @@ static void gen6_init_rps_frequencies(struct drm_i915_private *dev_priv)
 					rps->max_freq);
 	}
 
-	if (IS_GEN9_BC(dev_priv) || IS_CANNONLAKE(dev_priv)) {
+	if (IS_GEN9_BC(dev_priv) || INTEL_GEN(dev_priv) >= 10) {
 		/* Store the frequency values in 16.66 MHZ units, which is
 		 * the natural hardware unit for SKL
 		 */
@@ -6901,7 +6901,7 @@ static void gen6_update_ring_freq(struct drm_i915_private *dev_priv)
 	/* convert DDR frequency from units of 266.6MHz to bandwidth */
 	min_ring_freq = mult_frac(min_ring_freq, 8, 3);
 
-	if (IS_GEN9_BC(dev_priv) || IS_CANNONLAKE(dev_priv)) {
+	if (IS_GEN9_BC(dev_priv) || INTEL_GEN(dev_priv) >= 10) {
 		/* Convert GT frequency to 50 HZ units */
 		min_gpu_freq = rps->min_freq / GEN9_FREQ_SCALER;
 		max_gpu_freq = rps->max_freq / GEN9_FREQ_SCALER;
@@ -6919,7 +6919,7 @@ static void gen6_update_ring_freq(struct drm_i915_private *dev_priv)
 		int diff = max_gpu_freq - gpu_freq;
 		unsigned int ia_freq = 0, ring_freq = 0;
 
-		if (IS_GEN9_BC(dev_priv) || IS_CANNONLAKE(dev_priv)) {
+		if (IS_GEN9_BC(dev_priv) || INTEL_GEN(dev_priv) >= 10) {
 			/*
 			 * ring_freq = 2 * GT. ring_freq is in 100MHz units
 			 * No floor required for ring frequency on SKL.
@@ -8127,8 +8127,6 @@ static void intel_enable_rps(struct drm_i915_private *dev_priv)
 		cherryview_enable_rps(dev_priv);
 	} else if (IS_VALLEYVIEW(dev_priv)) {
 		valleyview_enable_rps(dev_priv);
-	} else if (WARN_ON_ONCE(INTEL_GEN(dev_priv) >= 11)) {
-		/* TODO */
 	} else if (INTEL_GEN(dev_priv) >= 9) {
 		gen9_enable_rps(dev_priv);
 	} else if (IS_BROADWELL(dev_priv)) {
