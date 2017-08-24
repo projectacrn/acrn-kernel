@@ -243,6 +243,37 @@ void i915_hotplug_interrupt_update(struct drm_i915_private *dev_priv,
 	spin_unlock_irq(&dev_priv->irq_lock);
 }
 
+static u16 gen11_service_shared_iir(struct drm_i915_private *dev_priv,
+				    unsigned int bank,
+				    unsigned int bit)
+{
+	u64 wait_end;
+	u16 irq;
+	u32 ident;
+
+	I915_WRITE_FW(GEN11_IIR_REG_SELECTOR(bank), BIT(bit));
+	/*
+	 * NB: Specs do not specify how long to spin wait.
+	 * Taking 100us as an educated guess
+	 */
+	wait_end = (local_clock() >> 10) + 100;
+	do {
+		ident = I915_READ_FW(GEN11_INTR_IDENTITY_REG(bank));
+	} while (!(ident & GEN11_INTR_DATA_VALID) &&
+		 !time_after64(local_clock() >> 10, wait_end));
+
+	if (!(ident & GEN11_INTR_DATA_VALID))
+		DRM_ERROR("INTR_IDENTITY_REG%u:%u timed out!\n", bank, bit);
+
+	irq = ident & GEN11_INTR_ENGINE_MASK;
+	if (!irq)
+		DRM_ERROR("INTR_IDENTITY_REG%u:%u blank!\n", bank, bit);
+
+	I915_WRITE_FW(GEN11_INTR_IDENTITY_REG(bank), ident);
+
+	return irq;
+}
+
 /**
  * ilk_update_display_irq - update DEIMR
  * @dev_priv: driver private
@@ -2774,10 +2805,9 @@ gen11_gt_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 {
 	irqreturn_t ret = IRQ_NONE;
 	u16 irq[2][32];
-	u32 dw, ident;
+	u32 dw;
 	unsigned long tmp;
 	unsigned int bank, bit, engine;
-	unsigned long wait_start, wait_end;
 
 	memset(irq, 0, sizeof(irq));
 
@@ -2787,27 +2817,9 @@ gen11_gt_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 			if (!dw)
 				DRM_ERROR("GT_INTR_DW%u blank!\n", bank);
 			tmp = dw;
-			for_each_set_bit(bit, &tmp, 32) {
-				I915_WRITE_FW(GEN11_IIR_REG_SELECTOR(bank), 1 << bit);
-				wait_start = local_clock() >> 10;
-				/* NB: Specs do not specify how long to spin wait.
-				 * Taking 100us as an educated guess */
-				wait_end = wait_start + 100;
-				do {
-					ident = I915_READ_FW(GEN11_INTR_IDENTITY_REG(bank));
-				} while (!(ident & GEN11_INTR_DATA_VALID) &&
-					 !time_after((unsigned long)local_clock() >> 10, wait_end));
-
-				if (!(ident & GEN11_INTR_DATA_VALID))
-					DRM_ERROR("INTR_IDENTITY_REG%u:%u timed out!\n",
-						  bank, bit);
-
-				irq[bank][bit] = ident & GEN11_INTR_ENGINE_MASK;
-				if (!irq[bank][bit])
-					DRM_ERROR("INTR_IDENTITY_REG%u:%u blank!\n",
-						  bank, bit);
-				I915_WRITE_FW(GEN11_INTR_IDENTITY_REG(bank), ident);
-			}
+			for_each_set_bit(bit, &tmp, 32)
+				irq[bank][bit] =
+					gen11_service_shared_iir(dev_priv, bank, bit);
 			I915_WRITE_FW(GEN11_GT_INTR_DW(bank), dw);
 		}
 	}
