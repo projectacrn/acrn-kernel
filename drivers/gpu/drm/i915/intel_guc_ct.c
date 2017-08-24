@@ -322,16 +322,21 @@ static int ctb_write(struct intel_guc_ct_buffer *ctb,
 	return 0;
 }
 
-/* Wait for the response from the GuC.
+/**
+ * Wait for the descriptor update.
+ * @desc:	buffer descriptor
  * @fence:	response fence
  * @status:	placeholder for status
- * return:	0 response received (status is valid)
- *		-ETIMEDOUT no response within hardcoded timeout
- *		-EPROTO no response, ct buffer was in error
+ *
+ * Guc will update this descriptor with new fence and status.
+ * Returns:
+ *	0 response received (status is valid)
+ *	-ETIMEDOUT no response within hardcoded timeout
+ *	-EPROTO no response, ct buffer is in error
  */
-static int wait_for_response(struct guc_ct_buffer_desc *desc,
-			     u32 fence,
-			     u32 *status)
+static int wait_for_desc_update(struct guc_ct_buffer_desc *desc,
+				u32 fence,
+				u32 *status)
 {
 	int err;
 
@@ -385,7 +390,7 @@ static int ctch_send(struct intel_guc *guc,
 
 	intel_guc_notify(guc);
 
-	err = wait_for_response(desc, fence, status);
+	err = wait_for_desc_update(desc, fence, status);
 	if (unlikely(err))
 		return err;
 	if (INTEL_GUC_RECV_TO_STATUS(*status) != INTEL_GUC_STATUS_SUCCESS)
