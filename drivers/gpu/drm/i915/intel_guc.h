@@ -107,6 +107,16 @@ inline int intel_guc_send(struct intel_guc *guc, const u32 *action, u32 len)
 	return guc->send(guc, action, len, NULL);
 }
 
+static inline int intel_guc_send_and_receive(struct intel_guc *guc,
+					     const u32 *action, u32 len,
+					     u32 *response_buf, u32 size)
+{
+	BUILD_BUG_ON(!__builtin_constant_p(size));
+	BUILD_BUG_ON(size < GUC_CT_MSG_LEN_MASK);
+
+	return guc->send(guc, action, len, response_buf);
+}
+
 static inline void intel_guc_notify(struct intel_guc *guc)
 {
 	guc->notify(guc);
