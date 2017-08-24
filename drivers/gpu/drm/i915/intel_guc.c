@@ -364,7 +364,7 @@ int intel_guc_suspend(struct drm_i915_private *dev_priv)
 	if (guc->fw.load_status != INTEL_UC_FIRMWARE_SUCCESS)
 		return 0;
 
-	gen9_disable_guc_interrupts(dev_priv);
+	guc->interrupts.disable(dev_priv);
 
 	data[0] = INTEL_GUC_ACTION_ENTER_S_STATE;
 	/* any value greater than GUC_POWER_D0 */
@@ -410,7 +410,7 @@ int intel_guc_resume(struct drm_i915_private *dev_priv)
 		return 0;
 
 	if (HAS_GUC_CT(dev_priv) || i915_modparams.guc_log_level >= 0)
-		gen9_enable_guc_interrupts(dev_priv);
+		guc->interrupts.enable(dev_priv);
 
 	data[0] = INTEL_GUC_ACTION_EXIT_S_STATE;
 	data[1] = GUC_POWER_D0;

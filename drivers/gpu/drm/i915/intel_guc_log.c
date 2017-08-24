@@ -511,7 +511,7 @@ static void guc_flush_logs(struct intel_guc *guc)
 
 	/* GuC logging maybe the only user of Guc2Host interrupts */
 	if (!HAS_GUC_CT(dev_priv))
-		gen9_disable_guc_interrupts(dev_priv);
+		guc->interrupts.disable(dev_priv);
 
 	/* Before initiating the forceful flush, wait for any pending/ongoing
 	 * flush to complete otherwise forceful flush may not actually happen.
@@ -637,7 +637,7 @@ int i915_guc_log_control(struct drm_i915_private *dev_priv, u64 control_val)
 		}
 
 		/* GuC logging is currently the only user of Guc2Host interrupts */
-		gen9_enable_guc_interrupts(dev_priv);
+		guc->interrupts.enable(dev_priv);
 	} else {
 		/* Once logging is disabled, GuC won't generate logs & send an
 		 * interrupt. But there could be some data in the log buffer
@@ -672,7 +672,7 @@ void i915_guc_log_unregister(struct drm_i915_private *dev_priv)
 	mutex_lock(&dev_priv->drm.struct_mutex);
 	/* GuC logging maybe the only user of Guc2Host interrupts */
 	if (!HAS_GUC_CT(dev_priv))
-		gen9_disable_guc_interrupts(dev_priv);
+		dev_priv->guc.interrupts.disable(dev_priv);
 	guc_log_runtime_destroy(&dev_priv->guc);
 	mutex_unlock(&dev_priv->drm.struct_mutex);
 }

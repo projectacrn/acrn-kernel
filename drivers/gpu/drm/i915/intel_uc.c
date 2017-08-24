@@ -160,7 +160,7 @@ int intel_uc_init_hw(struct drm_i915_private *dev_priv)
 		return 0;
 
 	guc_disable_communication(guc);
-	gen9_reset_guc_interrupts(dev_priv);
+	guc->interrupts.reset(dev_priv);
 
 	/* We need to notify the guc whenever we change the GGTT */
 	i915_ggtt_enable_guc(dev_priv);
@@ -217,7 +217,7 @@ int intel_uc_init_hw(struct drm_i915_private *dev_priv)
 	intel_huc_auth(&dev_priv->huc);
 	if (i915_modparams.enable_guc_submission) {
 		if (HAS_GUC_CT(dev_priv) || i915_modparams.guc_log_level >= 0)
-			gen9_enable_guc_interrupts(dev_priv);
+			guc->interrupts.enable(dev_priv);
 
 		ret = intel_guc_submission_enable(guc);
 		if (ret)
@@ -243,7 +243,7 @@ int intel_uc_init_hw(struct drm_i915_private *dev_priv)
 	 */
 err_interrupts:
 	guc_disable_communication(guc);
-	gen9_disable_guc_interrupts(dev_priv);
+	guc->interrupts.disable(dev_priv);
 err_log_capture:
 	guc_capture_load_err_log(guc);
 err_submission:
@@ -286,7 +286,7 @@ void intel_uc_fini_hw(struct drm_i915_private *dev_priv)
 	guc_disable_communication(guc);
 
 	if (i915_modparams.enable_guc_submission) {
-		gen9_disable_guc_interrupts(dev_priv);
+		dev_priv->guc.interrupts.disable(dev_priv);
 		intel_guc_submission_fini(guc);
 	}
 
