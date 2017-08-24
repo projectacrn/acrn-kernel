@@ -71,10 +71,15 @@ struct intel_guc_ct_channel {
 /** Holds all command transport channels.
  *
  * @host_channel: main channel used by the host
+ * @lock: spin lock for pending requests list
+ * @pending_requests: list of pending requests
  */
 struct intel_guc_ct {
 	struct intel_guc_ct_channel host_channel;
 	/* other channels are tbd */
+
+	spinlock_t lock;
+	struct list_head pending_requests;
 };
 
 void intel_guc_ct_init_early(struct intel_guc_ct *ct);

@@ -24,6 +24,14 @@
 #include "i915_drv.h"
 #include "intel_guc_ct.h"
 
+struct ct_request {
+	struct list_head link;
+	u32 fence;
+	u32 status;
+	u32 response_len;
+	u32 *response_buf;
+};
+
 enum { CTB_SEND = 0, CTB_RECV = 1 };
 
 enum { CTB_OWNER_HOST = 0 };
@@ -32,6 +40,9 @@ void intel_guc_ct_init_early(struct intel_guc_ct *ct)
 {
 	/* we're using static channel owners */
 	ct->host_channel.owner = CTB_OWNER_HOST;
+
+	spin_lock_init(&ct->lock);
+	INIT_LIST_HEAD(&ct->pending_requests);
 }
 
 static inline const char *guc_ct_buffer_type_to_str(u32 type)
@@ -266,7 +277,8 @@ static u32 ctch_get_next_fence(struct intel_guc_ct_channel *ctch)
 static int ctb_write(struct intel_guc_ct_buffer *ctb,
 		     const u32 *action,
 		     u32 len /* in dwords */,
-		     u32 fence)
+		     u32 fence,
+		     bool send_response)
 {
 	struct guc_ct_buffer_desc *desc = ctb->desc;
 	u32 head = desc->head / 4;	/* in dwords */
@@ -302,6 +314,7 @@ static int ctb_write(struct intel_guc_ct_buffer *ctb,
 	 */
 	header = (len << GUC_CT_MSG_LEN_SHIFT) |
 		 (GUC_CT_MSG_WRITE_FENCE_TO_DESC) |
+		 (send_response ? GUC_CT_MSG_SEND_STATUS : 0) |
 		 (action[0] << GUC_CT_MSG_ACTION_SHIFT);
 
 	cmds[tail] = header;
@@ -368,14 +381,49 @@ static int wait_for_desc_update(struct guc_ct_buffer_desc *desc,
 	return err;
 }
 
+/**
+ * Wait for the Guc response.
+ * @req:	pointer to pending request
+ * @status:	placeholder for status
+ *
+ * We will update request status from the response message handler.
+ * Returns:
+ *	0 response received (status is valid)
+ *	-ETIMEDOUT no response within hardcoded timeout
+ */
+static int wait_for_response_msg(struct ct_request *req, u32 *status)
+{
+	int err;
+
+	/*
+	 * Fast commands should complete in less than 10us, so sample quickly
+	 * up to that length of time, then switch to a slower sleep-wait loop.
+	 * No GuC command should ever take longer than 10ms.
+	 */
+#define done INTEL_GUC_RECV_IS_RESPONSE(READ_ONCE(req->status))
+	err = wait_for_us(done, 10);
+	if (err)
+		err = wait_for(done, 10);
+#undef done
+
+	if (unlikely(err))
+		DRM_ERROR("CT: fence %u err %d\n", req->fence, err);
+
+	*status = req->status;
+	return err;
+}
+
 static int ctch_send(struct intel_guc *guc,
 		     struct intel_guc_ct_channel *ctch,
 		     const u32 *action,
 		     u32 len,
-		     u32 *status)
+		     u32 *status,
+		     u32 *response)
 {
 	struct intel_guc_ct_buffer *ctb = &ctch->ctbs[CTB_SEND];
 	struct guc_ct_buffer_desc *desc = ctb->desc;
+	struct ct_request request;
+	unsigned long flags;
 	u32 fence;
 	int err;
 
@@ -384,18 +432,51 @@ static int ctch_send(struct intel_guc *guc,
 	GEM_BUG_ON(len & ~GUC_CT_MSG_LEN_MASK);
 
 	fence = ctch_get_next_fence(ctch);
-	err = ctb_write(ctb, action, len, fence);
+	request.fence = fence;
+	request.status = 0;
+	request.response_len = 0;
+	request.response_buf = response;
+
+	spin_lock_irqsave(&guc->ct.lock, flags);
+	list_add_tail(&request.link, &guc->ct.pending_requests);
+	spin_unlock_irqrestore(&guc->ct.lock, flags);
+
+	err = ctb_write(ctb, action, len, fence, !!response);
 	if (unlikely(err))
-		return err;
+		goto unlink;
 
 	intel_guc_notify(guc);
 
-	err = wait_for_desc_update(desc, fence, status);
+	if (response)
+		err = wait_for_response_msg(&request, status);
+	else
+		err = wait_for_desc_update(desc, fence, status);
 	if (unlikely(err))
-		return err;
-	if (INTEL_GUC_RECV_TO_STATUS(*status) != INTEL_GUC_STATUS_SUCCESS)
-		return -EIO;
-	return INTEL_GUC_RECV_TO_DATA(*status);
+		goto unlink;
+
+	if (INTEL_GUC_RECV_TO_STATUS(*status) != INTEL_GUC_STATUS_SUCCESS) {
+		err = -EIO;
+		goto unlink;
+	}
+
+	if (response) {
+		/* There shall be no data in the status */
+		WARN_ON(INTEL_GUC_RECV_TO_DATA(request.status));
+		/* Return actual response len */
+		err = request.response_len;
+	} else {
+		/* There shall be no response payload */
+		WARN_ON(request.response_len);
+		/* Return data decoded from the status dword */
+		err = INTEL_GUC_RECV_TO_DATA(*status);
+	}
+
+unlink:
+	spin_lock_irqsave(&guc->ct.lock, flags);
+	list_del(&request.link);
+	spin_unlock_irqrestore(&guc->ct.lock, flags);
+
+	return err;
 }
 
 /*
@@ -410,7 +491,7 @@ static int intel_guc_send_ct(struct intel_guc *guc, const u32 *action, u32 len,
 
 	mutex_lock(&guc->send_mutex);
 
-	ret = ctch_send(guc, ctch, action, len, &status);
+	ret = ctch_send(guc, ctch, action, len, &status, response);
 	if (unlikely(ret < 0)) {
 		DRM_ERROR("CT: send action %#X failed; err=%d status=%#X\n",
 			  action[0], ret, status);
@@ -489,8 +570,12 @@ static int ctb_read(struct intel_guc_ct_buffer *ctb, u32 *data)
 static int guc_handle_response(struct intel_guc *guc, const u32 *msg)
 {
 	u32 header = msg[0];
+	u32 fence = msg[1];
 	u32 status = msg[2];
 	u32 len = ct_header_get_len(header) + 1; /* total len with header */
+	struct ct_request *req;
+	bool found = false;
+	unsigned long flags;
 
 	GEM_BUG_ON(!ct_header_is_response(header));
 
@@ -504,7 +589,24 @@ static int guc_handle_response(struct intel_guc *guc, const u32 *msg)
 		return -EPROTO;
 	}
 
-	/* XXX */
+	spin_lock_irqsave(&guc->ct.lock, flags);
+	list_for_each_entry(req, &guc->ct.pending_requests, link) {
+		if (req->fence != fence) {
+			DRM_DEBUG_DRIVER("CT: request %u awaits response\n",
+					 req->fence);
+			continue;
+		}
+		req->response_len = len - 3;
+		if (req->response_buf)
+			memcpy(req->response_buf, msg + 3, 4*(len - 3));
+		WRITE_ONCE(req->status, status);
+		found = true;
+		break;
+	}
+	spin_unlock_irqrestore(&guc->ct.lock, flags);
+
+	if (!found)
+		DRM_ERROR("CT: unsolicited response %*phn\n", 4*len, msg);
 	return 0;
 }
 
