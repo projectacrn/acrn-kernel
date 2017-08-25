@@ -2533,6 +2533,7 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define BSD3_RING	ENGINE_MASK(VCS3)
 #define BSD4_RING	ENGINE_MASK(VCS4)
 #define VEBOX2_RING	ENGINE_MASK(VECS2)
+#define CCS_RING	ENGINE_MASK(CCS)
 #define ALL_ENGINES	(~0)
 
 #define HAS_ENGINE(dev_priv, id) \
@@ -2542,6 +2543,7 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define HAS_BSD2(dev_priv)	HAS_ENGINE(dev_priv, VCS2)
 #define HAS_BLT(dev_priv)	HAS_ENGINE(dev_priv, BCS)
 #define HAS_VEBOX(dev_priv)	HAS_ENGINE(dev_priv, VECS)
+#define HAS_CCS(dev_priv)	HAS_ENGINE(dev_priv, CCS)
 
 #define HAS_LEGACY_SEMAPHORES(dev_priv) IS_GEN7(dev_priv)
 
