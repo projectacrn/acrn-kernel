@@ -260,6 +260,17 @@ static const struct stmmac_stats stmmac_mmc[] = {
 };
 #define STMMAC_MMC_STATS_LEN ARRAY_SIZE(stmmac_mmc)
 
+static const struct stmmac_stats stmmac_mmc_tsn[] = {
+	STMMAC_MMC_STAT(mmc_tx_fpe_fragment),
+	STMMAC_MMC_STAT(mmc_tx_hold_req),
+	STMMAC_MMC_STAT(mmc_rx_packet_assembly_err),
+	STMMAC_MMC_STAT(mmc_rx_packet_smd_err),
+	STMMAC_MMC_STAT(mmc_rx_packet_assembly_ok),
+	STMMAC_MMC_STAT(mmc_rx_fpe_fragment),
+};
+
+#define STMMAC_MMC_TSN_STATS_LEN ARRAY_SIZE(stmmac_mmc_tsn)
+
 /* All test entries will be added before MAX_TEST_CASES */
 enum stmmac_diagnostics_cases {
 	TEST_MAC_LOOP,
@@ -816,6 +827,22 @@ static void stmmac_get_ethtool_stats(struct net_device *dev,
 					     sizeof(u64)) ? (*(u64 *)p) :
 					     (*(u32 *)p);
 			}
+
+			if (priv->synopsys_id >= DWMAC_CORE_5_00) {
+				dwmac_mmc_tsn_read(priv->mmcaddr, &priv->mmc);
+
+				for (i = 0; i < STMMAC_MMC_TSN_STATS_LEN; i++) {
+					char *p;
+					int ss = stmmac_mmc_tsn[i].sizeof_stat;
+
+					p = (char *)priv +
+					    stmmac_mmc_tsn[i].stat_offset;
+
+					data[j++] = (ss ==
+						    sizeof(u64)) ?
+						    (*(u64 *)p) : (*(u32 *)p);
+				}
+			}
 		}
 		if (priv->eee_enabled) {
 			int val = phy_get_eee_err(dev->phydev);
@@ -847,7 +874,7 @@ static int stmmac_get_sset_count(struct net_device *netdev, int sset)
 	case ETH_SS_STATS:
 		len = STMMAC_STATS_LEN;
 
-		if (priv->dma_cap.rmon)
+		if (priv->dma_cap.rmon) {
 			len += STMMAC_MMC_STATS_LEN;
 		if (priv->dma_cap.asp && priv->hw->mac->safety_feat_dump) {
 			dump = priv->hw->mac->safety_feat_dump;
@@ -860,6 +887,9 @@ static int stmmac_get_sset_count(struct net_device *netdev, int sset)
 			len += safety_len;
 		}
 
+			if (priv->synopsys_id >= DWMAC_CORE_5_00)
+				len += STMMAC_MMC_TSN_STATS_LEN;
+		}
 		return len;
 	case ETH_SS_TEST:
 		return STMMAC_TEST_LEN;
@@ -889,12 +919,20 @@ static void stmmac_get_strings(struct net_device *dev, u32 stringset, u8 *data)
 				}
 			}
 		}
-		if (priv->dma_cap.rmon)
+		if (priv->dma_cap.rmon) {
 			for (i = 0; i < STMMAC_MMC_STATS_LEN; i++) {
 				memcpy(p, stmmac_mmc[i].stat_string,
 				       ETH_GSTRING_LEN);
 				p += ETH_GSTRING_LEN;
 			}
+
+			if (priv->synopsys_id >= DWMAC_CORE_5_00)
+				for (i = 0; i < STMMAC_MMC_TSN_STATS_LEN; i++) {
+					memcpy(p, stmmac_mmc_tsn[i].stat_string,
+					       ETH_GSTRING_LEN);
+					p += ETH_GSTRING_LEN;
+				}
+		}
 		for (i = 0; i < STMMAC_STATS_LEN; i++) {
 			memcpy(p, stmmac_gstrings_stats[i].stat_string,
 				ETH_GSTRING_LEN);
