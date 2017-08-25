@@ -631,7 +631,8 @@ static const struct intel_device_info intel_tigerlake_12_info = {
 	PLATFORM(INTEL_TIGERLAKE),
 	.is_alpha_support = 1,
 	.has_resource_streamer = 0,
-	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING | BSD3_RING,
+	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING |
+		     BSD3_RING | CCS_RING,
 };
 
 #undef GEN
