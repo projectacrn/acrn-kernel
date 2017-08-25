@@ -169,6 +169,9 @@ int gen11_guc_ads_create(struct intel_guc *guc)
 	 */
 	blob->ads.eng_state_size[GUC_RENDER_CLASS] = 0;
 
+	if (HAS_CCS(dev_priv))
+		blob->system_info.ccs_enabled = 1;
+
 	blob->system_info.slice_enabled = hweight8(INTEL_INFO(dev_priv)->sseu.slice_mask);
 	blob->system_info.rcs_enabled = 1;
 	blob->system_info.bcs_enabled = 1;
