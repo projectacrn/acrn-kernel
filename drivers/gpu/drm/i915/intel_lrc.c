@@ -864,6 +864,7 @@ static void clear_gtiir(struct intel_engine_cs *engine)
 			[_VCS(3)] = {1, GEN11_VCS(3)},
 			[_VECS(0)] = {1, GEN11_VECS(0)},
 			[_VECS(1)] = {1, GEN11_VECS(1)},
+			[CCS] = {0, GEN12_CCS0},
 		};
 		unsigned long irqflags;
 

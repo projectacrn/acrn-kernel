@@ -778,6 +778,10 @@ static int i915_interrupt_info(struct seq_file *m, void *data)
 			   I915_READ(GEN11_CRYPTO_RSVD_INTR_ENABLE));
 		seq_printf(m, "GUnit/CSME Intr Enable:\t   %08x\n",
 			   I915_READ(GEN11_GUNIT_CSME_INTR_ENABLE));
+		if (HAS_CCS(dev_priv)) {
+			seq_printf(m, "Compute Intr Enable:\t   %08x\n",
+				   I915_READ(GEN12_CCS_RSVD_INTR_ENABLE));
+		}
 
 		seq_printf(m, "Display Interrupt Control:\t%08x\n",
 			   I915_READ(GEN11_DISPLAY_INT_CTL));
@@ -898,6 +902,10 @@ static int i915_interrupt_info(struct seq_file *m, void *data)
 			   I915_READ(GEN11_CRYPTO_RSVD_INTR_MASK));
 		seq_printf(m, "Gunit/CSME Intr Mask:\t %08x\n",
 			   I915_READ(GEN11_GUNIT_CSME_INTR_MASK));
+		if (HAS_CCS(dev_priv)) {
+			seq_printf(m, "CCS Intr Mask:\t %08x\n",
+				   I915_READ(GEN12_CCS0_RSVD_INTR_MASK));
+		}
 
 	} else if (INTEL_GEN(dev_priv) >= 6) {
 		for_each_engine(engine, dev_priv, id) {

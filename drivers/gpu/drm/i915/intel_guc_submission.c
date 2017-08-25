@@ -1517,6 +1517,12 @@ static void gen11_guc_interrupts_capture(struct drm_i915_private *dev_priv)
 	tmp &= ~(irqs << 16 | irqs);
 	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE, tmp);
 
+	if (HAS_CCS(dev_priv)) {
+		tmp = I915_READ(GEN12_CCS_RSVD_INTR_ENABLE);
+		tmp &= ~(irqs << 16);
+		I915_WRITE(GEN12_CCS_RSVD_INTR_ENABLE, tmp);
+	}
+
 	/* GuC needs ARAT expired interrupt unmasked hence we set it in
 	* pm_intrmsk_mbz */
 	rps->pm_intrmsk_mbz |= ARAT_EXPIRED_INTRMSK;
@@ -1581,6 +1587,12 @@ static void gen11_guc_interrupts_release(struct drm_i915_private *dev_priv)
 	tmp = I915_READ(GEN11_VCS_VECS_INTR_ENABLE);
 	tmp |= (irqs << 16 | irqs);
 	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE, tmp);
+
+	if (HAS_CCS(dev_priv)) {
+		tmp = I915_READ(GEN12_CCS_RSVD_INTR_ENABLE);
+		tmp |= (irqs << 16);
+		I915_WRITE(GEN12_CCS_RSVD_INTR_ENABLE, tmp);
+	}
 
 	rps->pm_intrmsk_mbz &= ~ARAT_EXPIRED_INTRMSK;
 }

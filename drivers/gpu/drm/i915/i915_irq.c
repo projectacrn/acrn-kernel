@@ -3122,7 +3122,8 @@ gen11_gt_identity_handler(struct drm_i915_private * const i915,
 	if (unlikely(!intr))
 		return;
 
-	if (class <= COPY_ENGINE_CLASS)
+	if (class <= COPY_ENGINE_CLASS ||
+	    (class == COMPUTE_CLASS && HAS_CCS(i915)))
 		return gen11_engine_irq_handler(i915, class, instance, intr);
 
 	if (class == OTHER_CLASS)
@@ -3693,6 +3694,8 @@ static void gen11_gt_irq_reset(struct drm_i915_private *dev_priv)
 	/* Disable RCS, BCS, VCS and VECS class engines. */
 	I915_WRITE(GEN11_RENDER_COPY_INTR_ENABLE, 0);
 	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE,	  0);
+	if (HAS_CCS(dev_priv))
+		I915_WRITE(GEN12_CCS_RSVD_INTR_ENABLE, 0);
 
 	/* Restore masks irqs on RCS, BCS, VCS and VECS engines. */
 	I915_WRITE(GEN11_RCS0_RSVD_INTR_MASK,	~0);
@@ -3700,6 +3703,8 @@ static void gen11_gt_irq_reset(struct drm_i915_private *dev_priv)
 	I915_WRITE(GEN11_VCS0_VCS1_INTR_MASK,	~0);
 	I915_WRITE(GEN11_VCS2_VCS3_INTR_MASK,	~0);
 	I915_WRITE(GEN11_VECS0_VECS1_INTR_MASK,	~0);
+	if (HAS_CCS(dev_priv))
+		I915_WRITE(GEN12_CCS0_RSVD_INTR_MASK, ~0);
 
 	I915_WRITE(GEN11_GPM_WGBOXPERF_INTR_ENABLE, 0);
 	I915_WRITE(GEN11_GPM_WGBOXPERF_INTR_MASK,  ~0);
@@ -4331,6 +4336,8 @@ static void gen11_gt_irq_postinstall(struct drm_i915_private *dev_priv)
 	/* Enable RCS, BCS, VCS and VECS class interrupts. */
 	I915_WRITE(GEN11_RENDER_COPY_INTR_ENABLE, irqs << 16 | irqs);
 	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE,	  irqs << 16 | irqs);
+	if (HAS_CCS(dev_priv))
+		I915_WRITE(GEN12_CCS_RSVD_INTR_ENABLE, irqs << 16);
 
 	/* Unmask irqs on RCS, BCS, VCS and VECS engines. */
 	I915_WRITE(GEN11_RCS0_RSVD_INTR_MASK,	~(irqs << 16));
@@ -4338,6 +4345,8 @@ static void gen11_gt_irq_postinstall(struct drm_i915_private *dev_priv)
 	I915_WRITE(GEN11_VCS0_VCS1_INTR_MASK,	~(irqs | irqs << 16));
 	I915_WRITE(GEN11_VCS2_VCS3_INTR_MASK,	~(irqs | irqs << 16));
 	I915_WRITE(GEN11_VECS0_VECS1_INTR_MASK,	~(irqs | irqs << 16));
+	if (HAS_CCS(dev_priv))
+		I915_WRITE(GEN12_CCS0_RSVD_INTR_MASK, ~(irqs << 16));
 
 	/*
 	 * RPS interrupts will get enabled/disabled on demand when RPS itself
