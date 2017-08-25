@@ -79,6 +79,12 @@ static const struct engine_class_info intel_engine_classes[] = {
 		.init_legacy = intel_init_vebox_ring_buffer,
 		.uabi_class = I915_ENGINE_CLASS_VIDEO_ENHANCE,
 	},
+	[COMPUTE_CLASS] = {
+		.name = "ccs",
+		.init_execlists = logical_render_ring_init,
+		.init_legacy = NULL, /* GEN12+ only */
+		.uabi_class = I915_ENGINE_CLASS_COMPUTE,
+	},
 };
 
 #define MAX_MMIO_BASES 3
@@ -179,6 +185,15 @@ static const struct engine_info intel_engines[] = {
 		.mmio_bases = {
 			{ .gen = 11, .base = GEN11_VEBOX2_RING_BASE }
 		},
+	},
+	[CCS] = {
+		.hw_id = 0, /* not used in GEN12+, see MI_SEMAPHORE_SIGNAL */
+		.uabi_id = I915_EXEC_INTERNAL_ENGINE, /* reject for now */
+		.class = COMPUTE_CLASS,
+		.instance = 0,
+		.mmio_bases = {
+			{ .gen = 12, .base = GEN12_COMPUTE0_RING_BASE}
+		}
 	},
 };
 
@@ -1457,6 +1472,7 @@ static u8 user_class_map[] = {
 	[I915_ENGINE_CLASS_COPY] = COPY_ENGINE_CLASS,
 	[I915_ENGINE_CLASS_VIDEO] = VIDEO_DECODE_CLASS,
 	[I915_ENGINE_CLASS_VIDEO_ENHANCE] = VIDEO_ENHANCEMENT_CLASS,
+	[I915_ENGINE_CLASS_COMPUTE] = COMPUTE_CLASS,
 };
 
 struct intel_engine_cs *

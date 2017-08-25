@@ -182,8 +182,9 @@ enum intel_engine_id {
 	VCS4,
 #define _VCS(n) (VCS + (n))
 	VECS,
-	VECS2
+	VECS2,
 #define _VECS(n) (VECS + (n))
+	CCS,
 };
 
 struct i915_priolist {

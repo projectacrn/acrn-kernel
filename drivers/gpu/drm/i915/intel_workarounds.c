@@ -1027,6 +1027,9 @@ void intel_whitelist_workarounds_apply(struct intel_engine_cs *engine)
 {
 	struct whitelist w;
 
+	if (engine->id == CCS)
+		return;
+
 	whitelist_apply(engine, whitelist_build(engine, &w));
 }
 
