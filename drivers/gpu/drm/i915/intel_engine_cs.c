@@ -190,6 +190,7 @@ static const struct engine_info intel_engines[] = {
 		.hw_id = 0, /* not used in GEN12+, see MI_SEMAPHORE_SIGNAL */
 		.uabi_id = I915_EXEC_INTERNAL_ENGINE, /* reject for now */
 		.class = COMPUTE_CLASS,
+		.guc_class = GUC_COMPUTE_CLASS,
 		.instance = 0,
 		.mmio_bases = {
 			{ .gen = 12, .base = GEN12_COMPUTE0_RING_BASE}
