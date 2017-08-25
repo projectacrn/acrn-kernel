@@ -2027,12 +2027,13 @@ static int gen11_reset_engines(struct drm_i915_private *dev_priv,
 		[VCS4] = GEN11_GRDOM_MEDIA4,
 		[VECS] = GEN11_GRDOM_VECS,
 		[VECS2] = GEN11_GRDOM_VECS2,
+		[CCS] = GEN11_GRDOM_RENDER, /* FIXME: RCS/CCS engine reset won't be as simple */
 	};
 	u32 hw_mask;
 	unsigned int tmp;
 	int ret;
 
-	BUILD_BUG_ON(VECS2 + 1 != I915_NUM_ENGINES);
+	BUILD_BUG_ON(CCS + 1 != I915_NUM_ENGINES);
 
 	if (engine_mask == ALL_ENGINES) {
 		hw_mask = GEN11_GRDOM_FULL;
