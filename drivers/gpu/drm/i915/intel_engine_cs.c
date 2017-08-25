@@ -188,7 +188,7 @@ static const struct engine_info intel_engines[] = {
 	},
 	[CCS] = {
 		.hw_id = 0, /* not used in GEN12+, see MI_SEMAPHORE_SIGNAL */
-		.uabi_id = I915_EXEC_INTERNAL_ENGINE, /* reject for now */
+		.uabi_id = I915_EXEC_COMPUTE, /* XXX: uabi tbd */
 		.class = COMPUTE_CLASS,
 		.guc_class = GUC_COMPUTE_CLASS,
 		.instance = 0,
