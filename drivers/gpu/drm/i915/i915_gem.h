@@ -93,4 +93,7 @@ static inline bool __tasklet_is_enabled(const struct tasklet_struct *t)
 	return !atomic_read(&t->count);
 }
 
+#define I915_USER_RINGS (4)
+#define I915_EXEC_INTERNAL_ENGINE (I915_USER_RINGS + 1) /*no submits allowed*/
+
 #endif /* __I915_GEM_H__ */
