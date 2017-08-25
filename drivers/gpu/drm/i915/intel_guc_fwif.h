@@ -47,8 +47,8 @@
 #define GUC_VIDEO_CLASS		1
 #define GUC_VIDEOENHANCE_CLASS	2
 #define GUC_BLITTER_CLASS	3
-#define GUC_RESERVED_CLASS	4
-#define GUC_MAX_ENGINE_CLASSES	(GUC_RESERVED_CLASS + 1)
+#define GUC_COMPUTE_CLASS	4
+#define GUC_MAX_ENGINE_CLASSES	(GUC_COMPUTE_CLASS + 1)
 #define GUC_MAX_INSTANCES_PER_CLASS	4
 
 /* Work queue item header definitions */
@@ -638,7 +638,7 @@ struct guc_mmio_reg_state {
 struct guc_gt_system_info {
 	u32 slice_enabled;
 	u32 rcs_enabled;
-	u32 reserved0;
+	u32 ccs_enabled;
 	u32 bcs_enabled;
 	u32 vdbox_enable_mask;
 	u32 vdbox_sfc_support_mask;
