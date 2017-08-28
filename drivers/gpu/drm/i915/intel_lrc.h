@@ -105,6 +105,7 @@ struct drm_i915_private;
 struct i915_gem_context;
 
 void intel_lr_context_resume(struct drm_i915_private *dev_priv);
+void context_descriptor_eu_priority_update(struct i915_request *rq, u64 *desc);
 
 static inline uint64_t
 intel_lr_context_descriptor(struct i915_gem_context *ctx,

@@ -341,8 +341,10 @@ intel_engine_setup(struct drm_i915_private *dev_priv,
 	engine->uabi_class = intel_engine_classes[info->class].uabi_class;
 
 	/* features common between engines sharing EUs */
-	if (engine->class == RENDER_CLASS || engine->class == COMPUTE_CLASS)
+	if (engine->class == RENDER_CLASS || engine->class == COMPUTE_CLASS) {
 		engine->flags |= I915_ENGINE_HAS_RCS_REG_STATE;
+		engine->flags |= I915_ENGINE_HAS_EU_PRIORITY;
+	}
 
 	engine->context_size = __intel_engine_context_size(dev_priv,
 							   engine->class);

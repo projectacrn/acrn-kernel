@@ -573,6 +573,7 @@ struct intel_engine_cs {
 #define I915_ENGINE_SUPPORTS_STATS   BIT(1)
 #define I915_ENGINE_HAS_PREEMPTION   BIT(2)
 #define I915_ENGINE_HAS_RCS_REG_STATE	BIT(3)
+#define I915_ENGINE_HAS_EU_PRIORITY	BIT(4)
 	unsigned int flags;
 
 	/*

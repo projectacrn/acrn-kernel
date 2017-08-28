@@ -199,6 +199,44 @@ static inline bool need_preempt(const struct intel_engine_cs *engine,
 		!i915_request_completed(last));
 }
 
+static u32
+ctx_priority_to_lrc_desc_priority(int ctx_priority)
+{
+	if (ctx_priority < I915_CONTEXT_DEFAULT_PRIORITY)
+		return GEN12_CTX_PRIORITY_LOW;
+	else if (ctx_priority > I915_CONTEXT_DEFAULT_PRIORITY)
+		return GEN12_CTX_PRIORITY_HIGH;
+	else
+		return GEN12_CTX_PRIORITY_NORMAL;
+}
+
+/**
+ * context_descriptor_eu_priority_update() - set the context EU scheduling
+ * priority in lrc descriptor.
+ *
+ * @rq: the request.
+ * @desc: current lrc descriptor.
+ *
+ * Only certain platforms and engines support the context priority field
+ * in the lrc descriptor (to indicate the prioritization of the thread
+ * dispatch associated with the corresponding context).
+ */
+void context_descriptor_eu_priority_update(struct i915_request *rq, u64 *desc)
+{
+	struct intel_engine_cs *engine = rq->engine;
+
+	if (!HAS_CCS(engine->i915))
+		return;
+	if (!(engine->flags & I915_ENGINE_HAS_EU_PRIORITY))
+		return;
+	if (ctx_priority_to_lrc_desc_priority(rq->sched.attr.priority) ==
+	    (*desc & GEN12_CTX_PRIORITY_MASK))
+		return;
+
+	*desc &= ~GEN12_CTX_PRIORITY_MASK;
+	*desc |= ctx_priority_to_lrc_desc_priority(rq->sched.attr.priority);
+}
+
 /**
  * intel_lr_context_descriptor_update() - calculate & cache the descriptor
  * 					  descriptor for a pinned context
@@ -469,6 +507,8 @@ static u64 execlists_update_context(struct i915_request *rq)
 	 */
 	if (ppgtt && !i915_vm_is_48bit(&ppgtt->base))
 		execlists_update_context_pdps(ppgtt, reg_state);
+
+	context_descriptor_eu_priority_update(rq, &ce->lrc_desc);
 
 	return ce->lrc_desc;
 }
