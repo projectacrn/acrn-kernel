@@ -263,6 +263,9 @@ static u32 default_desc_template(const struct drm_i915_private *i915,
 	if (IS_GEN8(i915))
 		desc |= GEN8_CTX_L3LLC_COHERENT;
 
+	if (HAS_CCS(i915))
+		desc |= GEN12_CTX_PRIORITY_LOW;
+
 	/* TODO: WaDisableLiteRestore when we start using semaphore
 	 * signalling between Command Streamers
 	 * ring->ctx_desc_template |= GEN8_CTX_FORCE_RESTORE;

@@ -825,10 +825,12 @@ static void guc_add_request(struct intel_guc *guc, struct i915_request *rq)
 	struct intel_guc_client *client = guc->execbuf_client;
 	struct intel_engine_cs *engine = rq->engine;
 	struct intel_context *ce = &rq->ctx->engine[rq->engine->id];
-	u32 ctx_desc = lower_32_bits(intel_lr_context_descriptor(rq->ctx,
-								 engine));
+	u32 ctx_desc;
 	u32 ring_tail = intel_ring_set_tail(rq->ring, rq->tail);
 
+	/* be sure the ctx rcs/ccs priority is up to date */
+	context_descriptor_eu_priority_update(rq, &ce->lrc_desc);
+	ctx_desc = lower_32_bits(ce->lrc_desc);
 
 	spin_lock(&client->wq_lock);
 
