@@ -105,6 +105,7 @@ struct drm_i915_private;
 struct i915_gem_context;
 
 void intel_lr_context_resume(struct drm_i915_private *dev_priv);
+void context_descriptor_eu_priority_update(struct i915_request *rq, u64 *desc);
 
 void intel_execlists_set_default_submission(struct intel_engine_cs *engine);
 
