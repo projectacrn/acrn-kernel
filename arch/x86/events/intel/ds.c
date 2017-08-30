@@ -1857,7 +1857,8 @@ void __init intel_ds_init(void)
 					  PERF_SAMPLE_TIME |
 					  PERF_SAMPLE_DATA_SRC |
 					  PERF_SAMPLE_TRANSACTION |
-					  PERF_SAMPLE_REGS_USER);
+					  PERF_SAMPLE_REGS_USER |
+					  PERF_SAMPLE_REGS_INTR);
 			}
 			pr_cont("PEBS fmt4%c%s, ", pebs_type, pebs_qual);
 			break;
