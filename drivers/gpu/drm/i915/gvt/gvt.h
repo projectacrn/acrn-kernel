@@ -282,6 +282,8 @@ struct intel_gvt_mmio {
 	struct gvt_mmio_block *mmio_block;
 	unsigned int num_mmio_block;
 
+	void *mmio_host_cache;
+	bool host_cache_initialized;
 	DECLARE_HASHTABLE(mmio_info_table, INTEL_GVT_MMIO_HASH_BITS);
 	unsigned long num_tracked_mmio;
 };
