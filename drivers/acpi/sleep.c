@@ -672,6 +672,26 @@ static const struct platform_suspend_ops acpi_suspend_ops_old = {
 	.recover = acpi_pm_finish,
 };
 
+static BLOCKING_NOTIFIER_HEAD(s2idle_notifier_chain_head);
+
+int register_acpi_s2idle_wake_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&s2idle_notifier_chain_head,
+						nb);
+}
+
+int unregister_acpi_s2idle_wake_notifier(struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&s2idle_notifier_chain_head,
+						  nb);
+}
+
+static inline int acpi_s2idle_wake_notifier_post(void)
+{
+	return blocking_notifier_call_chain(&s2idle_notifier_chain_head,
+					    0, NULL);
+}
+
 static bool s2idle_in_progress;
 static bool s2idle_wakeup;
 
@@ -961,6 +981,8 @@ static void acpi_s2idle_wake(void)
 
 	if (pm_debug_messages_on)
 		lpi_check_constraints();
+
+	acpi_s2idle_wake_notifier_post();
 
 	/*
 	 * If IRQD_WAKEUP_ARMED is not set for the SCI at this point, it means
