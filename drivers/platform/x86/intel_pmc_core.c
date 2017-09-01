@@ -25,6 +25,7 @@
 #include <linux/io.h>
 #include <linux/pci.h>
 #include <linux/uaccess.h>
+#include <linux/acpi.h>
 
 #include <asm/cpu_device_id.h>
 #include <asm/intel-family.h>
@@ -201,17 +202,38 @@ static int pmc_core_check_read_lock_bit(void)
 }
 
 #if IS_ENABLED(CONFIG_DEBUG_FS)
+
+static bool pmc_debug_messages_on;
+
+static void pmc_core_printf(struct seq_file *s, const char *fmt_str, ...)
+{
+	struct va_format vaf;
+	va_list argptr;
+
+	va_start(argptr, fmt_str);
+
+	vaf.fmt = fmt_str;
+	vaf.va = &argptr;
+
+	if (s)
+		seq_printf(s, "%pV", &vaf);
+	else
+		pr_info("%pV", &vaf);
+
+	va_end(argptr);
+}
+
 static void pmc_core_display_map(struct seq_file *s, int index,
 				 u8 pf_reg, const struct pmc_bit_map *pf_map)
 {
-	seq_printf(s, "PCH IP: %-2d - %-32s\tState: %s\n",
-		   index, pf_map[index].name,
-		   pf_map[index].bit_mask & pf_reg ? "Off" : "On");
+	pmc_core_printf(s, "PCH IP: %-2d - %-32s\tState: %s\n",
+			index, pf_map[index].name,
+			pf_map[index].bit_mask & pf_reg ? "Off" : "On");
 }
 
 static int pmc_core_ppfear_sts_show(struct seq_file *s, void *unused)
 {
-	struct pmc_dev *pmcdev = s->private;
+	struct pmc_dev *pmcdev = s ? s->private : &pmc;
 	const struct pmc_bit_map *map = pmcdev->map->pfear_sts;
 	u8 pf_regs[PPFEAR_MAX_NUM_ENTRIES];
 	int index, iter;
@@ -272,14 +294,14 @@ static int pmc_core_send_msg(u32 *addr_xram)
 
 static int pmc_core_mphy_pg_sts_show(struct seq_file *s, void *unused)
 {
-	struct pmc_dev *pmcdev = s->private;
+	struct pmc_dev *pmcdev = s ? s->private : &pmc;
 	const struct pmc_bit_map *map = pmcdev->map->mphy_sts;
 	u32 mphy_core_reg_low, mphy_core_reg_high;
 	u32 val_low, val_high;
 	int index, err = 0;
 
 	if (pmcdev->pmc_xram_read_bit) {
-		seq_puts(s, "Access denied: please disable PMC_READ_DISABLE setting in BIOS.");
+		pmc_core_printf(s, "Access denied: please disable PMC_READ_DISABLE setting in BIOS.\n");
 		return 0;
 	}
 
@@ -305,17 +327,17 @@ static int pmc_core_mphy_pg_sts_show(struct seq_file *s, void *unused)
 	val_high = pmc_core_reg_read(pmcdev, SPT_PMC_MFPMC_OFFSET);
 
 	for (index = 0; map[index].name && index < 8; index++) {
-		seq_printf(s, "%-32s\tState: %s\n",
-			   map[index].name,
-			   map[index].bit_mask & val_low ? "Not power gated" :
-			   "Power gated");
+		pmc_core_printf(s, "%-32s\tState: %s\n",
+				map[index].name,
+				map[index].bit_mask & val_low ? "Not power gated" :
+				"Power gated");
 	}
 
 	for (index = 8; map[index].name; index++) {
-		seq_printf(s, "%-32s\tState: %s\n",
-			   map[index].name,
-			   map[index].bit_mask & val_high ? "Not power gated" :
-			   "Power gated");
+		pmc_core_printf(s, "%-32s\tState: %s\n",
+				map[index].name,
+				map[index].bit_mask & val_high ? "Not power gated" :
+				"Power gated");
 	}
 
 out_unlock:
@@ -337,13 +359,13 @@ static const struct file_operations pmc_core_mphy_pg_ops = {
 
 static int pmc_core_pll_show(struct seq_file *s, void *unused)
 {
-	struct pmc_dev *pmcdev = s->private;
+	struct pmc_dev *pmcdev = s ? s->private : &pmc;
 	const struct pmc_bit_map *map = pmcdev->map->pll_sts;
 	u32 mphy_common_reg, val;
 	int index, err = 0;
 
 	if (pmcdev->pmc_xram_read_bit) {
-		seq_puts(s, "Access denied: please disable PMC_READ_DISABLE setting in BIOS.");
+		pmc_core_printf(s, "Access denied: please disable PMC_READ_DISABLE setting in BIOS.\n");
 		return 0;
 	}
 
@@ -360,9 +382,9 @@ static int pmc_core_pll_show(struct seq_file *s, void *unused)
 	val = pmc_core_reg_read(pmcdev, SPT_PMC_MFPMC_OFFSET);
 
 	for (index = 0; map[index].name ; index++) {
-		seq_printf(s, "%-32s\tState: %s\n",
-			   map[index].name,
-			   map[index].bit_mask & val ? "Active" : "Idle");
+		pmc_core_printf(s, "%-32s\tState: %s\n",
+				map[index].name,
+				map[index].bit_mask & val ? "Active" : "Idle");
 	}
 
 out_unlock:
@@ -474,11 +496,38 @@ static int pmc_core_dbgfs_register(struct pmc_dev *pmcdev)
 	if (!file)
 		goto err;
 
+	file = debugfs_create_bool("pmc_debug_messages_on", 0644, dir,
+				   &pmc_debug_messages_on);
+	if (!file)
+		goto err;
+
 	return 0;
 err:
 	pmc_core_dbgfs_unregister(pmcdev);
 	return -ENODEV;
 }
+
+static int pmc_acpi_s2idle_wake_event(struct notifier_block *this,
+				      unsigned long event, void *ptr)
+{
+	if (pmc_debug_messages_on) {
+		pmc_core_ppfear_sts_show(NULL, NULL);
+		pmc_core_mphy_pg_sts_show(NULL, NULL);
+		pmc_core_pll_show(NULL, NULL);
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block acpi_s2idle_wake_notifier = {
+	.notifier_call = pmc_acpi_s2idle_wake_event,
+};
+
+static void pmc_core_acpi_wake_register(void)
+{
+	register_acpi_s2idle_wake_notifier(&acpi_s2idle_wake_notifier);
+}
+
 #else
 static inline int pmc_core_dbgfs_register(struct pmc_dev *pmcdev)
 {
@@ -486,6 +535,10 @@ static inline int pmc_core_dbgfs_register(struct pmc_dev *pmcdev)
 }
 
 static inline void pmc_core_dbgfs_unregister(struct pmc_dev *pmcdev)
+{
+}
+
+static inline void pmc_core_acpi_wake_register(void)
 {
 }
 #endif /* CONFIG_DEBUG_FS */
@@ -549,6 +602,9 @@ static int pmc_core_probe(struct pci_dev *dev, const struct pci_device_id *id)
 		dev_warn(&dev->dev, "PMC Core: debugfs register failed.\n");
 
 	pmc.has_slp_s0_res = true;
+
+	pmc_core_acpi_wake_register();
+
 	return 0;
 }
 
