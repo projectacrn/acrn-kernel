@@ -128,6 +128,9 @@ struct amd_nb {
 	 PERF_REG_X86_R14 | \
 	 PERF_REG_X86_R15)
 
+#define PEBS_XMM_REGS \
+	(0xffffffffULL << 32)
+
 /*
  * Per register state.
  */

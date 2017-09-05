@@ -3058,7 +3058,7 @@ static unsigned long intel_pmu_free_running_flags(struct perf_event *event)
 	if (!event->attr.exclude_kernel)
 		flags &= ~PERF_SAMPLE_REGS_USER;
 	if ((event->attr.sample_regs_user | event->attr.sample_regs_intr)
-			& ~PEBS_REGS)
+			& ~(PEBS_REGS | PEBS_XMM_REGS))
 		flags &= ~(PERF_SAMPLE_REGS_USER | PERF_SAMPLE_REGS_INTR);
 	return flags;
 }
