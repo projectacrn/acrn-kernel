@@ -1090,6 +1090,9 @@ static int stmmac_get_tunable(struct net_device *dev,
 	case ETHTOOL_TX_EST_TILS:
 	case ETHTOOL_TX_EST_PTOV:
 	case ETHTOOL_TX_EST_CTOV:
+	case ETHTOOL_TX_FPE_AFSZ:
+	case ETHTOOL_TX_FPE_HADV:
+	case ETHTOOL_TX_FPE_RADV:
 		if (priv->hw->mac->get_tsn_hwtunable)
 			ret = priv->hw->mac->get_tsn_hwtunable(dev,
 				tuna->id, data);
@@ -1118,6 +1121,9 @@ static int stmmac_set_tunable(struct net_device *dev,
 	case ETHTOOL_TX_EST_TILS:
 	case ETHTOOL_TX_EST_PTOV:
 	case ETHTOOL_TX_EST_CTOV:
+	case ETHTOOL_TX_FPE_AFSZ:
+	case ETHTOOL_TX_FPE_HADV:
+	case ETHTOOL_TX_FPE_RADV:
 		if (priv->hw->mac->set_tsn_hwtunable)
 			ret = priv->hw->mac->set_tsn_hwtunable(dev,
 				tuna->id, data);
