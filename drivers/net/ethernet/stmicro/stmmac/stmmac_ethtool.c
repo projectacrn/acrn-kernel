@@ -1086,6 +1086,15 @@ static int stmmac_get_tunable(struct net_device *dev,
 	case ETHTOOL_RX_COPYBREAK:
 		*(u32 *)data = priv->rx_copybreak;
 		break;
+	case ETHTOOL_TX_EST_TILS:
+	case ETHTOOL_TX_EST_PTOV:
+	case ETHTOOL_TX_EST_CTOV:
+		if (priv->hw->mac->get_tsn_hwtunable)
+			ret = priv->hw->mac->get_tsn_hwtunable(dev,
+				tuna->id, data);
+		else
+			ret = -EINVAL;
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -1104,6 +1113,15 @@ static int stmmac_set_tunable(struct net_device *dev,
 	switch (tuna->id) {
 	case ETHTOOL_RX_COPYBREAK:
 		priv->rx_copybreak = *(u32 *)data;
+		break;
+	case ETHTOOL_TX_EST_TILS:
+	case ETHTOOL_TX_EST_PTOV:
+	case ETHTOOL_TX_EST_CTOV:
+		if (priv->hw->mac->set_tsn_hwtunable)
+			ret = priv->hw->mac->set_tsn_hwtunable(dev,
+				tuna->id, data);
+		else
+			ret = -EINVAL;
 		break;
 	default:
 		ret = -EINVAL;
