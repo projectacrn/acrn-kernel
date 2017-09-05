@@ -3679,6 +3679,14 @@ static int stmmac_set_features(struct net_device *netdev,
 			priv->hw->mac->set_est_enable(netdev, 0);
 	}
 
+	if (changed & NETIF_F_HW_FPE &&
+	    priv->hw->mac->set_fpe_enable) {
+		if (features & NETIF_F_HW_FPE)
+			priv->hw->mac->set_fpe_enable(netdev, 1);
+		else
+			priv->hw->mac->set_fpe_enable(netdev, 0);
+	}
+
 	netdev->features = features;
 
 	return 0;
