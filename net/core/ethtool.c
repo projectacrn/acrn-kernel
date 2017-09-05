@@ -907,6 +907,8 @@ static noinline_for_stack int ethtool_get_drvinfo(struct net_device *dev,
 		info.regdump_len = ops->get_regs_len(dev);
 	if (ops->get_eeprom_len)
 		info.eedump_len = ops->get_eeprom_len(dev);
+	if (ops->get_est_gcl_depth)
+		info.gcl_depth = ops->get_est_gcl_depth(dev);
 
 	if (copy_to_user(useraddr, &info, sizeof(info)))
 		return -EFAULT;
