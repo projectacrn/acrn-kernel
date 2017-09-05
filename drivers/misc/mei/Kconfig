@@ -53,3 +53,6 @@ config INTEL_MEI_VIRTIO
 	  The module will be called mei_virtio.
 	  Enable this if your virtual machine supports virtual mei
 	  device over virtio.
+
+source "drivers/misc/mei/dal/Kconfig"
+
