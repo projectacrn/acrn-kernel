@@ -870,6 +870,48 @@ cnl_get_buf_trans_edp(struct drm_i915_private *dev_priv, int *n_entries)
 	}
 }
 
+static const struct icl_combo_phy_ddi_buf_trans *
+icl_get_combo_buf_trans_dp_hdmi(struct drm_i915_private *dev_priv,
+				u32 voltage, int *n_entries)
+{
+	switch (voltage) {
+	case VOLTAGE_INFO_0_85V:
+		*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_dp_hdmi_0_85V);
+		return icl_combo_phy_ddi_translations_dp_hdmi_0_85V;
+	case VOLTAGE_INFO_0_95V:
+		*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_dp_hdmi_0_95V);
+		return icl_combo_phy_ddi_translations_dp_hdmi_0_95V;
+	case VOLTAGE_INFO_1_05V:
+		*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_dp_hdmi_1_05V);
+		return icl_combo_phy_ddi_translations_dp_hdmi_1_05V;
+	default:
+		return NULL;
+	}
+}
+
+static const struct icl_combo_phy_ddi_buf_trans *
+icl_get_combo_buf_trans_edp(struct drm_i915_private *dev_priv,
+			    u32 voltage, int *n_entries)
+{
+	if (dev_priv->vbt.edp.low_vswing) {
+		switch (voltage) {
+		case VOLTAGE_INFO_0_85V:
+			*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_edp_0_85V);
+			return icl_combo_phy_ddi_translations_edp_0_85V;
+		case VOLTAGE_INFO_0_95V:
+			*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_edp_0_95V);
+			return icl_combo_phy_ddi_translations_edp_0_95V;
+		case VOLTAGE_INFO_1_05V:
+			*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_edp_1_05V);
+			return icl_combo_phy_ddi_translations_edp_1_05V;
+		default:
+			return NULL;
+		}
+	} else {
+		return icl_get_combo_buf_trans_dp_hdmi(dev_priv, voltage, n_entries);
+	}
+}
+
 static int intel_ddi_hdmi_level(struct drm_i915_private *dev_priv, enum port port)
 {
 	int n_entries, level, default_entry;
@@ -2211,48 +2253,6 @@ static void cnl_ddi_vswing_sequence(struct intel_encoder *encoder,
 	val = I915_READ(CNL_PORT_TX_DW5_LN0(port));
 	val |= TX_TRAINING_EN;
 	I915_WRITE(CNL_PORT_TX_DW5_GRP(port), val);
-}
-
-static const struct icl_combo_phy_ddi_buf_trans *
-icl_get_combo_buf_trans_dp_hdmi(struct drm_i915_private *dev_priv,
-				u32 voltage, int *n_entries)
-{
-	switch (voltage) {
-	case VOLTAGE_INFO_0_85V:
-		*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_dp_hdmi_0_85V);
-		return icl_combo_phy_ddi_translations_dp_hdmi_0_85V;
-	case VOLTAGE_INFO_0_95V:
-		*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_dp_hdmi_0_95V);
-		return icl_combo_phy_ddi_translations_dp_hdmi_0_95V;
-	case VOLTAGE_INFO_1_05V:
-		*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_dp_hdmi_1_05V);
-		return icl_combo_phy_ddi_translations_dp_hdmi_1_05V;
-	default:
-		return NULL;
-	}
-}
-
-static const struct icl_combo_phy_ddi_buf_trans *
-icl_get_combo_buf_trans_edp(struct drm_i915_private *dev_priv,
-			    u32 voltage, int *n_entries)
-{
-	if (dev_priv->vbt.edp.low_vswing) {
-		switch (voltage) {
-		case VOLTAGE_INFO_0_85V:
-			*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_edp_0_85V);
-			return icl_combo_phy_ddi_translations_edp_0_85V;
-		case VOLTAGE_INFO_0_95V:
-			*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_edp_0_95V);
-			return icl_combo_phy_ddi_translations_edp_0_95V;
-		case VOLTAGE_INFO_1_05V:
-			*n_entries = ARRAY_SIZE(icl_combo_phy_ddi_translations_edp_1_05V);
-			return icl_combo_phy_ddi_translations_edp_1_05V;
-		default:
-			return NULL;
-		}
-	} else {
-		return icl_get_combo_buf_trans_dp_hdmi(dev_priv, voltage, n_entries);
-	}
 }
 
 static void icl_ddi_combo_vswing_program(struct drm_i915_private *dev_priv,
