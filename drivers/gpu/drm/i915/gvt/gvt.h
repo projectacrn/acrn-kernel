@@ -232,6 +232,8 @@ struct intel_vgpu {
 	struct completion vblank_done;
 
 	u32 scan_nonprivbb;
+
+	bool entire_nonctxmmio_checked;
 };
 
 /* validating GM healthy status*/
