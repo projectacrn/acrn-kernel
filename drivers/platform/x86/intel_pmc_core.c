@@ -555,9 +555,41 @@ static const struct x86_cpu_id intel_pmc_core_ids[] = {
 	{}
 };
 
-static int pmc_core_probe(struct pci_dev *dev, const struct pci_device_id *id)
+static int pmc_core_init(struct pmc_dev *pmcdev, const struct pmc_reg_map *map)
 {
-	struct device *ptr_dev = &dev->dev;
+	static bool registered;
+	int err;
+
+	if (registered)
+		return -EEXIST;
+
+	pmcdev->regbase = ioremap_nocache(pmcdev->base_addr,
+					  map->regmap_length);
+	if (!pmcdev->regbase) {
+		pr_debug("PMC Core: ioremap failed.\n");
+		return -ENOMEM;
+	}
+
+	mutex_init(&pmcdev->lock);
+	pmcdev->map = map;
+	pmcdev->pmc_xram_read_bit = pmc_core_check_read_lock_bit();
+
+	err = pmc_core_dbgfs_register(pmcdev);
+	if (err < 0)
+		pr_warn("PMC Core: debugfs register failed.\n");
+
+	pmc.has_slp_s0_res = true;
+
+	pmc_core_acpi_wake_register();
+
+	registered = true;
+
+	return 0;
+}
+
+static int pmc_core_pci_probe(struct pci_dev *dev,
+			      const struct pci_device_id *id)
+{
 	struct pmc_dev *pmcdev = &pmc;
 	const struct x86_cpu_id *cpu_id;
 	const struct pmc_reg_map *map = (struct pmc_reg_map *)id->driver_data;
@@ -585,33 +617,55 @@ static int pmc_core_probe(struct pci_dev *dev, const struct pci_device_id *id)
 	pmcdev->base_addr &= PMC_BASE_ADDR_MASK;
 	dev_dbg(&dev->dev, "PMC Core: PWRMBASE is %#x\n", pmcdev->base_addr);
 
-	pmcdev->regbase = devm_ioremap_nocache(ptr_dev,
-					      pmcdev->base_addr,
-					      SPT_PMC_MMIO_REG_LEN);
-	if (!pmcdev->regbase) {
-		dev_dbg(&dev->dev, "PMC Core: ioremap failed.\n");
-		return -ENOMEM;
-	}
-
-	mutex_init(&pmcdev->lock);
-	pmcdev->map = map;
-	pmcdev->pmc_xram_read_bit = pmc_core_check_read_lock_bit();
-
-	err = pmc_core_dbgfs_register(pmcdev);
-	if (err < 0)
-		dev_warn(&dev->dev, "PMC Core: debugfs register failed.\n");
-
-	pmc.has_slp_s0_res = true;
-
-	pmc_core_acpi_wake_register();
-
-	return 0;
+	return pmc_core_init(pmcdev, map);
 }
 
 static struct pci_driver intel_pmc_core_driver = {
 	.name = "intel_pmc_core",
 	.id_table = pmc_pci_ids,
-	.probe = pmc_core_probe,
+	.probe =  pmc_core_pci_probe,
 };
 
 builtin_pci_driver(intel_pmc_core_driver);
+
+
+static const struct pci_device_id host_bridge_pci_ids[] = {
+	{ PCI_VDEVICE(INTEL, 0x590C), (kernel_ulong_t)&spt_reg_map },
+	{ 0, },
+};
+
+static int __init pmc_core_probe(void)
+{
+	struct pmc_dev *pmc_dev = &pmc;
+	struct pmc_reg_map *reg_map = NULL;
+	u64 base_address;
+	int i = 0;
+
+	if (lpit_read_residency_count_address(&base_address))
+		return -ENODEV;
+
+	pr_info ("SLP_S0 base address as %llx \n", base_address);
+
+	pmc_dev->base_addr = 0;
+	while (host_bridge_pci_ids[i].vendor) {
+		struct pci_dev *pdev;
+
+		pdev = pci_get_device(host_bridge_pci_ids[i].vendor,
+				      host_bridge_pci_ids[i].device,
+				      NULL);
+		if (pdev) {
+			reg_map = (struct pmc_reg_map *) host_bridge_pci_ids[i].driver_data;
+			base_address -= reg_map->slp_s0_offset;
+			pmc_dev->base_addr = base_address;
+			pr_info ("Final base address as %llx \n", base_address);
+		}
+		++i;
+	}
+
+	if (!pmc_dev->base_addr)
+		return -ENODEV;
+
+	return pmc_core_init(pmc_dev, reg_map);
+}
+
+late_initcall(pmc_core_probe);
