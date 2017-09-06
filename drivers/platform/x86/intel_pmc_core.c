@@ -120,6 +120,89 @@ static const struct pmc_reg_map spt_reg_map = {
 	.pm_read_disable_bit = SPT_PMC_READ_DISABLE_BIT,
 };
 
+static const struct pmc_bit_map cnp_pfear_map[] = {
+	{"PMC",			BIT(0)},
+	{"OPI-DMI",		BIT(1)},
+	{"SPI/eSPI",		BIT(2)},
+	{"XHCI",		BIT(3)},
+	{"SPA",			BIT(4)},
+	{"SPB",			BIT(5)},
+	{"SPC",			BIT(6)},
+	{"GBE",			BIT(7)},
+
+	{"SATA",		BIT(0)},
+	{"HDA_PGD0",		BIT(1)},
+	{"HDA_PGD1",		BIT(2)},
+	{"HDA_PGD2",		BIT(3)},
+	{"HDA_PGD3",		BIT(4)},
+	{"SPD",			BIT(5)},
+	{"LPSS",		BIT(6)},
+	{"LPC",			BIT(7)},
+
+	{"SMB",			BIT(0)},
+	{"ISH",			BIT(1)},
+	{"P2SB",		BIT(2)},
+	{"NPK_VNN",		BIT(3)},
+	{"SDX",			BIT(4)},
+	{"SPE",			BIT(5)},
+	{"Fuse",		BIT(6)},
+	{"Res_23",		BIT(7)},
+
+	{"CSME_FSC",		BIT(0)},
+	{"USB3_OTG",		BIT(1)},
+	{"EXI",			BIT(2)},
+	{"CSE",			BIT(3)},
+	{"csme_kvm",		BIT(4)},
+	{"csme_pmt",		BIT(5)},
+	{"csme_clink",		BIT(6)},
+	{"csme_ptio",		BIT(7)},
+
+	{"csme_usbr",		BIT(0)},
+	{"csme_susram",		BIT(1)},
+	{"csme_smt1",		BIT(2)},
+	{"CSME_SMT4",		BIT(3)},
+	{"csme_sms2",		BIT(4)},
+	{"csme_sms1",		BIT(5)},
+	{"csme_rtc",		BIT(6)},
+	{"csme_psf",		BIT(7)},
+
+	{"SBR0",		BIT(0)},
+	{"SBR1",		BIT(1)},
+	{"SBR2",		BIT(2)},
+	{"SBR3",		BIT(3)},
+	{"SBR4",		BIT(4)},
+	{"SBR5",		BIT(5)},
+	{"CSME_PECI",		BIT(6)},
+	{"PSF1",		BIT(7)},
+
+	{"PSF2",		BIT(0)},
+	{"PSF3",		BIT(1)},
+	{"PSF4",		BIT(2)},
+	{"CNVI",		BIT(3)},
+	{"UFS0",		BIT(4)},
+	{"EMMC",		BIT(5)},
+	{"Res_6",		BIT(6)},
+	{"SBR6",		BIT(7)},
+
+	{"SBR7",		BIT(0)},
+	{"NPK_AON",		BIT(1)},
+	{"HDA_PGD4",		BIT(2)},
+	{"HDA_PGD5",		BIT(3)},
+	{"HDA_PGD6",		BIT(4)},
+	{}
+};
+
+static const struct pmc_reg_map cnp_reg_map = {
+	.pfear_sts = cnp_pfear_map,
+	.slp_s0_offset = CNP_PMC_SLP_S0_RES_COUNTER_OFFSET,
+	.ltr_ignore_offset = CNP_PMC_LTR_IGNORE_OFFSET,
+	.regmap_length = CNP_PMC_MMIO_REG_LEN,
+	.ppfear0_offset = CNP_PMC_HOST_PPFEAR0A,
+	.ppfear_buckets = CNP_PPFEAR_NUM_ENTRIES,
+	.pm_cfg_offset = CNP_PMC_PM_CFG_OFFSET,
+	.pm_read_disable_bit = CNP_PMC_READ_DISABLE_BIT,
+};
+
 static const struct pci_device_id pmc_pci_ids[] = {
 	{ PCI_VDEVICE(INTEL, SPT_PMC_PCI_DEVICE_ID),
 					(kernel_ulong_t)&spt_reg_map },
@@ -300,6 +383,9 @@ static int pmc_core_mphy_pg_sts_show(struct seq_file *s, void *unused)
 	u32 val_low, val_high;
 	int index, err = 0;
 
+	if (!pmcdev->map->mphy_sts)
+		return 0;
+
 	if (pmcdev->pmc_xram_read_bit) {
 		pmc_core_printf(s, "Access denied: please disable PMC_READ_DISABLE setting in BIOS.\n");
 		return 0;
@@ -363,6 +449,9 @@ static int pmc_core_pll_show(struct seq_file *s, void *unused)
 	const struct pmc_bit_map *map = pmcdev->map->pll_sts;
 	u32 mphy_common_reg, val;
 	int index, err = 0;
+
+	if (!pmcdev->map->pll_sts)
+		return 0;
 
 	if (pmcdev->pmc_xram_read_bit) {
 		pmc_core_printf(s, "Access denied: please disable PMC_READ_DISABLE setting in BIOS.\n");
@@ -477,17 +566,22 @@ static int pmc_core_dbgfs_register(struct pmc_dev *pmcdev)
 	if (!file)
 		goto err;
 
-	file = debugfs_create_file("mphy_core_lanes_power_gating_status",
-				   S_IFREG | S_IRUGO, dir, pmcdev,
-				   &pmc_core_mphy_pg_ops);
-	if (!file)
-		goto err;
+	if (pmcdev->map->mphy_sts) {
+		file = debugfs_create_file("mphy_core_lanes_power_gating_status",
+					   S_IFREG | S_IRUGO, dir, pmcdev,
+					   &pmc_core_mphy_pg_ops);
+		if (!file)
+			goto err;
+	}
 
-	file = debugfs_create_file("pll_status",
-				   S_IFREG | S_IRUGO, dir, pmcdev,
-				   &pmc_core_pll_ops);
-	if (!file)
-		goto err;
+	if (pmcdev->map->pll_sts) {
+		file = debugfs_create_file("pll_status",
+					   S_IFREG | S_IRUGO, dir,
+					   pmcdev,
+					   &pmc_core_pll_ops);
+		if (!file)
+			goto err;
+	}
 
 	file = debugfs_create_file("ltr_ignore",
 				   S_IFREG | S_IRUGO, dir, pmcdev,
@@ -631,6 +725,8 @@ builtin_pci_driver(intel_pmc_core_driver);
 
 static const struct pci_device_id host_bridge_pci_ids[] = {
 	{ PCI_VDEVICE(INTEL, 0x590C), (kernel_ulong_t)&spt_reg_map },
+	{ PCI_VDEVICE(INTEL, 0x3ED0), (kernel_ulong_t)&cnp_reg_map },
+	{ PCI_VDEVICE(INTEL, 0x3EC4), (kernel_ulong_t)&cnp_reg_map },
 	{ 0, },
 };
 
