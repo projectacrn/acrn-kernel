@@ -8597,20 +8597,28 @@ static void icl_init_clock_gating(struct drm_i915_private *dev_priv)
 	I915_WRITE(GEN8_L3SQCREG4, (I915_READ(GEN8_L3SQCREG4) |
 				    GEN8_LQSC_FLUSH_COHERENT_LINES));
 
-	/* WaDisableCleanEvicts:icl */
-	I915_WRITE(GEN8_L3SQCREG4, (I915_READ(GEN8_L3SQCREG4) |
-				    GEN11_LQSC_CLEAN_EVICT_DISABLE));
+	if (!IS_ICL_11_5(dev_priv)) {
+		/* WaDisableCleanEvicts:icl */
+		I915_WRITE(GEN8_L3SQCREG4, (I915_READ(GEN8_L3SQCREG4) |
+					    GEN11_LQSC_CLEAN_EVICT_DISABLE));
 
-	/* WaDisCtxReload:icl */
-	I915_WRITE(GAMW_ECO_DEV_RW_IA_REG, (I915_READ(GAMW_ECO_DEV_RW_IA_REG) |
-					    GAMW_ECO_DEV_CTX_RELOAD_DISABLE));
+		/* WaDisCtxReload:icl */
+		I915_WRITE(GAMW_ECO_DEV_RW_IA_REG,
+			   (I915_READ(GAMW_ECO_DEV_RW_IA_REG) |
+			    GAMW_ECO_DEV_CTX_RELOAD_DISABLE));
 
-	I915_WRITE(GEN8_GARBCNTL,
-		   /* WaL3BankAddressHashing:icl */
-		   ((I915_READ(GEN8_GARBCNTL) & ~GEN11_HASH_CTRL_EXCL_MASK) |
-		    GEN11_HASH_CTRL_EXCL_BIT0 |
-		    /* WaGAPZPriorityScheme:icl */
-		    GEN11_ARBITRATION_PRIO_ORDER_MASK));
+		I915_WRITE(GEN8_GARBCNTL,
+			   /* WaL3BankAddressHashing:icl */
+			   ((I915_READ(GEN8_GARBCNTL) & ~GEN11_HASH_CTRL_EXCL_MASK) |
+			    GEN11_HASH_CTRL_EXCL_BIT0 |
+			    /* WaGAPZPriorityScheme:icl */
+			    GEN11_ARBITRATION_PRIO_ORDER_MASK));
+	} else {
+		/* WaL3BankAddressHashing:icl */
+		I915_WRITE(GEN8_GARBCNTL,
+			   ((I915_READ(GEN8_GARBCNTL) & ~GEN11_HASH_CTRL_EXCL_MASK) |
+			    GEN11_HASH_CTRL_EXCL_BIT0));
+	}
 
 	/* WaL3BankAddressHashing:icl */
 	I915_WRITE(GEN11_GLBLINVL,

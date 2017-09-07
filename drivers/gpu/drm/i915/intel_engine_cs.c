@@ -1448,13 +1448,16 @@ static int icl_init_workarounds(struct intel_engine_cs *engine)
 	struct drm_i915_private *dev_priv = engine->i915;
 	int ret;
 
-	/* WaPushConstantDereferenceHoldDisable:icl (pre-prod) */
-	if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_A0))
-		WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2,
-				  PUSH_CONSTANT_DEREF_DISABLE);
+	if (!IS_ICL_11_5(dev_priv)) {
+		/* WaPushConstantDereferenceHoldDisable:icl (pre-prod) */
+		if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_A0))
+			WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2,
+					  PUSH_CONSTANT_DEREF_DISABLE);
 
-	/* WaDisableImprovedTdlClkGating:icl */
-	WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2, GEN11_TDL_CLOCK_GATING_FIX_DISABLE);
+		/* WaDisableImprovedTdlClkGating:icl */
+		WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2,
+				  GEN11_TDL_CLOCK_GATING_FIX_DISABLE);
+	}
 
 	/* WaForceEnableNonCoherent:icl */
 	WA_SET_BIT_MASKED(ICL_HDC_CHICKEN0, HDC_FORCE_NON_COHERENT);
