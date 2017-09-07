@@ -8596,6 +8596,11 @@ static void icl_init_clock_gating(struct drm_i915_private *dev_priv)
 	/* WaGAPZPriorityScheme:icl */
 	I915_WRITE(GEN8_GARBCNTL, (I915_READ(GEN8_GARBCNTL) |
 				   GEN11_ARBITRATION_PRIO_ORDER_MASK));
+
+	/* WaModifyGamTlbPartitioning:icl */
+	I915_WRITE(GEN11_GACB_PERF_CTRL,
+		   ((I915_READ(GEN11_GACB_PERF_CTRL) & ~GEN11_HASH_CTRL_MASK) |
+		    GEN11_HASH_CTRL_BIT0 | GEN11_HASH_CTRL_BIT4));
 }
 
 static void cnl_init_clock_gating(struct drm_i915_private *dev_priv)
