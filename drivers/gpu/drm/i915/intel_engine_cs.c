@@ -1428,6 +1428,7 @@ static int cfl_init_workarounds(struct intel_engine_cs *engine)
 static int icl_init_workarounds(struct intel_engine_cs *engine)
 {
 	struct drm_i915_private *dev_priv = engine->i915;
+	int ret;
 
 	/* WaPushConstantDereferenceHoldDisable:icl (pre-prod) */
 	if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_A0))
@@ -1439,6 +1440,11 @@ static int icl_init_workarounds(struct intel_engine_cs *engine)
 
 	/* WaForceEnableNonCoherent:icl */
 	WA_SET_BIT_MASKED(ICL_HDC_CHICKEN0, HDC_FORCE_NON_COHERENT);
+
+	/* WaSendPushConstantsFromMMIO:icl */
+	ret = wa_ring_whitelist_reg(engine, COMMON_SLICE_CHICKEN2);
+	if (ret)
+		return ret;
 
 	return 0;
 }
