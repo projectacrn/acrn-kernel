@@ -1382,6 +1382,14 @@ static int kbl_init_workarounds(struct intel_engine_cs *engine)
 	if (ret)
 		return ret;
 
+	/* WaAllowUmdWriteTRTTRootTable:icl */
+	ret = wa_ring_whitelist_reg(engine, TR_VA_TTL3_PTR_DW0);
+	if (ret)
+		return ret;
+	ret = wa_ring_whitelist_reg(engine, TR_VA_TTL3_PTR_DW1);
+	if (ret)
+		return ret;
+
 	return 0;
 }
 
