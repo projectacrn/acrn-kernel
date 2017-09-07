@@ -60,6 +60,8 @@ static void dwmac4_core_init(struct mac_device_info *hw, int mtu)
 		value |= GMAC_INT_PMT_EN;
 	if (hw->pcs)
 		value |= GMAC_PCS_IRQ_DEFAULT;
+	if (hw->tsn_cap & TSN_CAP_FPE)
+		value |= GMAC_INT_FPE_EN;
 
 	writel(value, ioaddr + GMAC_INT_EN);
 }
@@ -1090,6 +1092,7 @@ static const struct stmmac_ops dwmac5_xpcs_ops = {
 	.set_fpe_enable = dwmac_set_fpe_enable,
 	.get_fpe_config = dwmac_get_fpe_config,
 	.get_fpe_pmac_sts = dwmac_get_fpe_pmac_sts,
+	.fpe_irq_status = dwmac_fpe_irq_status,
 };
 
 static const struct stmmac_ops dwmac5_ops = {

@@ -3765,6 +3765,10 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 		    priv->hw->mac->est_irq_status)
 			priv->hw->mac->est_irq_status(dev);
 
+		if ((priv->hw->tsn_cap & TSN_CAP_FPE) &&
+		    priv->hw->mac->fpe_irq_status)
+			priv->hw->mac->fpe_irq_status(dev);
+
 		/* PCS link status */
 		if (priv->hw->pcs) {
 			if (priv->xstats.pcs_link)
@@ -4333,6 +4337,7 @@ int stmmac_dvr_probe(struct device *device,
 	    priv->tsn_hwcap.fpe_support) {
 		ndev->hw_features |= NETIF_F_HW_FPE;
 		priv->tsn_fpe = true;
+		priv->hw->tsn_cap |= TSN_CAP_FPE;
 		dev_info(priv->device, "FPE feature enabled\n");
 	}
 

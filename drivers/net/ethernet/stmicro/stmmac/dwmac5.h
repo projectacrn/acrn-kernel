@@ -25,6 +25,8 @@
  * In addition, the IP supports Time-based Scheduling (TBS).
  */
 
+#define GMAC_INT_FPE_EN			BIT(17)
+
 /* FPRQ only available in EQoS ver5.00 MAC_RxQ_Ctrl1 */
 #define GMAC_RXQCTRL_FPRQ_MASK		GENMASK(26, 24)	/* FPE Residue Queue */
 #define GMAC_RXQCTRL_FPRQ_SHIFT		24
@@ -163,4 +165,5 @@ int dwmac_set_fpe_enable(struct net_device *ndev, bool enable);
 int dwmac_get_fpe_config(struct net_device *ndev, struct fpe_config **fpec,
 			 bool frmdrv);
 int dwmac_get_fpe_pmac_sts(struct net_device *ndev, u32 *hrs);
+int dwmac_fpe_irq_status(struct net_device *ndev);
 #endif /* __DWMAC5_H__ */

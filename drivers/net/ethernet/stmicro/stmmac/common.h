@@ -52,6 +52,7 @@
 #define STMMAC_FLAG_VLAN_PROMISC	BIT(0)
 
 /* tsn capability,  meant for mac_device_info->tsn_cap */
+#define TSN_CAP_FPE			BIT(1)
 #define TSN_CAP_EST			BIT(0)
 
 /* Extra statistic and debug information exposed by ethtool */
