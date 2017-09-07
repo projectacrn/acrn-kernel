@@ -8581,7 +8581,17 @@ static void cnp_init_clock_gating(struct drm_i915_private *dev_priv)
 
 static void icl_init_clock_gating(struct drm_i915_private *dev_priv)
 {
+	/* This is not an Wa. Enable for better image quality */
+	I915_WRITE(_3D_CHICKEN3,
+		   _MASKED_BIT_ENABLE(_3D_CHICKEN3_AA_LINE_QUALITY_FIX_ENABLE));
 
+	/* WaInPlaceDecompressionHang:icl */
+	I915_WRITE(GEN9_GAMT_ECO_REG_RW_IA, (I915_READ(GEN9_GAMT_ECO_REG_RW_IA) |
+					     GAMT_ECO_ENABLE_IN_PLACE_DECOMPRESS));
+
+	/* WaPipelineFlushCoherentLines:icl */
+	I915_WRITE(GEN8_L3SQCREG4, (I915_READ(GEN8_L3SQCREG4) |
+				    GEN8_LQSC_FLUSH_COHERENT_LINES));
 }
 
 static void cnl_init_clock_gating(struct drm_i915_private *dev_priv)

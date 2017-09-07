@@ -1425,6 +1425,18 @@ static int cfl_init_workarounds(struct intel_engine_cs *engine)
 	return 0;
 }
 
+static int icl_init_workarounds(struct intel_engine_cs *engine)
+{
+	struct drm_i915_private *dev_priv = engine->i915;
+
+	/* WaPushConstantDereferenceHoldDisable:icl (pre-prod) */
+	if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_A0))
+		WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2,
+				  PUSH_CONSTANT_DEREF_DISABLE);
+
+	return 0;
+}
+
 int init_workarounds_ring(struct intel_engine_cs *engine)
 {
 	struct drm_i915_private *dev_priv = engine->i915;
@@ -1451,6 +1463,8 @@ int init_workarounds_ring(struct intel_engine_cs *engine)
 		err = cfl_init_workarounds(engine);
 	else if (IS_CANNONLAKE(dev_priv))
 		err = cnl_init_workarounds(engine);
+	else if (IS_ICELAKE(dev_priv))
+		err = icl_init_workarounds(engine);
 	else
 		err = 0;
 	if (err)
