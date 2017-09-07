@@ -8593,9 +8593,17 @@ static void icl_init_clock_gating(struct drm_i915_private *dev_priv)
 	I915_WRITE(GEN8_L3SQCREG4, (I915_READ(GEN8_L3SQCREG4) |
 				    GEN8_LQSC_FLUSH_COHERENT_LINES));
 
-	/* WaGAPZPriorityScheme:icl */
-	I915_WRITE(GEN8_GARBCNTL, (I915_READ(GEN8_GARBCNTL) |
-				   GEN11_ARBITRATION_PRIO_ORDER_MASK));
+	I915_WRITE(GEN8_GARBCNTL,
+		   /* WaL3BankAddressHashing:icl */
+		   ((I915_READ(GEN8_GARBCNTL) & ~GEN11_HASH_CTRL_EXCL_MASK) |
+		    GEN11_HASH_CTRL_EXCL_BIT0 |
+		    /* WaGAPZPriorityScheme:icl */
+		    GEN11_ARBITRATION_PRIO_ORDER_MASK));
+
+	/* WaL3BankAddressHashing:icl */
+	I915_WRITE(GEN11_GLBLINVL,
+		   ((I915_READ(GEN11_GLBLINVL) & ~GEN11_BANK_HASH_ADDR_EXCL_MASK) |
+		    GEN11_BANK_HASH_ADDR_EXCL_BIT0));
 
 	/* WaModifyGamTlbPartitioning:icl */
 	I915_WRITE(GEN11_GACB_PERF_CTRL,

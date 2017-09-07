@@ -8595,6 +8595,12 @@ enum {
 #define GEN8_GARBCNTL				_MMIO(0xB004)
 #define   GEN9_GAPS_TSV_CREDIT_DISABLE		(1 << 7)
 #define   GEN11_ARBITRATION_PRIO_ORDER_MASK	(0x3f << 22)
+#define   GEN11_HASH_CTRL_EXCL_MASK		(0x7f << 0)
+#define   GEN11_HASH_CTRL_EXCL_BIT0		(1 << 0)
+
+#define GEN11_GLBLINVL				_MMIO(0xB404)
+#define   GEN11_BANK_HASH_ADDR_EXCL_BIT0	(1 << 0)
+#define   GEN11_BANK_HASH_ADDR_EXCL_MASK	(0x3f << 5)
 
 #define GEN11_GACB_PERF_CTRL			_MMIO(0x4B80)
 #define   GEN11_HASH_CTRL_MASK			(0x3 << 12 | 0xf << 0)
