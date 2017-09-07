@@ -8613,6 +8613,11 @@ static void icl_init_clock_gating(struct drm_i915_private *dev_priv)
 	I915_WRITE(GEN11_GACB_PERF_CTRL,
 		   ((I915_READ(GEN11_GACB_PERF_CTRL) & ~GEN11_HASH_CTRL_MASK) |
 		    GEN11_HASH_CTRL_BIT0 | GEN11_HASH_CTRL_BIT4));
+
+	/* WaCL2SFHalfMaxAlloc:icl */
+	I915_WRITE(GEN11_LSN_UNSLCVC, (I915_READ(GEN11_LSN_UNSLCVC) |
+				       GEN11_LSN_UNSLCVC_GAFS_HALF_SF_MAXALLOC |
+				       GEN11_LSN_UNSLCVC_GAFS_HALF_CL2_MACALLOC));
 }
 
 static void cnl_init_clock_gating(struct drm_i915_private *dev_priv)
