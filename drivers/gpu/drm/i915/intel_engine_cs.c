@@ -1437,6 +1437,9 @@ static int icl_init_workarounds(struct intel_engine_cs *engine)
 	/* WaDisableImprovedTdlClkGating:icl */
 	WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2, GEN11_TDL_CLOCK_GATING_FIX_DISABLE);
 
+	/* WaForceEnableNonCoherent:icl */
+	WA_SET_BIT_MASKED(ICL_HDC_CHICKEN0, HDC_FORCE_NON_COHERENT);
+
 	return 0;
 }
 
