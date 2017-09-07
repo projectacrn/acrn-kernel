@@ -8593,6 +8593,10 @@ static void icl_init_clock_gating(struct drm_i915_private *dev_priv)
 	I915_WRITE(GEN8_L3SQCREG4, (I915_READ(GEN8_L3SQCREG4) |
 				    GEN8_LQSC_FLUSH_COHERENT_LINES));
 
+	/* WaDisableCleanEvicts:icl */
+	I915_WRITE(GEN8_L3SQCREG4, (I915_READ(GEN8_L3SQCREG4) |
+				    GEN11_LQSC_CLEAN_EVICT_DISABLE));
+
 	I915_WRITE(GEN8_GARBCNTL,
 		   /* WaL3BankAddressHashing:icl */
 		   ((I915_READ(GEN8_GARBCNTL) & ~GEN11_HASH_CTRL_EXCL_MASK) |
