@@ -8592,8 +8592,9 @@ enum {
 #define   GEN8_DOP_CLOCK_GATE_GUC_ENABLE	(1<<4)
 #define   GEN8_DOP_CLOCK_GATE_MEDIA_ENABLE     (1<<6)
 
-#define GEN8_GARBCNTL                   _MMIO(0xB004)
-#define   GEN9_GAPS_TSV_CREDIT_DISABLE  (1<<7)
+#define GEN8_GARBCNTL				_MMIO(0xB004)
+#define   GEN9_GAPS_TSV_CREDIT_DISABLE		(1 << 7)
+#define   GEN11_ARBITRATION_PRIO_ORDER_MASK	(0x3f << 22)
 
 /* IVYBRIDGE DPF */
 #define GEN7_L3CDERRST1(slice)		_MMIO(0xB008 + (slice) * 0x200) /* L3CD Error Status 1 */

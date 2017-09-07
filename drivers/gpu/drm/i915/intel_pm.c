@@ -8592,6 +8592,10 @@ static void icl_init_clock_gating(struct drm_i915_private *dev_priv)
 	/* WaPipelineFlushCoherentLines:icl */
 	I915_WRITE(GEN8_L3SQCREG4, (I915_READ(GEN8_L3SQCREG4) |
 				    GEN8_LQSC_FLUSH_COHERENT_LINES));
+
+	/* WaGAPZPriorityScheme:icl */
+	I915_WRITE(GEN8_GARBCNTL, (I915_READ(GEN8_GARBCNTL) |
+				   GEN11_ARBITRATION_PRIO_ORDER_MASK));
 }
 
 static void cnl_init_clock_gating(struct drm_i915_private *dev_priv)
