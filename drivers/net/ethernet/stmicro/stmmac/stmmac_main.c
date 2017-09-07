@@ -3744,6 +3744,10 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 			}
 		}
 
+		if (priv->hw->tsn_cap & TSN_CAP_EST &&
+		    priv->hw->mac->est_irq_status)
+			priv->hw->mac->est_irq_status(dev);
+
 		/* PCS link status */
 		if (priv->hw->pcs) {
 			if (priv->xstats.pcs_link)
@@ -4304,6 +4308,7 @@ int stmmac_dvr_probe(struct device *device,
 	    priv->tsn_hwcap.est_support) {
 		ndev->hw_features |= NETIF_F_HW_EST;
 		priv->tsn_est = true;
+		priv->hw->tsn_cap |= TSN_CAP_EST;
 		dev_info(priv->device, "EST feature enabled\n");
 	}
 

@@ -51,6 +51,9 @@
 
 #define STMMAC_FLAG_VLAN_PROMISC	BIT(0)
 
+/* tsn capability,  meant for mac_device_info->tsn_cap */
+#define TSN_CAP_EST			BIT(0)
+
 /* Extra statistic and debug information exposed by ethtool */
 struct stmmac_extra_stats {
 	/* Transmit errors */
@@ -704,6 +707,7 @@ struct mac_device_info {
 	unsigned int num_vlan;
 	u32 vlan_filter[32];
 	u32 flags;
+	u32 tsn_cap;
 };
 
 struct stmmac_rx_routing {

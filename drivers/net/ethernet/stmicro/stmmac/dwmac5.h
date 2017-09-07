@@ -121,4 +121,5 @@ int dwmac_set_est_gcrr_times(struct net_device *ndev,
 int dwmac_set_est_enable(struct net_device *ndev, bool enable);
 int dwmac_get_est_gcc(struct net_device *ndev,
 		      struct est_gc_config **gcc, bool frmdrv);
+int dwmac_est_irq_status(struct net_device *ndev);
 #endif /* __DWMAC5_H__ */
