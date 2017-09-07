@@ -903,6 +903,10 @@ static void icl_whitelist_build(struct whitelist *w)
 
 	/* WaAllowUMDToModifyHalfSliceChicken7:icl */
 	whitelist_reg(w, GEN9_HALF_SLICE_CHICKEN7);
+
+	/* WaAllowUmdWriteTRTTRootTable:icl */
+	whitelist_reg(w, TR_VA_TTL3_PTR_DW0);
+	whitelist_reg(w, TR_VA_TTL3_PTR_DW1);
 }
 
 static struct whitelist *whitelist_build(struct intel_engine_cs *engine,

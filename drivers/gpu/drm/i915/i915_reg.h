@@ -8487,6 +8487,9 @@ enum {
 #define GAMW_ECO_DEV_RW_IA_REG			_MMIO(0x4080)
 #define   GAMW_ECO_DEV_CTX_RELOAD_DISABLE	(1 << 7)
 
+#define TR_VA_TTL3_PTR_DW0		_MMIO(0x4DE0)
+#define TR_VA_TTL3_PTR_DW1		_MMIO(0x4DE4)
+
 /* IVYBRIDGE DPF */
 #define GEN7_L3CDERRST1(slice)		_MMIO(0xB008 + (slice) * 0x200) /* L3CD Error Status 1 */
 #define   GEN7_L3CDERRST1_ROW_MASK	(0x7ff<<14)
