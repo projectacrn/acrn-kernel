@@ -897,6 +897,9 @@ static void icl_whitelist_build(struct whitelist *w)
 {
 	/* WaSendPushConstantsFromMMIO:icl */
 	whitelist_reg(w, COMMON_SLICE_CHICKEN2);
+
+	/* WaAllowUMDToModifyHalfSliceChicken2:icl */
+	whitelist_reg(w, HALF_SLICE_CHICKEN2);
 }
 
 static struct whitelist *whitelist_build(struct intel_engine_cs *engine,
