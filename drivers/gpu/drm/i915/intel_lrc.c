@@ -267,15 +267,11 @@ intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 	if (INTEL_GEN(ctx->i915) >= 11) {
 		desc |= (u64)engine->class << GEN11_ENGINE_CLASS_SHIFT;
 								/* bits 61-63 */
-
-		/*
-		 * TODO: use SW counter (bits 60-55) to support more CTXs by
-		 * combining it with the SW context ID field?
-		 */
-
+		desc |= (u64)ce->sw_counter << GEN11_SW_COUNTER_SHIFT;
+								/* bits 55-60 */
 		desc |= (u64)engine->instance << GEN11_ENGINE_INSTANCE_SHIFT;
 								/* bits 53-48 */
-		desc |= (u64)ctx->hw_id << GEN11_SW_CTX_ID_SHIFT;
+		desc |= (u64)ce->sw_context_id << GEN11_SW_CTX_ID_SHIFT;
 								/* bits 37-47 */
 	} else {
 		desc |= (u64)ctx->hw_id << GEN8_CTX_ID_SHIFT;	/* bits 32-52 */
@@ -2370,6 +2366,11 @@ static int execlists_context_deferred_alloc(struct i915_gem_context *ctx,
 
 	ce->ring = ring;
 	ce->state = vma;
+
+	if (INTEL_GEN(ctx->i915) >= 11) {
+		ce->sw_context_id = ctx->hw_id;
+		ce->sw_counter = engine->instance;
+	}
 
 	return 0;
 

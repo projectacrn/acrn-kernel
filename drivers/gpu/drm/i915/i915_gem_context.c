@@ -213,9 +213,12 @@ static int assign_hw_id(struct drm_i915_private *dev_priv, unsigned *out)
 	int ret;
 	unsigned int max;
 
-	if (INTEL_GEN(dev_priv) >= 11)
-		max = GEN11_MAX_CONTEXT_HW_ID;
-	else
+	if (INTEL_GEN(dev_priv) >= 11) {
+		if (i915_modparams.enable_guc_submission)
+			max = GEN11_MAX_CONTEXT_HW_ID_WITH_GUC;
+		else
+			max = GEN11_MAX_CONTEXT_HW_ID;
+	} else
 		max = MAX_CONTEXT_HW_ID;
 
 	ret = ida_simple_get(&dev_priv->contexts.hw_ida,
