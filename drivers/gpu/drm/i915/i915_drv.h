@@ -1849,11 +1849,16 @@ struct drm_i915_private {
 
 		/* The hw wants to have a stable context identifier for the
 		 * lifetime of the context (for OA, PASID, faults, etc).
-		 * This is limited in execlists to 21 bits.
+		 * This is limited in execlists to 21 bits. In enhanced execlist
+		 * (GEN11+) this is limited to 11 bits (the SW Context ID field)
+		 * but GuC limits it a bit further (11 bits - 16) due to some
+		 * entries being reserved for future use (so the firmware only
+		 * supports a GuC stage descriptor pool of 2032 entries).
 		 */
 		struct ida hw_ida;
-#define MAX_CONTEXT_HW_ID (1<<21) /* exclusive */
-#define GEN11_MAX_CONTEXT_HW_ID (1<<11) /* exclusive */
+#define MAX_CONTEXT_HW_ID			(1<<21) /* exclusive */
+#define GEN11_MAX_CONTEXT_HW_ID			(1<<11) /* exclusive */
+#define GEN11_MAX_CONTEXT_HW_ID_WITH_GUC	GEN11_MAX_CONTEXT_HW_ID - 16
 	} contexts;
 
 	u32 fdi_rx_config;

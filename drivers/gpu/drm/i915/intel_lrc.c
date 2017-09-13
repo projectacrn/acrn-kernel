@@ -238,14 +238,15 @@ intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 	GEM_BUG_ON(desc & GENMASK_ULL(63, 32));
 
 	if (INTEL_GEN(ctx->i915) >= 11) {
-		GEM_BUG_ON(ctx->hw_id >= BIT(GEN11_SW_CTX_ID_WIDTH));
-		desc |= (u64)ctx->hw_id << GEN11_SW_CTX_ID_SHIFT;
+		GEM_BUG_ON(ce->sw_context_id >= BIT(GEN11_SW_CTX_ID_WIDTH));
+		desc |= (u64)ce->sw_context_id << GEN11_SW_CTX_ID_SHIFT;
 								/* bits 37-47 */
 
 		desc |= (u64)engine->instance << GEN11_ENGINE_INSTANCE_SHIFT;
 								/* bits 48-53 */
 
-		/* TODO: decide what to do with SW counter (bits 55-60) */
+		desc |= (u64)ce->sw_counter << GEN11_SW_COUNTER_SHIFT;
+								/* bits 55-60 */
 
 		desc |= (u64)engine->class << GEN11_ENGINE_CLASS_SHIFT;
 								/* bits 61-63 */
@@ -2702,6 +2703,11 @@ static int execlists_context_deferred_alloc(struct i915_gem_context *ctx,
 
 	ce->ring = ring;
 	ce->state = vma;
+
+	if (INTEL_GEN(ctx->i915) >= 11) {
+		ce->sw_context_id = ctx->hw_id;
+		ce->sw_counter = engine->instance;
+	}
 
 	return 0;
 
