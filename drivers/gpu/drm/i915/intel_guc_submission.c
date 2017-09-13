@@ -1145,6 +1145,26 @@ void intel_guc_submission_fini(struct intel_guc *guc)
 	guc_stage_desc_pool_destroy(guc);
 }
 
+static void gen11_guc_interrupts_capture(struct drm_i915_private *dev_priv)
+{
+	struct intel_rps *rps = &dev_priv->gt_pm.rps;
+	u32 tmp;
+	u32 irqs = GT_CONTEXT_SWITCH_INTERRUPT;
+
+	/* Don't handle ctx switch interrupt in GuC submission mode */
+	tmp = I915_READ(GEN11_RENDER_COPY_INTR_ENABLE);
+	tmp &= ~(irqs << 16 | irqs);
+	I915_WRITE(GEN11_RENDER_COPY_INTR_ENABLE, tmp);
+
+	tmp = I915_READ(GEN11_VCS_VECS_INTR_ENABLE);
+	tmp &= ~(irqs << 16 | irqs);
+	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE, tmp);
+
+	/* GuC needs ARAT expired interrupt unmasked hence we set it in
+	* pm_intrmsk_mbz */
+	rps->pm_intrmsk_mbz |= ARAT_EXPIRED_INTRMSK;
+}
+
 static void guc_interrupts_capture(struct drm_i915_private *dev_priv)
 {
 	struct intel_rps *rps = &dev_priv->gt_pm.rps;
@@ -1188,6 +1208,24 @@ static void guc_interrupts_capture(struct drm_i915_private *dev_priv)
 	 */
 	rps->pm_intrmsk_mbz |= ARAT_EXPIRED_INTRMSK;
 	rps->pm_intrmsk_mbz &= ~GEN8_PMINTR_DISABLE_REDIRECT_TO_GUC;
+}
+
+static void gen11_guc_interrupts_release(struct drm_i915_private *dev_priv)
+{
+	struct intel_rps *rps = &dev_priv->gt_pm.rps;
+	u32 tmp;
+	u32 irqs = GT_CONTEXT_SWITCH_INTERRUPT;
+
+	/* Handle ctx switch interrupts again */
+	tmp = I915_READ(GEN11_RENDER_COPY_INTR_ENABLE);
+	tmp |= (irqs << 16 | irqs);
+	I915_WRITE(GEN11_RENDER_COPY_INTR_ENABLE, tmp);
+
+	tmp = I915_READ(GEN11_VCS_VECS_INTR_ENABLE);
+	tmp |= (irqs << 16 | irqs);
+	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE, tmp);
+
+	rps->pm_intrmsk_mbz &= ~ARAT_EXPIRED_INTRMSK;
 }
 
 static void guc_interrupts_release(struct drm_i915_private *dev_priv)
@@ -1260,7 +1298,11 @@ int intel_guc_submission_enable(struct intel_guc *guc)
 		return err;
 
 	/* Take over from manual control of ELSP (execlists) */
-	guc_interrupts_capture(dev_priv);
+	if (INTEL_INFO(dev_priv)->gen >= 11)
+		gen11_guc_interrupts_capture(dev_priv);
+	else
+		guc_interrupts_capture(dev_priv);
+
 
 	for_each_engine(engine, dev_priv, id) {
 		struct intel_engine_execlists * const execlists =
@@ -1282,7 +1324,10 @@ void intel_guc_submission_disable(struct intel_guc *guc)
 
 	GEM_BUG_ON(dev_priv->gt.awake); /* GT should be parked first */
 
-	guc_interrupts_release(dev_priv);
+	if (INTEL_INFO(dev_priv)->gen >= 11)
+		gen11_guc_interrupts_release(dev_priv);
+	else
+		guc_interrupts_release(dev_priv);
 	guc_clients_doorbell_fini(guc);
 
 	/* Revert back to manual ELSP submission */
