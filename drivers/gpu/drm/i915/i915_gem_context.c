@@ -209,7 +209,10 @@ static int assign_hw_id(struct drm_i915_private *dev_priv, unsigned *out)
 	unsigned int max;
 
 	if (INTEL_GEN(dev_priv) >= 11) {
-		max = GEN11_MAX_CONTEXT_HW_ID;
+		if (USES_GUC_SUBMISSION(dev_priv))
+			max = GEN11_MAX_CONTEXT_HW_ID_WITH_GUC;
+		else
+			max = GEN11_MAX_CONTEXT_HW_ID;
 	} else {
 		/*
 		 * When using GuC in proxy submission, GuC consumes the
