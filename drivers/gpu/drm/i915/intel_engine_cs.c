@@ -1459,6 +1459,10 @@ static int icl_init_workarounds(struct intel_engine_cs *engine)
 	/* WaForceEnableNonCoherent:icl */
 	WA_SET_BIT_MASKED(ICL_HDC_CHICKEN0, HDC_FORCE_NON_COHERENT);
 
+	/* WaEnableStateCacheRedirectToCS:icl */
+	WA_SET_BIT_MASKED(GEN9_SLICE_COMMON_ECO_CHICKEN1,
+			  GEN11_STATE_CACHE_REDIRECT_TO_CS);
+
 	/* WaSendPushConstantsFromMMIO:icl */
 	ret = wa_ring_whitelist_reg(engine, COMMON_SLICE_CHICKEN2);
 	if (ret)
