@@ -60,6 +60,7 @@ MODULE_FIRMWARE(I915_KBL_GUC_UCODE);
 #define I915_GLK_GUC_UCODE GUC_FW_PATH(glk, GLK_FW_MAJOR, GLK_FW_MINOR)
 
 #define I915_ICL_GUC_UCODE GUC_FW_PATH(icl, ICL_FW_MAJOR, ICL_FW_MINOR)
+MODULE_FIRMWARE(I915_ICL_GUC_UCODE);
 
 /**
  * intel_guc_fw_select() - selects GuC firmware for uploading
