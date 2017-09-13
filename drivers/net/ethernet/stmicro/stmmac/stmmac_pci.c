@@ -237,6 +237,7 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->force_sf_dma_mode = 0;
 	plat->tso_en = 1;
 	plat->tsn_est_en = 1;
+	plat->tsn_fpe_en = 1;
 
 	plat->rx_queues_to_use = 4;
 	plat->tx_queues_to_use = 4;
