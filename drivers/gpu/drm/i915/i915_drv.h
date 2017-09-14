@@ -1865,6 +1865,8 @@ struct drm_i915_private {
 #define MAX_CONTEXT_HW_ID			(1<<21) /* exclusive */
 #define GEN11_MAX_CONTEXT_HW_ID			(1<<11) /* exclusive */
 #define GEN11_MAX_CONTEXT_HW_ID_WITH_GUC	GEN11_MAX_CONTEXT_HW_ID - 16
+/* in Gen12 ID 0x7FF is reserved to indicate "invalid context" */
+#define GEN12_MAX_CONTEXT_HW_ID			(GEN11_MAX_CONTEXT_HW_ID - 1)
 	} contexts;
 
 	u32 fdi_rx_config;

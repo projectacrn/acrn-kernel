@@ -222,6 +222,8 @@ static int assign_hw_id(struct drm_i915_private *dev_priv, unsigned *out)
 	if (INTEL_GEN(dev_priv) >= 11) {
 		if (USES_GUC_SUBMISSION(dev_priv))
 			max = GEN11_MAX_CONTEXT_HW_ID_WITH_GUC;
+		else if (INTEL_GEN(dev_priv) >= 12)
+			max = GEN12_MAX_CONTEXT_HW_ID;
 		else
 			max = GEN11_MAX_CONTEXT_HW_ID;
 	} else
