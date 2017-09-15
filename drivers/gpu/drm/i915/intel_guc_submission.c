@@ -1282,6 +1282,12 @@ static void gen11_guc_policies_init(struct gen11_guc_policies *policies)
  */
 #define LR_HW_CONTEXT_SIZE	(80 * sizeof(u32))
 
+static void
+guc_master_cmd_transport_pool_init(struct guc_master_cmd_transport_pool *pool)
+{
+	memset(pool, 0, sizeof(*pool));
+}
+
 static int gen11_guc_ads_create(struct intel_guc *guc)
 {
 	struct drm_i915_private *dev_priv = guc_to_i915(guc);
@@ -1293,7 +1299,7 @@ static int gen11_guc_ads_create(struct intel_guc *guc)
 		struct gen11_guc_mmio_reg_state reg_state;
 		struct guc_gt_system_info system_info;
 		struct guc_gt_system_additional_info add_system_info;
-		struct guc_master_cmd_transport_buffer_alloc ctb_alloc;
+		struct guc_master_cmd_transport_pool ct_pool;
 		u8 reg_state_buffer[GUC_S3_SAVE_SPACE_PAGES * PAGE_SIZE];
 	} __packed *blob;
 	const u32 skipped_offset = LRC_HEADER_PAGES * PAGE_SIZE;
@@ -1355,14 +1361,12 @@ static int gen11_guc_ads_create(struct intel_guc *guc)
 	blob->system_info.vdbox_enable_mask = ~INTEL_INFO(dev_priv)->vdbox_disable;
 	blob->system_info.vebox_enable_mask = ~INTEL_INFO(dev_priv)->vebox_disable;
 
-	/*
-	 * FIXME: For the moment we just give some space to the GuC so that it
-	 * doesn't complain. We will introduce proper Command Transport Buffers
-	 * in a future patch.
-	*/
 	blob->add_system_info.gfx_address_command_transport_pool =
-		base + ptr_offset(blob, ctb_alloc);
-	blob->add_system_info.command_transport_pool_count = 1;
+			base + ptr_offset(blob, ct_pool);
+	blob->add_system_info.command_transport_pool_count =
+			GUC_CMD_TRANSPORT_POOL_SIZE;
+
+	guc_master_cmd_transport_pool_init(&blob->ct_pool);
 
 	blob->ads.scheduler_policies = base + ptr_offset(blob, policies);
 	blob->ads.reg_state_buffer = base + ptr_offset(blob, reg_state_buffer);
