@@ -645,9 +645,15 @@ struct guc_gt_system_additional_info {
 	u8 reserved1[377];
 } __packed;
 
-/* This struct to be exploded in a future patch */
 struct guc_master_cmd_transport_buffer_alloc {
-	u32 reserved[23];
+	struct guc_ct_buffer_desc desc;
+	u32 reserved[7];
+} __packed;
+
+#define GUC_CMD_TRANSPORT_POOL_SIZE	2
+
+struct guc_master_cmd_transport_pool {
+	struct guc_master_cmd_transport_buffer_alloc pool[GUC_CMD_TRANSPORT_POOL_SIZE];
 } __packed;
 
 /* Gen11+ GuC Additional Data Struct */
