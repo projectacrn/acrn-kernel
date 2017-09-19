@@ -355,6 +355,9 @@ static int i915_getparam_ioctl(struct drm_device *dev, void *data,
 	case I915_PARAM_HAS_BSD2:
 		value = !!dev_priv->engine[VCS2];
 		break;
+	case I915_PARAM_HAS_CCS:
+		value = !!dev_priv->engine[CCS];
+		break;
 	case I915_PARAM_HAS_LLC:
 		value = HAS_LLC(dev_priv);
 		break;
