@@ -530,6 +530,9 @@ typedef struct drm_i915_irq_wait {
  */
 #define I915_PARAM_CS_TIMESTAMP_FREQUENCY 51
 
+/* Dual Context / Compute-only Engine */
+#define I915_PARAM_HAS_CCS		52
+
 typedef struct drm_i915_getparam {
 	__s32 param;
 	/*
