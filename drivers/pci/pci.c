@@ -2287,9 +2287,17 @@ bool pci_bridge_d3_possible(struct pci_dev *bridge)
 		 * hotplug ports handled by firmware in System Management Mode
 		 * may not be put into D3 by the OS (Thunderbolt on non-Macs).
 		 * For simplicity, disallow in general for now.
+		 *
+		 * Only exception is a PCIe hierarchy whose root port has
+		 * hotplug_d3 set.
 		 */
-		if (bridge->is_hotplug_bridge)
-			return false;
+		if (bridge->is_hotplug_bridge) {
+			struct pci_dev *root;
+
+			root = pcie_find_root_port(bridge);
+			if (!root->hotplug_d3)
+				return false;
+		}
 
 		if (pci_bridge_d3_force)
 			return true;
