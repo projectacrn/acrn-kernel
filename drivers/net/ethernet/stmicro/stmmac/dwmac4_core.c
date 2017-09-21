@@ -1140,6 +1140,11 @@ static const struct stmmac_ops dwmac5_ops = {
 	.set_est_enable = dwmac_set_est_enable,
 	.get_est_gcc = dwmac_get_est_gcc,
 	.est_irq_status = dwmac_est_irq_status,
+	.set_fpe_config = dwmac_set_fpe_config,
+	.set_fpe_enable = dwmac_set_fpe_enable,
+	.get_fpe_config = dwmac_get_fpe_config,
+	.get_fpe_pmac_sts = dwmac_get_fpe_pmac_sts,
+	.fpe_irq_status = dwmac_fpe_irq_status,
 };
 
 static u32 dwmac4_get_num_vlan(void __iomem *ioaddr)
