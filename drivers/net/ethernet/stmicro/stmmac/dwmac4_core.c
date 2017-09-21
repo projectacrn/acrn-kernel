@@ -1088,6 +1088,53 @@ static const struct stmmac_ops dwmac5_xpcs_ops = {
 	.get_est_err_stat = dwmac_get_est_err_stat,
 };
 
+static const struct stmmac_ops dwmac5_ops = {
+	.core_init = dwmac4_core_init,
+	.set_mac = stmmac_dwmac4_set_mac,
+	.rx_ipc = dwmac4_rx_ipc_enable,
+	.rx_queue_enable = dwmac4_rx_queue_enable,
+	.rx_queue_prio = dwmac4_rx_queue_priority,
+	.tx_queue_prio = dwmac4_tx_queue_priority,
+	.rx_queue_routing = dwmac4_tx_queue_routing,
+	.prog_mtl_rx_algorithms = dwmac4_prog_mtl_rx_algorithms,
+	.prog_mtl_tx_algorithms = dwmac4_prog_mtl_tx_algorithms,
+	.set_mtl_tx_queue_weight = dwmac4_set_mtl_tx_queue_weight,
+	.map_mtl_to_dma = dwmac4_map_mtl_dma,
+	.config_cbs = dwmac4_config_cbs,
+	.dump_regs = dwmac4_dump_regs,
+	.host_irq_status = dwmac4_irq_status,
+	.host_mtl_irq_status = dwmac4_irq_mtl_status,
+	.flow_ctrl = dwmac4_flow_ctrl,
+	.pmt = dwmac4_pmt,
+	.set_umac_addr = dwmac4_set_umac_addr,
+	.get_umac_addr = dwmac4_get_umac_addr,
+	.set_eee_mode = dwmac4_set_eee_mode,
+	.reset_eee_mode = dwmac4_reset_eee_mode,
+	.set_eee_timer = dwmac4_set_eee_timer,
+	.set_eee_pls = dwmac4_set_eee_pls,
+	.pcs_ctrl_ane = dwmac4_ctrl_ane,
+	.pcs_rane = dwmac4_rane,
+	.pcs_get_adv_lp = dwmac4_get_adv_lp,
+	.debug = dwmac4_debug,
+	.set_filter = dwmac4_set_filter,
+	.rx_vlan = dwmac4_rx_vlan,
+	.set_vlan_mode = dwmac4_set_vlan_mode,
+	.vlan_rx_add_vid = dwmac4_vlan_rx_add_vid,
+	.vlan_rx_kill_vid = dwmac4_vlan_rx_kill_vid,
+	.restore_vlan = dwmac4_restore_vlan,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
+	.set_tsn_hwtunable = dwmac_set_tsn_hwtunable,
+	.get_tsn_hwtunable = dwmac_get_tsn_hwtunable,
+	.get_est_bank = dwmac_get_est_bank,
+	.set_est_gce = dwmac_set_est_gce,
+	.get_est_gcrr_llr = dwmac_get_est_gcrr_llr,
+	.set_est_gcrr_llr = dwmac_set_est_gcrr_llr,
+	.set_est_gcrr_times = dwmac_set_est_gcrr_times,
+	.set_est_enable = dwmac_set_est_enable,
+	.get_est_gcc = dwmac_get_est_gcc,
+	.est_irq_status = dwmac_est_irq_status,
+};
+
 static u32 dwmac4_get_num_vlan(void __iomem *ioaddr)
 {
 	u32 val, num_vlan;
@@ -1162,6 +1209,8 @@ struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
 
 	if ((*synopsys_id == DWMAC_CORE_5_00) && xpcs)
 		mac->mac = &dwmac5_xpcs_ops;
+	else if (*synopsys_id == DWMAC_CORE_5_00)
+		mac->mac = &dwmac5_ops;
 	else if (*synopsys_id >= DWMAC_CORE_4_00)
 		mac->mac = &dwmac410_ops;
 	else
