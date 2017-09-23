@@ -1085,6 +1085,7 @@ static const struct stmmac_ops dwmac5_xpcs_ops = {
 	.set_est_enable = dwmac_set_est_enable,
 	.get_est_gcc = dwmac_get_est_gcc,
 	.est_irq_status = dwmac_est_irq_status,
+	.get_est_err_stat = dwmac_get_est_err_stat,
 };
 
 static u32 dwmac4_get_num_vlan(void __iomem *ioaddr)

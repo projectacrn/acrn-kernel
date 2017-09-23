@@ -420,8 +420,10 @@ struct tsn_err_stat {
 	u32 cgce_n;			/* Constant gate error count */
 	u32 hlbs_q;			/* Queue with HLB due to Scheduling */
 	u32 hlbf_sz[MTL_MAX_TX_QUEUES];	/* Frame size that causes HLB */
-	u32 btre;			/* BTR error with BTR renewal */
-	u32 btre_max;			/* BTR error with BTR renewal fail */
+	u32 btre_n;			/* BTR error with BTR renewal count */
+	u32 btre_max_n;			/* BTR error with BTR renewal fail */
+					/* count */
+	u32 btrl;			/* BTR error loop count */
 };
 
 /* Descriptors helpers */

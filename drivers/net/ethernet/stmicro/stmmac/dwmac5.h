@@ -122,4 +122,6 @@ int dwmac_set_est_enable(struct net_device *ndev, bool enable);
 int dwmac_get_est_gcc(struct net_device *ndev,
 		      struct est_gc_config **gcc, bool frmdrv);
 int dwmac_est_irq_status(struct net_device *ndev);
+int dwmac_get_est_err_stat(struct net_device *ndev,
+			   struct tsn_err_stat **err_stat);
 #endif /* __DWMAC5_H__ */
