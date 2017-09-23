@@ -957,9 +957,12 @@ int dwmac_est_irq_status(struct net_device *ndev)
 	if (status & MTL_EST_STATUS_BTRE) {
 		if ((status & MTL_EST_STATUS_BTRL) ==
 		    MTL_EST_STATUS_BTRL_MAX)
-			err_stat->btre_max++;
+			err_stat->btre_max_n++;
 		else
-			err_stat->btre++;
+			err_stat->btre_n++;
+
+		err_stat->btrl = (status & MTL_EST_STATUS_BTRL) >>
+				   MTL_EST_STATUS_BTRL_SHIFT;
 
 		writel(MTL_EST_STATUS_BTRE, ioaddr +
 		       MTL_EST_STATUS);
