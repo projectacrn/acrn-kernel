@@ -823,6 +823,13 @@ static void gen11_dsi_powerdown_panel(struct intel_encoder *encoder)
 				DRM_ERROR("error sending SHUT_DOWN command\n");
 		}
 	}
+
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_DISPLAY_OFF);
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_ASSERT_RESET);
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_POWER_OFF);
+
+	/* ensure cmds dispatched to panel */
+	wait_for_cmds_dispatched_to_panel(encoder);
 }
 
 
