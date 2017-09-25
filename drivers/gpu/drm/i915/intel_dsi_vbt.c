@@ -589,6 +589,7 @@ bool intel_dsi_vbt_init(struct intel_dsi *intel_dsi, u16 panel_id)
 	intel_dsi->pclk = pclk;
 
 	bitrate = (pclk * bpp) / intel_dsi->lane_count;
+	intel_dsi->bitrate_khz = bitrate;
 
 	switch (intel_dsi->escape_clk_div) {
 	case 0:
