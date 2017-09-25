@@ -10221,6 +10221,34 @@ enum skl_power_gate {
 #define  S3D_ORIENTATION_LANDSCAPE	0x1
 #define  EOTP_DISABLED			(1 << 0)
 
+#define _DSI_CMD_RXCTL_0		0x6b0d4
+#define _DSI_CMD_RXCTL_1		0x6b8d4
+#define DSI_CMD_RXCTL(tc)		_MMIO_DSI(tc,	\
+						  _DSI_CMD_RXCTL_0,\
+						  _DSI_CMD_RXCTL_1)
+#define  RX_PLOAD_DW_MASK		(0xff << 0)
+
+#define _DSI_CMD_TXCTL_0		0x6b0d0
+#define _DSI_CMD_TXCTL_1		0x6b8d0
+#define DSI_CMD_TXCTL(tc)		_MMIO_DSI(tc,	\
+						  _DSI_CMD_TXCTL_0,\
+						  _DSI_CMD_TXCTL_1)
+#define  KEEP_LINK_IN_HS		(1 <<  24)
+#define  FREE_HEADER_CREDIT_MASK	(0x1f << 8)
+#define  FREE_HEADER_CREDIT_SHIFT	0x8
+#define  FREE_PLOAD_CREDIT_MASK	(0xff << 0)
+#define  MAX_HEADER_CREDIT		0x10
+#define  MAX_PLOAD_CREDIT		0x40
+
+#define _DSI_LP_MSG_0			0x6b0d8
+#define _DSI_LP_MSG_1			0x6b8d8
+#define DSI_LP_MSG(tc)			_MMIO_DSI(tc,	\
+						  _DSI_LP_MSG_0,\
+						  _DSI_LP_MSG_1)
+#define  LPTX_IN_PROGRESS		(1 << 17)
+#define  LINK_IN_ULPS			(1 << 16)
+#define  LINK_ENTER_ULPS		(1 << 0)
+
 /* bits 31:0 */
 #define _MIPIA_DBI_BW_CTRL		(dev_priv->mipi_mmio_base + 0xb084)
 #define _MIPIC_DBI_BW_CTRL		(dev_priv->mipi_mmio_base + 0xb884)
