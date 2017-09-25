@@ -5552,6 +5552,9 @@ enum {
 #define   DSL_LINEMASK_GEN2	0x00000fff
 #define   DSL_LINEMASK_GEN3	0x00001fff
 #define _PIPEACONF		0x70008
+/* gen 11 DSI transcoder '0' and '1' */
+#define _PIPEDSI0CONF		0x7b008
+#define _PIPEDSI1CONF		0x7b808
 #define   PIPECONF_ENABLE	(1<<31)
 #define   PIPECONF_DISABLE	0
 #define   PIPECONF_DOUBLE_WIDE	(1<<30)
@@ -5658,6 +5661,9 @@ enum {
  * to access such registers in transcoder EDP.
  */
 #define PIPE_EDP_OFFSET	0x7f000
+/* gen 11 DSI transcoder '0' and '1' */
+#define PIPE_DSI0_OFFSET	0x7b000
+#define PIPE_DSI1_OFFSET	0x7b800
 
 #define _MMIO_PIPE2(pipe, reg) _MMIO(dev_priv->info.pipe_offsets[pipe] - \
 	dev_priv->info.pipe_offsets[PIPE_A] + (reg) + \
