@@ -28,6 +28,30 @@
 #include <drm/drm_mipi_dsi.h>
 #include "intel_dsi.h"
 
+static void __attribute__((unused)) wait_for_dsi_hdr_credit_release(
+						struct intel_dsi *intel_dsi,
+						enum transcoder dsi_trans)
+{
+	struct drm_i915_private *dev_priv = to_i915(intel_dsi->base.base.dev);
+
+	if (wait_for_us(((I915_READ(DSI_CMD_TXCTL(dsi_trans)) &
+			  FREE_HEADER_CREDIT_MASK) >> FREE_HEADER_CREDIT_SHIFT)
+			  == MAX_HEADER_CREDIT, 100))
+		DRM_ERROR("DSI header credits not released\n");
+}
+
+static void __attribute__((unused)) wait_for_dsi_payload_credit_release(
+						struct intel_dsi *intel_dsi,
+						enum transcoder dsi_trans)
+{
+	struct drm_i915_private *dev_priv = to_i915(intel_dsi->base.base.dev);
+
+	if (wait_for_us((I915_READ(DSI_CMD_TXCTL(dsi_trans)) &
+			FREE_PLOAD_CREDIT_MASK) == MAX_PLOAD_CREDIT,
+			100))
+		DRM_ERROR("DSI payload credits not released\n");
+}
+
 static enum transcoder dsi_port_to_transcoder(enum port port)
 {
 	if (port == PORT_A)
