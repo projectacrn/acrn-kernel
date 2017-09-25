@@ -803,10 +803,9 @@ static void gen11_dsi_powerup_panel(struct intel_encoder *encoder)
 	wait_for_cmds_dispatched_to_panel(encoder);
 }
 
-static void __attribute__((unused)) gen11_dsi_pre_enable(
-				struct intel_encoder *encoder,
-				const struct intel_crtc_state *pipe_config,
-				const struct drm_connector_state *conn_state)
+static void gen11_dsi_pre_enable(struct intel_encoder *encoder,
+				 const struct intel_crtc_state *pipe_config,
+				 const struct drm_connector_state *conn_state)
 {
 	struct intel_dsi *intel_dsi = enc_to_intel_dsi(&encoder->base);
 
@@ -964,10 +963,9 @@ static void gen11_dsi_disable_io_power(struct intel_encoder *encoder)
 }
 
 
-static void __attribute__((unused)) gen11_dsi_disable(
-			struct intel_encoder *encoder,
-			const struct intel_crtc_state *old_crtc_state,
-			const struct drm_connector_state *old_conn_state)
+static void gen11_dsi_disable(struct intel_encoder *encoder,
+			      const struct intel_crtc_state *old_crtc_state,
+			      const struct drm_connector_state *old_conn_state)
 {
 	struct intel_dsi *intel_dsi = enc_to_intel_dsi(&encoder->base);
 
@@ -991,10 +989,93 @@ static void __attribute__((unused)) gen11_dsi_disable(
 	gen11_dsi_disable_io_power(encoder);
 }
 
+static void gen11_dsi_encoder_destroy(struct drm_encoder *encoder)
+{
+	intel_encoder_destroy(encoder);
+}
+
+static const struct drm_encoder_funcs gen11_dsi_encoder_funcs = {
+	.destroy = gen11_dsi_encoder_destroy,
+};
+
+static const struct drm_connector_funcs gen11_dsi_connector_funcs = {
+};
+
 void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 {
+	struct drm_device *dev = &dev_priv->drm;
+	struct intel_dsi *intel_dsi;
+	struct intel_encoder *intel_encoder;
+	struct drm_encoder *encoder;
+	struct intel_connector *intel_connector;
+	struct drm_connector *connector;
+	struct drm_display_mode *scan, *fixed_mode = NULL;
 	enum port port;
 
 	if (!intel_bios_is_dsi_present(dev_priv, &port))
 		return;
+
+	intel_dsi = kzalloc(sizeof(*intel_dsi), GFP_KERNEL);
+	if (!intel_dsi)
+		return;
+
+	intel_connector = intel_connector_alloc();
+	if (!intel_connector) {
+		kfree(intel_dsi);
+		return;
+	}
+
+	intel_encoder = &intel_dsi->base;
+	encoder = &intel_encoder->base;
+	intel_dsi->attached_connector = intel_connector;
+	connector = &intel_connector->base;
+
+	/* register DSI encoder with DRM subsystem */
+	drm_encoder_init(dev, encoder, &gen11_dsi_encoder_funcs,
+			 DRM_MODE_ENCODER_DSI, "GEN11 DSI %c", port_name(port));
+
+	intel_encoder->pre_enable = gen11_dsi_pre_enable;
+	intel_encoder->disable = gen11_dsi_disable;
+	intel_encoder->port = port;
+	intel_encoder->type = INTEL_OUTPUT_DSI;
+	intel_encoder->cloneable = 0;
+	intel_encoder->crtc_mask = BIT(PIPE_A) | BIT(PIPE_B) | BIT(PIPE_C);
+
+	/* register DSI connector with DRM subsystem */
+	drm_connector_init(dev, connector, &gen11_dsi_connector_funcs,
+			   DRM_MODE_CONNECTOR_DSI);
+	connector->display_info.subpixel_order = SubPixelHorizontalRGB;
+	connector->interlace_allowed = false;
+	connector->doublescan_allowed = false;
+
+	/* attach connector to encoder */
+	intel_connector_attach_encoder(intel_connector, intel_encoder);
+
+	/* fill mode info from VBT */
+	mutex_lock(&dev->mode_config.mutex);
+	intel_dsi_vbt_get_modes(intel_dsi);
+	list_for_each_entry(scan, &connector->probed_modes, head) {
+		if ((scan->type & DRM_MODE_TYPE_PREFERRED)) {
+			fixed_mode = drm_mode_duplicate(dev, scan);
+			break;
+		}
+	}
+	mutex_unlock(&dev->mode_config.mutex);
+
+	if (!fixed_mode) {
+		DRM_ERROR("DSI fixed mode info missing\n");
+		goto err;
+	}
+
+	connector->display_info.width_mm = fixed_mode->width_mm;
+	connector->display_info.height_mm = fixed_mode->height_mm;
+	intel_panel_init(&intel_connector->panel, fixed_mode, NULL, NULL);
+	intel_panel_setup_backlight(connector, INVALID_PIPE);
+
+	return;
+
+err:
+	drm_encoder_cleanup(&intel_encoder->base);
+	kfree(intel_dsi);
+	kfree(intel_connector);
 }
