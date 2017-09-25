@@ -667,6 +667,25 @@ static void gen11_dsi_powerup_panel(struct intel_encoder *encoder)
 		if (ret < 0)
 			DRM_ERROR("error setting max return pkt size%d\n", tmp);
 	}
+
+	/* power on */
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_POWER_ON);
+	intel_dsi_msleep(intel_dsi, intel_dsi->panel_on_delay);
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_DEASSERT_RESET);
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_INIT_OTP);
+
+	/*send TURN_ON command to panel */
+	if (intel_dsi->operation_mode == INTEL_DSI_VIDEO_MODE) {
+		for_each_dsi_port(port, intel_dsi->ports) {
+			dsi = to_mipi_dsi_device(
+					intel_dsi->dsi_hosts[port]->base.dev);
+			ret = mipi_dsi_turn_on_peripheral(dsi);
+			if (ret < 0)
+				DRM_ERROR("error sending TURN_ON command\n");
+		}
+	}
+
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_DISPLAY_ON);
 }
 
 static void __attribute__((unused)) gen11_dsi_pre_enable(
