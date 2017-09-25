@@ -1013,9 +1013,23 @@ static int gen11_dsi_host_detach(struct mipi_dsi_host *host,
 	return 0;
 }
 
+static ssize_t gen11_dsi_host_transfer(struct mipi_dsi_host *host,
+				       const struct mipi_dsi_msg *msg)
+{
+	struct mipi_dsi_packet dsi_pkt;
+	ssize_t ret;
+
+	ret = mipi_dsi_create_packet(&dsi_pkt, msg);
+	if (ret < 0)
+		return ret;
+
+	return ret;
+}
+
 static const struct mipi_dsi_host_ops gen11_dsi_host_ops = {
 	.attach = gen11_dsi_host_attach,
 	.detach = gen11_dsi_host_detach,
+	.transfer = gen11_dsi_host_transfer,
 };
 
 void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
