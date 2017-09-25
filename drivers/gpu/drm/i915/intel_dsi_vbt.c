@@ -509,7 +509,9 @@ bool intel_dsi_vbt_init(struct intel_dsi *intel_dsi, u16 panel_id)
 	u32 bpp;
 	u32 tlpx_ns, extra_byte_count, bitrate, tlpx_ui;
 	u32 ui_num, ui_den;
-	u32 prepare_cnt, exit_zero_cnt, clk_zero_cnt, trail_cnt;
+	u32 prepare_cnt, exit_zero_cnt, clk_zero_cnt, trail_cnt, hs_zero_cnt;
+	u32 tclk_pre_cnt, tclk_post_cnt;
+	u32 tclk_pre_ns, tclk_post_ns;
 	u32 ths_prepare_ns, tclk_trail_ns;
 	u32 tclk_prepare_clkzero, ths_prepare_hszero;
 	u32 lp_to_hs_switch, hs_to_lp_switch;
@@ -624,76 +626,157 @@ bool intel_dsi_vbt_init(struct intel_dsi *intel_dsi, u16 panel_id)
 
 	tclk_prepare_clkzero = mipi_config->tclk_prepare_clkzero;
 	ths_prepare_hszero = mipi_config->ths_prepare_hszero;
-
+	tclk_trail_ns = max(mipi_config->tclk_trail, mipi_config->ths_trail);
+	ths_prepare_ns = max(mipi_config->ths_prepare,
+				mipi_config->tclk_prepare);
 	/*
 	 * B060
 	 * LP byte clock = TLPX/ (8UI)
 	 */
 	intel_dsi->lp_byte_clk = DIV_ROUND_UP(tlpx_ns * ui_den, 8 * ui_num);
 
-	/* DDR clock period = 2 * UI
-	 * UI(sec) = 1/(bitrate * 10^3) (bitrate is in KHZ)
-	 * UI(nsec) = 10^6 / bitrate
-	 * DDR clock period (nsec) = 2 * UI = (2 * 10^6)/ bitrate
-	 * DDR clock count  = ns_value / DDR clock period
-	 *
+	/*
 	 * For GEMINILAKE dphy_param_reg will be programmed in terms of
 	 * HS byte clock count for other platform in HS ddr clock count
 	 */
 	mul = IS_GEMINILAKE(dev_priv) ? 8 : 2;
-	ths_prepare_ns = max(mipi_config->ths_prepare,
-			     mipi_config->tclk_prepare);
 
-	/* prepare count */
-	prepare_cnt = DIV_ROUND_UP(ths_prepare_ns * ui_den, ui_num * mul);
+	if (IS_ICELAKE(dev_priv)) {
+		/*
+		 * prepare cnt in escape clocks
+		 * this field represents a hexadecimal value with a precision
+		 * of 1.2 – i.e. the most significant bit is the integer
+		 * and the least significant 2 bits are fraction bits.
+		 * so, the field can represent a range of 0.25 to 1.75
+		 */
+		prepare_cnt = DIV_ROUND_UP(ths_prepare_ns * 4, tlpx_ns);
 
-	if (prepare_cnt > PREPARE_CNT_MAX) {
-		DRM_DEBUG_KMS("prepare count too high %u\n", prepare_cnt);
-		prepare_cnt = PREPARE_CNT_MAX;
-	}
+		/* clk zero count in escape clocks */
+		clk_zero_cnt = DIV_ROUND_UP(
+					(tclk_prepare_clkzero - ths_prepare_ns),
+					tlpx_ns);
 
-	/* exit zero count */
-	exit_zero_cnt = DIV_ROUND_UP(
+		/* trail cnt in escape clocks*/
+		trail_cnt = DIV_ROUND_UP(tclk_trail_ns, tlpx_ns);
+
+		/* tclk pre/post count in escape clocks */
+		tclk_post_ns = mipi_config->tclk_post;
+		tclk_pre_ns = mipi_config->tclk_pre;
+		tclk_pre_cnt = DIV_ROUND_UP(tclk_pre_ns, tlpx_ns);
+		tclk_post_cnt = DIV_ROUND_UP(tclk_post_ns, tlpx_ns);
+
+		/* hs zero cnt in escape clocks */
+		hs_zero_cnt = DIV_ROUND_UP(
+					(ths_prepare_hszero - ths_prepare_ns),
+					tlpx_ns);
+
+		/* hs exit zero cnt in escape clocks */
+		exit_zero_cnt = DIV_ROUND_UP(mipi_config->ths_exit, tlpx_ns);
+
+		if (prepare_cnt > 0x7 ||
+		    clk_zero_cnt > 0xF ||
+		    tclk_pre_cnt > 0x3 ||
+		    tclk_post_cnt > 0x7 ||
+		    trail_cnt > 0x7 ||
+		    hs_zero_cnt > 0xF ||
+		    exit_zero_cnt > 0x7) {
+			DRM_DEBUG_DRIVER("DPHY values crossing max limits,");
+			DRM_DEBUG_DRIVER("restricting to max values\n");
+		}
+
+		prepare_cnt = (prepare_cnt > 0x7) ? 0x7 : prepare_cnt;
+		clk_zero_cnt = (clk_zero_cnt > 0xF) ? 0xF : clk_zero_cnt;
+		tclk_pre_cnt = (tclk_pre_cnt > 0x3) ? 0x3 : tclk_pre_cnt;
+		tclk_post_cnt = (tclk_post_cnt > 0x7) ? 0x7 : tclk_post_cnt;
+		trail_cnt = (trail_cnt > 0x7) ? 0x7 : trail_cnt;
+		hs_zero_cnt = (hs_zero_cnt > 0xF) ? 0xF : hs_zero_cnt;
+		exit_zero_cnt = (exit_zero_cnt > 0x7) ? 0x7 : exit_zero_cnt;
+
+		/* clock lane dphy timings */
+		intel_dsi->dphy_reg |= (CLK_PREP_OVERRIDE |
+					CLK_PREP_TIME(prepare_cnt) |
+					CLK_ZERO_OVERRIDE |
+					CLK_ZERO_TIME(clk_zero_cnt) |
+					CLK_PRE_OVERRIDE |
+					CLK_PRE_TIME(tclk_pre_cnt) |
+					CLK_POST_OVERRIDE |
+					CLK_POST_TIME(tclk_post_cnt) |
+					CLK_TRAIL_OVERRIDE |
+					CLK_TRAIL_TIME(trail_cnt));
+
+		/* data lanes dphy timings */
+		intel_dsi->dphy_data_lane_reg = HS_PREP_OVERRIDE |
+						HS_PREP_TIME(prepare_cnt) |
+						HS_ZERO_OVERRIDE |
+						HS_ZERO_TIME(hs_zero_cnt) |
+						HS_TRAIL_OVERRIDE |
+						HS_TRAIL_TIME(trail_cnt) |
+						HS_EXIT_OVERRIDE |
+						HS_EXIT_TIME(exit_zero_cnt);
+	} else {
+		/*
+		 * DDR clock period = 2 * UI
+		 * UI(sec) = 1/(bitrate * 10^3) (bitrate is in KHZ)
+		 * UI(nsec) = 10^6 / bitrate
+		 * DDR clock period (nsec) = 2 * UI = (2 * 10^6)/ bitrate
+		 * DDR clock count  = ns_value / DDR clock period
+		 */
+
+		/* prepare count */
+		prepare_cnt = DIV_ROUND_UP(ths_prepare_ns * ui_den,
+							ui_num * mul);
+
+		if (prepare_cnt > PREPARE_CNT_MAX) {
+			DRM_DEBUG_KMS("prepare count too high %u\n",
+								prepare_cnt);
+			prepare_cnt = PREPARE_CNT_MAX;
+		}
+
+		/* exit zero count */
+		exit_zero_cnt = DIV_ROUND_UP(
 				(ths_prepare_hszero - ths_prepare_ns) * ui_den,
 				ui_num * mul
 				);
 
-	/*
-	 * Exit zero is unified val ths_zero and ths_exit
-	 * minimum value for ths_exit = 110ns
-	 * min (exit_zero_cnt * 2) = 110/UI
-	 * exit_zero_cnt = 55/UI
-	 */
-	if (exit_zero_cnt < (55 * ui_den / ui_num) && (55 * ui_den) % ui_num)
-		exit_zero_cnt += 1;
+		/*
+		 * Exit zero is unified val ths_zero and ths_exit
+		 * minimum value for ths_exit = 110ns
+		 * min (exit_zero_cnt * 2) = 110/UI
+		 * exit_zero_cnt = 55/UI
+		 */
+		if (exit_zero_cnt < (55 * ui_den / ui_num) &&
+					(55 * ui_den) % ui_num)
+			exit_zero_cnt += 1;
 
-	if (exit_zero_cnt > EXIT_ZERO_CNT_MAX) {
-		DRM_DEBUG_KMS("exit zero count too high %u\n", exit_zero_cnt);
-		exit_zero_cnt = EXIT_ZERO_CNT_MAX;
-	}
+		if (exit_zero_cnt > EXIT_ZERO_CNT_MAX) {
+			DRM_DEBUG_KMS("exit zero count too high %u\n",
+								exit_zero_cnt);
+			exit_zero_cnt = EXIT_ZERO_CNT_MAX;
+		}
 
-	/* clk zero count */
-	clk_zero_cnt = DIV_ROUND_UP(
-				(tclk_prepare_clkzero -	ths_prepare_ns)
-				* ui_den, ui_num * mul);
+		/* clk zero count */
+		clk_zero_cnt = DIV_ROUND_UP((tclk_prepare_clkzero -
+						ths_prepare_ns)
+						* ui_den, ui_num * mul);
 
-	if (clk_zero_cnt > CLK_ZERO_CNT_MAX) {
-		DRM_DEBUG_KMS("clock zero count too high %u\n", clk_zero_cnt);
-		clk_zero_cnt = CLK_ZERO_CNT_MAX;
-	}
+		if (clk_zero_cnt > CLK_ZERO_CNT_MAX) {
+			DRM_DEBUG_KMS("clock zero count too high %u\n",
+								clk_zero_cnt);
+			clk_zero_cnt = CLK_ZERO_CNT_MAX;
+		}
 
-	/* trail count */
-	tclk_trail_ns = max(mipi_config->tclk_trail, mipi_config->ths_trail);
-	trail_cnt = DIV_ROUND_UP(tclk_trail_ns * ui_den, ui_num * mul);
+		/* trail cnt */
+		trail_cnt = DIV_ROUND_UP(tclk_trail_ns * ui_den, ui_num * mul);
 
-	if (trail_cnt > TRAIL_CNT_MAX) {
-		DRM_DEBUG_KMS("trail count too high %u\n", trail_cnt);
-		trail_cnt = TRAIL_CNT_MAX;
-	}
+		if (trail_cnt > TRAIL_CNT_MAX) {
+			DRM_DEBUG_KMS("trail count too high %u\n", trail_cnt);
+			trail_cnt = TRAIL_CNT_MAX;
+		}
 
-	/* B080 */
-	intel_dsi->dphy_reg = exit_zero_cnt << 24 | trail_cnt << 16 |
+		/* B080 */
+		intel_dsi->dphy_reg = exit_zero_cnt << 24 | trail_cnt << 16 |
 						clk_zero_cnt << 8 | prepare_cnt;
+	}
 
 	/*
 	 * LP to HS switch count = 4TLPX + PREP_COUNT * mul + EXIT_ZERO_COUNT *
@@ -707,9 +790,10 @@ bool intel_dsi_vbt_init(struct intel_dsi *intel_dsi, u16 panel_id)
 	 */
 	tlpx_ui = DIV_ROUND_UP(tlpx_ns * ui_den, ui_num);
 
-	/* B044 */
-	/* FIXME:
-	 * The comment above does not match with the code */
+	/*
+	 * B044
+	 * FIXME: comment above does not match with the code
+	 */
 	lp_to_hs_switch = DIV_ROUND_UP(4 * tlpx_ui + prepare_cnt * mul +
 						exit_zero_cnt * mul + 10, 8);
 
@@ -718,8 +802,9 @@ bool intel_dsi_vbt_init(struct intel_dsi *intel_dsi, u16 panel_id)
 	intel_dsi->hs_to_lp_count = max(lp_to_hs_switch, hs_to_lp_switch);
 	intel_dsi->hs_to_lp_count += extra_byte_count;
 
-	/* B088 */
-	/* LP -> HS for clock lanes
+	/*
+	 * B088
+	 * LP -> HS for clock lanes
 	 * LP clk sync + LP11 + LP01 + tclk_prepare + tclk_zero +
 	 *						extra byte count
 	 * 2TPLX + 1TLPX + 1 TPLX(in ns) + prepare_cnt * 2 + clk_zero_cnt *
@@ -735,7 +820,8 @@ bool intel_dsi_vbt_init(struct intel_dsi *intel_dsi, u16 panel_id)
 
 	intel_dsi->clk_lp_to_hs_count += extra_byte_count;
 
-	/* HS->LP for Clock Lanes
+	/*
+	 * HS->LP for Clock Lanes
 	 * Low Power clock synchronisations + 1Tx byteclk + tclk_trail +
 	 *						Extra byte count
 	 * 2TLPX + 8UI + (trail_count*2)(in UI) + Extra byte count
@@ -782,9 +868,11 @@ bool intel_dsi_vbt_init(struct intel_dsi *intel_dsi, u16 panel_id)
 	DRM_DEBUG_KMS("BTA %s\n",
 			enableddisabled(!(intel_dsi->video_frmt_cfg_bits & DISABLE_VIDEO_BTA)));
 
-	/* delays in VBT are in unit of 100us, so need to convert
+	/*
+	 * delays in VBT are in unit of 100us, so need to convert
 	 * here in ms
-	 * Delay (100us) * 100 /1000 = Delay / 10 (ms) */
+	 * Delay (100us) * 100 /1000 = Delay / 10 (ms)
+	 */
 	intel_dsi->backlight_off_delay = pps->bl_disable_delay / 10;
 	intel_dsi->backlight_on_delay = pps->bl_enable_delay / 10;
 	intel_dsi->panel_on_delay = pps->panel_on_delay / 10;
