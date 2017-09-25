@@ -657,6 +657,13 @@ static void gen11_dsi_powerup_panel(struct intel_encoder *encoder)
 		if (ret < 0)
 			DRM_ERROR("error setting max return pkt size%d\n", tmp);
 	}
+
+	/* power on */
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_POWER_ON);
+	intel_dsi_msleep(intel_dsi, intel_dsi->panel_on_delay);
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_DEASSERT_RESET);
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_INIT_OTP);
+	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_DISPLAY_ON);
 }
 
 static void __attribute__((unused))
