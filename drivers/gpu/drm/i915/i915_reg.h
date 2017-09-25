@@ -9557,6 +9557,7 @@ enum skl_power_gate {
 						_ICL_DPHY_ESC_CLK_DIV0, \
 						_ICL_DPHY_ESC_CLK_DIV1)
 #define ICL_ESC_CLK_DIV_MASK		0x1ff
+#define DSI_MAX_ESC_CLK			20000		/* in KHz */
 
 /* Gen4+ Timestamp and Pipe Frame time stamp registers */
 #define GEN4_TIMESTAMP		_MMIO(0x2358)
