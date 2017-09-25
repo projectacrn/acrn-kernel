@@ -162,6 +162,10 @@ static inline void intel_dsi_msleep(struct intel_dsi *intel_dsi, int msec)
 /* intel_dsi.c */
 void wait_for_dsi_fifo_empty(struct intel_dsi *intel_dsi, enum port port);
 enum mipi_dsi_pixel_format pixel_format_from_register_bits(u32 fmt);
+struct intel_dsi_host *intel_dsi_host_init(struct intel_dsi *intel_dsi,
+					const struct mipi_dsi_host_ops *funcs,
+					enum port port);
+
 
 /* intel_dsi_pll.c */
 bool intel_dsi_pll_is_enabled(struct drm_i915_private *dev_priv);
