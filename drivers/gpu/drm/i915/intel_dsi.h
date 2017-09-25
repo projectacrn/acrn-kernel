@@ -136,6 +136,27 @@ static inline struct intel_dsi *enc_to_intel_dsi(struct drm_encoder *encoder)
 	return container_of(encoder, struct intel_dsi, base.base);
 }
 
+static inline bool is_vid_mode(struct intel_dsi *intel_dsi)
+{
+	return intel_dsi->operation_mode == INTEL_DSI_VIDEO_MODE;
+}
+
+static inline bool is_cmd_mode(struct intel_dsi *intel_dsi)
+{
+	return intel_dsi->operation_mode == INTEL_DSI_COMMAND_MODE;
+}
+
+static inline void intel_dsi_msleep(struct intel_dsi *intel_dsi, int msec)
+{
+	struct drm_i915_private *dev_priv = to_i915(intel_dsi->base.base.dev);
+
+	/* For v3 VBTs in vid-mode the delays are part of the VBT sequences */
+	if (is_vid_mode(intel_dsi) && dev_priv->vbt.dsi.seq_version >= 3)
+		return;
+
+	msleep(msec);
+}
+
 /* intel_dsi.c */
 void wait_for_dsi_fifo_empty(struct intel_dsi *intel_dsi, enum port port);
 enum mipi_dsi_pixel_format pixel_format_from_register_bits(u32 fmt);
