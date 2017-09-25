@@ -98,9 +98,8 @@ static void wait_for_cmds_dispatched_to_panel(struct intel_encoder *encoder)
 	}
 }
 
-static u8 __attribute__((unused)) dsi_hdr_credit_available(
-						struct intel_dsi *intel_dsi,
-						enum transcoder dsi_trans)
+static u8 dsi_hdr_credit_available(struct intel_dsi *intel_dsi,
+				   enum transcoder dsi_trans)
 {
 	struct drm_i915_private *dev_priv = to_i915(intel_dsi->base.base.dev);
 	u8 free_hdr_credit;
@@ -122,6 +121,38 @@ static u8 __attribute__((unused)) dsi_payld_credit_available(
 			     FREE_PLOAD_CREDIT_MASK);
 
 	return free_payld_credit;
+}
+
+static int dsi_send_pkt_hdr(struct intel_dsi_host *host,
+			    struct mipi_dsi_packet pkt)
+{
+	struct drm_i915_private *dev_priv = to_i915(
+						host->intel_dsi->base.base.dev);
+	enum transcoder dsi_trans = dsi_port_to_transcoder(host->port);
+	u32 tmp;
+	u8 free_credits;
+
+	/* check if header credit available */
+	free_credits = dsi_hdr_credit_available(host->intel_dsi, dsi_trans);
+	if (free_credits < 1) {
+		DRM_ERROR("send pkt header failed, not enough hdr credits\n");
+		return -1;
+	}
+
+	tmp = I915_READ(DSI_CMD_TXHDR(dsi_trans));
+	if (pkt.payload)
+		tmp &= ~PAYLOAD_PRESENT;
+	else
+		tmp &= ~PAYLOAD_PRESENT;
+
+	tmp &= ~(PARAM_WC_MASK | VC_MASK | DT_MASK);
+	tmp |= ((pkt.header[0] & VC_MASK) << VC_SHIFT);
+	tmp |= ((pkt.header[0] & DT_MASK) << DT_SHIFT);
+	tmp |= (pkt.header[1] << PARAM_WC_LOWER_SHIFT);
+	tmp |= (pkt.header[2] << PARAM_WC_UPPER_SHIFT);
+	I915_WRITE(DSI_CMD_TXHDR(dsi_trans), tmp);
+
+	return 0;
 }
 
 static void dsi_program_swing_and_deemphasis(struct intel_encoder *encoder)
@@ -1042,10 +1073,16 @@ static int gen11_dsi_host_detach(struct mipi_dsi_host *host,
 static ssize_t gen11_dsi_host_transfer(struct mipi_dsi_host *host,
 				       const struct mipi_dsi_msg *msg)
 {
+	struct intel_dsi_host *intel_dsi_host = to_intel_dsi_host(host);
 	struct mipi_dsi_packet dsi_pkt;
 	ssize_t ret;
 
 	ret = mipi_dsi_create_packet(&dsi_pkt, msg);
+	if (ret < 0)
+		return ret;
+
+	/* send packet header */
+	ret  = dsi_send_pkt_hdr(intel_dsi_host, dsi_pkt);
 	if (ret < 0)
 		return ret;
 
