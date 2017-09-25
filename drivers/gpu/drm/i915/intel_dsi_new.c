@@ -1001,6 +1001,23 @@ static const struct drm_encoder_funcs gen11_dsi_encoder_funcs = {
 static const struct drm_connector_funcs gen11_dsi_connector_funcs = {
 };
 
+static int gen11_dsi_host_attach(struct mipi_dsi_host *host,
+				 struct mipi_dsi_device *dsi)
+{
+	return 0;
+}
+
+static int gen11_dsi_host_detach(struct mipi_dsi_host *host,
+				 struct mipi_dsi_device *dsi)
+{
+	return 0;
+}
+
+static const struct mipi_dsi_host_ops gen11_dsi_host_ops = {
+	.attach = gen11_dsi_host_attach,
+	.detach = gen11_dsi_host_detach,
+};
+
 void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 {
 	struct drm_device *dev = &dev_priv->drm;
@@ -1071,6 +1088,22 @@ void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 	connector->display_info.height_mm = fixed_mode->height_mm;
 	intel_panel_init(&intel_connector->panel, fixed_mode, NULL, NULL);
 	intel_panel_setup_backlight(connector, INVALID_PIPE);
+
+	for_each_dsi_port(port, intel_dsi->ports) {
+		struct intel_dsi_host *host;
+
+		host = intel_dsi_host_init(intel_dsi, &gen11_dsi_host_ops,
+					   port);
+		if (!host)
+			goto err;
+
+		intel_dsi->dsi_hosts[port] = host;
+	}
+
+	if (!intel_dsi_vbt_init(intel_dsi, MIPI_DSI_GENERIC_PANEL_ID)) {
+		DRM_DEBUG_KMS("no device found\n");
+		goto err;
+	}
 
 	return;
 
