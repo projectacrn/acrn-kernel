@@ -892,6 +892,27 @@ static void gen11_dsi_disable_port(struct intel_encoder *encoder)
 	}
 }
 
+static void gen11_dsi_disable_io_power(struct intel_encoder *encoder)
+{
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	struct intel_dsi *intel_dsi = enc_to_intel_dsi(&encoder->base);
+	enum port port;
+	u32 tmp;
+
+	/*
+	 * TODO:Disable power request (step 4a,b) using
+	 * intel_display_power_put(). Power domains for ICL
+	 * port a, b are not defined.
+	 */
+
+	/* set mode to DDI */
+	for_each_dsi_port(port, intel_dsi->ports) {
+		tmp = I915_READ(ICL_DSI_IO_MODECTL(port));
+		tmp &= ~COMBO_PHY_MODE_DSI;
+		I915_WRITE(ICL_DSI_IO_MODECTL(port), tmp);
+	}
+}
+
 
 static void __attribute__((unused)) gen11_dsi_disable(
 			struct intel_encoder *encoder,
@@ -915,4 +936,7 @@ static void __attribute__((unused)) gen11_dsi_disable(
 
 	/* step3: disable port */
 	gen11_dsi_disable_port(encoder);
+
+	/* step4: disable IO power */
+	gen11_dsi_disable_io_power(encoder);
 }
