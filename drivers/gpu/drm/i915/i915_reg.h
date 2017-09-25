@@ -10137,6 +10137,53 @@ enum skl_power_gate {
 #define  TA_SURE_TIME(x)		(x << 16)
 #define  TA_SURE_TIME_MASK		(0x1f << 16)
 
+/* DSI transcoder configuration */
+#define _DSI_TRANS_FUNC_CONF_0		0x6b030
+#define _DSI_TRANS_FUNC_CONF_1		0x6b830
+#define DSI_TRANS_FUNC_CONF(tc)		_MMIO_DSI(tc,	\
+						  _DSI_TRANS_FUNC_CONF_0,\
+						  _DSI_TRANS_FUNC_CONF_1)
+#define  OP_MODE(x)			(x << 28)
+#define  OP_MODE_MASK			(0x3 << 28)
+#define  CMD_MODE_NO_GATE		0x0
+#define  CMD_MODE_TE_GATE		0x1
+#define  VIDEO_MODE_SYNC_EVENT		0x2
+#define  VIDEO_MODE_SYNC_PULSE		0x3
+#define  LINK_READY			(1 << 20)
+#define  PIX_FMT(x)			(x << 16)
+#define  PIX_FMT_MASK			(0x3 << 16)
+#define  PIX_FMT_RGB565		0x0
+#define  PIX_FMT_RGB666_PACKED		0x1
+#define  PIX_FMT_RGB666_LOOSE		0x2
+#define  PIX_FMT_RGB888		0x3
+#define  PIX_FMT_RGB101010		0x4
+#define  PIX_FMT_RGB121212		0x5
+#define  PIX_FMT_COMPRESSED		0x6
+#define  BGR_TRANSMISSION		(1 << 15)
+#define  PIX_VIRT_CHAN(x)		(x << 12)
+#define  PIX_VIRT_CHAN_MASK		(0x3 << 12)
+#define  PIX_BUF_THRESHOLD(x)		((x & 0x3) << 10)
+#define  PIX_BUF_THRESHOLD_MASK	(0x3 << 10)
+#define  PIX_BUF_THRESHOLD_1_4		0x0
+#define  PIX_BUF_THRESHOLD_1_2		0x1
+#define  PIX_BUF_THRESHOLD_3_4		0x2
+#define  PIX_BUF_THRESHOLD_FULL	0x3
+#define  CONTINUOUS_CLK(x)		(x << 8)
+#define  CONTINUOUS_CLK_MASK		(0x3 << 8)
+#define  CLK_ENTER_LP_AFTER_DATA	0x0
+#define  CLK_HS_OR_LP			0x2
+#define  CLK_HS_CONTINUOUS		0x3
+#define  LINK_CALIBRATION(x)		(x << 4)
+#define  LINK_CALIBRATION_MASK		(0x3 << 4)
+#define  CALIBRATION_DISABLED		0x0
+#define  CALIBRATION_ENABLED_INITIAL_ONLY	0x2
+#define  CALIBRATION_ENABLED_INITIAL_PERIODIC	0x3
+#define  S3D_ORIENTATION(x)		(x << 1)
+#define  S3D_ORIENTATION_MASK		(0x1 << 1)
+#define  S3D_ORIENTATION_PORTRAIT	0x0
+#define  S3D_ORIENTATION_LANDSCAPE	0x1
+#define  EOTP_DISABLED			(1 << 0)
+
 /* bits 31:0 */
 #define _MIPIA_DBI_BW_CTRL		(dev_priv->mipi_mmio_base + 0xb084)
 #define _MIPIC_DBI_BW_CTRL		(dev_priv->mipi_mmio_base + 0xb884)
