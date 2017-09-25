@@ -1839,6 +1839,7 @@ bool intel_bios_is_dsi_present(struct drm_i915_private *dev_priv,
 	const struct child_device_config *child;
 	u8 dvo_port;
 	int i;
+	bool ret = false;
 
 	for (i = 0; i < dev_priv->vbt.child_dev_num; i++) {
 		child = dev_priv->vbt.child_dev + i;
@@ -1850,19 +1851,37 @@ bool intel_bios_is_dsi_present(struct drm_i915_private *dev_priv,
 
 		switch (dvo_port) {
 		case DVO_PORT_MIPIA:
+			ret = true;
+			goto out;
 		case DVO_PORT_MIPIC:
-			if (port)
-				*port = dvo_port - DVO_PORT_MIPIA;
-			return true;
+			ret = IS_ICELAKE(dev_priv);
+			if (!ret) {
+				ret = true;
+				goto out;
+			}
+			break;
 		case DVO_PORT_MIPIB:
+			ret = IS_ICELAKE(dev_priv);
+			if (ret)
+				goto out;
+			break;
 		case DVO_PORT_MIPID:
-			DRM_DEBUG_KMS("VBT has unsupported DSI port %c\n",
-				      port_name(dvo_port - DVO_PORT_MIPIA));
+			DRM_ERROR("VBT has unsupported DSI port %c\n",
+				  port_name(dvo_port - DVO_PORT_MIPIA));
 			break;
 		}
 	}
 
-	return false;
+out:
+	if (ret) {
+		if (port)
+			*port = dvo_port - DVO_PORT_MIPIA;
+	} else {
+		DRM_ERROR("DSI info not present in VBT\n");
+	}
+
+
+	return ret;
 }
 
 /**
