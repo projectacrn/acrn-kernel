@@ -9546,6 +9546,18 @@ enum skl_power_gate {
 #define MIPIO_TXESC_CLK_DIV2			_MMIO(0x160008)
 #define  GLK_TX_ESC_CLK_DIV2_MASK			0x3FF
 
+#define _ICL_DSI_ESC_CLK_DIV0		0x6b090
+#define _ICL_DSI_ESC_CLK_DIV1		0x6b890
+#define ICL_DSI_ESC_CLK_DIV(port)	_MMIO_PORT((port),	\
+							_ICL_DSI_ESC_CLK_DIV0, \
+							_ICL_DSI_ESC_CLK_DIV1)
+#define _ICL_DPHY_ESC_CLK_DIV0		0x162190
+#define _ICL_DPHY_ESC_CLK_DIV1		0x6C190
+#define ICL_DPHY_ESC_CLK_DIV(port)	_MMIO_PORT((port),	\
+						_ICL_DPHY_ESC_CLK_DIV0, \
+						_ICL_DPHY_ESC_CLK_DIV1)
+#define ICL_ESC_CLK_DIV_MASK		0x1ff
+
 /* Gen4+ Timestamp and Pipe Frame time stamp registers */
 #define GEN4_TIMESTAMP		_MMIO(0x2358)
 #define ILK_TIMESTAMP_HI	_MMIO(0x70070)
