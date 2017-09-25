@@ -806,6 +806,25 @@ static void gen11_dsi_disable_transcoder(struct intel_encoder *encoder)
 			DRM_ERROR("DSI trancoder not disabled\n");
 	}
 }
+static void gen11_dsi_powerdown_panel(struct intel_encoder *encoder)
+{
+	struct intel_dsi *intel_dsi = enc_to_intel_dsi(&encoder->base);
+	struct mipi_dsi_device *dsi;
+	enum port port;
+	int ret;
+
+	/* send SHUT_DOWN command to panel */
+	if (intel_dsi->operation_mode == INTEL_DSI_VIDEO_MODE) {
+		for_each_dsi_port(port, intel_dsi->ports) {
+			dsi = to_mipi_dsi_device(
+					intel_dsi->dsi_hosts[port]->base.dev);
+			ret = mipi_dsi_shutdown_peripheral(dsi);
+			if (ret < 0)
+				DRM_ERROR("error sending SHUT_DOWN command\n");
+		}
+	}
+}
+
 
 static void __attribute__((unused)) gen11_dsi_disable(
 			struct intel_encoder *encoder,
@@ -820,4 +839,7 @@ static void __attribute__((unused)) gen11_dsi_disable(
 
 	/* step2c,d: disable transcoder and wait */
 	gen11_dsi_disable_transcoder(encoder);
+
+	/* step2e,f: powerdown panel */
+	gen11_dsi_powerdown_panel(encoder);
 }
