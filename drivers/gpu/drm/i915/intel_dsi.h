@@ -101,6 +101,7 @@ struct intel_dsi {
 
 	u16 init_count;
 	u32 pclk;
+	u32 bitrate_khz;
 	u16 burst_mode_ratio;
 
 	/* all delays in ms */
