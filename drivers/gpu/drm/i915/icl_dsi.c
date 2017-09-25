@@ -100,6 +100,32 @@ static void wait_for_cmds_dispatched_to_panel(struct intel_encoder *encoder)
 	}
 }
 
+static u8 __attribute__((unused)) dsi_hdr_credit_available(
+						struct intel_dsi *intel_dsi,
+						enum transcoder dsi_trans)
+{
+	struct drm_i915_private *dev_priv = to_i915(intel_dsi->base.base.dev);
+	u8 free_hdr_credit;
+
+	free_hdr_credit = (I915_READ(DSI_CMD_TXCTL(dsi_trans)) &
+			   FREE_HEADER_CREDIT_MASK) >> FREE_HEADER_CREDIT_SHIFT;
+
+	return free_hdr_credit;
+}
+
+static u8 __attribute__((unused)) dsi_payld_credit_available(
+						struct intel_dsi *intel_dsi,
+						enum transcoder dsi_trans)
+{
+	struct drm_i915_private *dev_priv = to_i915(intel_dsi->base.base.dev);
+	u8 free_payld_credit;
+
+	free_payld_credit = (I915_READ(DSI_CMD_TXCTL(dsi_trans)) &
+			     FREE_PLOAD_CREDIT_MASK);
+
+	return free_payld_credit;
+}
+
 static void dsi_program_swing_and_deemphasis(struct intel_encoder *encoder)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
