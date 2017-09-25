@@ -1725,6 +1725,25 @@ enum i915_power_well_id {
 #define ICL_PORT_CL_DW5(port)	_MMIO_PORT(port, _ICL_PORT_CL_DW5_A, \
 						 _ICL_PORT_CL_DW5_B)
 
+#define _CNL_PORT_CL_DW10_A		0x162028
+#define _ICL_PORT_CL_DW10_B		0x6c028
+#define ICL_PORT_CL_DW10(port)		_MMIO_PORT(port,	\
+						   _CNL_PORT_CL_DW10_A, \
+						   _ICL_PORT_CL_DW10_B)
+#define  PG_SEQ_DELAY_OVRRIDE		(3 << 25)
+#define  PG_SEQ_DELAY_OVRRIDE_ENABLE	(1 << 24)
+#define  PWR_UP_ALL_LANES		0x0
+#define  PWR_DOWN_LN_3_2_1		0xe
+#define  PWR_DOWN_LN_3_2		0xc
+#define  PWR_DOWN_LN_3			0x8
+#define  PWR_DOWN_LN_2_1_0		0x7
+#define  PWR_DOWN_LN_1_0		0x3
+#define  PWR_DOWN_LN_1			0x2
+#define  PWR_DOWN_LN_3_1		0xa
+#define  PWR_DOWN_LN_3_1_0		0xb
+#define  PWR_DOWN_LN_MASK		0xf0
+#define  PWR_DOWN_LN_SHIFT		4
+
 #define _PORT_CL1CM_DW9_A		0x162024
 #define _PORT_CL1CM_DW9_BC		0x6C024
 #define   IREF0RC_OFFSET_SHIFT		8
