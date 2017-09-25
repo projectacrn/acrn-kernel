@@ -27,8 +27,7 @@
 
 #include "intel_dsi.h"
 
-static enum transcoder __attribute__((unused)) dsi_port_to_transcoder(
-								enum port port)
+static enum transcoder dsi_port_to_transcoder(enum port port)
 {
 	if (port == PORT_A)
 		return TRANSCODER_DSI_0;
@@ -338,6 +337,87 @@ static void gen11_dsi_setup_dphy_timings(struct intel_encoder *encoder)
 	}
 }
 
+static void gen11_dsi_configure_transcoder(struct intel_encoder *encoder)
+{
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	struct intel_dsi *intel_dsi = enc_to_intel_dsi(&encoder->base);
+	u32 tmp;
+	enum port port;
+	enum transcoder dsi_trans;
+
+	for_each_dsi_port(port, intel_dsi->ports) {
+		dsi_trans = dsi_port_to_transcoder(port);
+		tmp = I915_READ(DSI_TRANS_FUNC_CONF(dsi_trans));
+
+		if (intel_dsi->eotp_pkt == 0)
+			tmp |= EOTP_DISABLED;
+		else
+			tmp &= ~EOTP_DISABLED;
+
+		/* enable link calibration if freq > 1.5Gbps */
+		if (intel_dsi->bitrate_khz >= (1500 * 1000)) {
+			tmp &= ~LINK_CALIBRATION_MASK;
+			tmp |= LINK_CALIBRATION(
+					CALIBRATION_ENABLED_INITIAL_ONLY);
+		}
+
+		/* configure continuous clock */
+		tmp &= ~CONTINUOUS_CLK_MASK;
+		if (intel_dsi->clock_stop)
+			tmp |= CONTINUOUS_CLK(CLK_ENTER_LP_AFTER_DATA);
+		else
+			tmp |= CONTINUOUS_CLK(CLK_HS_CONTINUOUS);
+
+		/* configure buffer threshold limit to minimum */
+		tmp &= ~PIX_BUF_THRESHOLD_MASK;
+		tmp |= PIX_BUF_THRESHOLD(PIX_BUF_THRESHOLD_1_4);
+
+		/* set virtual channel to '0' */
+		tmp &= ~PIX_VIRT_CHAN_MASK;
+		tmp |= PIX_VIRT_CHAN(0x0);
+
+		/* program BGR transmission */
+		if (intel_dsi->bgr_enabled)
+			tmp |= BGR_TRANSMISSION;
+
+		/* select pixel format */
+		tmp &= ~PIX_FMT_MASK;
+
+		switch (intel_dsi->pixel_format) {
+		case MIPI_DSI_FMT_RGB888:
+			tmp |= PIX_FMT(PIX_FMT_RGB888);
+			break;
+		case MIPI_DSI_FMT_RGB666:
+			tmp |= PIX_FMT(PIX_FMT_RGB666_LOOSE);
+			break;
+		case MIPI_DSI_FMT_RGB666_PACKED:
+			tmp |= PIX_FMT(PIX_FMT_RGB666_PACKED);
+			break;
+		case MIPI_DSI_FMT_RGB565:
+			tmp |= PIX_FMT(PIX_FMT_RGB565);
+			break;
+		default:
+			DRM_ERROR("DSI pixel format unsupported\n");
+		}
+
+		/* program DSI operation mode */
+		if (intel_dsi->operation_mode == INTEL_DSI_VIDEO_MODE) {
+			tmp &= ~OP_MODE_MASK;
+			if (intel_dsi->video_mode_format ==
+					VIDEO_MODE_NON_BURST_WITH_SYNC_PULSE) {
+				tmp |= OP_MODE(VIDEO_MODE_SYNC_PULSE);
+			} else if (intel_dsi->video_mode_format ==
+					VIDEO_MODE_NON_BURST_WITH_SYNC_EVENTS) {
+				tmp |= OP_MODE(VIDEO_MODE_SYNC_EVENT);
+			} else {
+				DRM_ERROR("DSI Video Mode unsupported\n");
+			}
+		}
+
+		I915_WRITE(DSI_TRANS_FUNC_CONF(dsi_trans), tmp);
+	}
+}
+
 static void gen11_dsi_enable_port_and_phy(struct intel_encoder *encoder)
 {
 	/* step 4a: power up all lanes of the DDI used by DSI */
@@ -354,6 +434,9 @@ static void gen11_dsi_enable_port_and_phy(struct intel_encoder *encoder)
 
 	/* step 4e: setup D-PHY timings */
 	gen11_dsi_setup_dphy_timings(encoder);
+
+	/* Step (4h, 4i, 4j, 4k): Configure transcoder */
+	gen11_dsi_configure_transcoder(encoder);
 }
 
 static void __attribute__((unused)) gen11_dsi_pre_enable(
