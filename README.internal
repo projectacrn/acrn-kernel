@@ -51,3 +51,16 @@ maintainer-tools branch of the upstream drm-intel git repository. Direct link:
 
 The script has an integrate howto and extensive on-line help for all
 subcommands.
+
+Branches:
+
+poweron/<codename>: Temporary branch used for Power On activities os that
+		    specific platform.
+
+platforms/<codename>: Chopped drm-intel-internal containing patches up to that
+		      plaform, but excluding newer platforms, simulation and
+		      any other internal hack.
+		      When a critical patch for that platform needs to be
+		      disabled also the platform branch update should be
+		      disabled as well. (Disabled on quilt series)
+		      Current active branches:
