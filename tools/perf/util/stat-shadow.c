@@ -909,42 +909,6 @@ void perf_stat__print_shadow_stats(struct perf_evsel *evsel,
 			color = PERF_COLOR_RED;
 		print_metric(ctxp, color, "%8.1f%%", "bad speculation",
 				bad_spec * 100.);
-	} else if (perf_stat_evsel__is(evsel, TOPDOWN_RETIRING) &&
-			full_td(ctx, cpu)) {
-		double bad_spec = td_metric_ratio(ctx, cpu,
-						  &runtime_topdown_retiring[ctx][cpu]);
-
-		if (bad_spec > 0.1)
-			color = PERF_COLOR_RED;
-		print_metric(ctxp, color, "%8.1f%%", "bad speculation",
-				bad_spec * 100.);
-	} else if (perf_stat_evsel__is(evsel, TOPDOWN_FE_BOUND) &&
-			full_td(ctx, cpu)) {
-		double fe_bound = td_metric_ratio(ctx, cpu,
-						  &runtime_topdown_fe_bound[ctx][cpu]);
-
-		if (fe_bound > 0.2)
-			color = PERF_COLOR_RED;
-		print_metric(ctxp, color, "%8.1f%%", "frontend bound",
-				fe_bound * 100.);
-	} else if (perf_stat_evsel__is(evsel, TOPDOWN_BE_BOUND) &&
-			full_td(ctx, cpu)) {
-		double retiring = td_metric_ratio(ctx, cpu,
-						  &runtime_topdown_be_bound[ctx][cpu]);
-
-		if (retiring > 0.7)
-			color = PERF_COLOR_GREEN;
-		print_metric(ctxp, color, "%8.1f%%", "retiring",
-				retiring * 100.);
-	} else if (perf_stat_evsel__is(evsel, TOPDOWN_BAD_SPEC) &&
-			full_td(ctx, cpu)) {
-		double bad_spec = td_metric_ratio(ctx, cpu,
-						  &runtime_topdown_bad_spec[ctx][cpu]);
-
-		if (bad_spec > 0.1)
-			color = PERF_COLOR_RED;
-		print_metric(ctxp, color, "%8.1f%%", "bad speculation",
-				bad_spec * 100.);
 	} else if (evsel->metric_expr) {
 		struct parse_ctx pctx;
 		int i;
