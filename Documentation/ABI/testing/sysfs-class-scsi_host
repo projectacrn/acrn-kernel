@@ -27,3 +27,18 @@ Description:	This file contains the current status of the "SSD Smart Path"
 		the direct i/o path to physical devices.  This setting is
 		controller wide, affecting all configured logical drives on the
 		controller.  This file is readable and writable.
+
+What:		/sys/class/scsi_host/hostX/auto_hibern8
+Date:		October 2017
+Contact:	linux-scsi@vger.kernel.org
+Description:
+		This file contains the auto-hibernate idle timer setting of a
+		UFS host controller. A value of '-1' means auto-hibernate is not
+		supported. A value of '0' means auto-hibernate is not enabled.
+		Otherwise the value is the number of microseconds of idle time
+		before the UFS host controller will autonomously put the link
+		into hibernate state. That will save power at the expense of
+		increased latency. Note that the hardware supports 10-bit values
+		with a power-of-ten multiplier which allows a maximum value of
+		102300000. Refer to the UFS Host Controller Interface
+		specification for more details.
