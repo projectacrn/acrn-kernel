@@ -298,6 +298,7 @@
 #define X86_FEATURE_AVX512VBMI2	(16*32+ 6) /* Additional AVX512 Vector Bit Manipulation Instructions*/
 #define X86_FEATURE_GFNI	(16*32+ 8) /* Galois Field New Instructions */
 #define X86_FEATURE_VAES	(16*32+ 9) /* Vector AES */
+#define X86_FEATURE_VPCLMULQDQ	(16*32+ 10)/* Carry-Less Multiplication Quadword */
 #define X86_FEATURE_AVX512VNNI  (16*32+ 11) /* Vector Neural Network Instructions */
 #define X86_FEATURE_AVX512_BITALG (16*32+12) /* Support for VPOPCNT[B,W] and VPSHUF-BITQMB */
 #define X86_FEATURE_AVX512_VPOPCNTDQ (16*32+14) /* POPCNT for vectors of DW/QW */
