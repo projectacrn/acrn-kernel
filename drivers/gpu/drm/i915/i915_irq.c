@@ -251,6 +251,8 @@ static u16 gen11_service_shared_iir(struct drm_i915_private *dev_priv,
 	u16 irq;
 	u32 ident;
 
+	lockdep_assert_held(&dev_priv->irq_lock);
+
 	I915_WRITE_FW(GEN11_IIR_REG_SELECTOR(bank), BIT(bit));
 	/*
 	 * NB: Specs do not specify how long to spin wait.
@@ -272,6 +274,36 @@ static u16 gen11_service_shared_iir(struct drm_i915_private *dev_priv,
 	I915_WRITE_FW(GEN11_INTR_IDENTITY_REG(bank), ident);
 
 	return irq;
+}
+
+static bool gen11_service_one_iir(struct drm_i915_private *dev_priv,
+				  unsigned int bank,
+				  unsigned int bit)
+{
+	u32 dw;
+
+	lockdep_assert_held(&dev_priv->irq_lock);
+
+	dw = I915_READ_FW(GEN11_GT_INTR_DW(bank));
+	if (dw & BIT(bit)) {
+		/*
+		 * According to the BSpec, DW_IIR bits cannot be cleared without
+		 * first servicing the Selector & Shared IIR registers.
+		 */
+		gen11_service_shared_iir(dev_priv, bank, bit);
+
+		/*
+		 * We locked GT INT DW by reading it. If we want to (try
+		 * to) recover from this succesfully, we need to clear
+		 * our bit, otherwise we are locking the register for
+		 * everybody.
+		 */
+		I915_WRITE_FW(GEN11_GT_INTR_DW(bank), BIT(bit));
+
+		return true;
+	}
+
+	return false;
 }
 
 /**
@@ -445,20 +477,10 @@ static void gen6_disable_pm_irq(struct drm_i915_private *dev_priv, u32 disable_m
 
 void gen11_reset_rps_interrupts(struct drm_i915_private *dev_priv)
 {
-	u32 dw;
-
 	spin_lock_irq(&dev_priv->irq_lock);
 
-	/*
-	 * According to the BSpec, DW_IIR bits cannot be cleared without
-	 * first servicing the Selector & Shared IIR registers.
-	 */
-	dw = I915_READ_FW(GEN11_GT_INTR_DW0);
-	while (dw & BIT(GEN11_GTPM)) {
-		gen11_service_shared_iir(dev_priv, 0, GEN11_GTPM);
-		I915_WRITE_FW(GEN11_GT_INTR_DW0, BIT(GEN11_GTPM));
-		dw = I915_READ_FW(GEN11_GT_INTR_DW0);
-	}
+	while (gen11_service_one_iir(dev_priv, 0, GEN11_GTPM))
+		;
 
 	dev_priv->gt_pm.rps.pm_iir = 0;
 
@@ -483,7 +505,7 @@ void gen6_enable_rps_interrupts(struct drm_i915_private *dev_priv)
 	spin_lock_irq(&dev_priv->irq_lock);
 	WARN_ON_ONCE(rps->pm_iir);
 	if (INTEL_GEN(dev_priv) >= 11)
-		WARN_ON_ONCE(I915_READ_FW(GEN11_GT_INTR_DW0) & BIT(GEN11_GTPM));
+		WARN_ON_ONCE(gen11_service_one_iir(dev_priv, 0, GEN11_GTPM));
 	else
 		WARN_ON_ONCE(I915_READ(gen6_pm_iir(dev_priv)) & dev_priv->pm_rps_events);
 	rps->interrupts_enabled = true;
@@ -555,20 +577,10 @@ static void gen9_disable_guc_interrupts(struct drm_i915_private *dev_priv)
 
 static void gen11_reset_guc_interrupts(struct drm_i915_private *dev_priv)
 {
-	u32 dw;
-
 	spin_lock_irq(&dev_priv->irq_lock);
 
-	/*
-	 * According to the BSpec, DW_IIR bits cannot be cleared without
-	 * first servicing the Selector & Shared IIR registers.
-	 */
-	dw = I915_READ_FW(GEN11_GT_INTR_DW0);
-	while (dw & BIT(GEN11_GUC)) {
-		gen11_service_shared_iir(dev_priv, 0, GEN11_GUC);
-		I915_WRITE_FW(GEN11_GT_INTR_DW0, BIT(GEN11_GUC));
-		dw = I915_READ_FW(GEN11_GT_INTR_DW0);
-	}
+	while (gen11_service_one_iir(dev_priv, 0, GEN11_GUC))
+		;
 
 	spin_unlock_irq(&dev_priv->irq_lock);
 }
@@ -577,7 +589,7 @@ static void gen11_enable_guc_interrupts(struct drm_i915_private *dev_priv)
 {
 	spin_lock_irq(&dev_priv->irq_lock);
 	if (!dev_priv->guc.interrupts.enabled) {
-		WARN_ON_ONCE(I915_READ_FW(GEN11_GT_INTR_DW0) & BIT(GEN11_GUC));
+		WARN_ON_ONCE(gen11_service_one_iir(dev_priv, 0, GEN11_GUC));
 		dev_priv->guc.interrupts.enabled = true;
 		I915_WRITE(GEN11_GUC_SG_INTR_ENABLE, dev_priv->guc_events << 16);
 		I915_WRITE(GEN11_GUC_SG_INTR_MASK, ~(dev_priv->guc_events << 16));
@@ -2865,11 +2877,17 @@ gen11_gt_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 	u32 dw;
 	unsigned long tmp;
 	unsigned int bank, bit, engine;
+	bool irq_lock_grabbed = false;
 
 	memset(irq, 0, sizeof(irq));
 
 	for (bank = 0; bank < 2; bank++) {
 		if (master_ctl & GEN11_GT_DW_IRQ(bank)) {
+			if (!irq_lock_grabbed) {
+				spin_lock(&dev_priv->irq_lock);
+				irq_lock_grabbed = true;
+			}
+
 			dw = I915_READ_FW(GEN11_GT_INTR_DW(bank));
 			if (!dw)
 				DRM_ERROR("GT_INTR_DW%u blank!\n", bank);
@@ -2880,6 +2898,9 @@ gen11_gt_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 			I915_WRITE_FW(GEN11_GT_INTR_DW(bank), dw);
 		}
 	}
+
+	if (irq_lock_grabbed)
+		spin_unlock(&dev_priv->irq_lock);
 
 	if (irq[0][GEN11_RCS0]) {
 		gen11_cs_irq_handler(dev_priv->engine[RCS],
