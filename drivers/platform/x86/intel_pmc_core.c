@@ -727,6 +727,7 @@ static const struct pci_device_id host_bridge_pci_ids[] = {
 	{ PCI_VDEVICE(INTEL, 0x590C), (kernel_ulong_t)&spt_reg_map },
 	{ PCI_VDEVICE(INTEL, 0x3ED0), (kernel_ulong_t)&cnp_reg_map },
 	{ PCI_VDEVICE(INTEL, 0x3EC4), (kernel_ulong_t)&cnp_reg_map },
+	{ PCI_VDEVICE(INTEL, 0x5A02), (kernel_ulong_t)&cnp_reg_map },
 	{ 0, },
 };
 
