@@ -7535,6 +7535,46 @@ enum {
 #define  PORTE_HOTPLUG_SHORT_DETECT	(1 << 0)
 #define  PORTE_HOTPLUG_LONG_DETECT	(2 << 0)
 
+/* ICP */
+#define ICP_SDE_ISR			_MMIO(0xc4000)
+#define ICP_SDE_IMR			_MMIO(0xc4004)
+#define ICP_SDE_IIR			_MMIO(0xc4008)
+#define ICP_SDE_IER			_MMIO(0xc400c)
+#define   ICP_TC4_HOTPLUG		(1 << 27)
+#define   ICP_TC3_HOTPLUG		(1 << 26)
+#define   ICP_TC2_HOTPLUG		(1 << 25)
+#define   ICP_TC1_HOTPLUG		(1 << 24)
+#define   ICP_GMBUS			(1 << 23)
+#define   ICP_DDIB_HOTPLUG		(1 << 17)
+#define   ICP_DDIA_HOTPLUG		(1 << 16)
+
+#define ICP_SDE_DDI_MASK		(ICP_DDIB_HOTPLUG |	\
+					 ICP_DDIA_HOTPLUG)
+
+#define ICP_SDE_TC_MASK			(ICP_TC4_HOTPLUG |	\
+					 ICP_TC3_HOTPLUG |	\
+					 ICP_TC2_HOTPLUG |	\
+					 ICP_TC1_HOTPLUG)
+
+#define SHOTPLUG_CTL_DDI			_MMIO(0xc4030)	/* SHOTPLUG_CTL */
+#define   ICP_DDIB_HPD_ENABLE			(1 << 7)
+#define   ICP_DDIB_HPD_STATUS_MASK		(3 << 4)
+#define   ICP_DDIB_HPD_NO_DETECT		(0 << 4)
+#define   ICP_DDIB_HPD_SHORT_DETECT		(1 << 4)
+#define   ICP_DDIB_HPD_LONG_DETECT		(2 << 4)
+#define   ICP_DDIB_HPD_SHORT_LONG_DETECT	(3 << 4)
+#define   ICP_DDIA_HPD_ENABLE			(1 << 3)
+#define   ICP_DDIA_HPD_STATUS_MASK		(3 << 0)
+#define   ICP_DDIA_HPD_NO_DETECT		(0 << 0)
+#define   ICP_DDIA_HPD_SHORT_DETECT		(1 << 0)
+#define   ICP_DDIA_HPD_LONG_DETECT		(2 << 0)
+#define   ICP_DDIA_HPD_SHORT_LONG_DETECT	(3 << 0)
+
+#define SHOTPLUG_CTL_TC				_MMIO(0xc4034)
+#define   ICP_TC_HPD_ENABLE(tc_port)		(8 << (tc_port) * 4)
+#define   ICP_TC_HPD_LONG_DETECT(tc_port)	(2 << (tc_port) * 4)
+#define   ICP_TC_HPD_SHORT_DETECT(tc_port)	(1 << (tc_port) * 4)
+
 #define PCH_GPIOA               _MMIO(0xc5010)
 #define PCH_GPIOB               _MMIO(0xc5014)
 #define PCH_GPIOC               _MMIO(0xc5018)
