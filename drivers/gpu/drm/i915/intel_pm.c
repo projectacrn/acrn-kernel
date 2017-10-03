@@ -8585,6 +8585,10 @@ static void icl_init_clock_gating(struct drm_i915_private *dev_priv)
 	I915_WRITE(_3D_CHICKEN3,
 		   _MASKED_BIT_ENABLE(_3D_CHICKEN3_AA_LINE_QUALITY_FIX_ENABLE));
 
+	/* This is not an Wa. Enable to reduce Sampler power */
+	I915_WRITE(GEN10_DFR_RATIO_EN_AND_CHICKEN,
+		   (I915_READ(GEN10_DFR_RATIO_EN_AND_CHICKEN) & ~DFR_DISABLE));
+
 	/* WaInPlaceDecompressionHang:icl */
 	I915_WRITE(GEN9_GAMT_ECO_REG_RW_IA, (I915_READ(GEN9_GAMT_ECO_REG_RW_IA) |
 					     GAMT_ECO_ENABLE_IN_PLACE_DECOMPRESS));
