@@ -1526,6 +1526,22 @@ static u8 gtiir[] = {
 	[VECS] = 3,
 };
 
+struct gen11_irq_bank_bit {
+	u8 bank;
+	u8 bit;
+};
+
+static struct gen11_irq_bank_bit gen11_gtiir[] = {
+	[RCS] = {0, GEN11_RCS0},
+	[BCS] = {0, GEN11_BCS},
+	[_VCS(0)] = {1, GEN11_VCS(0)},
+	[_VCS(1)] = {1, GEN11_VCS(1)},
+	[_VCS(2)] = {1, GEN11_VCS(2)},
+	[_VCS(3)] = {1, GEN11_VCS(3)},
+	[_VECS(0)] = {1, GEN11_VECS(0)},
+	[_VECS(1)] = {1, GEN11_VECS(1)},
+};
+
 static int gen8_init_common_ring(struct intel_engine_cs *engine)
 {
 	struct drm_i915_private *dev_priv = engine->i915;
@@ -1554,8 +1570,6 @@ static int gen8_init_common_ring(struct intel_engine_cs *engine)
 
 	DRM_DEBUG_DRIVER("Execlists enabled for %s\n", engine->name);
 
-	GEM_BUG_ON(engine->id >= ARRAY_SIZE(gtiir));
-
 	/*
 	 * Clear any pending interrupt state.
 	 *
@@ -1563,10 +1577,26 @@ static int gen8_init_common_ring(struct intel_engine_cs *engine)
 	 * buffered, and if we only reset it once there may still be
 	 * an interrupt pending.
 	 */
-	I915_WRITE(GEN8_GT_IIR(gtiir[engine->id]),
-		   GT_CONTEXT_SWITCH_INTERRUPT << engine->irq_shift);
-	I915_WRITE(GEN8_GT_IIR(gtiir[engine->id]),
-		   GT_CONTEXT_SWITCH_INTERRUPT << engine->irq_shift);
+	if (INTEL_GEN(dev_priv) >= 11) {
+		unsigned long irqflags;
+
+		GEM_BUG_ON(engine->id >= ARRAY_SIZE(gen11_gtiir));
+
+		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
+		gen11_service_one_iir(dev_priv, gen11_gtiir[engine->id].bank,
+				      gen11_gtiir[engine->id].bit);
+		gen11_service_one_iir(dev_priv, gen11_gtiir[engine->id].bank,
+				      gen11_gtiir[engine->id].bit);
+		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
+	} else {
+		GEM_BUG_ON(engine->id >= ARRAY_SIZE(gtiir));
+
+		I915_WRITE(GEN8_GT_IIR(gtiir[engine->id]),
+			   GT_CONTEXT_SWITCH_INTERRUPT << engine->irq_shift);
+		I915_WRITE(GEN8_GT_IIR(gtiir[engine->id]),
+			   GT_CONTEXT_SWITCH_INTERRUPT << engine->irq_shift);
+	}
+
 	clear_bit(ENGINE_IRQ_EXECLIST, &engine->irq_posted);
 	execlists->csb_head = -1;
 	execlists->active = 0;

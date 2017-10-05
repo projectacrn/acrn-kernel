@@ -1229,6 +1229,9 @@ void intel_check_cpu_fifo_underruns(struct drm_i915_private *dev_priv);
 void intel_check_pch_fifo_underruns(struct drm_i915_private *dev_priv);
 
 /* i915_irq.c */
+bool gen11_service_one_iir(struct drm_i915_private *dev_priv,
+			   unsigned int bank,
+			   unsigned int bit);
 void gen5_enable_gt_irq(struct drm_i915_private *dev_priv, uint32_t mask);
 void gen5_disable_gt_irq(struct drm_i915_private *dev_priv, uint32_t mask);
 void gen6_mask_pm_irq(struct drm_i915_private *dev_priv, u32 mask);

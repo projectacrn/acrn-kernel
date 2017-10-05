@@ -276,9 +276,9 @@ static u16 gen11_service_shared_iir(struct drm_i915_private *dev_priv,
 	return irq;
 }
 
-static bool gen11_service_one_iir(struct drm_i915_private *dev_priv,
-				  unsigned int bank,
-				  unsigned int bit)
+bool gen11_service_one_iir(struct drm_i915_private *dev_priv,
+			   unsigned int bank,
+			   unsigned int bit)
 {
 	u32 dw;
 
