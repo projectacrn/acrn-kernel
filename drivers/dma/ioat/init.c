@@ -253,10 +253,16 @@ static inline bool is_skx_ioat(struct pci_dev *pdev)
 	return (pdev->device == PCI_DEVICE_ID_INTEL_IOAT_SKX) ? true : false;
 }
 
+static inline bool is_icx_ioat(struct pci_dev *pdev)
+{
+	return (pdev->device == PCI_DEVICE_ID_INTEL_IOAT_ICX) ? true : false;
+}
+
 static bool is_xeon_cb32(struct pci_dev *pdev)
 {
 	return is_jf_ioat(pdev) || is_snb_ioat(pdev) || is_ivb_ioat(pdev) ||
-		is_hsw_ioat(pdev) || is_bdx_ioat(pdev) || is_skx_ioat(pdev);
+		is_hsw_ioat(pdev) || is_bdx_ioat(pdev) || is_skx_ioat(pdev) ||
+		is_icx_ioat(pdev);
 }
 
 bool is_bwd_ioat(struct pci_dev *pdev)
