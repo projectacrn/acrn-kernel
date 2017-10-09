@@ -1239,9 +1239,8 @@ static void intel_dsi_get_config(struct intel_encoder *encoder,
 	pipe_config->port_clock = pclk;
 }
 
-static enum drm_mode_status
-intel_dsi_mode_valid(struct drm_connector *connector,
-		     struct drm_display_mode *mode)
+enum drm_mode_status intel_dsi_mode_valid(struct drm_connector *connector,
+					  struct drm_display_mode *mode)
 {
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 	const struct drm_display_mode *fixed_mode = intel_connector->panel.fixed_mode;
@@ -1582,7 +1581,7 @@ static void intel_dsi_unprepare(struct intel_encoder *encoder)
 	}
 }
 
-static int intel_dsi_get_modes(struct drm_connector *connector)
+int intel_dsi_get_modes(struct drm_connector *connector)
 {
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 	struct drm_display_mode *mode;
@@ -1605,7 +1604,7 @@ static int intel_dsi_get_modes(struct drm_connector *connector)
 	return 1;
 }
 
-static void intel_dsi_connector_destroy(struct drm_connector *connector)
+void intel_dsi_connector_destroy(struct drm_connector *connector)
 {
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 

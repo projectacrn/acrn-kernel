@@ -165,7 +165,10 @@ enum mipi_dsi_pixel_format pixel_format_from_register_bits(u32 fmt);
 struct intel_dsi_host *intel_dsi_host_init(struct intel_dsi *intel_dsi,
 					const struct mipi_dsi_host_ops *funcs,
 					enum port port);
-
+void intel_dsi_connector_destroy(struct drm_connector *connector);
+int intel_dsi_get_modes(struct drm_connector *connector);
+enum drm_mode_status intel_dsi_mode_valid(struct drm_connector *connector,
+					  struct drm_display_mode *mode);
 
 /* intel_dsi_pll.c */
 bool intel_dsi_pll_is_enabled(struct drm_i915_private *dev_priv);
