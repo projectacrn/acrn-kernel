@@ -1092,6 +1092,19 @@ static void gen11_dsi_disable(struct intel_encoder *encoder,
 	gen11_dsi_disable_io_power(encoder);
 }
 
+static void gen11_dsi_get_config(struct intel_encoder *encoder,
+				 struct intel_crtc_state *pipe_config)
+{
+	struct intel_dsi *intel_dsi = container_of(encoder, struct intel_dsi,
+						   base);
+	u32 pixel_clk;
+
+	//FIXME: Calculate pixel clock using PLL functions once implemented.
+	pixel_clk = intel_dsi->pclk;
+	pipe_config->base.adjusted_mode.crtc_clock = pixel_clk;
+	pipe_config->port_clock = pixel_clk;
+}
+
 static void gen11_dsi_encoder_destroy(struct drm_encoder *encoder)
 {
 	intel_encoder_destroy(encoder);
@@ -1188,6 +1201,7 @@ void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 	intel_encoder->pre_enable = gen11_dsi_pre_enable;
 	intel_encoder->disable = gen11_dsi_disable;
 	intel_encoder->port = port;
+	intel_encoder->get_config = gen11_dsi_get_config;
 	intel_encoder->type = INTEL_OUTPUT_DSI;
 	intel_encoder->cloneable = 0;
 	intel_encoder->crtc_mask = BIT(PIPE_A) | BIT(PIPE_B) | BIT(PIPE_C);
