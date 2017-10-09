@@ -1105,6 +1105,44 @@ static void gen11_dsi_get_config(struct intel_encoder *encoder,
 	pipe_config->port_clock = pixel_clk;
 }
 
+static bool gen11_dsi_get_hw_state(struct intel_encoder *encoder,
+				   enum pipe *pipe)
+{
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	struct intel_dsi *intel_dsi = enc_to_intel_dsi(&encoder->base);
+	u32 tmp;
+	enum port port;
+	enum transcoder dsi_trans;
+	bool ret = false;
+
+	if (!intel_display_power_get_if_enabled(dev_priv,
+						encoder->power_domain))
+		return false;
+
+	for_each_dsi_port(port, intel_dsi->ports) {
+		dsi_trans = dsi_port_to_transcoder(port);
+		tmp = I915_READ(TRANS_DDI_FUNC_CTL(dsi_trans));
+		switch (tmp & TRANS_DDI_EDP_INPUT_MASK) {
+		case TRANS_DDI_EDP_INPUT_A_ON:
+			*pipe = PIPE_A;
+			ret = true;
+			goto out;
+		case TRANS_DDI_EDP_INPUT_B_ONOFF:
+			*pipe = PIPE_B;
+			ret = true;
+			goto out;
+		case TRANS_DDI_EDP_INPUT_C_ONOFF:
+			*pipe = PIPE_C;
+			ret = true;
+			goto out;
+		}
+	}
+
+out:
+	intel_display_power_put(dev_priv, encoder->power_domain);
+	return ret;
+}
+
 static void gen11_dsi_encoder_destroy(struct drm_encoder *encoder)
 {
 	intel_encoder_destroy(encoder);
@@ -1202,6 +1240,7 @@ void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 	intel_encoder->disable = gen11_dsi_disable;
 	intel_encoder->port = port;
 	intel_encoder->get_config = gen11_dsi_get_config;
+	intel_encoder->get_hw_state = gen11_dsi_get_hw_state;
 	intel_encoder->type = INTEL_OUTPUT_DSI;
 	intel_encoder->cloneable = 0;
 	intel_encoder->crtc_mask = BIT(PIPE_A) | BIT(PIPE_B) | BIT(PIPE_C);
