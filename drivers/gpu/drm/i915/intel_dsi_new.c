@@ -1164,6 +1164,13 @@ static const struct drm_connector_funcs gen11_dsi_connector_funcs = {
 	.atomic_duplicate_state = intel_digital_connector_duplicate_state,
 };
 
+static const struct drm_connector_helper_funcs
+					gen11_dsi_connector_helper_funcs = {
+	.get_modes = intel_dsi_get_modes,
+	.mode_valid = intel_dsi_mode_valid,
+	.atomic_check = intel_digital_connector_atomic_check,
+};
+
 static int gen11_dsi_host_attach(struct mipi_dsi_host *host,
 				 struct mipi_dsi_device *dsi)
 {
@@ -1257,6 +1264,7 @@ void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 	/* register DSI connector with DRM subsystem */
 	drm_connector_init(dev, connector, &gen11_dsi_connector_funcs,
 			   DRM_MODE_CONNECTOR_DSI);
+	drm_connector_helper_add(connector, &gen11_dsi_connector_helper_funcs);
 	connector->display_info.subpixel_order = SubPixelHorizontalRGB;
 	connector->interlace_allowed = false;
 	connector->doublescan_allowed = false;
