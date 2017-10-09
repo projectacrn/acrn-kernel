@@ -26,6 +26,7 @@
  */
 
 #include <drm/drm_mipi_dsi.h>
+#include <drm/drm_atomic_helper.h>
 #include "intel_dsi.h"
 
 static void wait_for_dsi_hdr_credit_release(struct intel_dsi *intel_dsi,
@@ -1153,6 +1154,14 @@ static const struct drm_encoder_funcs gen11_dsi_encoder_funcs = {
 };
 
 static const struct drm_connector_funcs gen11_dsi_connector_funcs = {
+	.late_register = intel_connector_register,
+	.early_unregister = intel_connector_unregister,
+	.destroy = intel_dsi_connector_destroy,
+	.fill_modes = drm_helper_probe_single_connector_modes,
+	.atomic_get_property = intel_digital_connector_atomic_get_property,
+	.atomic_set_property = intel_digital_connector_atomic_set_property,
+	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_duplicate_state = intel_digital_connector_duplicate_state,
 };
 
 static int gen11_dsi_host_attach(struct mipi_dsi_host *host,
