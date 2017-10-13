@@ -290,7 +290,12 @@ intel_engine_setup(struct drm_i915_private *dev_priv,
 	engine->id = id;
 	engine->i915 = dev_priv;
 	__sprint_engine_name(engine->name, info);
-	engine->hw_id = engine->guc_id = info->hw_id;
+	engine->hw_id = info->hw_id;
+	if (INTEL_GEN(dev_priv) >= 11) {
+		engine->guc_id = GEN11_GUC_ENGINE_ID(info->class, info->instance);
+	} else {
+		engine->guc_id = info->hw_id;
+	}
 	engine->mmio_base = __engine_mmio_base(dev_priv, info->mmio_bases);
 	engine->class = info->class;
 	engine->instance = info->instance;
