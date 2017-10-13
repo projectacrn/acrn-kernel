@@ -131,6 +131,22 @@
 
 #define GUC_CTL_MAX_DWORDS		(SOFT_SCRATCH_COUNT - 2) /* [1..14] */
 
+/*
+ * The class goes in bits [0, 2] of the GuC ID, the instance in bits [3, 6]. Bit
+ * 7 can be used for operations that apply to all engine classes and instances.
+ */
+#define GEN11_GUC_ENGINE_CLASS_MASK	0x7
+#define GEN11_GUC_ENGINE_INSTANCE_SHIFT	3
+#define GEN11_GUC_ENGINE_INSTANCE_MASK	(0xf << GEN11_GUC_ENGINE_INSTANCE_SHIFT)
+#define GEN11_GUC_ENGINE_ALL_INSTANCES	BIT(7)
+
+#define GEN11_GUC_ENGINE_ID(class, instance) \
+	((class) | ((instance) << GEN11_GUC_ENGINE_INSTANCE_SHIFT))
+
+#define GEN11_GUC_ID_TO_ENGINE_CLASS(guc_id) ((guc_id) & GEN11_GUC_ENGINE_CLASS_MASK)
+#define GEN11_GUC_ID_TO_ENGINE_INSTANCE(guc_id) \
+	(((guc_id) & GEN11_GUC_ENGINE_INSTANCE_MASK) >> GEN11_GUC_ENGINE_INSTANCE_SHIFT)
+
 /**
  * DOC: GuC Firmware Layout
  *
