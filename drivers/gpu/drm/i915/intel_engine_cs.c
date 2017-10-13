@@ -250,8 +250,9 @@ intel_engine_setup(struct drm_i915_private *dev_priv,
 	WARN_ON(snprintf(engine->name, sizeof(engine->name), "%s%u",
 			 class_info->name, info->instance) >=
 		sizeof(engine->name));
-	engine->hw_id = engine->guc_id = info->hw_id;
+	engine->hw_id = info->hw_id;
 	if (INTEL_GEN(dev_priv) >= 11) {
+		engine->guc_id = GEN11_GUC_ENGINE_ID(info->class, info->instance);
 		switch (engine->id) {
 		case VCS:
 			engine->mmio_base = GEN11_BSD_RING_BASE;
@@ -268,6 +269,7 @@ intel_engine_setup(struct drm_i915_private *dev_priv,
 			break;
 		}
 	} else {
+		engine->guc_id = info->hw_id;
 		engine->mmio_base = info->mmio_base;
 	}
 	engine->irq_shift = info->irq_shift;
