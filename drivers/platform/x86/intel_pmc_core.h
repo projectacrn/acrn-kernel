@@ -136,6 +136,8 @@ enum ppfear_regs {
 struct pmc_bit_map {
 	const char *name;
 	u32 bit_mask;
+	int required_offset;
+	int required_bit;
 };
 
 /**

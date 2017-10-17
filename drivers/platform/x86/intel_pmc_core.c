@@ -37,29 +37,29 @@ static struct pmc_dev pmc;
 
 static const struct pmc_bit_map spt_pll_map[] = {
 	{"MIPI PLL",			SPT_PMC_BIT_MPHY_CMN_LANE0},
-	{"GEN2 USB2PCIE2 PLL",		SPT_PMC_BIT_MPHY_CMN_LANE1},
+	{"GEN2 USB2PCIE2 PLL",		SPT_PMC_BIT_MPHY_CMN_LANE1, 0x034C, 20},
 	{"DMIPCIE3 PLL",		SPT_PMC_BIT_MPHY_CMN_LANE2},
 	{"SATA PLL",			SPT_PMC_BIT_MPHY_CMN_LANE3},
 	{},
 };
 
 static const struct pmc_bit_map spt_mphy_map[] = {
-	{"MPHY CORE LANE 0",           SPT_PMC_BIT_MPHY_LANE0},
-	{"MPHY CORE LANE 1",           SPT_PMC_BIT_MPHY_LANE1},
-	{"MPHY CORE LANE 2",           SPT_PMC_BIT_MPHY_LANE2},
-	{"MPHY CORE LANE 3",           SPT_PMC_BIT_MPHY_LANE3},
-	{"MPHY CORE LANE 4",           SPT_PMC_BIT_MPHY_LANE4},
-	{"MPHY CORE LANE 5",           SPT_PMC_BIT_MPHY_LANE5},
-	{"MPHY CORE LANE 6",           SPT_PMC_BIT_MPHY_LANE6},
-	{"MPHY CORE LANE 7",           SPT_PMC_BIT_MPHY_LANE7},
-	{"MPHY CORE LANE 8",           SPT_PMC_BIT_MPHY_LANE8},
-	{"MPHY CORE LANE 9",           SPT_PMC_BIT_MPHY_LANE9},
-	{"MPHY CORE LANE 10",          SPT_PMC_BIT_MPHY_LANE10},
-	{"MPHY CORE LANE 11",          SPT_PMC_BIT_MPHY_LANE11},
-	{"MPHY CORE LANE 12",          SPT_PMC_BIT_MPHY_LANE12},
-	{"MPHY CORE LANE 13",          SPT_PMC_BIT_MPHY_LANE13},
-	{"MPHY CORE LANE 14",          SPT_PMC_BIT_MPHY_LANE14},
-	{"MPHY CORE LANE 15",          SPT_PMC_BIT_MPHY_LANE15},
+	{"MPHY CORE LANE 0",           SPT_PMC_BIT_MPHY_LANE0, 0x034C, 21},
+	{"MPHY CORE LANE 1",           SPT_PMC_BIT_MPHY_LANE1, 0x034C, 21},
+	{"MPHY CORE LANE 2",           SPT_PMC_BIT_MPHY_LANE2, 0x034C, 21},
+	{"MPHY CORE LANE 3",           SPT_PMC_BIT_MPHY_LANE3, 0x034C, 21},
+	{"MPHY CORE LANE 4",           SPT_PMC_BIT_MPHY_LANE4, 0x034C, 21},
+	{"MPHY CORE LANE 5",           SPT_PMC_BIT_MPHY_LANE5, 0x034C, 21},
+	{"MPHY CORE LANE 6",           SPT_PMC_BIT_MPHY_LANE6, 0x034C, 21},
+	{"MPHY CORE LANE 7",           SPT_PMC_BIT_MPHY_LANE7, 0x034C, 21},
+	{"MPHY CORE LANE 8",           SPT_PMC_BIT_MPHY_LANE8, 0x034C, 21},
+	{"MPHY CORE LANE 9",           SPT_PMC_BIT_MPHY_LANE9, 0x034C, 21},
+	{"MPHY CORE LANE 10",          SPT_PMC_BIT_MPHY_LANE10, 0x034C, 21},
+	{"MPHY CORE LANE 11",          SPT_PMC_BIT_MPHY_LANE11, 0x034C, 21},
+	{"MPHY CORE LANE 12",          SPT_PMC_BIT_MPHY_LANE12, 0x034C, 21},
+	{"MPHY CORE LANE 13",          SPT_PMC_BIT_MPHY_LANE13, 0x034C, 21},
+	{"MPHY CORE LANE 14",          SPT_PMC_BIT_MPHY_LANE14, 0x034C, 21},
+	{"MPHY CORE LANE 15",          SPT_PMC_BIT_MPHY_LANE15, 0x034C, 21},
 	{},
 };
 
@@ -67,18 +67,18 @@ static const struct pmc_bit_map spt_pfear_map[] = {
 	{"PMC",				SPT_PMC_BIT_PMC},
 	{"OPI-DMI",			SPT_PMC_BIT_OPI},
 	{"SPI / eSPI",			SPT_PMC_BIT_SPI},
-	{"XHCI",			SPT_PMC_BIT_XHCI},
+	{"XHCI",			SPT_PMC_BIT_XHCI, 0x031C, 28},
 	{"SPA",				SPT_PMC_BIT_SPA},
 	{"SPB",				SPT_PMC_BIT_SPB},
 	{"SPC",				SPT_PMC_BIT_SPC},
-	{"GBE",				SPT_PMC_BIT_GBE},
-	{"SATA",			SPT_PMC_BIT_SATA},
-	{"HDA-PGD0",			SPT_PMC_BIT_HDA_PGD0},
-	{"HDA-PGD1",			SPT_PMC_BIT_HDA_PGD1},
-	{"HDA-PGD2",			SPT_PMC_BIT_HDA_PGD2},
-	{"HDA-PGD3",			SPT_PMC_BIT_HDA_PGD3},
+	{"GBE",				SPT_PMC_BIT_GBE, 0x031C, 30},
+	{"SATA",			SPT_PMC_BIT_SATA, 0x034C, 30},
+	{"HDA-PGD0",			SPT_PMC_BIT_HDA_PGD0, 0x031C, 29},
+	{"HDA-PGD1",			SPT_PMC_BIT_HDA_PGD1, 0x031C, 29},
+	{"HDA-PGD2",			SPT_PMC_BIT_HDA_PGD2, 0x031C, 29},
+	{"HDA-PGD3",			SPT_PMC_BIT_HDA_PGD3, 0x031C, 29},
 	{"RSVD",			SPT_PMC_BIT_RSVD_0B},
-	{"LPSS",			SPT_PMC_BIT_LPSS},
+	{"LPSS",			SPT_PMC_BIT_LPSS, 0x031C, 27},
 	{"LPC",				SPT_PMC_BIT_LPC},
 	{"SMB",				SPT_PMC_BIT_SMB},
 	{"ISH",				SPT_PMC_BIT_ISH},
@@ -87,23 +87,23 @@ static const struct pmc_bit_map spt_pfear_map[] = {
 	{"SCC",				SPT_PMC_BIT_SCC},
 	{"RSVD",			SPT_PMC_BIT_RSVD_0C},
 	{"FUSE",			SPT_PMC_BIT_FUSE},
-	{"CAMERA",			SPT_PMC_BIT_CAMREA},
+	{"CAMERA",			SPT_PMC_BIT_CAMREA, 0x031C, 12},
 	{"RSVD",			SPT_PMC_BIT_RSVD_0D},
-	{"USB3-OTG",			SPT_PMC_BIT_USB3_OTG},
+	{"USB3-OTG",			SPT_PMC_BIT_USB3_OTG, 0x034C, 29},
 	{"EXI",				SPT_PMC_BIT_EXI},
 	{"CSE",				SPT_PMC_BIT_CSE},
-	{"CSME_KVM",			SPT_PMC_BIT_CSME_KVM},
-	{"CSME_PMT",			SPT_PMC_BIT_CSME_PMT},
-	{"CSME_CLINK",			SPT_PMC_BIT_CSME_CLINK},
-	{"CSME_PTIO",			SPT_PMC_BIT_CSME_PTIO},
-	{"CSME_USBR",			SPT_PMC_BIT_CSME_USBR},
-	{"CSME_SUSRAM",			SPT_PMC_BIT_CSME_SUSRAM},
-	{"CSME_SMT",			SPT_PMC_BIT_CSME_SMT},
+	{"CSME_KVM",			SPT_PMC_BIT_CSME_KVM, 0x031C, 31},
+	{"CSME_PMT",			SPT_PMC_BIT_CSME_PMT, 0x031C, 31},
+	{"CSME_CLINK",			SPT_PMC_BIT_CSME_CLINK, 0x031C, 31},
+	{"CSME_PTIO",			SPT_PMC_BIT_CSME_PTIO, 0x031C, 31},
+	{"CSME_USBR",			SPT_PMC_BIT_CSME_USBR, 0x031C, 31},
+	{"CSME_SUSRAM",			SPT_PMC_BIT_CSME_SUSRAM, 0x031C, 31},
+	{"CSME_SMT",			SPT_PMC_BIT_CSME_SMT, 0x031C, 31},
 	{"RSVD",			SPT_PMC_BIT_RSVD_1A},
-	{"CSME_SMS2",			SPT_PMC_BIT_CSME_SMS2},
-	{"CSME_SMS1",			SPT_PMC_BIT_CSME_SMS1},
-	{"CSME_RTC",			SPT_PMC_BIT_CSME_RTC},
-	{"CSME_PSF",			SPT_PMC_BIT_CSME_PSF},
+	{"CSME_SMS2",			SPT_PMC_BIT_CSME_SMS2, 0x031C, 31},
+	{"CSME_SMS1",			SPT_PMC_BIT_CSME_SMS1, 0x031C, 31},
+	{"CSME_RTC",			SPT_PMC_BIT_CSME_RTC, 0x031C, 31},
+	{"CSME_PSF",			SPT_PMC_BIT_CSME_PSF, 0x031C, 31},
 	{},
 };
 
@@ -306,12 +306,35 @@ static void pmc_core_printf(struct seq_file *s, const char *fmt_str, ...)
 	va_end(argptr);
 }
 
+static const char *pmc_core_required_string(struct pmc_dev *pmcdev, const struct pmc_bit_map *map)
+{
+	static const char *required = "Constraint: Required";
+	static const char *not_required = "Constraint: Not Required";
+	static const char *not_app = " ";
+
+
+	if (map->required_offset && map->required_bit) {
+		u32 val;
+
+		val = pmc_core_reg_read(pmcdev, map->required_offset);
+		if (val & BIT(map->required_bit))
+			return not_required;
+		else
+			return required;
+	}
+
+	return not_app;
+}
+
 static void pmc_core_display_map(struct seq_file *s, int index,
 				 u8 pf_reg, const struct pmc_bit_map *pf_map)
 {
-	pmc_core_printf(s, "PCH IP: %-2d - %-32s\tState: %s\n",
+	struct pmc_dev *pmcdev = s ? s->private : &pmc;
+
+	pmc_core_printf(s, "PCH IP: %-2d - %-32s\tState: %s %s\n",
 			index, pf_map[index].name,
-			pf_map[index].bit_mask & pf_reg ? "Off" : "On");
+			pf_map[index].bit_mask & pf_reg ? "Off" : "On",
+			pmc_core_required_string(pmcdev, &pf_map[index]));
 }
 
 static int pmc_core_ppfear_sts_show(struct seq_file *s, void *unused)
@@ -413,17 +436,17 @@ static int pmc_core_mphy_pg_sts_show(struct seq_file *s, void *unused)
 	val_high = pmc_core_reg_read(pmcdev, SPT_PMC_MFPMC_OFFSET);
 
 	for (index = 0; map[index].name && index < 8; index++) {
-		pmc_core_printf(s, "%-32s\tState: %s\n",
+		pmc_core_printf(s, "%-32s\tState: %s %s\n",
 				map[index].name,
 				map[index].bit_mask & val_low ? "Not power gated" :
-				"Power gated");
+				"Power gated", pmc_core_required_string(pmcdev, &map[index]));
 	}
 
 	for (index = 8; map[index].name; index++) {
-		pmc_core_printf(s, "%-32s\tState: %s\n",
+		pmc_core_printf(s, "%-32s\tState: %s %s\n",
 				map[index].name,
 				map[index].bit_mask & val_high ? "Not power gated" :
-				"Power gated");
+				"Power gated", pmc_core_required_string(pmcdev, &map[index]));
 	}
 
 out_unlock:
@@ -471,9 +494,9 @@ static int pmc_core_pll_show(struct seq_file *s, void *unused)
 	val = pmc_core_reg_read(pmcdev, SPT_PMC_MFPMC_OFFSET);
 
 	for (index = 0; map[index].name ; index++) {
-		pmc_core_printf(s, "%-32s\tState: %s\n",
+		pmc_core_printf(s, "%-32s\tState: %s %s\n",
 				map[index].name,
-				map[index].bit_mask & val ? "Active" : "Idle");
+				map[index].bit_mask & val ? "Active" : "Idle", pmc_core_required_string(pmcdev, &map[index]));
 	}
 
 out_unlock:
