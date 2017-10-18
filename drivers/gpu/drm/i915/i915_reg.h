@@ -7385,6 +7385,7 @@ enum {
 #define  GEN11_TC3_HOTPLUG			(1 << 18)
 #define  GEN11_TC2_HOTPLUG			(1 << 17)
 #define  GEN11_TC1_HOTPLUG			(1 << 16)
+#define  GEN11_TC_HOTPLUG(tc_port)		(1 << ((tc_port) + 16))
 #define  GEN11_DE_TC_HOTPLUG_MASK		(GEN11_TC4_HOTPLUG | \
 						 GEN11_TC3_HOTPLUG | \
 						 GEN11_TC2_HOTPLUG | \
@@ -7393,6 +7394,7 @@ enum {
 #define  GEN11_TBT3_HOTPLUG			(1 << 2)
 #define  GEN11_TBT2_HOTPLUG			(1 << 1)
 #define  GEN11_TBT1_HOTPLUG			(1 << 0)
+#define  GEN11_TBT_HOTPLUG(tc_port)		(1 << (tc_port))
 #define  GEN11_DE_TBT_HOTPLUG_MASK		(GEN11_TBT4_HOTPLUG | \
 						 GEN11_TBT3_HOTPLUG | \
 						 GEN11_TBT2_HOTPLUG | \
@@ -7801,9 +7803,11 @@ enum {
 #define   ICP_TC3_HOTPLUG		(1 << 26)
 #define   ICP_TC2_HOTPLUG		(1 << 25)
 #define   ICP_TC1_HOTPLUG		(1 << 24)
+#define   ICP_TC_HOTPLUG(tc_port)	(1 << ((tc_port) + 24))
 #define   ICP_GMBUS			(1 << 23)
 #define   ICP_DDIB_HOTPLUG		(1 << 17)
 #define   ICP_DDIA_HOTPLUG		(1 << 16)
+#define   ICP_DDI_HOTPLUG(port)		(1 << ((port) + 16))
 
 #define ICP_SDE_DDI_MASK		(ICP_DDIB_HOTPLUG |	\
 					 ICP_DDIA_HOTPLUG)
