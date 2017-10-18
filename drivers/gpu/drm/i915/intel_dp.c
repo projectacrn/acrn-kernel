@@ -4740,6 +4740,62 @@ static bool bxt_digital_port_connected(struct intel_encoder *encoder)
 	return I915_READ(GEN8_DE_PORT_ISR) & bit;
 }
 
+static bool icl_combo_port_connected(struct drm_i915_private *dev_priv,
+				     struct intel_digital_port *intel_dig_port)
+{
+	enum port port = intel_dig_port->base.port;
+
+	return I915_READ(ICP_SDE_ISR) & ICP_DDI_HOTPLUG(port);
+}
+
+static bool icl_tc_port_connected(struct drm_i915_private *dev_priv,
+				  struct intel_digital_port *intel_dig_port)
+{
+	enum port port = intel_dig_port->base.port;
+	enum tc_port tc_port = gen11_port_to_tc(port);
+	u32 legacy_bit = ICP_TC_HOTPLUG(tc_port);
+	u32 typec_bit = GEN11_TC_HOTPLUG(tc_port);
+	u32 tbt_bit = GEN11_TBT_HOTPLUG(tc_port);
+	bool is_legacy = false, is_typec = false, is_tbt = false;
+	u32 cpu_isr;
+
+	if (I915_READ(ICP_SDE_ISR) & legacy_bit)
+		is_legacy = true;
+
+	cpu_isr = I915_READ(GEN11_DE_HPD_ISR);
+	if (cpu_isr & typec_bit)
+		is_typec = true;
+	if (cpu_isr & tbt_bit)
+		is_tbt = true;
+
+	WARN_ON(is_legacy + is_typec + is_tbt > 1);
+	if (!is_legacy && !is_typec && !is_tbt)
+		return false;
+
+	return true;
+}
+
+static bool icl_digital_port_connected(struct intel_encoder *encoder)
+{
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	struct intel_digital_port *intel_dig_port = enc_to_dig_port(&encoder->base);
+
+	switch (encoder->hpd_pin) {
+	case HPD_PORT_A:
+	case HPD_PORT_B:
+		return icl_combo_port_connected(dev_priv, intel_dig_port);
+	case HPD_PORT_C:
+	case HPD_PORT_D:
+	case HPD_PORT_E:
+	case HPD_PORT_F:
+		return icl_tc_port_connected(dev_priv, intel_dig_port);
+		break;
+	default:
+		MISSING_CASE(encoder->hpd_pin);
+		return false;
+	}
+}
+
 /*
  * intel_digital_port_connected - is the specified port connected?
  * @encoder: intel_encoder
@@ -4767,6 +4823,8 @@ bool intel_digital_port_connected(struct intel_encoder *encoder)
 		return bdw_digital_port_connected(encoder);
 	else if (IS_GEN9_LP(dev_priv))
 		return bxt_digital_port_connected(encoder);
+	else if (IS_ICELAKE(dev_priv))
+		return icl_digital_port_connected(encoder);
 	else
 		return spt_digital_port_connected(encoder);
 }
