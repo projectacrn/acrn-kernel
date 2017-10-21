@@ -12,8 +12,9 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include "sched.h"
-
 #include <trace/events/power.h>
+
+unsigned long boosted_cpu_util(int cpu);
 
 struct sugov_tunables {
 	struct gov_attr_set	attr_set;
@@ -205,7 +206,7 @@ static void sugov_get_util(struct sugov_cpu *sg_cpu)
 	struct rq *rq = cpu_rq(sg_cpu->cpu);
 
 	sg_cpu->max = arch_scale_cpu_capacity(NULL, sg_cpu->cpu);
-	sg_cpu->util_cfs = cpu_util_cfs(rq);
+	sg_cpu->util_cfs = boosted_cpu_util(sg_cpu->cpu);
 	sg_cpu->util_dl  = cpu_util_dl(rq);
 }
 
