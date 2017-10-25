@@ -2633,6 +2633,7 @@ intel_info(const struct drm_i915_private *dev_priv)
  */
 #define HAS_GUC(dev_priv)	((dev_priv)->info.has_guc)
 #define HAS_GUC_CT(dev_priv)	((dev_priv)->info.has_guc_ct)
+#define HAS_GUC_DIST_DB(dev_priv)	((dev_priv)->info.has_guc_dist_db)
 #define HAS_GUC_UCODE(dev_priv)	(HAS_GUC(dev_priv))
 #define HAS_GUC_SCHED(dev_priv)	(HAS_GUC(dev_priv))
 
