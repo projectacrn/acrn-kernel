@@ -299,9 +299,11 @@ static u32 guc_ctl_feature_flags(struct intel_guc *guc)
 	/* temp flags required by fw to enable WIP hw features */
 #define FTR_ENABLE_HW_SEMAPHORE_PHASE_1 BIT(8)
 #define FTR_ENABLE_HW_SEMAPHORE_PHASE_2 BIT(9)
+#define FTR_ENABLE_DISTRIBUTED_DOORBELL BIT(11)
 	if (INTEL_GEN(guc_to_i915(guc)) >= 12)
 		flags |= FTR_ENABLE_HW_SEMAPHORE_PHASE_1 |
-			FTR_ENABLE_HW_SEMAPHORE_PHASE_2;
+			FTR_ENABLE_HW_SEMAPHORE_PHASE_2 |
+			FTR_ENABLE_DISTRIBUTED_DOORBELL;
 
 	return flags;
 }
