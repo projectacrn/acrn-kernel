@@ -116,21 +116,56 @@ static int reserve_doorbell(struct intel_guc_client *client)
 
 	GEM_BUG_ON(client->doorbell_id != GUC_DOORBELL_INVALID);
 
-	/*
-	 * The bitmap tracks which doorbell registers are currently in use.
-	 * It is split into two halves; the first half is used for normal
-	 * priority contexts, the second half for high-priority ones.
-	 */
-	offset = 0;
-	end = GUC_NUM_DOORBELLS / 2;
-	if (is_high_priority(client)) {
-		offset = end;
-		end += offset;
-	}
+	if (!HAS_GUC_DIST_DB(guc_to_i915(client->guc))) {
+		/*
+		 * The bitmap tracks which doorbell registers are currently
+		 * in use. It is split into two halves; the first half is used
+		 * for normal priority contexts, the second half for
+		 * high-priority ones.
+		 */
+		offset = 0;
+		end = GUC_NUM_DOORBELLS / 2;
+		if (is_high_priority(client)) {
+			offset = end;
+			end += offset;
+		}
 
-	id = find_next_zero_bit(guc->doorbell_bitmap, end, offset);
-	if (id == end)
-		return -ENOSPC;
+		id = find_next_zero_bit(guc->doorbell_bitmap, end, offset);
+		if (id == end)
+			return -ENOSPC;
+	} else {
+		u32 attempts = guc->num_sqidi_supported;
+		/*
+		 * We can use the same doorbell_bitmap with distributed
+		 * doorbells, since the total max number of doorbells is still
+		 * the same. The bitmap format is different since it needs to
+		 * cope with the number of SQIDIs.
+		 *
+		 * To keep the SQIDI usage balanced, guc wants us to do this:
+		 * - Start from SQIDI0.
+		 * - Store the last SQIDI used.
+		 * - Select next free SQIDI based on last SQIDI used (if last
+		 *   is max SQIDI supported, wrap to SQIDI0).
+		 * - Get absolute doorbell id to be pass to GuC.
+		 *
+		 * Note: client priority has no longer an effect during
+		 * doorbell selection.
+		 */
+retry:
+		guc->last_sqidi_num_used++;
+		if (guc->last_sqidi_num_used >= guc->num_sqidi_supported)
+			guc->last_sqidi_num_used = 0;
+		offset = guc->last_sqidi_num_used * guc->num_of_doorbells_per_sqidi;
+		end = offset + guc->num_of_doorbells_per_sqidi - 1;
+
+		id = find_next_zero_bit(guc->doorbell_bitmap, end, offset);
+		if (id == end) {
+			if (--attempts > 0)
+				goto retry;
+			else
+				return -ENOSPC;
+		}
+	}
 
 	__set_bit(id, guc->doorbell_bitmap);
 	client->doorbell_id = id;
@@ -203,6 +238,23 @@ __gen11_get_ppal_stage_desc(struct intel_guc *guc, u32 index)
 	return &base[index].desc;
 }
 
+/* update fields once the doorbell cacheline is known */
+static void gen12_guc_proxy_stage_db_update(struct intel_guc *guc,
+					    struct intel_guc_client *client)
+{
+	struct gen11_guc_stage_desc *desc;
+	u32 gfx_addr;
+
+	desc = __gen11_get_proxy_stage_desc(client);
+
+	gfx_addr = intel_guc_ggtt_offset(guc, client->vma);
+	desc->db_trigger_phy = sg_dma_address(client->vma->pages->sgl) +
+				client->doorbell_offset;
+	desc->db_trigger_cpu = (uintptr_t)client->vaddr +
+				client->doorbell_offset;
+	desc->db_trigger_uk = gfx_addr + client->doorbell_offset;
+}
+
 /*
  * Initialise, update, or clear doorbell data shared with the GuC
  *
@@ -234,6 +286,8 @@ static void __create_doorbell(struct intel_guc_client *client)
 {
 	struct guc_doorbell_info *doorbell;
 
+	GEM_BUG_ON(HAS_GUC_DIST_DB(guc_to_i915(client->guc)));
+
 	doorbell = __get_doorbell(client);
 	doorbell->db_status = GUC_DOORBELL_ENABLED;
 	doorbell->cookie = 0;
@@ -257,9 +311,11 @@ static void __destroy_doorbell(struct intel_guc_client *client)
 		WARN_ONCE(true, "Doorbell never became invalid after disable\n");
 }
 
-static int create_doorbell(struct intel_guc_client *client)
+static int legacy_create_doorbell(struct intel_guc_client *client)
 {
 	int ret;
+
+	GEM_BUG_ON(HAS_GUC_DIST_DB(guc_to_i915(client->guc)));
 
 	if (WARN_ON(!has_doorbell(client)))
 		return -ENODEV; /* internal setup error, should never happen */
@@ -277,6 +333,62 @@ static int create_doorbell(struct intel_guc_client *client)
 	}
 
 	return 0;
+}
+
+static int create_dist_doorbell(struct intel_guc_client *client)
+{
+	u32 dd_cacheline_info;
+	int ret;
+
+	GEM_BUG_ON(!HAS_GUC_DIST_DB(guc_to_i915(client->guc)));
+
+	__update_doorbell_desc(client, client->doorbell_id);
+
+	ret = __guc_allocate_doorbell(client->guc, client->stage_id);
+	if (ret < 0)
+		goto dd_err;
+
+	/*
+	 * In distributed doorbells, guc is returning the cacheline selected
+	 * by HW as part of the 7bit data from the allocate doorbell command:
+	 *  bit [6]   - Cacheline returned
+	 *  bit [5:0] - Cacheline offset address
+	 * (bit 5 must be zero, or our assumption of allocating the process
+	 * descriptor in the upper half of the page is no longer correct).
+	 */
+	if (!(ret & BIT(6))) {
+		ret = -EIO;
+		goto dd_err;
+	}
+
+	dd_cacheline_info = ret & ~BIT(6);
+	GEM_BUG_ON(dd_cacheline_info & BIT(5));
+
+	client->doorbell_offset = dd_cacheline_info * cache_line_size();
+	DRM_DEBUG_DRIVER("doorbell id: %d offset/cacheline: 0x%lx\n",
+			 client->doorbell_id, client->doorbell_offset);
+
+	/* update descriptor only after successful doorbell alloc */
+	gen12_guc_proxy_stage_db_update(client->guc, client);
+	/* and verify db status was updated correctly by the guc fw */
+	GEM_BUG_ON(__get_doorbell(client)->db_status != GUC_DOORBELL_ENABLED);
+
+	return 0;
+
+dd_err:
+	__destroy_doorbell(client);
+	__update_doorbell_desc(client, GUC_DOORBELL_INVALID);
+	DRM_ERROR("Couldn't create client %u doorbell: %d\n",
+		  client->stage_id, ret);
+	return ret;
+}
+
+static int create_doorbell(struct intel_guc_client *client)
+{
+	if (!HAS_GUC_DIST_DB(guc_to_i915(client->guc)))
+		return legacy_create_doorbell(client);
+	else
+		return create_dist_doorbell(client);
 }
 
 static int destroy_doorbell(struct intel_guc_client *client)
@@ -299,6 +411,8 @@ static int destroy_doorbell(struct intel_guc_client *client)
 static unsigned long __select_cacheline(struct intel_guc *guc)
 {
 	unsigned long offset;
+
+	GEM_BUG_ON(HAS_GUC_DIST_DB(guc_to_i915(guc)));
 
 	/* Doorbell uses a single cache line within a page */
 	offset = offset_in_page(guc->db_cacheline);
@@ -362,6 +476,12 @@ static void gen11_guc_proxy_stage_init(struct intel_guc *guc,
 	 */
 	desc->is_proxy = true;
 
+	/*
+	 * In Gen12 (distributed doorbells) the doorbell offset (cacheline)
+	 * is selected by HW, won't be known until doorbell creation, and it
+	 * is zero at this point. Regardless of this, db_trigger_phy will
+	 * always be in the same page.
+	 */
 	gfx_addr = intel_guc_ggtt_offset(guc, client->vma);
 	desc->db_trigger_phy = sg_dma_address(client->vma->pages->sgl) +
 			       client->doorbell_offset;
@@ -1082,6 +1202,37 @@ static void guc_clients_doorbell_fini(struct intel_guc *guc)
 	__update_doorbell_desc(guc->execbuf_client, GUC_DOORBELL_INVALID);
 }
 
+static void __doorbell_cacheline_proc_desc_setup(struct intel_guc *guc,
+						 struct intel_guc_client *client)
+{
+	client->doorbell_offset = __select_cacheline(guc);
+
+	/*
+	 * Since the doorbell only requires a single cacheline, we can save
+	 * space by putting the application process descriptor in the same
+	 * page. Use the half of the page that doesn't include the doorbell.
+	 */
+	if (client->doorbell_offset >= (GUC_DB_SIZE / 2))
+		client->proc_desc_offset = 0;
+	else
+		client->proc_desc_offset = (GUC_DB_SIZE / 2);
+}
+
+static void
+__distributed_doorbell_cacheline_proc_desc_setup(struct intel_guc_client *client)
+{
+	/*
+	 * Although we no longer control the selection of cacheline,
+	 * none of the Gen12 defined skus ever set the highest bit of
+	 * cacheline (bit 11 of [11:6] is always 0). This means that the
+	 * doorbell cacheline will always be in the lower 2KB. Simply
+	 * put the application process descriptor in the upper half of
+	 * the page and leave it there.
+	 */
+	client->doorbell_offset = 0;
+	client->proc_desc_offset = (GUC_DB_SIZE / 2);
+}
+
 /**
  * guc_client_alloc() - Allocate an intel_guc_client
  * @dev_priv:	driver private data structure
@@ -1141,17 +1292,10 @@ guc_client_alloc(struct drm_i915_private *dev_priv,
 	}
 	client->vaddr = vaddr;
 
-	client->doorbell_offset = __select_cacheline(guc);
-
-	/*
-	 * Since the doorbell only requires a single cacheline, we can save
-	 * space by putting the application process descriptor in the same
-	 * page. Use the half of the page that doesn't include the doorbell.
-	 */
-	if (client->doorbell_offset >= (GUC_DB_SIZE / 2))
-		client->proc_desc_offset = 0;
+	if (!HAS_GUC_DIST_DB(dev_priv))
+		__doorbell_cacheline_proc_desc_setup(guc, client);
 	else
-		client->proc_desc_offset = (GUC_DB_SIZE / 2);
+		__distributed_doorbell_cacheline_proc_desc_setup(client);
 
 	guc_proc_desc_init(guc, client);
 	if (INTEL_GEN(dev_priv) >= 11)

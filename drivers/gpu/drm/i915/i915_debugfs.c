@@ -2408,7 +2408,13 @@ static int i915_guc_info(struct seq_file *m, void *data)
 
 	seq_printf(m, "\nDoorbell map:\n");
 	seq_printf(m, "\t%*pb\n", GUC_NUM_DOORBELLS, guc->doorbell_bitmap);
-	seq_printf(m, "Doorbell next cacheline: 0x%x\n", guc->db_cacheline);
+	if (!HAS_GUC_DIST_DB(dev_priv))
+		seq_printf(m, "Doorbell next cacheline: 0x%x\n",
+			   guc->db_cacheline);
+	else
+		seq_printf(m, "DDB Information: last sqidi: %u, num sqidi: %u, db per sqidi: %u\n",
+			   guc->last_sqidi_num_used, guc->num_sqidi_supported,
+			   guc->num_of_doorbells_per_sqidi);
 
 	seq_printf(m, "\nGuC execbuf client @ %p:\n", guc->execbuf_client);
 	i915_guc_client_info(m, dev_priv, guc->execbuf_client);
