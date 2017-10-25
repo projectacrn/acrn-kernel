@@ -95,6 +95,7 @@ enum intel_platform {
 	func(has_gmch_display);	\
 	func(has_guc); \
 	func(has_guc_ct); \
+	func(has_guc_dist_db); \
 	func(has_hotplug); \
 	func(has_l3_dpf); \
 	func(has_llc); \
