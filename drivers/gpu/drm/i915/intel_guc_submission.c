@@ -109,6 +109,7 @@ static inline bool is_high_priority(struct intel_guc_client *client)
 
 static int reserve_doorbell(struct intel_guc_client *client)
 {
+	struct intel_guc *guc = client->guc;
 	unsigned long offset;
 	unsigned long end;
 	u16 id;
@@ -127,11 +128,11 @@ static int reserve_doorbell(struct intel_guc_client *client)
 		end += offset;
 	}
 
-	id = find_next_zero_bit(client->guc->doorbell_bitmap, end, offset);
+	id = find_next_zero_bit(guc->doorbell_bitmap, end, offset);
 	if (id == end)
 		return -ENOSPC;
 
-	__set_bit(id, client->guc->doorbell_bitmap);
+	__set_bit(id, guc->doorbell_bitmap);
 	client->doorbell_id = id;
 	DRM_DEBUG_DRIVER("client %u (high prio=%s) reserved doorbell: %d\n",
 			 client->stage_id, yesno(is_high_priority(client)),
