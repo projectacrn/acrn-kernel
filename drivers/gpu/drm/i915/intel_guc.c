@@ -259,6 +259,13 @@ static u32 guc_feature_flags(struct drm_i915_private *dev_priv)
 			feature_flags |= GUC_CTL_DISABLE_SCHEDULER;
 	}
 
+	/* temp flags required by fw to enable WIP hw features */
+#define FTR_ENABLE_HW_SEMAPHORE_PHASE_1 BIT(8)
+#define FTR_ENABLE_HW_SEMAPHORE_PHASE_2 BIT(9)
+	if (INTEL_GEN(dev_priv) >= 12)
+		feature_flags |= FTR_ENABLE_HW_SEMAPHORE_PHASE_1 |
+				 FTR_ENABLE_HW_SEMAPHORE_PHASE_2;
+
 	return feature_flags;
 }
 
