@@ -94,6 +94,7 @@ static void guc_fw_select(struct intel_uc_fw *guc_fw)
 		guc_fw->major_ver_wanted = ICL_FW_MAJOR;
 		guc_fw->minor_ver_wanted = ICL_FW_MINOR;
 	} else if (IS_TIGERLAKE(dev_priv)) {
+		BUILD_BUG_ON(TGL_FW_MAJOR != ICL_FW_MAJOR);
 		guc_fw->path = I915_TGL_GUC_UCODE;
 		guc_fw->major_ver_wanted = TGL_FW_MAJOR;
 		guc_fw->minor_ver_wanted = TGL_FW_MINOR;
