@@ -6980,6 +6980,38 @@ static int select_energy_cpu_brute(struct sched_domain *sd,
 }
 
 /*
+ * wake_energy: Make the decision if we want to use an energy-aware
+ * wakeup task placement or not. This is limited to situations where
+ * we cannot use energy-awareness right now.
+ *
+ * Returns TRUE if we should attempt energy-aware wakeup, FALSE if not.
+ *
+ * Should only be called from select_task_rq_fair inside the RCU
+ * read-side critical section.
+ */
+static inline int wake_energy(struct task_struct *p, int prev_cpu,
+			      int sd_flag, int wake_flags)
+{
+	struct sched_domain *sd = NULL;
+
+	sd = rcu_dereference_sched(cpu_rq(prev_cpu)->sd);
+
+	/*
+	 * Check all definite no-energy-awareness conditions
+	 */
+	if (!sd)
+		return false;
+
+	if (!energy_aware())
+		return false;
+
+	if (sd_overutilized(sd))
+		return false;
+
+	return true;
+}
+
+/*
  * select_task_rq_fair: Select target runqueue for the waking task in domains
  * that have the 'sd_flag' flag set. In practice, this is SD_BALANCE_WAKE,
  * SD_BALANCE_FORK, or SD_BALANCE_EXEC.
@@ -7001,23 +7033,17 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 	int want_affine = 0;
 	int sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
 
+	rcu_read_lock();
+
 	if (sd_flag & SD_BALANCE_WAKE) {
 		record_wakee(p);
 		want_affine = !wake_wide(p, sibling_count_hint) && !wake_cap(p, cpu, prev_cpu)
 			      && cpumask_test_cpu(cpu, &p->cpus_allowed);
 	}
 
-	rcu_read_lock();
-
-	if (energy_aware()) {
-		sd = rcu_dereference(per_cpu(sd_ea, prev_cpu));
-
-		if (sd && !sd_overutilized(sd)) {
-			new_cpu = select_energy_cpu_brute(sd, p, prev_cpu, sync);
-			goto unlock;
-		}
-
-		sd = NULL;
+	if (wake_energy(p, prev_cpu, sd_flag, wake_flags)) {
+		new_cpu = select_energy_cpu_brute(p, prev_cpu, sync);
+		goto unlock;
 	}
 
 	for_each_domain(cpu, tmp) {
