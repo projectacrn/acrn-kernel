@@ -3149,6 +3149,19 @@ void intel_ppat_put(const struct intel_ppat_entry *entry)
 	kref_put(&ppat->entries[index].ref, release_ppat);
 }
 
+static void tgl_private_pat_update_hw(struct drm_i915_private *dev_priv)
+{
+	struct intel_ppat *ppat = &dev_priv->ppat;
+	int i;
+
+	for_each_set_bit(i, ppat->dirty, ppat->max_entries) {
+		GEM_BUG_ON(GEN8_PPAT_GET_TC(ppat->entries[i].value));
+		GEM_BUG_ON(GEN8_PPAT_GET_AGE(ppat->entries[i].value));
+		I915_WRITE(GEN12_PAT_INDEX(i), ppat->entries[i].value);
+		clear_bit(i, ppat->dirty);
+	}
+}
+
 static void cnl_private_pat_update_hw(struct drm_i915_private *dev_priv)
 {
 	struct intel_ppat *ppat = &dev_priv->ppat;
@@ -3223,6 +3236,23 @@ static void cnl_setup_private_ppat(struct intel_ppat *ppat)
 	__alloc_ppat_entry(ppat, 5, GEN8_PPAT_WB | GEN8_PPAT_LLCELLC | GEN8_PPAT_AGE(1));
 	__alloc_ppat_entry(ppat, 6, GEN8_PPAT_WB | GEN8_PPAT_LLCELLC | GEN8_PPAT_AGE(2));
 	__alloc_ppat_entry(ppat, 7, GEN8_PPAT_WB | GEN8_PPAT_LLCELLC | GEN8_PPAT_AGE(3));
+}
+
+static void tgl_setup_private_ppat(struct intel_ppat *ppat)
+{
+	ppat->max_entries = 8;
+	ppat->update_hw = tgl_private_pat_update_hw;
+	ppat->match = bdw_private_pat_match;
+	ppat->clear_value = GEN8_PPAT_WB;
+
+	__alloc_ppat_entry(ppat, 0, GEN8_PPAT_WB);
+	__alloc_ppat_entry(ppat, 1, GEN8_PPAT_WC);
+	__alloc_ppat_entry(ppat, 2, GEN8_PPAT_WT);
+	__alloc_ppat_entry(ppat, 3, GEN8_PPAT_UC);
+	__alloc_ppat_entry(ppat, 4, GEN8_PPAT_WB);
+	__alloc_ppat_entry(ppat, 5, GEN8_PPAT_WB);
+	__alloc_ppat_entry(ppat, 6, GEN8_PPAT_WB);
+	__alloc_ppat_entry(ppat, 7, GEN8_PPAT_WB);
 }
 
 /* The GGTT and PPGTT need a private PPAT setup in order to handle cacheability
@@ -3314,7 +3344,9 @@ static void setup_private_pat(struct drm_i915_private *dev_priv)
 
 	ppat->i915 = dev_priv;
 
-	if (INTEL_GEN(dev_priv) >= 10)
+	if (INTEL_GEN(dev_priv) >= 12)
+		tgl_setup_private_ppat(ppat);
+	else if (INTEL_GEN(dev_priv) >= 10)
 		cnl_setup_private_ppat(ppat);
 	else if (IS_CHERRYVIEW(dev_priv) || IS_GEN9_LP(dev_priv))
 		chv_setup_private_ppat(ppat);
