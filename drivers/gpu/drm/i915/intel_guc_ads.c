@@ -180,6 +180,29 @@ int gen11_guc_ads_create(struct intel_guc *guc)
 	blob->system_info.vdbox_sfc_support_mask =
 		INTEL_INFO(dev_priv)->vdbox_sfc_access;
 
+	/* collect information for distributed dooorbells */
+	if (HAS_GUC_DIST_DB(dev_priv)) {
+		u32 distdbreg = I915_READ(GEN12_DIST_DBS_POPULATED);
+		u32 num_sqidi = hweight32(distdbreg & GEN12_SQIDIS_DOORBELL_EXIST);
+		u32 doorbells_per_sqidi =
+			((distdbreg >> GEN12_DOORBELLS_PER_SQIDI_SHIFT) &
+			 GEN12_DOORBELLS_PER_SQIDI) + 1;
+
+		GEM_BUG_ON(num_sqidi == 0);
+		guc->num_sqidi_supported = num_sqidi;
+		guc->last_sqidi_num_used = guc->num_sqidi_supported; /*init val*/
+		guc->num_of_doorbells_per_sqidi = doorbells_per_sqidi;
+		blob->system_info.num_of_doorbells_per_sqidi =
+					guc->num_of_doorbells_per_sqidi;
+
+		WARN_ON(guc->num_sqidi_supported *
+			guc->num_of_doorbells_per_sqidi > GUC_NUM_DOORBELLS);
+
+		DRM_DEBUG_DRIVER("sqidi num = %u, db per sqidi = %u\n",
+				 guc->num_sqidi_supported,
+				 blob->system_info.num_of_doorbells_per_sqidi);
+	}
+
 	blob->add_system_info.gfx_address_command_transport_pool =
 			base + ptr_offset(blob, ct_pool);
 	blob->add_system_info.command_transport_pool_count =
