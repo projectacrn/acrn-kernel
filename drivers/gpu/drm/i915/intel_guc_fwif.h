@@ -643,7 +643,8 @@ struct guc_gt_system_info {
 	u32 vdbox_enable_mask;
 	u32 vdbox_sfc_support_mask;
 	u32 vebox_enable_mask;
-	u32 reserved[10];
+	u32 num_of_doorbells_per_sqidi;	/* GEN12+ */
+	u32 reserved[9];
 } __packed;
 
 struct guc_gt_system_additional_info {
