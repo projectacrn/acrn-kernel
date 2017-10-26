@@ -83,6 +83,11 @@ struct intel_guc {
 	/* Cyclic counter mod pagesize	*/
 	u32 db_cacheline;
 
+	/* distributted doorbell information */
+	u8 last_sqidi_num_used;
+	u8 num_sqidi_supported;
+	u16 num_of_doorbells_per_sqidi;
+
 	/*
 	 * Track outstanding request-engine-reset h2g commands,
 	 * accessed by set/clear/is_engine_class_under_reset
