@@ -371,6 +371,9 @@ int update_rt_rq_load_avg(u64 now, int cpu, struct rt_rq *rt_rq, int running)
 				running)) {
 
 		___update_load_avg(&rt_rq->avg, 1, 1);
+
+		trace_sched_load_rt_rq(cpu, rt_rq);
+
 		return 1;
 	}
 
