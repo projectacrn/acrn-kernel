@@ -261,6 +261,11 @@ static void __sprint_engine_name(char *name, const struct engine_info *info)
 			 info->instance) >= INTEL_ENGINE_CS_MAX_NAME);
 }
 
+u32 intel_class_context_size(struct drm_i915_private *dev_priv, u8 class)
+{
+	return __intel_engine_context_size(dev_priv, class);
+}
+
 static int
 intel_engine_setup(struct drm_i915_private *dev_priv,
 		   enum intel_engine_id id)

@@ -176,7 +176,10 @@ int intel_guc_init(struct intel_guc *guc)
 	if (ret)
 		goto err_shared;
 
-	ret = intel_guc_ads_create(guc);
+	if (INTEL_GEN(dev_priv) >= 11)
+		ret = gen11_guc_ads_create(guc);
+	else
+		ret = intel_guc_ads_create(guc);
 	if (ret)
 		goto err_log;
 	GEM_BUG_ON(!guc->ads_vma);
