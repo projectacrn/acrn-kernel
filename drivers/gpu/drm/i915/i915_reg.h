@@ -2443,7 +2443,8 @@ enum i915_power_well_id {
 #define   RING_WAIT		(1<<11) /* gen3+, PRBx_CTL */
 #define   RING_WAIT_SEMAPHORE	(1<<10) /* gen6+ */
 
-#define RING_FORCE_TO_NONPRIV(base, i) _MMIO(((base)+0x4D0) + (i)*4)
+#define RING_FORCE_TO_NONPRIV_REL(i) (0x4D0 + ((i)*4))
+#define RING_FORCE_TO_NONPRIV(base, i) _MMIO((base) + RING_FORCE_TO_NONPRIV_REL(i))
 #define   RING_MAX_NONPRIV_SLOTS  12
 
 #define GEN7_TLB_RD_ADDR	_MMIO(0x4700)

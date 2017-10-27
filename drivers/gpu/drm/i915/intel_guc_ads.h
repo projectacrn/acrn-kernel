@@ -28,6 +28,7 @@
 struct intel_guc;
 
 int intel_guc_ads_create(struct intel_guc *guc);
+int gen11_guc_ads_create(struct intel_guc *guc);
 void intel_guc_ads_destroy(struct intel_guc *guc);
 
 #endif

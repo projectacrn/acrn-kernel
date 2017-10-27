@@ -1123,4 +1123,7 @@ void intel_disable_engine_stats(struct intel_engine_cs *engine);
 
 ktime_t intel_engine_get_busy_time(struct intel_engine_cs *engine);
 
+u32 intel_class_context_size(struct drm_i915_private *dev_priv, u8 class);
+
+
 #endif /* _INTEL_RINGBUFFER_H_ */
