@@ -1182,4 +1182,7 @@ static inline bool inject_preempt_hang(struct intel_engine_execlists *execlists)
 
 #endif
 
+u32 intel_class_context_size(struct drm_i915_private *dev_priv, u8 class);
+
+
 #endif /* _INTEL_RINGBUFFER_H_ */

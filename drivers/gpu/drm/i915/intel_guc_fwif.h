@@ -49,6 +49,7 @@
 #define GUC_BLITTER_CLASS	3
 #define GUC_RESERVED_CLASS	4
 #define GUC_MAX_ENGINE_CLASSES	(GUC_RESERVED_CLASS + 1)
+#define GUC_MAX_INSTANCES_PER_CLASS	4
 
 /* Work queue item header definitions */
 #define WQ_STATUS_ACTIVE		1
@@ -541,6 +542,24 @@ struct guc_policy {
 	u32 reserved[2];
 } __packed;
 
+struct gen11_guc_policies {
+	struct guc_policy policy[GUC_CLIENT_PRIORITY_NUM][GUC_MAX_ENGINE_CLASSES];
+
+	/* In micro seconds. How much time to allow before DPC processing is
+	 * called back via interrupt (to prevent DPC queue drain starving).
+	 * Typically 1000s of micro seconds (example only, not granularity). */
+	u32 dpc_promote_time;
+
+	/* Must be set to take these new values. */
+	u32 is_valid;
+
+	/* Max number of WIs to process per call. A large value may keep CS
+	 * idle. */
+	u32 max_num_work_items;
+
+	u32 reserved[19];
+} __packed;
+
 struct guc_policies {
 	struct guc_policy policy[GUC_CLIENT_PRIORITY_NUM][GUC_MAX_ENGINES_NUM];
 
@@ -591,14 +610,60 @@ struct mmio_white_list {
 	u32 count;
 } __packed;
 
+/* Gen11+ GuC register sets */
+struct gen11_guc_mmio_reg_state {
+	struct guc_mmio_regset global_reg;
+	struct guc_mmio_regset engine_reg[GUC_MAX_ENGINE_CLASSES][GUC_MAX_INSTANCES_PER_CLASS];
+	struct mmio_white_list white_list[GUC_MAX_ENGINE_CLASSES];
+} __packed;
+
+/* GuC register sets */
 struct guc_mmio_reg_state {
 	struct guc_mmio_regset global_reg;
 	struct guc_mmio_regset engine_reg[GUC_MAX_ENGINES_NUM];
 	struct mmio_white_list white_list[GUC_MAX_ENGINES_NUM];
 } __packed;
 
-/* GuC Additional Data Struct */
+/* Gen11+ HW info */
+struct guc_gt_system_info {
+	u32 slice_enabled;
+	u32 rcs_enabled;
+	u32 reserved0;
+	u32 bcs_enabled;
+	u32 vdbox_enable_mask;
+	u32 vdbox_sfc_support_mask;
+	u32 vebox_enable_mask;
+	u32 reserved[10];
+} __packed;
 
+struct guc_gt_system_additional_info {
+	u8 reserved0[26];
+	u32 gfx_address_command_transport_pool;
+	u16 command_transport_pool_count;
+	u8 reserved1[377];
+} __packed;
+
+/* This struct to be exploded in a future patch */
+struct guc_master_cmd_transport_buffer_alloc {
+	u32 reserved[23];
+} __packed;
+
+/* Gen11+ GuC Additional Data Struct */
+struct gen11_guc_ads {
+	u32 reg_state_addr;
+	u32 reg_state_buffer;
+	u32 golden_context_lrca[GUC_MAX_ENGINE_CLASSES];
+	u32 reserved3[10];
+	u32 scheduler_policies;
+	u32 reserved0[2];
+	u32 gt_system_info;
+	u32 gt_system_additional_info;
+	u32 reserved1;
+	u32 eng_state_size[GUC_MAX_ENGINE_CLASSES];
+	u32 reserved2[4];
+} __packed;
+
+/* GuC Additional Data Struct */
 struct guc_ads {
 	u32 reg_state_addr;
 	u32 reg_state_buffer;
