@@ -116,6 +116,7 @@ static void lut_close(struct i915_gem_context *ctx)
 
 static void i915_gem_context_free(struct i915_gem_context *ctx)
 {
+	struct drm_i915_private *dev_priv = ctx->i915;
 	int i;
 
 	lockdep_assert_held(&ctx->i915->drm.struct_mutex);
@@ -125,9 +126,13 @@ static void i915_gem_context_free(struct i915_gem_context *ctx)
 
 	for (i = 0; i < I915_NUM_ENGINES; i++) {
 		struct intel_context *ce = &ctx->engine[i];
+		struct intel_engine_cs *engine = ctx->i915->engine[i];
 
 		if (!ce->state)
 			continue;
+
+		if (dev_priv->guc.ctx_free_hook)
+			dev_priv->guc.ctx_free_hook(ctx, engine);
 
 		WARN_ON(ce->pin_count);
 		if (ce->ring)

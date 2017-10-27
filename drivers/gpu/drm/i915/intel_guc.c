@@ -131,7 +131,7 @@ void intel_guc_init_params(struct intel_guc *guc)
 	if (i915_modparams.enable_guc_submission) {
 		u32 ads = guc_ggtt_offset(guc->ads_vma) >> PAGE_SHIFT;
 		u32 pgs = guc_ggtt_offset(dev_priv->guc.stage_desc_pool);
-		u32 ctx_in_16 = GUC_MAX_STAGE_DESCRIPTORS / 16;
+		u32 ctx_in_16 = guc->max_stage_desc / 16;
 
 		params[GUC_CTL_DEBUG] |= ads << GUC_ADS_ADDR_SHIFT;
 		params[GUC_CTL_DEBUG] |= GUC_ADS_ENABLED;
