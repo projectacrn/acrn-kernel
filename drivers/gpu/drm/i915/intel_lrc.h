@@ -111,4 +111,6 @@ intel_lr_context_descriptor(struct i915_gem_context *ctx,
 	return to_intel_context(ctx, engine)->lrc_desc;
 }
 
+void intel_lr_update_ring_tail(u32 *reg_state, u32 tail);
+
 #endif /* _INTEL_LRC_H_ */
