@@ -432,6 +432,12 @@ execlists_update_context_pdps(struct i915_hw_ppgtt *ppgtt, u32 *reg_state)
 	ASSIGN_CTX_PDP(ppgtt, reg_state, 0);
 }
 
+void intel_lr_update_ring_tail(u32 *reg_state, u32 tail)
+{
+	GEM_BUG_ON(!reg_state);
+	reg_state[CTX_RING_TAIL+1] = tail;
+}
+
 static u64 execlists_update_context(struct drm_i915_gem_request *rq)
 {
 	struct intel_context *ce = &rq->ctx->engine[rq->engine->id];
@@ -439,7 +445,8 @@ static u64 execlists_update_context(struct drm_i915_gem_request *rq)
 		rq->ctx->ppgtt ?: rq->i915->mm.aliasing_ppgtt;
 	u32 *reg_state = ce->lrc_reg_state;
 
-	reg_state[CTX_RING_TAIL+1] = intel_ring_set_tail(rq->ring, rq->tail);
+	intel_lr_update_ring_tail(reg_state,
+				  intel_ring_set_tail(rq->ring, rq->tail));
 
 	/* True 32b PPGTT with dynamic page allocation: update PDP
 	 * registers and point the unallocated PDPs to scratch page.

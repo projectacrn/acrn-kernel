@@ -576,9 +576,11 @@ static void guc_shared_data_destroy(struct intel_guc *guc)
 
 /* Construct a Work Item and append it to the GuC's Work Queue */
 static void guc_wq_item_append(struct intel_guc_client *client,
+			       struct intel_context *ce,
 			       u32 target_engine, u32 context_desc,
 			       u32 ring_tail, u32 fence_id)
 {
+	struct drm_i915_private *dev_priv = guc_to_i915(client->guc);
 	/* wqi_len is in DWords, and does not include the one-word header */
 	const size_t wqi_size = sizeof(struct guc_wq_item);
 	const u32 wqi_len = wqi_size / sizeof(u32) - 1;
@@ -606,15 +608,29 @@ static void guc_wq_item_append(struct intel_guc_client *client,
 	/* WQ starts from the page after doorbell / process_desc */
 	wqi = client->vaddr + wq_off + GUC_DB_SIZE;
 
-	/* Now fill in the 4-word work queue item */
-	wqi->header = WQ_TYPE_INORDER |
-		      (wqi_len << WQ_LEN_SHIFT) |
-		      (target_engine << WQ_TARGET_SHIFT) |
-		      WQ_NO_WCFLUSH_WAIT;
 	wqi->context_desc = context_desc;
-	wqi->submit_element_info = ring_tail << WQ_RING_TAIL_SHIFT;
-	GEM_BUG_ON(ring_tail > WQ_RING_TAIL_MAX);
 	wqi->fence_id = fence_id;
+
+	/* Now fill in the 4-word work queue item */
+	if (INTEL_GEN(dev_priv) >= 11) {
+		wqi->header = (wqi_len << WQ_LEN_SHIFT) |
+			      (target_engine << GEN11_WQ_TARGET_SHIFT) |
+			      WQ_NO_WCFLUSH_WAIT;
+
+		intel_lr_update_ring_tail(ce->lrc_reg_state, ring_tail);
+
+		wqi->submit_element_info =
+			(ce->sw_context_id << GEN11_WQ_SW_CTX_INDEX_SHIFT) |
+			(ce->sw_counter << GEN11_WQ_SW_COUNTER_SHIFT);
+	} else {
+		wqi->header = WQ_TYPE_INORDER |
+			      (wqi_len << WQ_LEN_SHIFT) |
+			      (target_engine << WQ_TARGET_SHIFT) |
+			      WQ_NO_WCFLUSH_WAIT;
+		ring_tail = ring_tail / sizeof(u64);
+		wqi->submit_element_info = ring_tail << WQ_RING_TAIL_SHIFT;
+		GEM_BUG_ON(ring_tail > WQ_RING_TAIL_MAX);
+	}
 
 	/* Make the update visible to GuC */
 	WRITE_ONCE(desc->tail, (wq_off + wqi_size) & (GUC_WQ_SIZE - 1));
@@ -654,13 +670,15 @@ static void guc_add_request(struct intel_guc *guc,
 {
 	struct intel_guc_client *client = guc->execbuf_client;
 	struct intel_engine_cs *engine = rq->engine;
+	struct intel_context *ce = &rq->ctx->engine[rq->engine->id];
 	u32 ctx_desc = lower_32_bits(intel_lr_context_descriptor(rq->ctx,
 								 engine));
-	u32 ring_tail = intel_ring_set_tail(rq->ring, rq->tail) / sizeof(u64);
+	u32 ring_tail = intel_ring_set_tail(rq->ring, rq->tail);
+
 
 	spin_lock(&client->wq_lock);
 
-	guc_wq_item_append(client, engine->guc_id, ctx_desc,
+	guc_wq_item_append(client, ce, engine->guc_id, ctx_desc,
 			   ring_tail, rq->global_seqno);
 	guc_ring_doorbell(client);
 
@@ -695,11 +713,15 @@ static void inject_preempt_context(struct work_struct *work)
 					     preempt_work[engine->id]);
 	struct intel_guc_client *client = guc->preempt_client;
 	struct guc_stage_desc *stage_desc = __get_stage_desc(client);
-	struct intel_ring *ring = client->owner->engine[engine->id].ring;
+	struct intel_context *ce = &client->owner->engine[engine->id];
+	struct intel_ring *ring = ce->ring;
 	u32 ctx_desc = lower_32_bits(intel_lr_context_descriptor(client->owner,
 								 engine));
 	u32 *cs = ring->vaddr + ring->tail;
 	u32 data[7];
+
+	/* FIXME: Gen11+ preemption is different anyway */
+	GEM_BUG_ON(INTEL_GEN(guc_to_i915(guc)) >= 11);
 
 	if (engine->id == RCS) {
 		cs = gen8_emit_ggtt_write_rcs(cs, GUC_PREEMPT_FINISHED,
@@ -724,8 +746,7 @@ static void inject_preempt_context(struct work_struct *work)
 	flush_ggtt_writes(ring->vma);
 
 	spin_lock_irq(&client->wq_lock);
-	guc_wq_item_append(client, engine->guc_id, ctx_desc,
-			   ring->tail / sizeof(u64), 0);
+	guc_wq_item_append(client, ce, engine->guc_id, ctx_desc, ring->tail, 0);
 	spin_unlock_irq(&client->wq_lock);
 
 	/*
