@@ -106,4 +106,6 @@ void intel_lr_context_resume(struct drm_i915_private *dev_priv);
 
 void intel_execlists_set_default_submission(struct intel_engine_cs *engine);
 
+void intel_lr_update_ring_tail(u32 *reg_state, u32 tail);
+
 #endif /* _INTEL_LRC_H_ */
