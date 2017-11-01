@@ -639,6 +639,7 @@ enum intel_pch {
 	PCH_KBP,        /* Kaby Lake PCH */
 	PCH_CNP,        /* Cannon Lake PCH */
 	PCH_ICP,	/* Ice Lake PCH */
+	PCH_TGP,	/* Tiger Lake PCH */
 	PCH_NOP,
 };
 
@@ -2664,12 +2665,16 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define INTEL_PCH_ICP_LP_DEVICE_ID_TYPE		0x3480
 #define INTEL_PCH_ICP_DEVICE_ID_TYPE		0xFFFF /* FIXME: Replace with real ID when available as IC */
 #define INTEL_PCH_ICP_H_DEVICE_ID_TYPE		0xFFFE /* FIXME: Replace with real ID when available as IC */
+#define INTEL_PCH_TGP_LP_DEVICE_ID_TYPE		0xFFFD /* FIXME: Replace with real ID when available as IC */
 #define INTEL_PCH_P2X_DEVICE_ID_TYPE		0x7100
 #define INTEL_PCH_P3X_DEVICE_ID_TYPE		0x7000
 #define INTEL_PCH_QEMU_DEVICE_ID_TYPE		0x2900 /* qemu q35 has 2918 */
 
 #define INTEL_PCH_TYPE(dev_priv) ((dev_priv)->pch_type)
 #define INTEL_PCH_ID(dev_priv) ((dev_priv)->pch_id)
+#define HAS_PCH_TGP_LP(dev_priv) \
+	(INTEL_PCH_ID(dev_priv) == INTEL_PCH_TGP_LP_DEVICE_ID_TYPE)
+#define HAS_PCH_TGP(dev_priv) (INTEL_PCH_TYPE(dev_priv) == PCH_TGP)
 #define HAS_PCH_ICP(dev_priv) (INTEL_PCH_TYPE(dev_priv) == PCH_ICP)
 #define HAS_PCH_ICP_LP(dev_priv) \
 	(INTEL_PCH_ID(dev_priv) == INTEL_PCH_ICP_LP_DEVICE_ID_TYPE)
