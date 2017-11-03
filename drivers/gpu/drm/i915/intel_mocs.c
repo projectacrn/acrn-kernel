@@ -207,10 +207,14 @@ static bool get_mocs_settings(struct drm_i915_private *dev_priv,
 					    (L3_ESC(1) | L3_SCC(0x7))))
 					return false;
 		} else {
-			for (i = 0; i < table->size; i++)
+			for (i = 0; i < table->size; i++) {
 				WARN_ONCE(!(table->table[i].control_value &
 					    LE_TGT_CACHE(0x3)),
 					  "Update MOCS table to not use LE_TC_PAGETABLE?\n");
+				WARN_ONCE(!(table->table[i].control_value &
+					    LE_CACHEABILITY(0x3)),
+					  "Update MOCS table to not use LE_PAGETABLE?\n");
+			}
 		}
 	}
 
