@@ -193,13 +193,25 @@ static bool get_mocs_settings(struct drm_i915_private *dev_priv,
 	}
 
 	/* WaDisableSkipCaching:skl,bxt,kbl,glk */
-	if (IS_GEN9(dev_priv)) {
+	/* In Gen12+ LE_TGT_CACHE == 0 means 'eLLC only' instead of 'use PPAT
+	 * for Target Cache and LRU Age (LE_TC_PAGETABLE)'; warn but do not
+	 * disable MOCS. LE_TC_PAGETABLE is not used in the existing table so
+	 * this warning is only to find if a new table for gen12+ is needed.
+	 */
+	if (IS_GEN9(dev_priv) || INTEL_GEN(dev_priv) >= 12) {
 		int i;
 
-		for (i = 0; i < table->size; i++)
-			if (WARN_ON(table->table[i].l3cc_value &
-				    (L3_ESC(1) | L3_SCC(0x7))))
-				return false;
+		if (IS_GEN9(dev_priv)) {
+			for (i = 0; i < table->size; i++)
+				if (WARN_ON(table->table[i].l3cc_value &
+					    (L3_ESC(1) | L3_SCC(0x7))))
+					return false;
+		} else {
+			for (i = 0; i < table->size; i++)
+				WARN_ONCE(!(table->table[i].control_value &
+					    LE_TGT_CACHE(0x3)),
+					  "Update MOCS table to not use LE_TC_PAGETABLE?\n");
+		}
 	}
 
 	return result;
