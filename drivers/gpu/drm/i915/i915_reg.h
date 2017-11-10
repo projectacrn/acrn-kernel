@@ -6806,8 +6806,8 @@ enum {
 #define _PLANE_COLOR_CTL_1_A			0x701CC /* GLK+ */
 #define _PLANE_COLOR_CTL_2_A			0x702CC /* GLK+ */
 #define _PLANE_COLOR_CTL_3_A			0x703CC /* GLK+ */
-#define   PLANE_COLOR_PIPE_GAMMA_ENABLE		(1 << 30)
-#define   PLANE_COLOR_PIPE_CSC_ENABLE		(1 << 23)
+#define   PLANE_COLOR_PIPE_GAMMA_ENABLE		(1 << 30) /* Pre-ICL */
+#define   PLANE_COLOR_PIPE_CSC_ENABLE		(1 << 23) /* Pre-ICL */
 #define   PLANE_COLOR_PLANE_GAMMA_DISABLE	(1 << 13)
 #define   PLANE_COLOR_ALPHA_MASK		(0x3 << 4)
 #define   PLANE_COLOR_ALPHA_DISABLE		(0 << 4)
