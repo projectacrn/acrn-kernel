@@ -466,6 +466,9 @@
 	INTEL_VGA_DEVICE(0x8A44, info), \
 	INTEL_ICL_SIM_11_5_IDS(info)
 
+#define INTEL_TGL_SIM_12_IDS(info) \
+	INTEL_VGA_DEVICE(0xFF20, info)
+
 #define INTEL_TGL_12_IDS(info) \
 	INTEL_VGA_DEVICE(0x9A49, info), \
 	INTEL_VGA_DEVICE(0x9A69, info), \
@@ -474,7 +477,8 @@
 	INTEL_VGA_DEVICE(0x9A09, info), \
 	INTEL_VGA_DEVICE(0x9A29, info), \
 	INTEL_VGA_DEVICE(0x9A19, info), \
-	INTEL_VGA_DEVICE(0x9A39, info)
+	INTEL_VGA_DEVICE(0x9A39, info), \
+	INTEL_TGL_SIM_12_IDS(info)
 
 /* JSL */
 #define INTEL_JSL_IDS(info) \
