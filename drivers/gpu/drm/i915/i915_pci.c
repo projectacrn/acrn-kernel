@@ -659,6 +659,7 @@ static const struct pci_device_id pciidlist[] = {
 	INTEL_CNL_U_GT2_IDS(&intel_cannonlake_gt2_info),
 	INTEL_CNL_Y_GT2_IDS(&intel_cannonlake_gt2_info),
 	INTEL_ICL_11_IDS(&intel_icelake_11_info),
+	INTEL_ICL_11_5_IDS(&intel_icelake_11_5_info),
 	{0, 0, 0}
 };
 MODULE_DEVICE_TABLE(pci, pciidlist);
