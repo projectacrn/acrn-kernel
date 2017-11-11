@@ -420,4 +420,15 @@
 	INTEL_CNL_Y_GT2_IDS(info), \
 	INTEL_CNL_H_GT2_IDS(info)
 
+#define INTEL_ICL_11_IDS(info) \
+	INTEL_VGA_DEVICE(0x8A50, info), \
+	INTEL_VGA_DEVICE(0x8A51, info), \
+	INTEL_VGA_DEVICE(0x8A5C, info), \
+	INTEL_VGA_DEVICE(0x8A5D, info), \
+	INTEL_VGA_DEVICE(0x8A52, info), \
+	INTEL_VGA_DEVICE(0x8A5A, info), \
+	INTEL_VGA_DEVICE(0x8A5B, info), \
+	INTEL_VGA_DEVICE(0x8A71, info), \
+	INTEL_VGA_DEVICE(0x8A70, info)
+
 #endif /* _I915_PCIIDS_H */
