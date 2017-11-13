@@ -1252,6 +1252,7 @@ static int stmmac_ethtool_get_est_gcl(struct net_device *dev,
 				      void *gclbuf)
 {
 	struct est_gc_config *gcc;
+	struct fpe_config *fpecfg;
 	struct ethtool_gc_entry *egce;
 	struct est_gc_entry *sgce;
 	int i, bank, ret;
@@ -1260,6 +1261,7 @@ static int stmmac_ethtool_get_est_gcl(struct net_device *dev,
 	if (gcl->cmd != ETHTOOL_GGCL ||
 	    gcl->own >= EST_GCL_BANK_MAX ||
 	    !priv->hw->mac->get_est_gcc ||
+	    !priv->hw->mac->get_fpe_config ||
 	    !priv->hw->mac->get_est_bank)
 		return -EINVAL;
 
@@ -1278,12 +1280,25 @@ static int stmmac_ethtool_get_est_gcl(struct net_device *dev,
 		return -EINVAL;
 	}
 
+	ret = priv->hw->mac->get_fpe_config(dev, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
 	egce = (struct ethtool_gc_entry *)gclbuf;
 	sgce = gcc->gcb[bank].gcl;
 	for (i = 0; i < gcl->len; i++) {
 		egce->gates = sgce->gates;
 		egce->ti_ns = sgce->ti_nsec;
-		egce->opid  = ETH_GATEOP_SET_GATE_STATES;
+
+		if (!fpecfg->enable)
+			egce->opid = ETH_GATEOP_SET_GATE_STATES;
+		else if (sgce->gates & FPE_PMAC_BIT)
+			egce->opid = ETH_GATEOP_SET_N_HOLD_MAC;
+		else
+			egce->opid = ETH_GATEOP_SET_N_RELS_MAC;
 
 		egce++;
 		sgce++;
@@ -1297,25 +1312,62 @@ static int stmmac_ethtool_set_est_gcl(struct net_device *dev,
 				      void *gclbuf)
 {
 	struct ethtool_gc_entry *egce;
+	struct fpe_config *fpecfg;
 	int i, bank;
 	struct stmmac_priv *priv = netdev_priv(dev);
+	u32 fpe_in_gcl = 0;
 	int ret = -1;
 
 	if (gcl->cmd != ETHTOOL_SGCL ||
 	    gcl->own >= EST_GCL_BANK_MAX ||
 	    !priv->hw->mac->get_est_bank ||
 	    !priv->hw->mac->set_est_gce ||
+	    !priv->hw->mac->get_fpe_config ||
 	    !priv->hw->mac->set_est_gcrr_llr)
 		return -EINVAL;
 
 	bank = priv->hw->mac->get_est_bank(dev, gcl->own);
 
+	/* Parse GCL for Hold/Release MAC cmd */
+	egce = (struct ethtool_gc_entry *)gclbuf;
+	for (i = 0; i < gcl->len; i++) {
+		if (egce->opid != ETH_GATEOP_SET_GATE_STATES) {
+			fpe_in_gcl = 1;
+		break;
+		}
+		egce++;
+	}
+	ret = priv->hw->mac->get_fpe_config(dev, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
+	/* Ensure that FPE is enabled for GC entry contains
+	 * ETH_GATEOP_SET_N_{HOLD,RELS}_MAC opid.
+	 */
+	if (!fpecfg->enable && fpe_in_gcl) {
+		dev_err(priv->device,
+			"FPE is not enabled for hold/release GCE cmd\n");
+
+		return -EINVAL;
+	}
+
+	/* Finally, handle the translation for FPE-related cmd:
+	 * ETH_GATEOP_SET_N_{HOLD,RELS}_MAC by setting/clearing
+	 * least significant bit of GC entry.
+	 */
 	egce = (struct ethtool_gc_entry *)gclbuf;
 	for (i = 0; i < gcl->len; i++) {
 		struct est_gc_entry sgce;
 
 		sgce.gates = egce->gates;
 		sgce.ti_nsec = egce->ti_ns;
+		if (egce->opid == ETH_GATEOP_SET_N_HOLD_MAC)
+			sgce.gates |= FPE_PMAC_BIT;
+		else if (egce->opid == ETH_GATEOP_SET_N_RELS_MAC)
+			sgce.gates &= ~FPE_PMAC_BIT;
 
 		ret = priv->hw->mac->set_est_gce(dev, &sgce, i, bank, 1);
 		if (ret) {
@@ -1334,6 +1386,7 @@ static int stmmac_ethtool_get_est_gce(struct net_device *dev,
 				      struct ethtool_gce *gce)
 {
 	struct est_gc_config *gcc;
+	struct fpe_config *fpecfg;
 	struct est_gc_entry *sgce;
 	int bank, ret;
 	struct stmmac_priv *priv = netdev_priv(dev);
@@ -1341,6 +1394,7 @@ static int stmmac_ethtool_get_est_gce(struct net_device *dev,
 	if (gce->cmd != ETHTOOL_GGCE ||
 	    gce->own >= EST_GCL_BANK_MAX ||
 	    !priv->hw->mac->get_est_gcc ||
+	    !priv->hw->mac->get_fpe_config ||
 	    !priv->hw->mac->get_est_bank)
 		return -EINVAL;
 
@@ -1358,10 +1412,23 @@ static int stmmac_ethtool_get_est_gce(struct net_device *dev,
 		return -EINVAL;
 	}
 
+	ret = priv->hw->mac->get_fpe_config(dev, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
 	sgce = gcc->gcb[bank].gcl + gce->row;
 	gce->gce.gates = sgce->gates;
 	gce->gce.ti_ns = sgce->ti_nsec;
-	gce->gce.opid = ETH_GATEOP_SET_GATE_STATES;
+
+	if (!fpecfg->enable)
+		gce->gce.opid = ETH_GATEOP_SET_GATE_STATES;
+	else if (sgce->gates & FPE_PMAC_BIT)
+		gce->gce.opid = ETH_GATEOP_SET_N_HOLD_MAC;
+	else
+		gce->gce.opid = ETH_GATEOP_SET_N_RELS_MAC;
 
 	return 0;
 }
@@ -1370,6 +1437,7 @@ static int stmmac_ethtool_set_est_gce(struct net_device *dev,
 				      struct ethtool_gce *gce)
 {
 	struct est_gc_entry sgce;
+	struct fpe_config *fpecfg;
 	int bank, gcl_length, ret;
 	struct stmmac_priv *priv = netdev_priv(dev);
 
@@ -1377,7 +1445,8 @@ static int stmmac_ethtool_set_est_gce(struct net_device *dev,
 	    gce->own >= EST_GCL_BANK_MAX ||
 	    !priv->hw->mac->get_est_gcrr_llr ||
 	    !priv->hw->mac->get_est_bank ||
-	    !priv->hw->mac->set_est_gce)
+	    !priv->hw->mac->set_est_gce ||
+	    !priv->hw->mac->get_fpe_config)
 		return -EINVAL;
 
 	bank = priv->hw->mac->get_est_bank(dev, gce->own);
@@ -1403,8 +1472,33 @@ static int stmmac_ethtool_set_est_gce(struct net_device *dev,
 		return -EINVAL;
 	}
 
+	ret = priv->hw->mac->get_fpe_config(dev, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
+	/* Ensure that FPE is enabled for GC entry contains
+	 * ETH_GATEOP_SET_N_{HOLD,RELS}_MAC opid.
+	 */
+	if (!fpecfg->enable && gce->gce.opid != ETH_GATEOP_SET_GATE_STATES) {
+		dev_err(priv->device,
+			"FPE is not enabled for hold/release GCE cmd\n");
+
+		return -EINVAL;
+	}
+
+	/* Finally, handle the translation for FPE-related cmd:
+	 * ETH_GATEOP_SET_N_{HOLD,RELS}_MAC by setting/clearing
+	 * least significant bit of GC entry.
+	 */
 	sgce.gates = gce->gce.gates;
 	sgce.ti_nsec = gce->gce.ti_ns;
+	if (gce->gce.opid == ETH_GATEOP_SET_N_HOLD_MAC)
+		sgce.gates |= FPE_PMAC_BIT;
+	else if (gce->gce.opid == ETH_GATEOP_SET_N_RELS_MAC)
+		sgce.gates &= ~FPE_PMAC_BIT;
 
 	ret = priv->hw->mac->set_est_gce(dev, &sgce, gce->row, bank, 1);
 	if (ret) {
@@ -1494,6 +1588,55 @@ static int stmmac_ethtool_set_est_info(struct net_device *dev,
 	return priv->hw->mac->set_est_gcrr_times(dev, &egcrr, bank, 1);
 }
 
+static int stmmac_ethtool_get_fpe_info(struct net_device *dev,
+				       struct ethtool_fpe_info *fpei)
+{
+	struct fpe_config *fpecfg;
+	u32 hrs;
+	struct stmmac_priv *priv = netdev_priv(dev);
+	int ret;
+
+	if (fpei->cmd != ETHTOOL_GFPEINFO ||
+	    !priv->hw->mac->get_fpe_pmac_sts ||
+	    !priv->hw->mac->get_fpe_config)
+		return -EINVAL;
+
+	ret = priv->hw->mac->get_fpe_config(dev, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
+	ret = priv->hw->mac->get_fpe_pmac_sts(dev, &hrs);
+	if (ret) {
+		dev_err(priv->device, "fail to get pMAC status.\n");
+
+		return ret;
+	}
+
+	fpei->sts_map = fpecfg->txqpec;
+	fpei->hold_req = hrs;
+	fpei->lp_fpe = fpecfg->lp_fpe_support;
+
+	return 0;
+}
+
+static int stmmac_ethtool_set_fpe_info(struct net_device *dev,
+				       struct ethtool_fpe_info *fpei)
+{
+	struct fpe_config fpecfg;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (fpei->cmd != ETHTOOL_SFPEINFO ||
+	    !priv->hw->mac->set_fpe_config)
+		return -EINVAL;
+
+	fpecfg.txqpec = fpei->sts_map;
+
+	return priv->hw->mac->set_fpe_config(dev, &fpecfg);
+}
+
 static const struct ethtool_ops stmmac_ethtool_ops = {
 	.begin = stmmac_check_if_running,
 	.get_drvinfo = stmmac_ethtool_getdrvinfo,
@@ -1528,6 +1671,8 @@ static const struct ethtool_ops stmmac_ethtool_ops = {
 	.set_est_gce = stmmac_ethtool_set_est_gce,
 	.get_est_info = stmmac_ethtool_get_est_info,
 	.set_est_info = stmmac_ethtool_set_est_info,
+	.get_fpe_info = stmmac_ethtool_get_fpe_info,
+	.set_fpe_info = stmmac_ethtool_set_fpe_info,
 };
 
 void stmmac_set_ethtool_ops(struct net_device *netdev)
