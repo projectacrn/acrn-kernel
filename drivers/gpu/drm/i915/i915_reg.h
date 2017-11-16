@@ -10110,4 +10110,9 @@ enum skl_power_gate {
 #define PORT_TX_DFLEXDPCSSS				_MMIO(0x163894)
 #define   DP_PHY_MODE_STATUS_NOT_SAFE(tc_port)		(1 << (tc_port))
 
+#define PORT_TX_DFLEXDPSP			_MMIO(0x1638A0)
+#define   DP_LANE_ASSIGNMENT_SHIFT(tc_port)	((tc_port) * 8)
+#define   DP_LANE_ASSIGNMENT_MASK(tc_port)	(0xf << ((tc_port) * 8))
+#define   DP_LANE_ASSIGNMENT(tc_port, x)	((x) << ((tc_port) * 8))
+
 #endif /* _I915_REG_H_ */
