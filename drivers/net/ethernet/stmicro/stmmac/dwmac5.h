@@ -152,6 +152,16 @@
 /* TBS Global defines */
 #define TBS_LEOS_MAX			999999999 /* Max LEOS (ns) */
 
+/* DMA TBS control register */
+#define DMA_TBS_CTRL			0x00001050
+#define DMA_TBS_CTRL_FTOS		GENMASK(31, 8)	/* Fetch time offset */
+#define DMA_TBS_CTRL_FTOS_SHIFT		8
+#define DMA_TBS_CTRL_FTOS_MAX		999999999
+#define DMA_TBS_CTRL_FGOS		GENMASK(6, 4)	/* Fetch GSN offset */
+#define DMA_TBS_CTRL_FGOS_SHIFT		4
+#define DMA_TBS_CTRL_FGOS_MASK		7
+#define DMA_TBS_CTRL_FTOV		BIT(0)	/* Valid bit */
+
 /* DMA Tx Channel X Control register TBS bits defines */
 #define DMA_CONTROL_EDSE		BIT(28)
 

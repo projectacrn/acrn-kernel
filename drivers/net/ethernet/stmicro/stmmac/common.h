@@ -415,6 +415,8 @@ struct tsn_hw_tunable {
 	u32 hadv;			/* Hold Advance */
 	u32 radv;			/* Release Advance */
 	u32 est_mode;			/* tbs absolute / est mode */
+	u32 ftos_ns;			/* fetch time offset (nsec) */
+	u32 fgos;			/* fetch GSN offset (slot number) */
 	u32 leos_ns;			/* Launch expiry offset (ns) */
 	u32 legos;			/* Launch expiry GSN offset */
 };

@@ -571,6 +571,83 @@ static int tbs_set_est_mode(struct net_device *ndev, u32 mode)
 	return 0;
 }
 
+static int tbs_set_ftos(struct net_device *ndev, u32 offset)
+{
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	u32 data = readl(priv->ioaddr + DMA_TBS_CTRL);
+
+	if (offset > DMA_TBS_CTRL_FTOS_MAX) {
+		dev_warn(priv->device,
+			 "Input offset value exceeded the max range\n");
+
+		return -EINVAL;
+	}
+
+	if (dw_tsn_hwtunable.est_mode) {
+		int bank = dwmac_get_est_bank(ndev, 0);
+		u32 ctr_ns = dw_est_gc_config.gcb[bank].gcrr.cycle_nsec;
+
+		if (offset > (ctr_ns - 1)) {
+			dev_warn(priv->device,
+				 "Input offset value exceeded cycle time\n");
+
+			return -EINVAL;
+		}
+	}
+
+	/* unset the valid bit for updating new fetch time offset */
+	data &= ~DMA_TBS_CTRL_FTOV;
+	writel(data, priv->ioaddr + DMA_TBS_CTRL);
+
+	data &= ~DMA_TBS_CTRL_FTOS;
+	dw_tsn_hwtunable.ftos_ns = offset & DMA_TBS_CTRL_FTOS;
+	data |= dw_tsn_hwtunable.ftos_ns << DMA_TBS_CTRL_FTOS_SHIFT;
+
+	/* disable fetch time while it is zero */
+	if (dw_tsn_hwtunable.ftos_ns ||
+	    (dw_tsn_hwtunable.est_mode && dw_tsn_hwtunable.fgos))
+		data |= DMA_TBS_CTRL_FTOV;
+
+	writel(data, priv->ioaddr + DMA_TBS_CTRL);
+
+	return 0;
+}
+
+static int tbs_set_fgos(struct net_device *ndev, u32 slot)
+{
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	u32 data = readl(priv->ioaddr + DMA_TBS_CTRL);
+
+	if (!(dw_est_gc_config.enable && dw_tsn_hwtunable.est_mode)) {
+		dev_warn(priv->device, "TBS EST mode is not enabled\n");
+
+		return -EINVAL;
+	}
+
+	if (slot > DMA_TBS_CTRL_FGOS_MASK) {
+		dev_warn(priv->device,
+			 "Input GSN value exceeded the max range\n");
+
+		return -EINVAL;
+	}
+
+	/* unset the valid bit for updating new fetch GSN slot */
+	data &= ~DMA_TBS_CTRL_FTOV;
+	writel(data, priv->ioaddr + DMA_TBS_CTRL);
+
+	data &= ~DMA_TBS_CTRL_FGOS;
+	dw_tsn_hwtunable.fgos = slot & DMA_TBS_CTRL_FGOS_MASK;
+	data |= (dw_tsn_hwtunable.fgos << DMA_TBS_CTRL_FGOS_SHIFT);
+
+	/* disable fetch time while it is zero */
+	if (dw_tsn_hwtunable.ftos_ns || dw_tsn_hwtunable.fgos)
+		data |= DMA_TBS_CTRL_FTOV;
+
+	writel(data, priv->ioaddr + DMA_TBS_CTRL);
+
+	return 0;
+}
+
 int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 			    const void *data)
 {
@@ -598,6 +675,12 @@ int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 		break;
 	case ETHTOOL_TX_TBS_ESTM:
 		ret = tbs_set_est_mode(ndev, value);
+		break;
+	case ETHTOOL_TX_TBS_FTOS:
+		ret = tbs_set_ftos(ndev, value);
+		break;
+	case ETHTOOL_TX_TBS_FGOS:
+		ret = tbs_set_fgos(ndev, value);
 		break;
 	case ETHTOOL_TX_TBS_LEOS:
 		ret = tbs_set_leos(ndev, value);
@@ -638,6 +721,12 @@ int dwmac_get_tsn_hwtunable(struct net_device *ndev, u32 id,
 		break;
 	case ETHTOOL_TX_TBS_ESTM:
 		*(u32 *)data = dw_tsn_hwtunable.est_mode;
+		break;
+	case ETHTOOL_TX_TBS_FTOS:
+		*(u32 *)data = dw_tsn_hwtunable.ftos_ns;
+		break;
+	case ETHTOOL_TX_TBS_FGOS:
+		*(u32 *)data = dw_tsn_hwtunable.fgos;
 		break;
 	case ETHTOOL_TX_TBS_LEOS:
 		*(u32 *)data = dw_tsn_hwtunable.leos_ns;
