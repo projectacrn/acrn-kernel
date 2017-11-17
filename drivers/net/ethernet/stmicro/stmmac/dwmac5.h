@@ -52,6 +52,15 @@
 #define MAC_FPE_CTRL_STS_SVER		BIT(1)
 #define MAC_FPE_CTRL_STS_EFPE		BIT(0)
 
+/* MTL TBS Control register */
+#define MTL_TBS_CTRL			0x00000c40
+#define MTL_TBS_CTRL_LEOS		GENMASK(31, 8)
+#define MTL_TBS_CTRL_LEOS_SHIFT		8
+#define MTL_TBS_CTRL_LEGOS		GENMASK(6, 4)
+#define MTL_TBS_CTRL_LEGOS_SHIFT	4
+#define MTL_TBS_CTRL_LEOV		BIT(1)
+#define MTL_TBS_CTRL_ESTM		BIT(0)
+
 /* MTL EST control register */
 #define MTL_EST_CTRL			0x00000c50
 #define MTL_EST_CTRL_PTOV		GENMASK(31, 24)
@@ -139,6 +148,9 @@
 #define FPE_AFSZ_MAX			0x3	/* Max AFSZ */
 #define FPE_ADV_MAX			0xFFFF	/* Max Release/Hold advance */
 #define FPE_PMAC_BIT			0x01	/* pMAC bit in GC entry */
+
+/* TBS Global defines */
+#define TBS_LEOS_MAX			999999999 /* Max LEOS (ns) */
 
 /* DMA Tx Channel X Control register TBS bits defines */
 #define DMA_CONTROL_EDSE		BIT(28)
