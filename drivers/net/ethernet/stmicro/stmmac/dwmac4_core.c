@@ -1183,7 +1183,7 @@ static u32 dwmac4_get_num_vlan(void __iomem *ioaddr)
 
 struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
 				     int perfect_uc_entries, int *synopsys_id,
-				     int xpcs)
+				     int xpcs, int tbs)
 {
 	struct mac_device_info *mac;
 	u32 hwid = readl(ioaddr + GMAC_VERSION);
@@ -1217,7 +1217,9 @@ struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
 	/* Get and dump the chip ID */
 	*synopsys_id = stmmac_get_synopsys_id(hwid);
 
-	if (*synopsys_id > DWMAC_CORE_4_00)
+	if ((*synopsys_id >= DWMAC_CORE_5_00) && tbs)
+		mac->dma = &dwmac5_dma_ops;
+	else if (*synopsys_id > DWMAC_CORE_4_00)
 		mac->dma = &dwmac410_dma_ops;
 	else
 		mac->dma = &dwmac4_dma_ops;

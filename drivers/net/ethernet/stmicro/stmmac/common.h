@@ -390,6 +390,7 @@ struct dma_features {
 
 #define STMMAC_CHAIN_MODE	0x1
 #define STMMAC_RING_MODE	0x2
+#define STMMAC_ENHANCED_TX_MODE	0x3
 
 #define JUMBO_LEN		9000
 
@@ -768,7 +769,7 @@ struct mac_device_info *dwmac1000_setup(void __iomem *ioaddr, int mcbins,
 struct mac_device_info *dwmac100_setup(void __iomem *ioaddr, int *synopsys_id);
 struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
 				     int perfect_uc_entries, int *synopsys_id,
-				     int xpcs);
+				     int xpcs, int tbs);
 
 void stmmac_set_mac_addr(void __iomem *ioaddr, u8 addr[6],
 			 unsigned int high, unsigned int low);
@@ -790,6 +791,7 @@ void dwmac_tsn_setup(struct net_device *ndev);
 extern const struct stmmac_mode_ops ring_mode_ops;
 extern const struct stmmac_mode_ops chain_mode_ops;
 extern const struct stmmac_desc_ops dwmac4_desc_ops;
+extern const struct stmmac_desc_ops dwmac5_desc_ops;
 
 /**
  * stmmac_get_synopsys_id - return the SYINID.

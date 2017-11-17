@@ -14,7 +14,7 @@
  */
 
 #include <linux/io.h>
-#include "dwmac4.h"
+#include "dwmac5.h"
 #include "dwmac4_dma.h"
 
 static void dwmac4_dma_axi(void __iomem *ioaddr, struct stmmac_axi *axi)
@@ -428,6 +428,49 @@ const struct stmmac_dma_ops dwmac410_dma_ops = {
 	.init_chan = dwmac4_dma_init_channel,
 	.init_rx_chan = dwmac4_dma_init_rx_chan,
 	.init_tx_chan = dwmac4_dma_init_tx_chan,
+	.axi = dwmac4_dma_axi,
+	.dump_regs = dwmac4_dump_dma_regs,
+	.dma_rx_mode = dwmac4_dma_rx_chan_op_mode,
+	.dma_tx_mode = dwmac4_dma_tx_chan_op_mode,
+	.enable_dma_irq = dwmac410_enable_dma_irq,
+	.disable_dma_irq = dwmac4_disable_dma_irq,
+	.start_tx = dwmac4_dma_start_tx,
+	.stop_tx = dwmac4_dma_stop_tx,
+	.start_rx = dwmac4_dma_start_rx,
+	.stop_rx = dwmac4_dma_stop_rx,
+	.dma_interrupt = dwmac4_dma_interrupt,
+	.get_hw_feature = dwmac4_get_hw_feature,
+	.rx_watchdog = dwmac4_rx_watchdog,
+	.set_rx_ring_len = dwmac4_set_rx_ring_len,
+	.set_tx_ring_len = dwmac4_set_tx_ring_len,
+	.set_rx_tail_ptr = dwmac4_set_rx_tail_ptr,
+	.set_tx_tail_ptr = dwmac4_set_tx_tail_ptr,
+	.enable_tso = dwmac4_enable_tso,
+};
+
+static void dwmac5_dma_init_tx_chan(void __iomem *ioaddr,
+				    struct stmmac_dma_cfg *dma_cfg,
+				    u32 dma_tx_phy, u32 chan)
+{
+	u32 value;
+	u32 txpbl = dma_cfg->txpbl ?: dma_cfg->pbl;
+
+	value = readl(ioaddr + DMA_CHAN_TX_CONTROL(chan));
+	value = value | (txpbl << DMA_BUS_MODE_PBL_SHIFT) | DMA_CONTROL_EDSE;
+
+	if (dma_cfg->osf)
+		value |= DMA_CONTROL_OSP;
+
+	writel(value, ioaddr + DMA_CHAN_TX_CONTROL(chan));
+	writel(dma_tx_phy, ioaddr + DMA_CHAN_TX_BASE_ADDR(chan));
+}
+
+const struct stmmac_dma_ops dwmac5_dma_ops = {
+	.reset = dwmac4_dma_reset,
+	.init = dwmac4_dma_init,
+	.init_chan = dwmac4_dma_init_channel,
+	.init_rx_chan = dwmac4_dma_init_rx_chan,
+	.init_tx_chan = dwmac5_dma_init_tx_chan,
 	.axi = dwmac4_dma_axi,
 	.dump_regs = dwmac4_dump_dma_regs,
 	.dma_rx_mode = dwmac4_dma_rx_chan_op_mode,

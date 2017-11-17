@@ -32,6 +32,7 @@
 #define GMAC_RXQCTRL_FPRQ_SHIFT		24
 
 /* MAC HW features3 bitmap */
+#define GMAC_HW_FEAT_TBSSEL		BIT(27)
 #define GMAC_HW_FEAT_FPESEL		BIT(26)
 #define GMAC_HW_FEAT_ESTTISW		GENMASK(24, 23)
 #define GMAC_HW_FEAT_ESTTISW_SHIFT	23
@@ -138,6 +139,9 @@
 #define FPE_AFSZ_MAX			0x3	/* Max AFSZ */
 #define FPE_ADV_MAX			0xFFFF	/* Max Release/Hold advance */
 #define FPE_PMAC_BIT			0x01	/* pMAC bit in GC entry */
+
+/* DMA Tx Channel X Control register TBS bits defines */
+#define DMA_CONTROL_EDSE		BIT(28)
 
 int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 			    const void *data);

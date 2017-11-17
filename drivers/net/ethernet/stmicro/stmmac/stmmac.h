@@ -52,6 +52,7 @@ struct stmmac_tx_queue {
 	u32 queue_index;
 	struct stmmac_priv *priv_data;
 	struct dma_extended_desc *dma_etx ____cacheline_aligned_in_smp;
+	struct dma_enhanced_tx_desc *dma_enhtx ____cacheline_aligned_in_smp;
 	struct dma_desc *dma_tx;
 	struct sk_buff **tx_skbuff;
 	struct stmmac_tx_info *tx_skbuff_dma;
@@ -134,6 +135,7 @@ struct stmmac_priv {
 	int tx_lpi_timer;
 	unsigned int mode;
 	int extend_desc;
+	bool enhanced_tx_desc;
 	struct ptp_clock *ptp_clock;
 	struct ptp_clock_info ptp_clock_ops;
 	unsigned int default_addend;

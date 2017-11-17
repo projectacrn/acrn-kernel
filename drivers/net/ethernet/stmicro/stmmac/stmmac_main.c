@@ -318,6 +318,8 @@ static inline struct dma_desc *stmmac_get_tx_desc(struct stmmac_priv *priv,
 
 	if (priv->extend_desc)
 		tx_desc = &tx_q->dma_etx[index].basic;
+	else if (priv->enhanced_tx_desc)
+		tx_desc = &tx_q->dma_enhtx[index].basic;
 	else
 		tx_desc = &tx_q->dma_tx[index];
 
@@ -349,6 +351,12 @@ static inline void **stmmac_get_tx_desc_holder(struct stmmac_priv *priv,
 			*size = sizeof(struct dma_extended_desc);
 		if (type)
 			*type = EXTENDED_DESC;
+	} else if (priv->enhanced_tx_desc) {
+		desc_holder = (void **)&tx_q->dma_enhtx;
+		if (size)
+			*size = sizeof(struct dma_enhanced_tx_desc);
+		if (type)
+			*type = ENHANCED_TX_DESC;
 	} else {
 		desc_holder = (void **)&tx_q->dma_tx;
 		if (size)
@@ -4208,7 +4216,8 @@ static int stmmac_hw_init(struct stmmac_priv *priv)
 				   priv->plat->multicast_filter_bins,
 				   priv->plat->unicast_filter_entries,
 				   &priv->synopsys_id,
-				   priv->plat->has_xpcs);
+				   priv->plat->has_xpcs,
+				   priv->enhanced_tx_desc);
 	} else {
 		mac = dwmac100_setup(priv->ioaddr, &priv->synopsys_id);
 	}
@@ -4269,7 +4278,9 @@ static int stmmac_hw_init(struct stmmac_priv *priv)
 	}
 
 	/* To use alternate (extended), normal or GMAC4 descriptor structures */
-	if (priv->synopsys_id >= DWMAC_CORE_4_00)
+	if (priv->synopsys_id >= DWMAC_CORE_5_00 && priv->enhanced_tx_desc)
+		priv->hw->desc = &dwmac5_desc_ops;
+	else if (priv->synopsys_id >= DWMAC_CORE_4_00)
 		priv->hw->desc = &dwmac4_desc_ops;
 	else
 		stmmac_selec_desc_mode(priv);
@@ -4396,6 +4407,11 @@ int stmmac_dvr_probe(struct device *device,
 		dev_info(priv->device, "FPE feature enabled\n");
 	}
 
+	if (priv->enhanced_tx_desc) {
+		ndev->hw_features |= NETIF_F_HW_TBS;
+		dev_info(priv->device, "TBS feature enabled\n");
+	}
+
 #ifdef STMMAC_VLAN_TAG_USED
 	/* Both mac100 and gmac support receive VLAN tag detection */
 	ndev->hw_features |= NETIF_F_HW_VLAN_CTAG_RX;
@@ -4406,7 +4422,7 @@ int stmmac_dvr_probe(struct device *device,
 	ndev->features |= ndev->hw_features | NETIF_F_HIGHDMA;
 
 	/* TSN features are disabled by default */
-	ndev->features &= ~(NETIF_F_HW_EST | NETIF_F_HW_FPE);
+	ndev->features &= ~(NETIF_F_HW_EST | NETIF_F_HW_FPE | NETIF_F_HW_TBS);
 
 	ndev->watchdog_timeo = msecs_to_jiffies(watchdog);
 	priv->msg_enable = netif_msg_init(debug, default_msg_level);
