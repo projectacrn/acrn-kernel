@@ -2109,6 +2109,7 @@ int __sock_cmsg_send(struct sock *sk, struct msghdr *msg, struct cmsghdr *cmsg,
 		     struct sockcm_cookie *sockc)
 {
 	u32 tsflags;
+	struct tbs_info *tbs_cmsg;
 
 	switch (cmsg->cmsg_type) {
 	case SO_MARK:
@@ -2132,7 +2133,9 @@ int __sock_cmsg_send(struct sock *sk, struct msghdr *msg, struct cmsghdr *cmsg,
 	case SO_TXTIME:
 		if (!sock_flag(sk, SOCK_TXTIME))
 			return -EINVAL;
-		sockc->transmit_time = *(u64 *)CMSG_DATA(cmsg);
+		tbs_cmsg = (struct tbs_info *)CMSG_DATA(cmsg);
+		sockc->transmit_time = tbs_cmsg->launchtime;
+		sockc->transmit_gsn = tbs_cmsg->gsn;
 		break;
 	/* SCM_RIGHTS and SCM_CREDENTIALS are semantically in SOL_UNIX. */
 	case SCM_RIGHTS:
