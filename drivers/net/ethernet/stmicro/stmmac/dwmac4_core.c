@@ -1093,6 +1093,7 @@ static const struct stmmac_ops dwmac5_xpcs_ops = {
 	.get_fpe_config = dwmac_get_fpe_config,
 	.get_fpe_pmac_sts = dwmac_get_fpe_pmac_sts,
 	.fpe_irq_status = dwmac_fpe_irq_status,
+	.reconfigure_cbs = dwmac_reconfigure_cbs,
 };
 
 static const struct stmmac_ops dwmac5_ops = {

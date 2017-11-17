@@ -1527,7 +1527,9 @@ static int stmmac_ethtool_set_est_info(struct net_device *dev,
 {
 	struct est_gcrr egcrr;
 	struct stmmac_priv *priv = netdev_priv(dev);
+	u32 tx_queues_count = priv->plat->tx_queues_to_use;
 	int bank;
+	int ret;
 
 	if (esti->cmd != ETHTOOL_SESTINFO ||
 	    esti->own >= EST_GCL_BANK_MAX ||
@@ -1548,7 +1550,12 @@ static int stmmac_ethtool_set_est_info(struct net_device *dev,
 	egcrr.base_nsec = esti->base_ns;
 	egcrr.ter_nsec = esti->extension_ns;
 
-	return priv->hw->mac->set_est_gcrr_times(dev, &egcrr, bank, 1);
+	ret = priv->hw->mac->set_est_gcrr_times(dev, &egcrr, bank, 1);
+
+	if (tx_queues_count > 1 && priv->hw->mac->reconfigure_cbs)
+		priv->hw->mac->reconfigure_cbs(dev);
+
+	return ret;
 }
 
 static int stmmac_ethtool_get_fpe_info(struct net_device *dev,

@@ -662,6 +662,7 @@ struct stmmac_ops {
 			      struct fpe_config **fpec, bool frmdrv);
 	int (*get_fpe_pmac_sts)(struct net_device *ndev, u32 *hrs);
 	int (*fpe_irq_status)(struct net_device *ndev);
+	int (*reconfigure_cbs)(struct net_device *ndev);
 };
 
 /* PTP and HW Timer helpers */

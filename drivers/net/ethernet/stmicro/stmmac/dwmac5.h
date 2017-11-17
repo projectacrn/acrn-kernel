@@ -166,4 +166,5 @@ int dwmac_get_fpe_config(struct net_device *ndev, struct fpe_config **fpec,
 			 bool frmdrv);
 int dwmac_get_fpe_pmac_sts(struct net_device *ndev, u32 *hrs);
 int dwmac_fpe_irq_status(struct net_device *ndev);
+int dwmac_reconfigure_cbs(struct net_device *ndev);
 #endif /* __DWMAC5_H__ */

@@ -315,6 +315,7 @@ enum power_event {
 #define MTL_TXQX_WEIGHT_BASE_ADDR(x)	(MTL_TXQ_WEIGHT_BASE_ADDR + \
 					((x) * MTL_TXQ_WEIGHT_BASE_OFFSET))
 #define MTL_TXQ_WEIGHT_ISCQW_MASK	GENMASK(20, 0)
+#define MTL_TXQ_ISCQW_MAX		0x1fffff
 
 /* MTL sendSlopeCredit register */
 #define MTL_SEND_SLP_CRED_BASE_ADDR	0x00000d1c

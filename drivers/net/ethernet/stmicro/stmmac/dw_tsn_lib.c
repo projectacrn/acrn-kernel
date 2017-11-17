@@ -1260,3 +1260,104 @@ int dwmac_fpe_irq_status(struct net_device *ndev)
 
 	return 0;
 }
+
+static u64 est_get_total_gate_open_time_q(u32 bank, u32 gcl_len,
+					  u64 cycle_ns, u32 q)
+{
+	int row;
+	struct est_gc_entry *gcl = dw_est_gc_config.gcb[bank].gcl;
+	u64 total = 0;
+	u64 tti_ns = 0;
+	u32 gate = 0x1 << q;
+
+	/* GCL which exceeds the cycle time will be truncated.
+	 * So, time interval that exceeds the cycle time will not be
+	 * included.
+	 */
+	for (row = 0; row < gcl_len; row++) {
+		tti_ns += gcl->ti_nsec;
+
+		if (gcl->gates & gate) {
+			if (tti_ns <= cycle_ns)
+				total += gcl->ti_nsec;
+			else
+				total += gcl->ti_nsec -
+					 (tti_ns - cycle_ns);
+		}
+
+		gcl++;
+	}
+
+	/* The gates wihtout any settings of open/close within
+	 * the cycle time are considered as open.
+	 */
+	if (tti_ns < cycle_ns)
+		total += cycle_ns - tti_ns;
+
+	return total;
+}
+
+int dwmac_reconfigure_cbs(struct net_device *ndev)
+{
+	u32 mode_to_use;
+	u32 queue;
+	u64 new_idle_slope;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	u32 hw_bank = dwmac_get_est_bank(ndev, 1);
+	u32 gcl_len = dw_est_gc_config.gcb[hw_bank].gcrr.llr;
+	u64 cycle_time_ns = (dw_est_gc_config.gcb[hw_bank].gcrr.cycle_sec *
+			     ONE_SEC_IN_NANOSEC) +
+			     dw_est_gc_config.gcb[hw_bank].gcrr.cycle_nsec;
+	u32 tx_queues_count = priv->plat->tx_queues_to_use;
+	u32 open_time = 0;
+	u64 scaling = 0;
+	u32 max_idle_slope = MTL_TXQ_ISCQW_MAX;
+
+	if (!cycle_time_ns) {
+		dev_warn(priv->device, "EST: Cycle time is 0.\n");
+		dev_warn(priv->device,
+			 "CBS idle slope will not be reconfigured.\n");
+
+		return 0;
+	}
+
+	/* queue 0 is reserved for legacy traffic */
+	for (queue = 1; queue < tx_queues_count; queue++) {
+		mode_to_use = priv->plat->tx_queues_cfg[queue].mode_to_use;
+		if (mode_to_use == MTL_QUEUE_DCB)
+			continue;
+
+		open_time = est_get_total_gate_open_time_q(hw_bank, gcl_len,
+							   cycle_time_ns,
+							   queue);
+
+		if (!open_time) {
+			dev_warn(priv->device,
+				 "EST: Total gate open time for queue %d is 0\n",
+				 queue);
+			break;
+		}
+
+		scaling = cycle_time_ns;
+		do_div(scaling, open_time);
+
+		new_idle_slope = priv->plat->tx_queues_cfg[queue].idle_slope
+				 * scaling;
+
+		if (new_idle_slope > max_idle_slope) {
+			dev_warn(priv->device,
+				 "EST: CBS idle slope will cap at max %x\n",
+				 max_idle_slope);
+			new_idle_slope = max_idle_slope;
+		}
+
+		priv->hw->mac->config_cbs(priv->hw,
+				priv->plat->tx_queues_cfg[queue].send_slope,
+				new_idle_slope,
+				priv->plat->tx_queues_cfg[queue].high_credit,
+				priv->plat->tx_queues_cfg[queue].low_credit,
+				queue);
+	}
+
+	return 0;
+}
