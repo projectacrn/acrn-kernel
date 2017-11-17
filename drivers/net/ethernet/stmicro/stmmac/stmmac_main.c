@@ -302,6 +302,65 @@ static inline void stmmac_hw_fix_mac_speed(struct stmmac_priv *priv)
 }
 
 /**
+ * stmmac_get_tx_desc - to obtain TX DMA descriptor
+ * @priv: driver private structure
+ * @queue: TX queue index
+ * @index: TX DMA descriptors index
+ * Description: this consolidated all different type of TX DMA descriptors
+ *		extraction into one inline function call for ease of future
+ *		expansion.
+ */
+static inline struct dma_desc *stmmac_get_tx_desc(struct stmmac_priv *priv,
+						  u32 queue, int index)
+{
+	struct stmmac_tx_queue *tx_q = &priv->tx_queue[queue];
+	struct dma_desc *tx_desc;
+
+	if (priv->extend_desc)
+		tx_desc = &tx_q->dma_etx[index].basic;
+	else
+		tx_desc = &tx_q->dma_tx[index];
+
+	return tx_desc;
+}
+
+/**
+ * stmmac_get_tx_desc_holder - to obtain TX DMA descriptors holder
+ * @priv: driver private structure
+ * @queue: TX queue index
+ * @size: TX DMA descriptor size
+ * @type: TX DMA descriptor type from enum desc_type
+ * Description: this consolidated all different type of TX DMA descriptors
+ *		holder extraction into one inline function call for
+ *		ease of future expansion. The value returned is the holder
+ *		address and the holder stores the pointer address to
+ *		descriptor head.
+ */
+static inline void **stmmac_get_tx_desc_holder(struct stmmac_priv *priv,
+					       u32 queue, int *size,
+					       enum desc_type *type)
+{
+	struct stmmac_tx_queue *tx_q = &priv->tx_queue[queue];
+	void **desc_holder;
+
+	if (priv->extend_desc) {
+		desc_holder = (void **)&tx_q->dma_etx;
+		if (size)
+			*size = sizeof(struct dma_extended_desc);
+		if (type)
+			*type = EXTENDED_DESC;
+	} else {
+		desc_holder = (void **)&tx_q->dma_tx;
+		if (size)
+			*size = sizeof(struct dma_desc);
+		if (type)
+			*type = BASE_DESC;
+	}
+
+	return desc_holder;
+}
+
+/**
  * stmmac_enable_eee_mode - check and enter in LPI mode
  * @priv: driver private structure
  * Description: this function is to verify and enter in LPI mode in case of
@@ -1003,21 +1062,16 @@ static void stmmac_display_rx_rings(struct stmmac_priv *priv)
 static void stmmac_display_tx_rings(struct stmmac_priv *priv)
 {
 	u32 tx_cnt = priv->plat->tx_queues_to_use;
-	void *head_tx;
+	void **head_tx;
 	u32 queue;
 
 	/* Display TX rings */
 	for (queue = 0; queue < tx_cnt; queue++) {
-		struct stmmac_tx_queue *tx_q = &priv->tx_queue[queue];
-
 		pr_info("\tTX Queue %d rings\n", queue);
 
-		if (priv->extend_desc)
-			head_tx = (void *)tx_q->dma_etx;
-		else
-			head_tx = (void *)tx_q->dma_tx;
+		head_tx = stmmac_get_tx_desc_holder(priv, queue, NULL, NULL);
 
-		priv->hw->desc->display_ring(head_tx, DMA_TX_SIZE, false);
+		priv->hw->desc->display_ring(*head_tx, DMA_TX_SIZE, false);
 	}
 }
 
@@ -1079,19 +1133,15 @@ static void stmmac_clear_rx_descriptors(struct stmmac_priv *priv, u32 queue)
  */
 static void stmmac_clear_tx_descriptors(struct stmmac_priv *priv, u32 queue)
 {
-	struct stmmac_tx_queue *tx_q = &priv->tx_queue[queue];
 	int i;
+	struct dma_desc *p;
 
 	/* Clear the TX descriptors */
-	for (i = 0; i < DMA_TX_SIZE; i++)
-		if (priv->extend_desc)
-			priv->hw->desc->init_tx_desc(&tx_q->dma_etx[i].basic,
-						     priv->mode,
-						     (i == DMA_TX_SIZE - 1));
-		else
-			priv->hw->desc->init_tx_desc(&tx_q->dma_tx[i],
-						     priv->mode,
-						     (i == DMA_TX_SIZE - 1));
+	for (i = 0; i < DMA_TX_SIZE; i++) {
+		p = stmmac_get_tx_desc(priv, queue, i);
+		priv->hw->desc->init_tx_desc(p, priv->mode,
+					     (i == DMA_TX_SIZE - 1));
+	}
 }
 
 /**
@@ -1322,22 +1372,20 @@ static int init_dma_tx_desc_rings(struct net_device *dev)
 
 		/* Setup the chained descriptor addresses */
 		if (priv->mode == STMMAC_CHAIN_MODE) {
-			if (priv->extend_desc)
-				priv->hw->mode->init(tx_q->dma_etx,
-						     tx_q->dma_tx_phy,
-						     DMA_TX_SIZE, 1);
-			else
-				priv->hw->mode->init(tx_q->dma_tx,
-						     tx_q->dma_tx_phy,
-						     DMA_TX_SIZE, 0);
+			void **head_tx;
+			enum desc_type type;
+
+			head_tx = stmmac_get_tx_desc_holder(priv, queue, NULL,
+							    &type);
+			priv->hw->mode->init(*head_tx,
+					     tx_q->dma_tx_phy,
+					     DMA_TX_SIZE, type);
 		}
 
 		for (i = 0; i < DMA_TX_SIZE; i++) {
 			struct dma_desc *p;
-			if (priv->extend_desc)
-				p = &((tx_q->dma_etx + i)->basic);
-			else
-				p = tx_q->dma_tx + i;
+
+			p = stmmac_get_tx_desc(priv, queue, i);
 
 			if (priv->synopsys_id >= DWMAC_CORE_4_00) {
 				p->des0 = 0;
@@ -1460,19 +1508,16 @@ static void free_dma_tx_desc_resources(struct stmmac_priv *priv)
 	/* Free TX queue resources */
 	for (queue = 0; queue < tx_count; queue++) {
 		struct stmmac_tx_queue *tx_q = &priv->tx_queue[queue];
+		void **head_tx;
+		int size;
 
 		/* Release the DMA TX socket buffers */
 		dma_free_tx_skbufs(priv, queue);
 
 		/* Free DMA regions of consistent memory previously allocated */
-		if (!priv->extend_desc)
-			dma_free_coherent(priv->device,
-					  DMA_TX_SIZE * sizeof(struct dma_desc),
-					  tx_q->dma_tx, tx_q->dma_tx_phy);
-		else
-			dma_free_coherent(priv->device, DMA_TX_SIZE *
-					  sizeof(struct dma_extended_desc),
-					  tx_q->dma_etx, tx_q->dma_tx_phy);
+		head_tx = stmmac_get_tx_desc_holder(priv, queue, &size, NULL);
+		dma_free_coherent(priv->device, DMA_TX_SIZE * size,
+				  *head_tx, tx_q->dma_tx_phy);
 
 		kfree(tx_q->tx_skbuff_dma);
 		kfree(tx_q->tx_skbuff);
@@ -1559,6 +1604,8 @@ static int alloc_dma_tx_desc_resources(struct stmmac_priv *priv)
 	/* TX queues buffers and DMA */
 	for (queue = 0; queue < tx_count; queue++) {
 		struct stmmac_tx_queue *tx_q = &priv->tx_queue[queue];
+		int size;
+		void **head_tx;
 
 		tx_q->queue_index = queue;
 		tx_q->priv_data = priv;
@@ -1575,25 +1622,13 @@ static int alloc_dma_tx_desc_resources(struct stmmac_priv *priv)
 		if (!tx_q->tx_skbuff)
 			goto err_dma;
 
-		if (priv->extend_desc) {
-			tx_q->dma_etx = dma_zalloc_coherent(priv->device,
-							    DMA_TX_SIZE *
-							    sizeof(struct
-							    dma_extended_desc),
-							    &tx_q->dma_tx_phy,
-							    GFP_KERNEL);
-			if (!tx_q->dma_etx)
-				goto err_dma;
-		} else {
-			tx_q->dma_tx = dma_zalloc_coherent(priv->device,
-							   DMA_TX_SIZE *
-							   sizeof(struct
-								  dma_desc),
-							   &tx_q->dma_tx_phy,
-							   GFP_KERNEL);
-			if (!tx_q->dma_tx)
-				goto err_dma;
-		}
+		head_tx = stmmac_get_tx_desc_holder(priv, queue, &size, NULL);
+		*head_tx = dma_zalloc_coherent(priv->device,
+					       DMA_TX_SIZE * size,
+					       &tx_q->dma_tx_phy,
+					       GFP_KERNEL);
+		if (!*head_tx)
+			goto err_dma;
 	}
 
 	return 0;
@@ -1833,14 +1868,11 @@ static void stmmac_tx_clean(struct stmmac_priv *priv, u32 queue)
 		struct dma_desc *p;
 		int status;
 
-		if (priv->extend_desc)
-			p = (struct dma_desc *)(tx_q->dma_etx + entry);
-		else
-			p = tx_q->dma_tx + entry;
+		p = stmmac_get_tx_desc(priv, queue, entry);
 
 		status = priv->hw->desc->tx_status(&priv->dev->stats,
-						      &priv->xstats, p,
-						      priv->ioaddr);
+						   &priv->xstats, p,
+						   priv->ioaddr);
 		/* Check if the descriptor is owned by the DMA */
 		if (unlikely(status & tx_dma_own))
 			break;
@@ -1937,15 +1969,13 @@ static void stmmac_tx_err(struct stmmac_priv *priv, u32 chan)
 
 	stmmac_stop_tx_dma(priv, chan);
 	dma_free_tx_skbufs(priv, chan);
-	for (i = 0; i < DMA_TX_SIZE; i++)
-		if (priv->extend_desc)
-			priv->hw->desc->init_tx_desc(&tx_q->dma_etx[i].basic,
-						     priv->mode,
-						     (i == DMA_TX_SIZE - 1));
-		else
-			priv->hw->desc->init_tx_desc(&tx_q->dma_tx[i],
-						     priv->mode,
-						     (i == DMA_TX_SIZE - 1));
+	for (i = 0; i < DMA_TX_SIZE; i++) {
+		struct dma_desc *p;
+
+		p = stmmac_get_tx_desc(priv, chan, i);
+		priv->hw->desc->init_tx_desc(p, priv->mode,
+					     (i == DMA_TX_SIZE - 1));
+	}
 	tx_q->dirty_tx = 0;
 	tx_q->cur_tx = 0;
 	netdev_tx_reset_queue(netdev_get_tx_queue(priv->dev, chan));
@@ -3066,10 +3096,7 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	csum_insertion = (skb->ip_summed == CHECKSUM_PARTIAL);
 
-	if (likely(priv->extend_desc))
-		desc = (struct dma_desc *)(tx_q->dma_etx + entry);
-	else
-		desc = tx_q->dma_tx + entry;
+	desc = stmmac_get_tx_desc(priv, queue, entry);
 
 	first = desc;
 
@@ -3092,10 +3119,7 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 
 		entry = STMMAC_GET_ENTRY(entry, DMA_TX_SIZE);
 
-		if (likely(priv->extend_desc))
-			desc = (struct dma_desc *)(tx_q->dma_etx + entry);
-		else
-			desc = tx_q->dma_tx + entry;
+		desc = stmmac_get_tx_desc(priv, queue, entry);
 
 		des = skb_frag_dma_map(priv->device, frag, 0, len,
 				       DMA_TO_DEVICE);
@@ -3132,19 +3156,16 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 	tx_q->cur_tx = entry;
 
 	if (netif_msg_pktdata(priv)) {
-		void *tx_head;
+		void **tx_head;
 
 		netdev_dbg(priv->dev,
 			   "%s: curr=%d dirty=%d f=%d, e=%d, first=%p, nfrags=%d",
 			   __func__, tx_q->cur_tx, tx_q->dirty_tx, first_entry,
 			   entry, first, nfrags);
 
-		if (priv->extend_desc)
-			tx_head = (void *)tx_q->dma_etx;
-		else
-			tx_head = (void *)tx_q->dma_tx;
+		tx_head = stmmac_get_tx_desc_holder(priv, queue, NULL, NULL);
 
-		priv->hw->desc->display_ring(tx_head, DMA_TX_SIZE, false);
+		priv->hw->desc->display_ring(*tx_head, DMA_TX_SIZE, false);
 
 		netdev_dbg(priv->dev, ">>> frame to be transmitted: ");
 		print_pkt(skb->data, skb->len);
@@ -3979,19 +4000,18 @@ static int stmmac_sysfs_ring_read(struct seq_file *seq, void *v)
 	}
 
 	for (queue = 0; queue < tx_count; queue++) {
-		struct stmmac_tx_queue *tx_q = &priv->tx_queue[queue];
+		void **head_tx;
+		enum desc_type type;
 
 		seq_printf(seq, "TX Queue %d:\n", queue);
 
-		if (priv->extend_desc) {
+		if (priv->extend_desc)
 			seq_printf(seq, "Extended descriptor ring:\n");
-			sysfs_display_ring((void *)tx_q->dma_etx,
-					   DMA_TX_SIZE, 1, seq);
-		} else {
+		else
 			seq_printf(seq, "Descriptor ring:\n");
-			sysfs_display_ring((void *)tx_q->dma_tx,
-					   DMA_TX_SIZE, 0, seq);
-		}
+
+		head_tx = stmmac_get_tx_desc_holder(priv, queue, NULL, &type);
+		sysfs_display_ring(*head_tx, DMA_TX_SIZE, type, seq);
 	}
 
 	return 0;

@@ -164,6 +164,11 @@
 #define RDES_PTP_SIGNALING		0xa
 #define RDES_PTP_PKT_RESERVED_TYPE	0xf
 
+enum desc_type {
+	BASE_DESC = 0,
+	EXTENDED_DESC,
+};
+
 /* Basic descriptor structure for normal and alternate descriptors */
 struct dma_desc {
 	__le32 des0;
