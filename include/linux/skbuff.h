@@ -637,6 +637,7 @@ typedef unsigned char *sk_buff_data_t;
  *	@dst_pending_confirm: need to confirm neighbour
   *	@napi_id: id of the NAPI struct this skb came from
  *	@secmark: security marking
+ *	@transmit_time: desired future transmission time in nanoseconds
  *	@mark: Generic packet mark
  *	@vlan_proto: vlan encapsulation protocol
  *	@vlan_tci: vlan tag control information
@@ -806,6 +807,7 @@ struct sk_buff {
 #ifdef CONFIG_NETWORK_SECMARK
 	__u32		secmark;
 #endif
+	__u64			transmit_time;
 
 	union {
 		__u32		mark;
