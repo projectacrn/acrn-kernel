@@ -82,6 +82,9 @@ enum {
 					 * Scheduled Traffics.
 					 */
 	NETIF_F_HW_FPE_BIT,		/* IEEE802.1 Qbu Frame Preemption */
+	NETIF_F_HW_TBS_BIT,		/* Time Based Scheduling: fetch,
+					 * launch & expiry time.
+					 */
 	/*
 	 * Add your fresh new feature above and remember to update
 	 * netdev_features_strings[] in net/core/ethtool.c and maybe
@@ -148,6 +151,7 @@ enum {
 #define	NETIF_F_RX_UDP_TUNNEL_PORT  __NETIF_F(RX_UDP_TUNNEL_PORT)
 #define NETIF_F_HW_EST		__NETIF_F(HW_EST)
 #define NETIF_F_HW_FPE		__NETIF_F(HW_FPE)
+#define NETIF_F_HW_TBS		__NETIF_F(HW_TBS)
 
 #define for_each_netdev_feature(mask_addr, bit)	\
 	for_each_set_bit(bit, (unsigned long *)mask_addr, NETDEV_FEATURE_COUNT)
