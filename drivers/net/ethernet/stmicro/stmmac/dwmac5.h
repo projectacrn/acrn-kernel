@@ -22,11 +22,13 @@
  * 1) IEEE 802.1 Qbv Enhancements for Scheduled Traffic (EST)
  * 2) IEEE 802.1 Qbu Frame Preemption (FPE)
  *
- * In addition, the IP supports Time-based Scheduling (TBS) & VLAN Filter
- * Fail Queue (VFFQ).
+ * In addition, the IP supports Time-based Scheduling (TBS), VLAN Filter
+ * Fail Queue (VFFQ) & MDIO Complete Interrupt.
  */
 
 #define GMAC_INT_FPE_EN			BIT(17)
+/* MDIO interrupt enable in MAC_Interrupt_Enable register */
+#define GMAC_INT_MDIO_EN		BIT(18)
 
 /* FPRQ only available in EQoS ver5.00 MAC_RxQ_Ctrl1 */
 #define GMAC_RXQCTRL_FPRQ_MASK		GENMASK(26, 24)	/* FPE Residue Queue */

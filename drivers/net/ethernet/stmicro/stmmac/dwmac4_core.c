@@ -62,6 +62,8 @@ static void dwmac4_core_init(struct mac_device_info *hw, int mtu)
 		value |= GMAC_PCS_IRQ_DEFAULT;
 	if (hw->tsn_cap & TSN_CAP_FPE)
 		value |= GMAC_INT_FPE_EN;
+	if (hw->mdio_intr_en)
+		value |= GMAC_INT_MDIO_EN;
 
 	writel(value, ioaddr + GMAC_INT_EN);
 }
@@ -841,6 +843,9 @@ static int dwmac4_irq_status(struct mac_device_info *hw,
 			x->irq_rx_path_exit_lpi_mode_n++;
 	}
 
+	if (intr_status & mdio_irq)
+		wake_up(&hw->mdio_busy_wait);
+
 	dwmac_pcs_isr(ioaddr, GMAC_PCS_BASE, intr_status, x);
 	if (intr_status & PCS_RGSMIIIS_IRQ)
 		dwmac4_phystatus(ioaddr, x);
@@ -1243,6 +1248,11 @@ struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
 		mac->mac = &dwmac410_ops;
 	else
 		mac->mac = &dwmac4_ops;
+
+	if (*synopsys_id >= DWMAC_CORE_5_00) {
+		mac->mdio_intr_en = 1;
+		init_waitqueue_head(&mac->mdio_busy_wait);
+	}
 
 	mac->num_vlan = dwmac4_get_num_vlan(ioaddr);
 
