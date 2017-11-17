@@ -18,4 +18,7 @@
 
 #include <asm-generic/socket.h>
 
+#define SO_TXTIME		54
+#define SCM_TXTIME		SO_TXTIME
+
 #endif	/* _ASM_POWERPC_SOCKET_H */
