@@ -761,6 +761,8 @@ struct mac_device_info {
 	u32 vlan_filter[32];
 	u32 flags;
 	u32 tsn_cap;
+	bool vlan_fail_q_en;
+	u8 vlan_fail_q;
 };
 
 struct stmmac_rx_routing {
