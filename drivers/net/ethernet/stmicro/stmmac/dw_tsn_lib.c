@@ -550,6 +550,27 @@ static int tbs_set_legos(struct net_device *ndev, u32 legos)
 	return 0;
 }
 
+static int tbs_set_est_mode(struct net_device *ndev, u32 mode)
+{
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	u32 data = readl(priv->ioaddr + MTL_TBS_CTRL);
+
+	if (mode) {
+		if (!dw_est_gc_config.enable)
+			return -EINVAL;
+
+		data |= MTL_TBS_CTRL_ESTM;
+		dw_tsn_hwtunable.est_mode = true;
+	} else {
+		data &= ~MTL_TBS_CTRL_ESTM;
+		dw_tsn_hwtunable.est_mode = false;
+	}
+
+	writel(data, priv->ioaddr + MTL_TBS_CTRL);
+
+	return 0;
+}
+
 int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 			    const void *data)
 {
@@ -574,6 +595,9 @@ int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 		break;
 	case ETHTOOL_TX_FPE_RADV:
 		ret = fpe_set_hr_adv(ndev, NULL, &value);
+		break;
+	case ETHTOOL_TX_TBS_ESTM:
+		ret = tbs_set_est_mode(ndev, value);
 		break;
 	case ETHTOOL_TX_TBS_LEOS:
 		ret = tbs_set_leos(ndev, value);
@@ -611,6 +635,9 @@ int dwmac_get_tsn_hwtunable(struct net_device *ndev, u32 id,
 		break;
 	case ETHTOOL_TX_FPE_RADV:
 		*(u32 *)data = dw_tsn_hwtunable.radv;
+		break;
+	case ETHTOOL_TX_TBS_ESTM:
+		*(u32 *)data = dw_tsn_hwtunable.est_mode;
 		break;
 	case ETHTOOL_TX_TBS_LEOS:
 		*(u32 *)data = dw_tsn_hwtunable.leos_ns;

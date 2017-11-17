@@ -414,6 +414,7 @@ struct tsn_hw_tunable {
 	u32 afsz;			/* Additional Frag Size */
 	u32 hadv;			/* Hold Advance */
 	u32 radv;			/* Release Advance */
+	u32 est_mode;			/* tbs absolute / est mode */
 	u32 leos_ns;			/* Launch expiry offset (ns) */
 	u32 legos;			/* Launch expiry GSN offset */
 };
