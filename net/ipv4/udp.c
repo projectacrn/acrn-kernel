@@ -947,6 +947,7 @@ int udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 
 	ipc.sockc.tsflags = sk->sk_tsflags;
 	ipc.sockc.transmit_time = 0;
+	ipc.sockc.transmit_gsn = 0;
 	ipc.addr = inet->inet_saddr;
 	ipc.oif = sk->sk_bound_dev_if;
 
@@ -1050,6 +1051,7 @@ back_from_confirm:
 		err = PTR_ERR(skb);
 		if (!IS_ERR_OR_NULL(skb)) {
 			skb->transmit_time = ipc.sockc.transmit_time;
+			skb->transmit_gsn = ipc.sockc.transmit_gsn;
 			err = udp_send_skb(skb, fl4);
 		}
 		goto out;
