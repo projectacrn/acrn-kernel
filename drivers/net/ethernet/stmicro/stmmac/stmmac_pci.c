@@ -310,6 +310,9 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->axi->axi_blen[1] = 8;
 	plat->axi->axi_blen[2] = 16;
 
+	plat->vlan_fail_q_en = 1;
+	plat->vlan_fail_q = 1;
+
 	/* Set system clock for HAPS is 62.5MHz */
 	plat->stmmac_clk = clk_register_fixed_rate(&pdev->dev,
 						   "stmmac-clk", NULL, 0,
