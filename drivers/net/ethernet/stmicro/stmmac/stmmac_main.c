@@ -3111,6 +3111,19 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	first = desc;
 
+	/* Fill the enhanced tx descriptor with launch time & gsn info.
+	 * If skb is fragmented, only the 1st descriptor will be filled.
+	 * Drop the skb and show warning when launch time / gsn value
+	 * is invalid.
+	 */
+	if ((skb->transmit_time || skb->transmit_gsn) &&
+	    priv->enhanced_tx_desc) {
+		if (dwmac_set_tbs_launchtime_gsn(dev, first, skb)) {
+			netdev_warn(priv->dev, "Launch time setting failed\n");
+			goto tbs_err;
+		}
+	}
+
 	enh_desc = priv->plat->enh_desc;
 	/* To program the descriptors according to the size of the frame */
 	if (enh_desc)
@@ -3263,6 +3276,7 @@ static netdev_tx_t stmmac_xmit(struct sk_buff *skb, struct net_device *dev)
 
 dma_map_err:
 	netdev_err(priv->dev, "Tx DMA map failed\n");
+tbs_err:
 	dev_kfree_skb(skb);
 	priv->dev->stats.tx_dropped++;
 	return NETDEV_TX_OK;

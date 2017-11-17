@@ -16,11 +16,14 @@
 #include <linux/ethtool.h>
 #include "stmmac.h"
 #include "dwmac5.h"
+#include "descs.h"
 
 static struct tsn_hw_tunable dw_tsn_hwtunable;
 static struct est_gc_config dw_est_gc_config;
 static struct tsn_err_stat dw_err_stat;
 static struct fpe_config dw_fpe_config;
+
+#define ONE_SEC_IN_NANOSEC 1000000000ULL
 
 static u32 est_get_gcl_depth(u32 hw_cap)
 {
@@ -1582,6 +1585,46 @@ int dwmac_reconfigure_cbs(struct net_device *ndev)
 				priv->plat->tx_queues_cfg[queue].low_credit,
 				queue);
 	}
+
+	return 0;
+}
+
+int dwmac_set_tbs_launchtime_gsn(struct net_device *ndev,
+				 struct dma_desc *desc,
+				 struct sk_buff *skb)
+{
+	struct dma_enhanced_tx_desc *enhtxdesc;
+	u64 temp_time;
+	u32 launchtime_ns;
+	u8 launchtime_s;
+	u8 gsnslot;
+
+	enhtxdesc = container_of(desc, struct dma_enhanced_tx_desc, basic);
+	temp_time = ktime_to_ns(skb->transmit_time);
+	launchtime_ns = do_div(temp_time, ONE_SEC_IN_NANOSEC);
+	launchtime_s = temp_time;
+	gsnslot = skb->transmit_gsn;
+
+	if (dw_tsn_hwtunable.est_mode) {
+		int bank = dwmac_get_est_bank(ndev, 0);
+		u32 ctr_ns = dw_est_gc_config.gcb[bank].gcrr.cycle_nsec;
+		u8 ctr_s = dw_est_gc_config.gcb[bank].gcrr.cycle_sec;
+		u64 ctr = (ctr_s * ONE_SEC_IN_NANOSEC) + ctr_ns;
+		u64 lt_offset = launchtime_ns + (launchtime_s *
+				ONE_SEC_IN_NANOSEC);
+
+		if (lt_offset > ctr)
+			return -EINVAL;
+
+		enhtxdesc->etdes4 = (launchtime_s & ETDESC4_LT_SEC) |
+				    ((gsnslot << ETDESC4_GSN_SHIFT) &
+				     ETDESC4_GSN);
+	} else {
+		enhtxdesc->etdes4 = launchtime_s & ETDESC4_LT_SEC;
+	}
+
+	enhtxdesc->etdes5 = launchtime_ns & ETDESC5_LT_NANOSEC;
+	enhtxdesc->etdes4 |= ETDESC4_LTV;
 
 	return 0;
 }

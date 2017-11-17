@@ -793,6 +793,9 @@ void dwmac_dma_flush_tx_fifo(void __iomem *ioaddr);
 int dwmac_tsn_init(struct net_device *ndev);
 void dwmac_tsn_setup(struct net_device *ndev);
 
+int dwmac_set_tbs_launchtime_gsn(struct net_device *ndev, struct dma_desc *desc,
+				 struct sk_buff *skb);
+
 extern const struct stmmac_mode_ops ring_mode_ops;
 extern const struct stmmac_mode_ops chain_mode_ops;
 extern const struct stmmac_desc_ops dwmac4_desc_ops;
