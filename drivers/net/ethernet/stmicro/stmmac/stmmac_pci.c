@@ -231,6 +231,7 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->clk_csr = 5;
 	plat->has_gmac = 0;
 	plat->has_gmac4 = 1;
+	plat->has_tbs = 1;
 	plat->has_xpcs = 1;
 	plat->xpcs_phy_addr = 0x16;
 	plat->pcs_mode = AN_CTRL_PCS_MD_C37_SGMII;
