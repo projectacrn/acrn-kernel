@@ -164,6 +164,14 @@
 #define RDES_PTP_SIGNALING		0xa
 #define RDES_PTP_PKT_RESERVED_TYPE	0xf
 
+/* Dwmac5 Enhanced TX descriptor definitions */
+#define ETDESC4_LTV			BIT(31)
+#define ETDESC4_GSN			GENMASK(11, 8)
+#define ETDESC4_GSN_SHIFT		8
+#define ETDESC4_LT_SEC			GENMASK(7, 0)
+#define ETDESC5_LT_NANOSEC		GENMASK(31, 8)
+#define ETDESC5_LT_NANOSEC_SHIFT	8
+
 enum desc_type {
 	BASE_DESC = 0,
 	EXTENDED_DESC,
