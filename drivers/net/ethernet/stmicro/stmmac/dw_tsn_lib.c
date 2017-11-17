@@ -267,10 +267,22 @@ check_fpe:
 	if (!(hw_cap3 & GMAC_HW_FEAT_FPESEL)) {
 		dev_info(priv->device, "FPE NOT supported\n");
 		cap->fpe_support = 0;
+		goto check_tbs;
 	} else {
 		dev_info(priv->device, "FPE capable\n");
 		cap->rxqcnt = (hw_cap2 & GMAC_HW_FEAT_RXQCNT) + 1;
 		cap->fpe_support = 1;
+	}
+
+check_tbs:
+	if (!(hw_cap3 & GMAC_HW_FEAT_TBSSEL)) {
+		dev_info(priv->device, "TBS NOT supported\n");
+	} else {
+		dev_info(priv->device, "TBS capable\n");
+		if (priv->plat->has_tbs) {
+			priv->enhanced_tx_desc = true;
+			priv->mode = STMMAC_ENHANCED_TX_MODE;
+		}
 	}
 
 	return 0;

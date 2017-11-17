@@ -429,4 +429,5 @@ enum power_event {
 
 extern const struct stmmac_dma_ops dwmac4_dma_ops;
 extern const struct stmmac_dma_ops dwmac410_dma_ops;
+extern const struct stmmac_dma_ops dwmac5_dma_ops;
 #endif /* __DWMAC4_H__ */

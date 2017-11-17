@@ -167,6 +167,7 @@
 enum desc_type {
 	BASE_DESC = 0,
 	EXTENDED_DESC,
+	ENHANCED_TX_DESC,
 };
 
 /* Basic descriptor structure for normal and alternate descriptors */
@@ -184,6 +185,15 @@ struct dma_extended_desc {
 	__le32 des5;	/* Reserved */
 	__le32 des6;	/* Tx/Rx Timestamp Low */
 	__le32 des7;	/* Tx/Rx Timestamp High */
+};
+
+/* Enhanced TX descriptor structure (e.g. >= databook 5.00) */
+struct dma_enhanced_tx_desc {
+	__le32 etdes4;	/* Launch Time (s), GSN, LTV */
+	__le32 etdes5;	/* Launch Time (us) */
+	__le32 etdes6;	/* Reserved */
+	__le32 etdes7;	/* Reserved */
+	struct dma_desc basic;	/* Basic descriptors */
 };
 
 /* Transmit checksum insertion control */
