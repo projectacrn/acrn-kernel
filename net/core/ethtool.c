@@ -111,6 +111,7 @@ static const char netdev_features_strings[NETDEV_FEATURE_COUNT][ETH_GSTRING_LEN]
 	[NETIF_F_HW_TLS_RECORD_BIT] =	"tls-hw-record",
 	[NETIF_F_HW_EST_BIT] =		 "tx-est",
 	[NETIF_F_HW_FPE_BIT] =		 "tx-fpe",
+	[NETIF_F_HW_TBS_BIT] =		 "tx-tbs",
 };
 
 static const char
