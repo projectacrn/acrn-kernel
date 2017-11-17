@@ -638,6 +638,7 @@ typedef unsigned char *sk_buff_data_t;
   *	@napi_id: id of the NAPI struct this skb came from
  *	@secmark: security marking
  *	@transmit_time: desired future transmission time in nanoseconds
+ *	@transmit_gsn: desired future Gate Control List transmission slot number
  *	@mark: Generic packet mark
  *	@vlan_proto: vlan encapsulation protocol
  *	@vlan_tci: vlan tag control information
@@ -808,6 +809,7 @@ struct sk_buff {
 	__u32		secmark;
 #endif
 	__u64			transmit_time;
+	__u32			transmit_gsn;
 
 	union {
 		__u32		mark;
