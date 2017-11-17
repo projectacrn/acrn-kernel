@@ -2821,7 +2821,7 @@ static void stmmac_tso_allocator(struct stmmac_priv *priv, unsigned int des,
 
 	while (tmp_len > 0) {
 		tx_q->cur_tx = STMMAC_GET_ENTRY(tx_q->cur_tx, DMA_TX_SIZE);
-		desc = tx_q->dma_tx + tx_q->cur_tx;
+		desc = stmmac_get_tx_desc(priv, queue, tx_q->cur_tx);
 
 		desc->des0 = cpu_to_le32(des + (total_len - tmp_len));
 		buff_size = tmp_len >= TSO_MAX_BUFF_SIZE ?
@@ -2901,7 +2901,7 @@ static netdev_tx_t stmmac_tso_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	/* set new MSS value if needed */
 	if (mss != priv->mss) {
-		mss_desc = tx_q->dma_tx + tx_q->cur_tx;
+		mss_desc = stmmac_get_tx_desc(priv, queue, tx_q->cur_tx);
 		priv->hw->desc->set_mss(mss_desc, mss);
 		priv->mss = mss;
 		tx_q->cur_tx = STMMAC_GET_ENTRY(tx_q->cur_tx, DMA_TX_SIZE);
@@ -2916,7 +2916,7 @@ static netdev_tx_t stmmac_tso_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	first_entry = tx_q->cur_tx;
 
-	desc = tx_q->dma_tx + first_entry;
+	desc = stmmac_get_tx_desc(priv, queue, first_entry);
 	first = desc;
 
 	/* first descriptor: fill Headers on Buf1 */
@@ -3021,12 +3021,15 @@ static netdev_tx_t stmmac_tso_xmit(struct sk_buff *skb, struct net_device *dev)
 	dma_wmb();
 
 	if (netif_msg_pktdata(priv)) {
+		void **tx_head;
+
 		pr_info("%s: curr=%d dirty=%d f=%d, e=%d, f_p=%p, nfrags %d\n",
 			__func__, tx_q->cur_tx, tx_q->dirty_tx, first_entry,
 			tx_q->cur_tx, first, nfrags);
 
-		priv->hw->desc->display_ring((void *)tx_q->dma_tx, DMA_TX_SIZE,
-					     0);
+		tx_head = stmmac_get_tx_desc_holder(priv, queue, NULL, NULL);
+
+		priv->hw->desc->display_ring(*tx_head, DMA_TX_SIZE, 0);
 
 		pr_info(">>> frame to be transmitted: ");
 		print_pkt(skb->data, skb_headlen(skb));
