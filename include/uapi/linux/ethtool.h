@@ -229,6 +229,11 @@ enum tunable_id {
 	ETHTOOL_TX_FPE_AFSZ,		/* FPE: Additional Frag Size */
 	ETHTOOL_TX_FPE_HADV,		/* FPE: Hold Advance */
 	ETHTOOL_TX_FPE_RADV,		/* FPE: Release Advance */
+	ETHTOOL_TX_TBS_ESTM,		/* TBS: EST mode or Absolute mode */
+	ETHTOOL_TX_TBS_FTOS,		/* TBS: Fetch time offset */
+	ETHTOOL_TX_TBS_FGOS,		/* TBS: Fetch GSN slot offset */
+	ETHTOOL_TX_TBS_LEOS,		/* TBS: Launch expiry offset */
+	ETHTOOL_TX_TBS_LEGOS,		/* TBS: Launch expiry GSN offset */
 	/*
 	 * Add your fresh new tubale attribute above and remember to update
 	 * tunable_strings[] in net/core/ethtool.c

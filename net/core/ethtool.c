@@ -129,6 +129,11 @@ tunable_strings[__ETHTOOL_TUNABLE_COUNT][ETH_GSTRING_LEN] = {
 	[ETHTOOL_TX_FPE_AFSZ]	= "tx-fpe-afsz",
 	[ETHTOOL_TX_FPE_HADV]	= "tx-fpe-hadv",
 	[ETHTOOL_TX_FPE_RADV]	= "tx-fpe-radv",
+	[ETHTOOL_TX_TBS_ESTM]	= "tx-tbs-estm",
+	[ETHTOOL_TX_TBS_FTOS]	= "tx-tbs-ftos",
+	[ETHTOOL_TX_TBS_FGOS]	= "tx-tbs-fgos",
+	[ETHTOOL_TX_TBS_LEOS]	= "tx-tbs-leos",
+	[ETHTOOL_TX_TBS_LEGOS]	= "tx-tbs-legos",
 };
 
 static const char
@@ -2281,6 +2286,11 @@ static int ethtool_tunable_valid(const struct ethtool_tunable *tuna)
 	case ETHTOOL_TX_FPE_AFSZ:
 	case ETHTOOL_TX_FPE_HADV:
 	case ETHTOOL_TX_FPE_RADV:
+	case ETHTOOL_TX_TBS_ESTM:
+	case ETHTOOL_TX_TBS_FTOS:
+	case ETHTOOL_TX_TBS_FGOS:
+	case ETHTOOL_TX_TBS_LEOS:
+	case ETHTOOL_TX_TBS_LEGOS:
 		if (tuna->len != sizeof(u32) ||
 		    tuna->type_id != ETHTOOL_TUNABLE_U32)
 			return -EINVAL;
