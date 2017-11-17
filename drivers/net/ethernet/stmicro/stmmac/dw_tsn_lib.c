@@ -466,6 +466,90 @@ static int fpe_set_hr_adv(struct net_device *ndev, u32 *hadv, u32 *radv)
 	return 0;
 }
 
+static int tbs_set_leos(struct net_device *ndev, u32 leos_ns)
+{
+	u32 value;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	void __iomem *ioaddr = priv->ioaddr;
+	/* get hw own list */
+	u32 hw_bank = dwmac_get_est_bank(ndev, 0);
+	struct est_gc_config *gcc = &dw_est_gc_config;
+	struct est_gc_bank *gcbc = &gcc->gcb[hw_bank];
+
+	/* Launch expiry offset is in unit of 256ns
+	 * Get the actual leos_ns value
+	 */
+	leos_ns &= MTL_TBS_CTRL_LEOS;
+
+	if (leos_ns > TBS_LEOS_MAX) {
+		dev_err(priv->device,
+			"TBS: Max LEOS is 999999999ns.\n");
+
+		return -EINVAL;
+	}
+
+	if (dw_tsn_hwtunable.est_mode) {
+		if (leos_ns > (gcbc->gcrr.cycle_nsec - 1)) {
+			dev_err(priv->device,
+				"TBS: LEOS > (cycle time - 1ns)\n");
+
+			return -EINVAL;
+		}
+	}
+
+	value = readl(ioaddr + MTL_TBS_CTRL);
+
+	/* Launch expiry offset not valid when launch
+	 * expiry offset value is 0 and vice versa
+	 */
+	if (leos_ns || (dw_tsn_hwtunable.est_mode && dw_tsn_hwtunable.legos))
+		value |= MTL_TBS_CTRL_LEOV;
+	else
+		value &= ~MTL_TBS_CTRL_LEOV;
+
+	value &= ~MTL_TBS_CTRL_LEOS;
+	value |= leos_ns;
+	dw_tsn_hwtunable.leos_ns = leos_ns;
+
+	writel(value, ioaddr + MTL_TBS_CTRL);
+
+	return 0;
+}
+
+static int tbs_set_legos(struct net_device *ndev, u32 legos)
+{
+	u32 value;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+	void __iomem *ioaddr = priv->ioaddr;
+
+	/* if EST not turn on, ret fail */
+	if (!(dw_est_gc_config.enable && dw_tsn_hwtunable.est_mode)) {
+		dev_warn(priv->device, "TBS EST mode is not enabled\n");
+
+		return -EINVAL;
+	}
+
+	if (legos > 7) {
+		dev_err(priv->device, "TBS: LEGOS > 7.\n");
+
+		return -EINVAL;
+	}
+
+	value = readl(ioaddr + MTL_TBS_CTRL);
+	if (dw_tsn_hwtunable.leos_ns || legos)
+		value |= MTL_TBS_CTRL_LEOV;
+	else
+		value &= ~MTL_TBS_CTRL_LEOV;
+	value &= ~MTL_TBS_CTRL_LEGOS;
+	value |= (legos << MTL_TBS_CTRL_LEGOS_SHIFT) &
+		 MTL_TBS_CTRL_LEGOS;
+	dw_tsn_hwtunable.legos = legos;
+
+	writel(value, ioaddr + MTL_TBS_CTRL);
+
+	return 0;
+}
+
 int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 			    const void *data)
 {
@@ -490,6 +574,12 @@ int dwmac_set_tsn_hwtunable(struct net_device *ndev, u32 id,
 		break;
 	case ETHTOOL_TX_FPE_RADV:
 		ret = fpe_set_hr_adv(ndev, NULL, &value);
+		break;
+	case ETHTOOL_TX_TBS_LEOS:
+		ret = tbs_set_leos(ndev, value);
+		break;
+	case ETHTOOL_TX_TBS_LEGOS:
+		ret = tbs_set_legos(ndev, value);
 		break;
 	default:
 		ret = -EINVAL;
@@ -521,6 +611,12 @@ int dwmac_get_tsn_hwtunable(struct net_device *ndev, u32 id,
 		break;
 	case ETHTOOL_TX_FPE_RADV:
 		*(u32 *)data = dw_tsn_hwtunable.radv;
+		break;
+	case ETHTOOL_TX_TBS_LEOS:
+		*(u32 *)data = dw_tsn_hwtunable.leos_ns;
+		break;
+	case ETHTOOL_TX_TBS_LEGOS:
+		*(u32 *)data = dw_tsn_hwtunable.legos;
 		break;
 	default:
 		ret = -EINVAL;
