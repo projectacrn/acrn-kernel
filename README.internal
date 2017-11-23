@@ -63,4 +63,4 @@ platforms/<codename>: Chopped drm-intel-internal containing patches up to that
 		      When a critical patch for that platform needs to be
 		      disabled also the platform branch update should be
 		      disabled as well. (Disabled on quilt series)
-		      Current active branches: cnl-h, icl-lp
+		      Current active branches: cnl-h, icl-lp, icl-hp
