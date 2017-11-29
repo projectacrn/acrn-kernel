@@ -2435,7 +2435,7 @@ static int i915_guc_stage_pool(struct seq_file *m, void *data)
 	if (!USES_GUC_SUBMISSION(dev_priv))
 		return -ENODEV;
 
-	for (index = 0; index < GUC_MAX_STAGE_DESCRIPTORS; index++, desc++) {
+	for (index = 0; index < guc->max_stage_desc; index++, desc++) {
 		struct intel_engine_cs *engine;
 
 		if (!(desc->attribute & GUC_STAGE_DESC_ATTR_ACTIVE))

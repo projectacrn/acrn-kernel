@@ -224,6 +224,7 @@ static void
 intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 				   struct intel_engine_cs *engine)
 {
+	struct drm_i915_private *dev_priv = engine->i915;
 	struct intel_context *ce = to_intel_context(ctx, engine);
 	u64 desc;
 
@@ -256,6 +257,9 @@ intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 	}
 
 	ce->lrc_desc = desc;
+
+	if (dev_priv->guc.ctx_update_hook)
+		dev_priv->guc.ctx_update_hook(ctx, engine);
 }
 
 static struct i915_priolist *
@@ -2653,6 +2657,7 @@ err_unpin_ctx:
 static int execlists_context_deferred_alloc(struct i915_gem_context *ctx,
 					    struct intel_engine_cs *engine)
 {
+	struct drm_i915_private *dev_priv = engine->i915;
 	struct drm_i915_gem_object *ctx_obj;
 	struct intel_context *ce = to_intel_context(ctx, engine);
 	struct i915_vma *vma;
@@ -2708,6 +2713,9 @@ static int execlists_context_deferred_alloc(struct i915_gem_context *ctx,
 		ce->sw_context_id = ctx->hw_id;
 		ce->sw_counter = engine->instance;
 	}
+
+	if (dev_priv->guc.ctx_alloc_hook)
+		dev_priv->guc.ctx_alloc_hook(ctx, engine);
 
 	return 0;
 

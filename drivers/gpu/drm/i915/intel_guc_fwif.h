@@ -29,8 +29,12 @@
 #define GUC_CLIENT_PRIORITY_NORMAL	3
 #define GUC_CLIENT_PRIORITY_NUM		4
 
-#define GUC_MAX_STAGE_DESCRIPTORS	1024
-#define	GUC_INVALID_STAGE_ID		GUC_MAX_STAGE_DESCRIPTORS
+#define GEN9_GUC_MAX_STAGE_DESCRIPTORS	1024
+#define   GEN9_GUC_INVALID_STAGE_ID	GEN9_GUC_MAX_STAGE_DESCRIPTORS
+#define GEN11_GUC_MAX_STAGE_DESCRIPTORS	2032
+#define   GEN11_GUC_INVALID_STAGE_ID	GEN11_GUC_MAX_STAGE_DESCRIPTORS
+
+#define GUC_MAX_LRC_PER_CLASS		64
 
 #define GUC_RENDER_ENGINE		0
 #define GUC_VIDEO_ENGINE		1
@@ -38,6 +42,13 @@
 #define GUC_VIDEOENHANCE_ENGINE		3
 #define GUC_VIDEO_ENGINE2		4
 #define GUC_MAX_ENGINES_NUM		(GUC_VIDEO_ENGINE2 + 1)
+
+#define GUC_RENDER_CLASS	0
+#define GUC_VIDEO_CLASS		1
+#define GUC_VIDEOENHANCE_CLASS	2
+#define GUC_BLITTER_CLASS	3
+#define GUC_RESERVED_CLASS	4
+#define GUC_MAX_ENGINE_CLASSES	(GUC_RESERVED_CLASS + 1)
 
 /* Work queue item header definitions */
 #define WQ_STATUS_ACTIVE		1
@@ -295,6 +306,60 @@ struct guc_execlist_context {
 	u8 engine_state_wait_value;
 	u16 pagefault_count;
 	u16 engine_submit_queue_count;
+} __packed;
+
+/* ICL-specific version of the GuC stage descriptor */
+struct gen11_guc_stage_desc {
+	u32 sched_common_area;
+	u32 stage_id;
+	u32 pas_id;
+	u8 engines_used;
+	u32 engines_instance_used[GUC_MAX_ENGINE_CLASSES];
+
+	/* Work is submitted using doorbell and workqueue of this desc on behalf
+	 * of other entries in the desc pool (a.k.a. proxy submission). */
+	u16 is_proxy;
+	/* Work will be submitted using some other entry in the context desc
+	 * pool (a.k.a. proxy entry). */
+	u16 is_principal;
+
+	u64 db_trigger_cpu;
+	u32 db_trigger_uk;
+	u64 db_trigger_phy;
+	u16 db_id;
+
+	struct guc_execlist_context lrc[GUC_MAX_ENGINE_CLASSES][GUC_MAX_LRC_PER_CLASS];
+	DECLARE_BITMAP(lrc_bitmap[GUC_MAX_ENGINE_CLASSES], GUC_MAX_LRC_PER_CLASS);
+	u32 lrc_count;
+	u32 max_lrc_per_class;
+
+	u8 attribute;
+
+	u8 reserved[3];
+
+	u32 priority;
+
+	u32 wq_sampled_tail_offset;
+	u32 wq_total_submit_enqueues;
+
+	u32 process_desc;
+	u32 wq_addr;
+	u32 wq_size;
+
+	u32 engine_presence;
+
+	u8 engine_suspended;
+	u32 engines_suspended_per_class[GUC_MAX_ENGINE_CLASSES];
+
+	u8 reserved0[4];
+
+	u32 reserved1;
+	u64 reserved2[10];
+} __packed;
+
+struct gen11_guc_pooled_stage_desc {
+	struct gen11_guc_stage_desc desc;
+	u64 host_private; // back pointer for host usage
 } __packed;
 
 /*
