@@ -279,7 +279,7 @@ static u32 guc_ctl_ctxinfo_flags(struct intel_guc *guc)
 		GEM_BUG_ON(INTEL_GEN(guc_to_i915(guc)) >= 11);
 
 		base = intel_guc_ggtt_offset(guc, guc->stage_desc_pool);
-		ctxnum = GUC_MAX_STAGE_DESCRIPTORS / 16;
+		ctxnum = guc->max_stage_desc / 16;
 
 		base >>= PAGE_SHIFT;
 		flags |= (base << GUC_CTL_BASE_ADDR_SHIFT) |

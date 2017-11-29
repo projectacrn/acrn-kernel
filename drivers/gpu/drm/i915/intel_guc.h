@@ -61,6 +61,7 @@ struct intel_guc {
 	unsigned int msg_enabled_mask;
 
 	struct i915_vma *ads_vma;
+	uint32_t max_stage_desc;
 	struct i915_vma *stage_desc_pool;
 	void *stage_desc_pool_vaddr;
 	struct ida stage_ids;
@@ -96,6 +97,17 @@ struct intel_guc {
 
 	/* GuC's FW specific notify function */
 	void (*notify)(struct intel_guc *guc);
+
+	/*
+	 * Hooks for context (per-engine context, not gem context) allocation,
+	 * deallocation and descriptor update.
+	 */
+	void (*ctx_alloc_hook)(struct i915_gem_context *ctx,
+			       struct intel_engine_cs *engine);
+	void (*ctx_free_hook)(struct i915_gem_context *ctx,
+			      struct intel_engine_cs *engine);
+	void (*ctx_update_hook)(struct i915_gem_context *ctx,
+				struct intel_engine_cs *engine);
 };
 
 static

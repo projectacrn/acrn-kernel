@@ -258,6 +258,9 @@ intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 	}
 
 	ce->lrc_desc = desc;
+
+	if (ctx->i915->guc.ctx_update_hook)
+		ctx->i915->guc.ctx_update_hook(ctx, engine);
 }
 
 static struct i915_priolist *
@@ -2743,6 +2746,7 @@ static int execlists_context_deferred_alloc(struct i915_gem_context *ctx,
 					    struct intel_engine_cs *engine,
 					    struct intel_context *ce)
 {
+	struct drm_i915_private *dev_priv = engine->i915;
 	struct drm_i915_gem_object *ctx_obj;
 	struct i915_vma *vma;
 	uint32_t context_size;
@@ -2797,6 +2801,9 @@ static int execlists_context_deferred_alloc(struct i915_gem_context *ctx,
 		ce->sw_context_id = ctx->hw_id;
 		ce->sw_counter = engine->instance;
 	}
+
+	if (dev_priv->guc.ctx_alloc_hook)
+		dev_priv->guc.ctx_alloc_hook(ctx, engine);
 
 	return 0;
 
