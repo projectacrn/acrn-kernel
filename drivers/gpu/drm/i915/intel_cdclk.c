@@ -1826,7 +1826,6 @@ static void icl_set_cdclk(struct drm_i915_private *dev_priv,
 	unsigned int cdclk = cdclk_state->cdclk;
 	unsigned int vco = cdclk_state->vco;
 	int ret;
-	u32 voltage_level;
 
 	mutex_lock(&dev_priv->pcu_lock);
 	ret = skl_pcode_request(dev_priv, SKL_PCODE_CDCLK_CONTROL,
@@ -1838,24 +1837,6 @@ static void icl_set_cdclk(struct drm_i915_private *dev_priv,
 		DRM_ERROR("Failed to inform PCU about cdclk change (%d)\n",
 			  ret);
 		return;
-	}
-
-	/* FIXME: We should also consider the DDI clock here. */
-	switch (cdclk) {
-	case 307200:
-	case 312000:
-		voltage_level = 0;
-		break;
-	case 556800:
-	case 552000:
-		voltage_level = 1;
-		break;
-	default:
-		MISSING_CASE(cdclk);
-	case 652800:
-	case 648000:
-		voltage_level = 2;
-		break;
 	}
 
 	if (dev_priv->cdclk.hw.vco != 0 &&
@@ -1870,10 +1851,34 @@ static void icl_set_cdclk(struct drm_i915_private *dev_priv,
 
 	mutex_lock(&dev_priv->pcu_lock);
 	sandybridge_pcode_write(dev_priv, SKL_PCODE_CDCLK_CONTROL,
-				voltage_level);
+				cdclk_state->voltage_level);
 	mutex_unlock(&dev_priv->pcu_lock);
 
 	intel_update_cdclk(dev_priv);
+
+	/*
+	 * Can't read out the voltage level :(
+	 * Let's just assume everything is as expected.
+	 */
+	dev_priv->cdclk.hw.voltage_level = cdclk_state->voltage_level;
+}
+
+static u8 icl_calc_voltage_level(int cdclk)
+{
+	switch (cdclk) {
+	case 50000:
+	case 307200:
+	case 312000:
+		return 0;
+	case 556800:
+	case 552000:
+		return 1;
+	default:
+		MISSING_CASE(cdclk);
+	case 652800:
+	case 648000:
+		return 2;
+	}
 }
 
 static void icl_get_cdclk(struct drm_i915_private *dev_priv,
@@ -1903,7 +1908,7 @@ static void icl_get_cdclk(struct drm_i915_private *dev_priv,
 		 * setting it to zero is a way to signal that. */
 		cdclk_state->vco = 0;
 		cdclk_state->cdclk = 50000;
-		return;
+		goto out;
 	}
 
 	cdclk_state->vco = (val & BXT_DE_PLL_RATIO_MASK) * cdclk_state->ref;
@@ -1912,6 +1917,14 @@ static void icl_get_cdclk(struct drm_i915_private *dev_priv,
 	WARN_ON((val & BXT_CDCLK_CD2X_DIV_SEL_MASK) != 0);
 
 	cdclk_state->cdclk = cdclk_state->vco / 2;
+
+out:
+	/*
+	 * Can't read this out :( Let's assume it's
+	 * at least what the CDCLK frequency requires.
+	 */
+	cdclk_state->voltage_level =
+		icl_calc_voltage_level(cdclk_state->cdclk);
 }
 
 /**
@@ -1954,6 +1967,7 @@ sanitize:
 	cdclk_state.ref = dev_priv->cdclk.hw.ref;
 	cdclk_state.cdclk = icl_calc_cdclk(0, cdclk_state.ref);
 	cdclk_state.vco = icl_calc_cdclk_pll_vco(dev_priv, cdclk_state.cdclk);
+	cdclk_state.voltage_level = icl_calc_voltage_level(cdclk_state.cdclk);
 
 	icl_set_cdclk(dev_priv, &cdclk_state);
 }
@@ -1971,6 +1985,7 @@ void icl_uninit_cdclk(struct drm_i915_private *dev_priv)
 
 	cdclk_state.cdclk = cdclk_state.ref;
 	cdclk_state.vco = 0;
+	cdclk_state.voltage_level = icl_calc_voltage_level(cdclk_state.cdclk);
 
 	icl_set_cdclk(dev_priv, &cdclk_state);
 }
@@ -2420,6 +2435,9 @@ static int icl_modeset_calc_cdclk(struct drm_atomic_state *state)
 
 	intel_state->cdclk.logical.vco = vco;
 	intel_state->cdclk.logical.cdclk = cdclk;
+	intel_state->cdclk.logical.voltage_level =
+		max(icl_calc_voltage_level(cdclk),
+		    cnl_compute_min_voltage_level(intel_state));
 
 	if (!intel_state->active_crtcs) {
 		cdclk = icl_calc_cdclk(0, ref);
@@ -2427,6 +2445,8 @@ static int icl_modeset_calc_cdclk(struct drm_atomic_state *state)
 
 		intel_state->cdclk.actual.vco = vco;
 		intel_state->cdclk.actual.cdclk = cdclk;
+		intel_state->cdclk.actual.voltage_level =
+			icl_calc_voltage_level(cdclk);
 	} else {
 		intel_state->cdclk.actual = intel_state->cdclk.logical;
 	}

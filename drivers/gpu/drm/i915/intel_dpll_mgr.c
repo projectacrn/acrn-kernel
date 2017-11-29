@@ -3015,7 +3015,10 @@ static void icl_pll_enable(struct drm_i915_private *dev_priv,
 		MISSING_CASE(id);
 	}
 
-	/* TODO: DVFS before. */
+	/*
+	 * DVFS pre sequence would be here, but DVFS is actually handled via the
+	 * cdclk code paths, hence we do nothing here.
+	 */
 
 	val = I915_READ(enable_reg);
 	val |= PLL_ENABLE;
@@ -3026,7 +3029,10 @@ static void icl_pll_enable(struct drm_i915_private *dev_priv,
 				    5))
 		DRM_ERROR("PLL %d not locked\n", id);
 
-	/* TODO: DVFS after. */
+	/*
+	 * DVFS post sequence would be here, but DVFS is actually handled via
+	 * the cdclk code paths, hence we do nothing here.
+	 */
 
 	/* The rest is done by intel_ddi_clk_select(). */
 }
@@ -3040,7 +3046,10 @@ static void icl_pll_disable(struct drm_i915_private *dev_priv,
 
 	/* The first steps are done by intel_ddi_post_disable(). */
 
-	/* TODO: DVFS before. */
+	/*
+	 * DVFS pre sequence would be here, but DVFS is actually handled via the
+	 * cdclk code paths, hence we do nothing here.
+	 */
 
 	val = I915_READ(enable_reg);
 	val &= ~PLL_ENABLE;
@@ -3050,7 +3059,10 @@ static void icl_pll_disable(struct drm_i915_private *dev_priv,
 	if (intel_wait_for_register(dev_priv, enable_reg, PLL_LOCK, 0, 5))
 		DRM_ERROR("PLL %d locked\n", id);
 
-	/* TODO: DVFS after. */
+	/*
+	 * DVFS post sequence would be here, but DVFS is actually handled via
+	 * the cdclk code paths, hence we do nothing here.
+	 */
 
 	val = I915_READ(enable_reg);
 	val &= ~PLL_POWER_ENABLE;
