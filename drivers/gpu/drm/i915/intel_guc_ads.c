@@ -187,6 +187,8 @@ int gen11_guc_ads_create(struct intel_guc *guc)
 	blob->system_info.vdbox_enable_mask = ~(media_fuse & GEN11_GT_VDBOX_DISABLE_MASK);
 	blob->system_info.vebox_enable_mask = ~((media_fuse & GEN11_GT_VEBOX_DISABLE_MASK) >>
 						GEN11_GT_VEBOX_DISABLE_SHIFT);
+	blob->system_info.vdbox_sfc_support_mask =
+		INTEL_INFO(dev_priv)->vdbox_sfc_access;
 
 	blob->add_system_info.gfx_address_command_transport_pool =
 			base + ptr_offset(blob, ct_pool);
