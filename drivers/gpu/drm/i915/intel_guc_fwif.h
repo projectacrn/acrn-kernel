@@ -170,6 +170,24 @@
 #define GEN11_GUC_ID_TO_ENGINE_INSTANCE(guc_id) \
 	(((guc_id) & GEN11_GUC_ENGINE_INSTANCE_MASK) >> GEN11_GUC_ENGINE_INSTANCE_SHIFT)
 
+/*
+ * Some Host2GuC commands require the target engine (class + instance) in
+ * a slightly different format, having flags for each instance instead of
+ * just a single instance number. This allows sending commands to multiple
+ * instances of given class at once:
+ *  [15..0]  Engine Class
+ *  [16]     Instance_0
+ *  [17]     Instance_1
+ *  [18]     Instance_2
+ *  [19]     Instance_3
+ *  [31..20] Ignored
+ */
+#define GEN11_GUC_ENGINE_ID_FOR_H2G_INSTANCE_SHIFT	16
+#define GEN11_GUC_ENGINE_ID_FOR_H2G_INSTANCE(guc_id) \
+	(BIT(GEN11_GUC_ID_TO_ENGINE_INSTANCE(guc_id)) << GEN11_GUC_ENGINE_ID_FOR_H2G_INSTANCE_SHIFT)
+#define GEN11_GUC_ENGINE_ID_FOR_H2G(guc_id) \
+	(GEN11_GUC_ENGINE_ID_FOR_H2G_INSTANCE(guc_id) | GEN11_GUC_ID_TO_ENGINE_CLASS(guc_id))
+
 /**
  * DOC: GuC Firmware Layout
  *
