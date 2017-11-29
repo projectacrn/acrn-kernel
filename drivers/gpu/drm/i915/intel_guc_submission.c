@@ -1359,6 +1359,8 @@ static int gen11_guc_ads_create(struct intel_guc *guc)
 	blob->system_info.rcs_enabled = 1;
 	blob->system_info.bcs_enabled = 1;
 	blob->system_info.vdbox_enable_mask = ~INTEL_INFO(dev_priv)->vdbox_disable;
+	blob->system_info.vdbox_sfc_support_mask =
+		INTEL_INFO(dev_priv)->vdbox_sfc_access;
 	blob->system_info.vebox_enable_mask = ~INTEL_INFO(dev_priv)->vebox_disable;
 
 	blob->add_system_info.gfx_address_command_transport_pool =
