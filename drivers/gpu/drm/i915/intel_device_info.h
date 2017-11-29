@@ -178,6 +178,9 @@ struct intel_device_info {
 
 	u32 cs_timestamp_frequency_khz;
 
+	/* Media engine access to SFC per instance */
+	u8 vdbox_sfc_access;
+
 	struct color_luts {
 		u16 degamma_lut_size;
 		u16 gamma_lut_size;
