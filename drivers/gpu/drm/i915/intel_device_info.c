@@ -640,6 +640,7 @@ void intel_device_info_fused_off_engines(struct drm_i915_private *dev_priv)
 {
 	struct intel_device_info *info = mkwrite_device_info(dev_priv);
 	u32 media_fuse;
+	uint logical_vdbox = 0;
 	int i;
 
 	if (INTEL_GEN(dev_priv) < 11)
@@ -658,8 +659,15 @@ void intel_device_info_fused_off_engines(struct drm_i915_private *dev_priv)
 		if (!HAS_ENGINE(dev_priv, _VCS(i)))
 			continue;
 
-		if (!(BIT(i) & info->vdbox_disable))
+		if (!(BIT(i) & info->vdbox_disable)) {
+			/*
+			 * In Gen11, only even numbered logical VDBOXes are
+			 * hooked up to an SFC (Scaler & Format Converter) unit.
+			 */
+			if (logical_vdbox++ % 2 == 0)
+				info->vdbox_sfc_access |= BIT(i);
 			continue;
+		}
 
 		info->ring_mask &= ~ENGINE_MASK(_VCS(i));
 		WARN_ON(dev_priv->uncore.fw_domains &
