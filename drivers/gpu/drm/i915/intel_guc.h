@@ -83,6 +83,12 @@ struct intel_guc {
 	/* Cyclic counter mod pagesize	*/
 	u32 db_cacheline;
 
+	/*
+	 * Track outstanding request-engine-reset h2g commands,
+	 * accessed by set/clear/is_engine_class_under_reset
+	 */
+	unsigned int engine_class_under_reset;
+
 	/* GuC's FW specific registers used in MMIO send */
 	struct {
 		u32 base;
