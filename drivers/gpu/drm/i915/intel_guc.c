@@ -382,19 +382,31 @@ int intel_guc_suspend(struct drm_i915_private *dev_priv)
 int intel_guc_reset_engine(struct intel_guc *guc,
 			   struct intel_engine_cs *engine)
 {
+	struct drm_i915_private *dev_priv = guc_to_i915(guc);
+	struct intel_guc_client *client = guc->execbuf_client;
 	u32 data[7];
+	u32 len;
 
-	GEM_BUG_ON(!guc->execbuf_client);
+	GEM_BUG_ON(!client);
 
 	data[0] = INTEL_GUC_ACTION_REQUEST_ENGINE_RESET;
-	data[1] = engine->guc_id;
-	data[2] = 0;
-	data[3] = 0;
-	data[4] = 0;
-	data[5] = guc->execbuf_client->stage_id;
-	data[6] = guc_ggtt_offset(guc->shared_data);
+	if (INTEL_GEN(dev_priv) < 11) {
+		data[1] = engine->guc_id;
+		data[2] = 0; /* options */
+		data[3] = 0; /* pagefault recovery in progress?*/
+		data[4] = 0; /* unused */
+		data[5] = client->stage_id;
+		data[6] = guc_ggtt_offset(guc->shared_data);
+		len = 7;
+	} else {
+		data[1] = GEN11_GUC_ENGINE_ID_FOR_H2G(engine->guc_id);
+		data[2] = 0; /* options */
+		data[3] = client->stage_id;
+		data[4] = guc_ggtt_offset(guc->shared_data);
+		len = 5;
+	}
 
-	return intel_guc_send(guc, data, ARRAY_SIZE(data));
+	return intel_guc_send(guc, data, len);
 }
 
 /**
