@@ -494,27 +494,93 @@ int intel_guc_suspend(struct intel_guc *guc)
 	return intel_guc_send(guc, data, ARRAY_SIZE(data));
 }
 
+static inline void
+guc_set_class_under_reset(struct intel_guc *guc,
+			  unsigned int guc_class)
+{
+	GEM_BUG_ON(guc_class >= GUC_MAX_ENGINE_CLASSES);
+	__set_bit(guc_class, (unsigned long *)&guc->engine_class_under_reset);
+}
+
+static inline void
+guc_clear_class_under_reset(struct intel_guc *guc,
+			    unsigned int guc_class)
+{
+	GEM_BUG_ON(guc_class >= GUC_MAX_ENGINE_CLASSES);
+	__clear_bit(guc_class, (unsigned long *)&guc->engine_class_under_reset);
+}
+
+static inline bool
+guc_is_class_under_reset(struct intel_guc *guc,
+			 unsigned int guc_class)
+{
+	return test_bit(guc_class,
+			(unsigned long *)&guc->engine_class_under_reset);
+}
+
+#define GUC_ENGINE_RESET_COMPLETE_WAIT_MS 25
+
 /**
  * intel_guc_reset_engine() - ask GuC to reset an engine
  * @guc:	intel_guc structure
  * @engine:	engine to be reset
+ *
+ * From Gen11 onwards, the firmware will send a G2H ENGINE_RESET_COMPLETE
+ * message (with the engine's guc_class in data[2]) to confirm that the
+ * reset has been completed.
  */
 int intel_guc_reset_engine(struct intel_guc *guc,
 			   struct intel_engine_cs *engine)
 {
+	struct drm_i915_private *dev_priv = guc_to_i915(guc);
+	struct intel_guc_client *client = guc->execbuf_client;
 	u32 data[7];
+	u32 len;
+	int ret;
 
-	GEM_BUG_ON(!guc->execbuf_client);
+	GEM_BUG_ON(!client);
 
 	data[0] = INTEL_GUC_ACTION_REQUEST_ENGINE_RESET;
-	data[1] = engine->guc_id;
-	data[2] = 0;
-	data[3] = 0;
-	data[4] = 0;
-	data[5] = guc->execbuf_client->stage_id;
-	data[6] = intel_guc_ggtt_offset(guc, guc->shared_data);
+	if (INTEL_GEN(dev_priv) < 11) {
+		data[1] = engine->guc_id;
+		data[2] = 0; /* options */
+		data[3] = 0; /* pagefault recovery in progress?*/
+		data[4] = 0; /* unused */
+		data[5] = client->stage_id;
+		data[6] = intel_guc_ggtt_offset(guc, guc->shared_data);
+		len = 7;
 
-	return intel_guc_send(guc, data, ARRAY_SIZE(data));
+		return intel_guc_send(guc, data, len);
+	}
+
+	/* otherwise GEN11+ style */
+	GEM_BUG_ON(guc_is_class_under_reset(guc, engine->guc_class));
+	data[1] = engine->guc_class;
+	data[2] = client->stage_id;
+	len = 3;
+
+	guc_set_class_under_reset(guc, engine->guc_class);
+	ret = intel_guc_send(guc, data, len);
+	if (ret)
+		goto out;
+
+	if ((wait_for(!guc_is_class_under_reset(guc,
+						engine->guc_class),
+		      GUC_ENGINE_RESET_COMPLETE_WAIT_MS))) {
+		DRM_ERROR("reset_complete timed out, engine class %d\n",
+			  engine->guc_class);
+		ret = -ETIMEDOUT;
+	}
+
+out:
+	/*
+	 * Clear flag on any failure, we fall back to full reset in
+	 * case of timeout/error.
+	 */
+	if (ret)
+		guc_clear_class_under_reset(guc, engine->guc_class);
+
+	return ret;
 }
 
 /**
