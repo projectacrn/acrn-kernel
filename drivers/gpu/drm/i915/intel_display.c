@@ -13760,7 +13760,6 @@ static void intel_setup_outputs(struct drm_i915_private *dev_priv)
 		intel_crt_init(dev_priv);
 
 	if (IS_ICELAKE(dev_priv)) {
-		/* FIXME: Find out how port detection works on ICL. */
 		intel_ddi_init(dev_priv, PORT_A);
 		intel_ddi_init(dev_priv, PORT_B);
 		intel_ddi_init(dev_priv, PORT_C);
