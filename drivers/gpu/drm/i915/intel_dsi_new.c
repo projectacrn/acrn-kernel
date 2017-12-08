@@ -1342,6 +1342,14 @@ void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 	intel_panel_init(&intel_connector->panel, fixed_mode, NULL, NULL);
 	intel_panel_setup_backlight(connector, INVALID_PIPE);
 
+	if (dev_priv->vbt.dsi.config->dual_link)
+		intel_dsi->ports = BIT(PORT_A) | BIT(PORT_B);
+	else
+		intel_dsi->ports = BIT(port);
+
+	intel_dsi->dcs_backlight_ports = dev_priv->vbt.dsi.bl_ports;
+	intel_dsi->dcs_cabc_ports = dev_priv->vbt.dsi.cabc_ports;
+
 	for_each_dsi_port(port, intel_dsi->ports) {
 		struct intel_dsi_host *host;
 
