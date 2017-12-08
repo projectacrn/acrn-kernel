@@ -936,6 +936,13 @@ static void gen11_dsi_pre_enable(struct intel_encoder *encoder,
 	intel_dsi_vbt_exec_sequence(intel_dsi, MIPI_SEQ_BACKLIGHT_ON);
 }
 
+static void gen11_dsi_enable_nop(struct intel_encoder *encoder,
+				 const struct intel_crtc_state *pipe_config,
+				 const struct drm_connector_state *conn_state)
+{
+	DRM_DEBUG_KMS("\n");
+}
+
 static void gen11_dsi_disable_transcoder(struct intel_encoder *encoder)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
@@ -1106,6 +1113,46 @@ static void gen11_dsi_get_config(struct intel_encoder *encoder,
 	pipe_config->port_clock = pixel_clk;
 }
 
+static bool gen11_dsi_compute_config(struct intel_encoder *encoder,
+				     struct intel_crtc_state *pipe_config,
+				     struct drm_connector_state *conn_state)
+{
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+	struct intel_dsi *intel_dsi = container_of(encoder, struct intel_dsi,
+						   base);
+	struct intel_connector *intel_connector = intel_dsi->attached_connector;
+	struct intel_crtc *crtc = to_intel_crtc(pipe_config->base.crtc);
+	const struct drm_display_mode *fixed_mode =
+					intel_connector->panel.fixed_mode;
+	struct drm_display_mode *adjusted_mode =
+					&pipe_config->base.adjusted_mode;
+
+	if (fixed_mode) {
+		intel_fixed_panel_mode(fixed_mode, adjusted_mode);
+
+		if (HAS_GMCH_DISPLAY(dev_priv))
+			intel_gmch_panel_fitting(crtc, pipe_config,
+						 conn_state->scaling_mode);
+		else
+			intel_pch_panel_fitting(crtc, pipe_config,
+						conn_state->scaling_mode);
+	}
+
+	adjusted_mode->flags = 0;
+
+	/* Dual link goes to trancoder DSI'0' */
+	if (intel_dsi->ports == BIT(PORT_B))
+		pipe_config->cpu_transcoder = TRANSCODER_DSI_1;
+	else
+		pipe_config->cpu_transcoder = TRANSCODER_DSI_0;
+
+	pipe_config->clock_set = true;
+
+	//TODO: Add check if DSI PLL calculation is done
+
+	return true;
+}
+
 static bool gen11_dsi_get_hw_state(struct intel_encoder *encoder,
 				   enum pipe *pipe)
 {
@@ -1253,9 +1300,11 @@ void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 			 DRM_MODE_ENCODER_DSI, "GEN11 DSI %c", port_name(port));
 
 	intel_encoder->pre_enable = gen11_dsi_pre_enable;
+	intel_encoder->enable = gen11_dsi_enable_nop;
 	intel_encoder->disable = gen11_dsi_disable;
 	intel_encoder->port = port;
 	intel_encoder->get_config = gen11_dsi_get_config;
+	intel_encoder->compute_config = gen11_dsi_compute_config;
 	intel_encoder->get_hw_state = gen11_dsi_get_hw_state;
 	intel_encoder->type = INTEL_OUTPUT_DSI;
 	intel_encoder->cloneable = 0;
