@@ -1309,6 +1309,7 @@ void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 	intel_encoder->type = INTEL_OUTPUT_DSI;
 	intel_encoder->cloneable = 0;
 	intel_encoder->crtc_mask = BIT(PIPE_A) | BIT(PIPE_B) | BIT(PIPE_C);
+	intel_encoder->power_domain = POWER_DOMAIN_PORT_DSI;
 
 	/* register DSI connector with DRM subsystem */
 	drm_connector_init(dev, connector, &gen11_dsi_connector_funcs,
@@ -1317,6 +1318,7 @@ void intel_gen11_dsi_init(struct drm_i915_private *dev_priv)
 	connector->display_info.subpixel_order = SubPixelHorizontalRGB;
 	connector->interlace_allowed = false;
 	connector->doublescan_allowed = false;
+	intel_connector->get_hw_state = intel_connector_get_hw_state;
 
 	/* attach connector to encoder */
 	intel_connector_attach_encoder(intel_connector, intel_encoder);
