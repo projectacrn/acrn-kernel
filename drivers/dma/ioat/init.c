@@ -612,6 +612,27 @@ static int ioat_enumerate_channels(struct ioatdma_device *ioat_dma)
 			i = 0;
 			break;
 		}
+
+		/* setting up LTR values for 3.4 or later */
+		if (ioat_dma->version >= IOAT_VER_3_4) {
+			u32 lat_val;
+
+			lat_val = IOAT_CHAN_LTR_ACTIVE_SNREQMNT;
+			writel(lat_val, ioat_chan->reg_base +
+					IOAT_CHAN_LTR_ACTIVE_OFFSET);
+
+			lat_val = IOAT_CHAN_LTR_IDLE_SNVAL |
+				  IOAT_CHAN_LTR_IDLE_SNLATSCALE |
+				  IOAT_CHAN_LTR_IDLE_SNREQMNT;
+			writel(lat_val, ioat_chan->reg_base +
+					IOAT_CHAN_LTR_IDLE_OFFSET);
+
+			writeb(IOAT_CHAN_LTR_SWSEL_ACTIVE,
+			       ioat_chan->reg_base +
+			       IOAT_CHAN_LTR_SWSEL_OFFSET);
+		}
+
+
 	}
 	dma->chancnt = i;
 	return i;
@@ -1383,9 +1404,20 @@ static int ioat_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 static void ioat_remove(struct pci_dev *pdev)
 {
 	struct ioatdma_device *device = pci_get_drvdata(pdev);
+	struct dma_device *dma = &device->dma_dev;
+	struct dma_chan *c;
+	struct ioatdma_chan *ioat_chan;
 
 	if (!device)
 		return;
+
+	list_for_each_entry(c, &dma->channels, device_node) {
+		ioat_chan = to_ioat_chan(c);
+		if (device->version >= IOAT_VER_3_4)
+			writeb(IOAT_CHAN_LTR_SWSEL_IDLE,
+					ioat_chan->reg_base +
+					IOAT_CHAN_LTR_SWSEL_OFFSET);
+	}
 
 	dev_err(&pdev->dev, "Removing dma and dca services\n");
 	if (device->dca) {
