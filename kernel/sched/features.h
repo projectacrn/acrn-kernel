@@ -87,11 +87,6 @@ SCHED_FEAT(WA_WEIGHT, true)
 SCHED_FEAT(WA_BIAS, true)
 
 /*
- * UtilEstimation. Use estimated CPU utilization.
- */
-SCHED_FEAT(UTIL_EST, true)
-
-/*
  * Energy aware scheduling. Use platform energy model to guide scheduling
  * decisions optimizing for energy efficiency.
  */
@@ -100,3 +95,17 @@ SCHED_FEAT(ENERGY_AWARE, true)
 #else
 SCHED_FEAT(ENERGY_AWARE, false)
 #endif
+
+/*
+ * UtilEstimation. Use estimated CPU utilization.
+ */
+SCHED_FEAT(UTIL_EST, false)
+
+/*
+ * Energy aware scheduling algorithm choices:
+ * EAS_PREFER_IDLE
+ *   Direct tasks in a schedtune.prefer_idle=1 group through
+ *   the EAS path for wakeup task placement. Otherwise, put
+ *   those tasks through the mainline slow path.
+ */
+SCHED_FEAT(EAS_PREFER_IDLE, true)
