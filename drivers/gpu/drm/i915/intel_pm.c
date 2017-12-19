@@ -45,6 +45,10 @@
 #include "intel_sideband.h"
 #include "../../../platform/x86/intel_ips.h"
 
+#if IS_ENABLED(CONFIG_DRM_I915_GVT)
+#include "gvt.h"
+#endif
+
 /**
  * DOC: RC6
  *
@@ -5309,6 +5313,42 @@ skl_compute_ddb(struct intel_atomic_state *state)
 
 	memcpy(ddb, &dev_priv->wm.skl_hw.ddb, sizeof(*ddb));
 
+#if IS_ENABLED(CONFIG_DRM_I915_GVT)
+	/*
+	 * In GVT environemnt, allocate ddb for all planes in active crtc.
+	 * When there is active pipe change, intel_state active_crtcs is
+	 * not zero and updated before dev_priv, so use intel_state
+	 * active_crtc when it is not zero.
+	 */
+	if (dev_priv->gvt) {
+		unsigned int active_crtcs;
+		struct intel_gvt_pipe_info *pipe_info;
+
+		active_crtcs = state->active_crtcs ?
+			state->active_crtcs : dev_priv->active_crtcs;
+		intel_gvt_allocate_ddb(dev_priv->gvt, active_crtcs);
+
+		/* update the ddb into intel_crtc_state->wm */
+		for_each_new_intel_crtc_in_state(state, crtc,
+					new_crtc_state, i) {
+			pipe_info = &(dev_priv->gvt->pipe_info[crtc->pipe]);
+
+			memset(new_crtc_state->wm.skl.plane_ddb_y, 0,
+				sizeof(new_crtc_state->wm.skl.plane_ddb_y));
+			memset(new_crtc_state->wm.skl.plane_ddb_uv, 0,
+				sizeof(new_crtc_state->wm.skl.plane_ddb_uv));
+
+			memcpy(new_crtc_state->wm.skl.plane_ddb_y,
+			       pipe_info->plane_ddb_y,
+			       sizeof(pipe_info->plane_ddb_y));
+			memcpy(&new_crtc_state->wm.skl.ddb,
+			       &pipe_info->pipe_ddb,
+			       sizeof(pipe_info->pipe_ddb));
+		}
+		return 0;
+	}
+#endif
+
 	for_each_oldnew_intel_crtc_in_state(state, crtc, old_crtc_state,
 					    new_crtc_state, i) {
 		ret = skl_allocate_pipe_ddb(new_crtc_state, ddb);
@@ -5592,6 +5632,7 @@ static int skl_wm_add_affected_planes(struct intel_atomic_state *state,
 static int
 skl_compute_wm(struct intel_atomic_state *state)
 {
+	struct drm_i915_private *dev_priv = to_i915(state->base.dev);
 	struct intel_crtc *crtc;
 	struct intel_crtc_state *new_crtc_state;
 	struct intel_crtc_state *old_crtc_state;
@@ -5602,10 +5643,22 @@ skl_compute_wm(struct intel_atomic_state *state)
 	/* Clear all dirty flags */
 	results->dirty_pipes = 0;
 
+	/* For the VGPU scenario based on Linux this is skipped as Dom0
+	 * ignores the WM setting from Guest.
+	 */
+	if (intel_vgpu_active(dev_priv))
+		return 0;
+
 	ret = skl_ddb_add_affected_pipes(state, &changed);
 	if (ret || !changed)
 		return ret;
 
+	/* In GVT-g scenario the ddb is statically allocated in DOM0 */
+	if (intel_gvt_active(dev_priv)) {
+		ret = skl_compute_ddb(state);
+		if (ret)
+			return ret;
+	}
 	/*
 	 * Calculate WM's for all pipes that are part of this transaction.
 	 * Note that skl_ddb_add_affected_pipes may have added more CRTC's that
@@ -5628,9 +5681,12 @@ skl_compute_wm(struct intel_atomic_state *state)
 			results->dirty_pipes |= drm_crtc_mask(&crtc->base);
 	}
 
-	ret = skl_compute_ddb(state);
-	if (ret)
-		return ret;
+	if (!intel_gvt_active(dev_priv)) {
+		/* On native scenario it uses the dynamic mechanism among pipes */
+		ret = skl_compute_ddb(state);
+		if (ret)
+			return ret;
+	}
 
 	skl_print_wm_changes(state);
 
@@ -5645,10 +5701,34 @@ static void skl_atomic_update_crtc_wm(struct intel_atomic_state *state,
 	struct skl_pipe_wm *pipe_wm = &crtc_state->wm.skl.optimal;
 	enum pipe pipe = crtc->pipe;
 
+	/* This is ignored for VGPU */
+	if (intel_vgpu_active(dev_priv))
+		return;
+
 	if (!(state->wm_results.dirty_pipes & drm_crtc_mask(&crtc->base)))
 		return;
 
 	I915_WRITE(PIPE_WM_LINETIME(pipe), pipe_wm->linetime);
+
+	if (intel_gvt_active(dev_priv)) {
+		struct intel_plane *intel_plane;
+		 enum plane_id plane_id;
+		/* TBD: 1. Check the plane_res_block with ddb_plane[i].
+		 *      2. update the plane with plane_id
+		 */
+		for_each_intel_plane_on_crtc(&dev_priv->drm, crtc, intel_plane) {
+			plane_id = intel_plane->id;
+#if IS_ENABLED(CONFIG_DRM_I915_GVT)
+			if (dev_priv->gvt &&
+				dev_priv->gvt->pipe_info[pipe].plane_owner[plane_id])
+				continue;
+#endif
+			if (plane_id != PLANE_CURSOR)
+				skl_write_plane_wm(intel_plane, crtc_state);
+			else
+				skl_write_cursor_wm(intel_plane, crtc_state);
+		}
+	}
 }
 
 static void skl_initial_wm(struct intel_atomic_state *state,
@@ -5658,6 +5738,10 @@ static void skl_initial_wm(struct intel_atomic_state *state,
 	struct drm_device *dev = intel_crtc->base.dev;
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct skl_ddb_values *results = &state->wm_results;
+
+	/* This is ignored on VGPU */
+	if (intel_vgpu_active(dev_priv))
+		return;
 
 	if ((results->dirty_pipes & drm_crtc_mask(&intel_crtc->base)) == 0)
 		return;
