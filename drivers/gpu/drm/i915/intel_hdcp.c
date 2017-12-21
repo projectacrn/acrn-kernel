@@ -266,6 +266,9 @@ int intel_hdcp_auth_downstream(struct intel_connector *connector)
 	if (num_downstream == 0)
 		return -EINVAL;
 
+	connector->downstream_info->device_count = num_downstream;
+	connector->downstream_info->depth = DRM_HDCP_DEPTH(bstatus[1]);
+
 	ksv_fifo = kzalloc(num_downstream * DRM_HDCP_KSV_LEN, GFP_KERNEL);
 	if (!ksv_fifo)
 		return -ENOMEM;
@@ -278,6 +281,9 @@ int intel_hdcp_auth_downstream(struct intel_connector *connector)
 		DRM_ERROR("Revocated Ksv(s) in ksv_fifo\n");
 		return -EPERM;
 	}
+
+	memcpy(connector->downstream_info->ksv_list, ksv_fifo,
+	       num_downstream * DRM_HDCP_KSV_LEN);
 
 	/* Process V' values from the receiver */
 	for (i = 0; i < DRM_HDCP_V_PRIME_NUM_PARTS; i++) {
@@ -568,15 +574,20 @@ static int intel_hdcp_auth(struct intel_connector *connector)
 		return -EPERM;
 	}
 
+	memcpy(connector->downstream_info->bksv, bksv.shim,
+	       DRM_MODE_HDCP_KSV_LEN);
+
 	I915_WRITE(PORT_HDCP_BKSVLO(port), bksv.reg[0]);
 	I915_WRITE(PORT_HDCP_BKSVHI(port), bksv.reg[1]);
 
 	ret = shim->repeater_present(intel_dig_port, &repeater_present);
 	if (ret)
 		return ret;
-	if (repeater_present)
+	if (repeater_present) {
 		I915_WRITE(HDCP_REP_CTL,
 			   intel_hdcp_get_repeater_ctl(intel_dig_port));
+		connector->downstream_info->is_repeater = true;
+	}
 
 	ret = shim->toggle_signalling(intel_dig_port, true);
 	if (ret)
@@ -669,6 +680,9 @@ static int _intel_hdcp_disable(struct intel_connector *connector)
 		return ret;
 	}
 
+	memset(connector->downstream_info, 0,
+	       sizeof(struct cp_downstream_info));
+
 	DRM_DEBUG_KMS("HDCP is disabled\n");
 	return 0;
 }
@@ -715,6 +729,9 @@ static int _intel_hdcp_enable(struct intel_connector *connector)
 		_intel_hdcp_disable(connector);
 	}
 
+	memset(connector->downstream_info, 0,
+	       sizeof(struct cp_downstream_info));
+
 	DRM_ERROR("HDCP authentication failed (%d tries/%d)\n", tries, ret);
 	return ret;
 }
@@ -724,9 +741,18 @@ static void intel_hdcp_enable_work(struct work_struct *work)
 	struct intel_connector *connector = container_of(work,
 							 struct intel_connector,
 							 hdcp_enable_work);
+	int ret;
 
 	mutex_lock(&connector->hdcp_mutex);
-	_intel_hdcp_enable(connector);
+	ret = _intel_hdcp_enable(connector);
+	if (!ret) {
+		ret = drm_mode_connector_update_cp_downstream_property(
+						&connector->base,
+						connector->downstream_info);
+		if (ret)
+			DRM_ERROR("Downstream_property update failed.%d\n",
+				  ret);
+	}
 	mutex_unlock(&connector->hdcp_mutex);
 }
 
@@ -785,6 +811,15 @@ int intel_hdcp_init(struct intel_connector *connector,
 	ret = drm_connector_attach_cp_srm_property(&connector->base);
 	if (ret)
 		return ret;
+
+	ret = drm_connector_attach_cp_downstream_property(&connector->base);
+	if (ret)
+		return ret;
+
+	connector->downstream_info = kzalloc(sizeof(struct cp_downstream_info),
+					     GFP_KERNEL);
+	if (!connector->downstream_info)
+		return -ENOMEM;
 
 	connector->hdcp_shim = hdcp_shim;
 	mutex_init(&connector->hdcp_mutex);
