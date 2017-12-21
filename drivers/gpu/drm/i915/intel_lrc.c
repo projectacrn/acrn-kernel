@@ -249,7 +249,15 @@ intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 		desc |= (u64)ce->sw_counter << GEN11_SW_COUNTER_SHIFT;
 								/* bits 55-60 */
 
-		desc |= (u64)engine->class << GEN11_ENGINE_CLASS_SHIFT;
+		/*
+		 * Although GuC will never see this upper part as it fills
+		 * its own descriptor, using the guc_class here will help keep
+		 * the i915 and firmware logs in sync.
+		 */
+		if (HAS_GUC_SCHED(ctx->i915))
+			desc |= (u64)engine->guc_class << GEN11_ENGINE_CLASS_SHIFT;
+		else
+			desc |= (u64)engine->class << GEN11_ENGINE_CLASS_SHIFT;
 								/* bits 61-63 */
 	} else {
 		GEM_BUG_ON(ctx->hw_id >= BIT(GEN8_CTX_ID_WIDTH));

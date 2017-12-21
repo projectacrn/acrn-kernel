@@ -81,6 +81,23 @@ static void gen11_guc_policies_init(struct gen11_guc_policies *policies)
 	policies->is_valid = 1;
 }
 
+static u8 guc_class_to_intel_class(u8 guc_class)
+{
+	switch (guc_class) {
+	default:
+		MISSING_CASE(guc_class);
+		/* fall through */
+	case GUC_RENDER_CLASS:
+		return RENDER_CLASS;
+	case GUC_VIDEO_CLASS:
+		return VIDEO_DECODE_CLASS;
+	case GUC_VIDEOENHANCE_CLASS:
+		return VIDEO_ENHANCEMENT_CLASS;
+	case GUC_BLITTER_CLASS:
+		return COPY_ENGINE_CLASS;
+	}
+}
+
 /*
  * The first 80 dwords of the register state context, containing the
  * execlists and ppgtt registers.
@@ -153,7 +170,8 @@ int gen11_guc_ads_create(struct intel_guc *guc)
 	 * (but skipping the execlist part of the context)
 	 */
 	blob->ads.eng_state_size[GUC_RENDER_CLASS] =
-		intel_class_context_size(dev_priv, GUC_RENDER_CLASS) - skipped_size;
+		intel_class_context_size(dev_priv,
+					 guc_class_to_intel_class(GUC_RENDER_CLASS)) - skipped_size;
 
 	blob->system_info.slice_enabled = hweight8(INTEL_INFO(dev_priv)->sseu.slice_mask);
 	blob->system_info.rcs_enabled = 1;

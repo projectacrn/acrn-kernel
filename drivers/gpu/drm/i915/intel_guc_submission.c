@@ -1417,21 +1417,21 @@ static void guc_ppal_stage_attach(struct i915_gem_context *ctx,
 			__gen11_get_proxy_stage_desc(guc->execbuf_client)->process_desc;
 	}
 
-	GEM_BUG_ON(test_bit(ce->sw_counter, desc->lrc_bitmap[engine->class]));
-	__set_bit(ce->sw_counter, desc->lrc_bitmap[engine->class]);
+	GEM_BUG_ON(test_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]));
+	__set_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]);
 	desc->lrc_count++;
 
 	/* GuC optimizations */
 	if (ce->sw_counter >= desc->max_lrc_per_class)
 		desc->max_lrc_per_class = ce->sw_counter + 1;
-	desc->engines_used |= (1 << engine->class);
-	desc->engines_instance_used[engine->class] |= (1 << engine->instance);
+	desc->engines_used |= (1 << engine->guc_class);
+	desc->engines_instance_used[engine->guc_class] |= (1 << engine->instance);
 }
 
 static void guc_recalculate_optimizations(struct gen11_guc_stage_desc *desc,
 					  struct intel_engine_cs *engine)
 {
-	int class;
+	int guc_class;
 	unsigned long bit;
 	u32 temp_max_lrc = desc->max_lrc_per_class;
 	u32 class_max_lrc = 0;
@@ -1440,40 +1440,40 @@ static void guc_recalculate_optimizations(struct gen11_guc_stage_desc *desc,
 		/* Simplest case */
 		desc->max_lrc_per_class = 0;
 		desc->engines_used = 0;
-		for (class = 0; class < GUC_MAX_ENGINE_CLASSES; class ++)
-			desc->engines_instance_used[class] = 0;
+		for (guc_class = 0; guc_class < GUC_MAX_ENGINE_CLASSES; guc_class++)
+			desc->engines_instance_used[guc_class] = 0;
 		return;
 	}
 
 	desc->max_lrc_per_class = 0;
-	for (class = 0; class < GUC_MAX_ENGINE_CLASSES; class ++) {
-		bit = find_last_bit(desc->lrc_bitmap[class], temp_max_lrc);
+	for (guc_class = 0; guc_class < GUC_MAX_ENGINE_CLASSES; guc_class++) {
+		bit = find_last_bit(desc->lrc_bitmap[guc_class], temp_max_lrc);
 		if (bit != temp_max_lrc) {
 			if (bit >= desc->max_lrc_per_class)
 				desc->max_lrc_per_class = bit + 1;
-			if (class == engine->class)
+			if (guc_class == engine->guc_class)
 				class_max_lrc = bit + 1;
 		}
 	}
 
-	if (bitmap_empty(desc->lrc_bitmap[engine->class], class_max_lrc)) {
-		desc->engines_used &= ~(1 << engine->class);
-		desc->engines_instance_used[engine->class] = 0;
+	if (bitmap_empty(desc->lrc_bitmap[engine->guc_class], class_max_lrc)) {
+		desc->engines_used &= ~(1 << engine->guc_class);
+		desc->engines_instance_used[engine->guc_class] = 0;
 	} else {
 		u32 engine_shift_32b = GEN11_ENGINE_INSTANCE_SHIFT - 32;
 		struct guc_execlist_context *lrc;
 		u8 instance;
 
-		desc->engines_instance_used[engine->class] &=
+		desc->engines_instance_used[engine->guc_class] &=
 		    ~(1 << engine->instance);
 
-		for_each_set_bit(bit, desc->lrc_bitmap[engine->class], class_max_lrc) {
-			lrc = &desc->lrc[engine->class][bit];
+		for_each_set_bit(bit, desc->lrc_bitmap[engine->guc_class], class_max_lrc) {
+			lrc = &desc->lrc[engine->guc_class][bit];
 			instance = (lrc->context_desc >> engine_shift_32b) &
 				   GEN11_ENGINE_INSTANCE_WIDTH;
 
 			if (instance == engine->instance) {
-				desc->engines_instance_used[engine->class] |=
+				desc->engines_instance_used[engine->guc_class] |=
 					(1 << engine->instance);
 				return;
 			}
@@ -1493,8 +1493,8 @@ static void guc_ppal_stage_detach(struct i915_gem_context *ctx,
 
 	desc = __gen11_get_ppal_stage_desc(guc, ce->sw_context_id);
 
-	GEM_BUG_ON(!test_bit(ce->sw_counter, desc->lrc_bitmap[engine->class]));
-	__clear_bit(ce->sw_counter, desc->lrc_bitmap[engine->class]);
+	GEM_BUG_ON(!test_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]));
+	__clear_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]);
 	desc->lrc_count--;
 
 	if (desc->lrc_count == 0) {
@@ -1505,7 +1505,7 @@ static void guc_ppal_stage_detach(struct i915_gem_context *ctx,
 
 	guc_recalculate_optimizations(desc, engine);
 
-	lrc = &desc->lrc[engine->class][ce->sw_counter];
+	lrc = &desc->lrc[engine->guc_class][ce->sw_counter];
 	memset(lrc, 0, sizeof(*lrc));
 }
 
@@ -1521,9 +1521,9 @@ static void guc_ppal_stage_update(struct i915_gem_context *ctx,
 
 	desc = __gen11_get_ppal_stage_desc(guc, ce->sw_context_id);
 
-	GEM_BUG_ON(!test_bit(ce->sw_counter, desc->lrc_bitmap[engine->class]));
+	GEM_BUG_ON(!test_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]));
 
-	lrc = &desc->lrc[engine->class][ce->sw_counter];
+	lrc = &desc->lrc[engine->guc_class][ce->sw_counter];
 
 	lrc->context_desc = lower_32_bits(intel_lr_context_descriptor(ctx, engine));
 	lrc->context_id = upper_32_bits(intel_lr_context_descriptor(ctx, engine));

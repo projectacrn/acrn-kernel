@@ -327,7 +327,9 @@ struct intel_engine_cs {
 
 	enum intel_engine_id id;
 	unsigned int hw_id;
+
 	unsigned int guc_id;
+	u8 guc_class;
 
 	u8 uabi_id;
 	u8 uabi_class;
