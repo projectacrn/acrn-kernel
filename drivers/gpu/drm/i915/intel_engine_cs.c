@@ -85,6 +85,7 @@ struct engine_info {
 	unsigned int hw_id;
 	unsigned int uabi_id;
 	u8 class;
+	u8 guc_class;
 	u8 instance;
 	/* mmio bases table *must* be sorted in reverse gen order */
 	struct engine_mmio_base {
@@ -98,6 +99,7 @@ static const struct engine_info intel_engines[] = {
 		.hw_id = RCS_HW,
 		.uabi_id = I915_EXEC_RENDER,
 		.class = RENDER_CLASS,
+		.guc_class = GUC_RENDER_CLASS,
 		.instance = 0,
 		.mmio_bases = {
 			{ .gen = 1, .base = RENDER_RING_BASE }
@@ -107,6 +109,7 @@ static const struct engine_info intel_engines[] = {
 		.hw_id = BCS_HW,
 		.uabi_id = I915_EXEC_BLT,
 		.class = COPY_ENGINE_CLASS,
+		.guc_class = GUC_BLITTER_CLASS,
 		.instance = 0,
 		.mmio_bases = {
 			{ .gen = 6, .base = BLT_RING_BASE }
@@ -116,6 +119,7 @@ static const struct engine_info intel_engines[] = {
 		.hw_id = VCS_HW,
 		.uabi_id = I915_EXEC_BSD,
 		.class = VIDEO_DECODE_CLASS,
+		.guc_class = GUC_VIDEO_CLASS,
 		.instance = 0,
 		.mmio_bases = {
 			{ .gen = 11, .base = GEN11_BSD_RING_BASE },
@@ -127,6 +131,7 @@ static const struct engine_info intel_engines[] = {
 		.hw_id = VCS2_HW,
 		.uabi_id = I915_EXEC_BSD,
 		.class = VIDEO_DECODE_CLASS,
+		.guc_class = GUC_VIDEO_CLASS,
 		.instance = 1,
 		.mmio_bases = {
 			{ .gen = 11, .base = GEN11_BSD2_RING_BASE },
@@ -137,6 +142,7 @@ static const struct engine_info intel_engines[] = {
 		.hw_id = VCS3_HW,
 		.uabi_id = I915_EXEC_BSD,
 		.class = VIDEO_DECODE_CLASS,
+		.guc_class = GUC_VIDEO_CLASS,
 		.instance = 2,
 		.mmio_bases = {
 			{ .gen = 11, .base = GEN11_BSD3_RING_BASE }
@@ -146,6 +152,7 @@ static const struct engine_info intel_engines[] = {
 		.hw_id = VCS4_HW,
 		.uabi_id = I915_EXEC_BSD,
 		.class = VIDEO_DECODE_CLASS,
+		.guc_class = GUC_VIDEO_CLASS,
 		.instance = 3,
 		.mmio_bases = {
 			{ .gen = 11, .base = GEN11_BSD4_RING_BASE }
@@ -155,6 +162,7 @@ static const struct engine_info intel_engines[] = {
 		.hw_id = VECS_HW,
 		.uabi_id = I915_EXEC_VEBOX,
 		.class = VIDEO_ENHANCEMENT_CLASS,
+		.guc_class = GUC_VIDEOENHANCE_CLASS,
 		.instance = 0,
 		.mmio_bases = {
 			{ .gen = 11, .base = GEN11_VEBOX_RING_BASE },
@@ -165,6 +173,7 @@ static const struct engine_info intel_engines[] = {
 		.hw_id = VECS2_HW,
 		.uabi_id = I915_EXEC_VEBOX,
 		.class = VIDEO_ENHANCEMENT_CLASS,
+		.guc_class = GUC_VIDEOENHANCE_CLASS,
 		.instance = 1,
 		.mmio_bases = {
 			{ .gen = 11, .base = GEN11_VEBOX2_RING_BASE }
@@ -281,6 +290,9 @@ intel_engine_setup(struct drm_i915_private *dev_priv,
 	if (GEM_WARN_ON(info->class > MAX_ENGINE_CLASS))
 		return -EINVAL;
 
+	if (GEM_WARN_ON(info->guc_class >= GUC_MAX_ENGINE_CLASSES))
+		return -EINVAL;
+
 	if (GEM_WARN_ON(info->instance > MAX_ENGINE_INSTANCE))
 		return -EINVAL;
 
@@ -297,7 +309,8 @@ intel_engine_setup(struct drm_i915_private *dev_priv,
 	__sprint_engine_name(engine->name, info);
 	engine->hw_id = info->hw_id;
 	if (INTEL_GEN(dev_priv) >= 11) {
-		engine->guc_id = GEN11_GUC_ENGINE_ID(info->class, info->instance);
+		engine->guc_id = GEN11_GUC_ENGINE_ID(info->guc_class, info->instance);
+		engine->guc_class = info->guc_class;
 	} else {
 		engine->guc_id = info->hw_id;
 	}
