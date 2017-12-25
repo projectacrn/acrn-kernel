@@ -34,6 +34,18 @@
  */
 #include <asm/hypervisor.h>
 
+static unsigned long cpu_khz_from_acrn(void)
+{
+	unsigned int eax, ebx, ecx, edx;
+
+	/* Get TSC frequency from cpuid 0x40000010 */
+	eax = 0x40000010;
+	ebx = ecx = edx = 0;
+	__cpuid(&eax, &ebx, &ecx, &edx);
+
+	return (unsigned long)eax;
+}
+
 static uint32_t __init acrn_detect(void)
 {
 	return hypervisor_cpuid_base("ACRNACRNACRN\0\0", 0);
@@ -41,6 +53,7 @@ static uint32_t __init acrn_detect(void)
 
 static void __init acrn_init_platform(void)
 {
+	pv_cpu_ops.cpu_khz = cpu_khz_from_acrn;
 }
 
 static void acrn_pin_vcpu(int cpu)

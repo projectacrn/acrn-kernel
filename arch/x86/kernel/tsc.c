@@ -679,6 +679,10 @@ unsigned long native_calibrate_cpu(void)
 	if (fast_calibrate)
 		return fast_calibrate;
 
+	fast_calibrate = cpu_khz_from_paravirt();
+	if (fast_calibrate)
+		return fast_calibrate;
+
 	fast_calibrate = cpu_khz_from_msr();
 	if (fast_calibrate)
 		return fast_calibrate;
