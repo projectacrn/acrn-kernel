@@ -12892,7 +12892,7 @@ static void verify_wm_state(struct intel_crtc *crtc,
 	 * ignores the WM setting from Guest.
 	 */
 	if (intel_vgpu_active(dev_priv))
-		return 0;
+		return;
 
 	hw = kzalloc(sizeof(*hw), GFP_KERNEL);
 	if (!hw)
@@ -13146,8 +13146,15 @@ verify_crtc_state(struct intel_crtc *crtc,
 
 	intel_pipe_config_sanity_check(dev_priv, pipe_config);
 
-	if (!intel_pipe_config_compare(new_crtc_state,
-				       pipe_config, false)) {
+	/*
+	 * Only check for pipe config if we are not in a GVT guest environment,
+	 * because such a check in a GVT guest environment doesn't make any sense
+	 * as we don't allow the guest to do a mode set, so there can very well
+	 * be a difference between what it has programmed vs. what the host
+	 * truly configured the HW pipe to be in.
+	 */
+	if (!intel_vgpu_active(dev_priv) &&
+		!intel_pipe_config_compare(new_crtc_state, pipe_config, false)) {
 		I915_STATE_WARN(1, "pipe state doesn't match!\n");
 		intel_dump_pipe_config(pipe_config, NULL, "[hw state]");
 		intel_dump_pipe_config(new_crtc_state, NULL, "[sw state]");
