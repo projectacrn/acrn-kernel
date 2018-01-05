@@ -1882,6 +1882,26 @@ static __initconst const u64 glp_hw_cache_extra_regs
 	},
 };
 
+EVENT_ATTR_STR(topdown-fe-bound,	td_fe_bound_tnt,	"event=0x71,umask=0x0");
+EVENT_ATTR_STR(topdown-retiring,	td_retiring_tnt,	"event=0x72,umask=0x0");
+EVENT_ATTR_STR(topdown-bad-spec,	td_bad_spec_tnt,	"event=0x73,umask=0x0");
+EVENT_ATTR_STR(topdown-be-bound,	td_be_bound_tnt,	"event=0x74,umask=0x0");
+
+static struct attribute *tnt_events_attrs[] = {
+	EVENT_PTR(td_fe_bound_tnt),
+	EVENT_PTR(td_retiring_tnt),
+	EVENT_PTR(td_bad_spec_tnt),
+	EVENT_PTR(td_be_bound_tnt),
+	NULL
+};
+
+static struct extra_reg intel_tnt_extra_regs[] __read_mostly = {
+	/* must define OFFCORE_RSP_X first, see intel_fixup_er() */
+	INTEL_UEVENT_EXTRA_REG(0x01b7, MSR_OFFCORE_RSP_0, 0xffffff9fffull, RSP_0),
+	INTEL_UEVENT_EXTRA_REG(0x02b7, MSR_OFFCORE_RSP_1, 0xffffff9fffull, RSP_1),
+	EVENT_EXTRA_END
+};
+
 #define KNL_OT_L2_HITE		BIT_ULL(19) /* Other Tile L2 Hit */
 #define KNL_OT_L2_HITF		BIT_ULL(20) /* Other Tile L2 Hit */
 #define KNL_MCDRAM_LOCAL	BIT_ULL(21)
@@ -4374,6 +4394,33 @@ __init int intel_pmu_init(void)
 		extra_attr = slm_format_attr;
 		pr_cont("Goldmont plus events, ");
 		name = "goldmont_plus";
+		break;
+
+	case INTEL_FAM6_ATOM_JACOBSVILLE:
+		memcpy(hw_cache_event_ids, glp_hw_cache_event_ids,
+		       sizeof(hw_cache_event_ids));
+		memcpy(hw_cache_extra_regs, glp_hw_cache_extra_regs,
+		       sizeof(hw_cache_extra_regs));
+		hw_cache_event_ids[C(ITLB)][C(OP_READ)][C(RESULT_ACCESS)] = -1;
+
+		intel_pmu_lbr_init_skl();
+
+		x86_pmu.event_constraints = intel_slm_event_constraints;
+		x86_pmu.pebs_constraints = intel_tnt_pebs_event_constraints;
+		x86_pmu.extra_regs = intel_tnt_extra_regs;
+		/*
+		 * It's recommended to use CPU_CLK_UNHALTED.CORE_P + NPEBS
+		 * for precise cycles.
+		 */
+		x86_pmu.pebs_aliases = NULL;
+		x86_pmu.pebs_prec_dist = true;
+		x86_pmu.lbr_pt_coexist = true;
+		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
+		x86_pmu.get_event_constraints = glp_get_event_constraints;
+		x86_pmu.cpu_events = tnt_events_attrs;
+		extra_attr = slm_format_attr;
+		pr_cont("Tremont events, ");
+		name = "Tremont";
 		break;
 
 	case INTEL_FAM6_WESTMERE:
