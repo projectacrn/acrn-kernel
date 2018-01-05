@@ -1,0 +1,12 @@
+- Linux perf support for Cannonlake
+This implements Linux perf PMU support for Cannonlake Client.
+Include both core and uncore support.
+For core support, add a new PEBS event constraint table, update the event for topdown recovery_bubbles.
+For uncore support, add new pci id for IMC, add new MSR address for CBOX, get CBOX# from CNL_UNC_CBO_CONFIG MSR directly, and move clocktick event to its own PMU.
+
+Event list is internal only
+
+Open issues:
+- kernel driver event list is not final
+
+Owner: Kan Liang
