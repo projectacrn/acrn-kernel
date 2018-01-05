@@ -1,0 +1,12 @@
+- Linux perf support for Tremont
+This implements Linux perf PMU support for Tremont Server and Client.
+Support all the features from previous generation (GLP) + PDIR on fixed counter 0, New topdown events and adaptive PEBS.
+The codes is based on Andi's Icelake perf support. Because the codes to support adaptive PEBS is shared.
+ssh://akleen@git-amr-4.devtools.intel.com:29418/otc_linux_perf-linux-perf perf/icl-18
+
+Open issues:
+- kernel driver event list is not final
+- no uncore support
+- offcore mask is not final
+
+Owner: Kan Liang
