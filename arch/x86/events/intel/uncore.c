@@ -1312,6 +1312,11 @@ static const struct intel_uncore_init_fun skx_uncore_init __initconst = {
 	.pci_init = skx_uncore_pci_init,
 };
 
+static const struct intel_uncore_init_fun cnl_uncore_init __initconst = {
+	.cpu_init = cnl_uncore_cpu_init,
+	.pci_init = skl_uncore_pci_init,
+};
+
 static const struct x86_cpu_id intel_uncore_match[] __initconst = {
 	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_NEHALEM_EP,	  nhm_uncore_init),
 	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_NEHALEM,	  nhm_uncore_init),
@@ -1338,6 +1343,7 @@ static const struct x86_cpu_id intel_uncore_match[] __initconst = {
 	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_SKYLAKE_X,      skx_uncore_init),
 	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_KABYLAKE_MOBILE, skl_uncore_init),
 	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_KABYLAKE_DESKTOP, skl_uncore_init),
+	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_CANNONLAKE_MOBILE, cnl_uncore_init),
 	{},
 };
 
