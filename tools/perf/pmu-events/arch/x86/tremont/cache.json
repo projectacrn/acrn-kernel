@@ -1,0 +1,197 @@
+[
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x24",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "L2_REQUEST.ALL",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of L2 Cache Accesses.Counts the number of L2 Cache Accesses Counts the total number of L2 Cache Accesses - sum of hits, misses, rejects  front door requests for CRd/DRd/RFO/ItoM/L2 Prefetches only."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x24",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "L2_REQUEST.MISS",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of total L2 Cache Accesses that resulted in a Miss from a front door request only (does not include rejects or recycles)"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x24",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "L2_REQUEST.HIT",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of L2 Cache Accesses that resulted in a Hit from a front door request only (does not include rejects or recycles)"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x24",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "L2_REQUEST.REJECTS",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of L2 Cache Accesses that miss the L2 and get BBL reject  short and long rejects (includes those counted in L2_reject_XQ.any)"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x2E",
+        "Counter": "0,1,2,3",
+        "UMask": "0x41",
+        "EventName": "LONGEST_LAT_CACHE.MISS",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Core-originated cacheable read-requests that miss the L2. Read-requests include as Loads/RFO/Ifetch (incl. L1 HW prefetch)"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x71",
+        "Counter": "0,1,2,3",
+        "UMask": "0x20",
+        "EventName": "TOPDOWN_FE_BOUND.ICACHE",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not delivered by the frontend due to an icache miss"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x21",
+        "EventName": "MEM_UOPS_RETIRED.LOCK_LOADS",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts all the retired locked loads."
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x41",
+        "EventName": "MEM_UOPS_RETIRED.SPLIT_LOADS",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts all the retired split loads."
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x42",
+        "EventName": "MEM_UOPS_RETIRED.SPLIT_STORES",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts all the retired split stores."
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x43",
+        "EventName": "MEM_UOPS_RETIRED.SPLIT",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts all retired splits."
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x81",
+        "EventName": "MEM_UOPS_RETIRED.ALL_LOADS",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of load ops retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x82",
+        "EventName": "MEM_UOPS_RETIRED.ALL_STORES",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of store ops retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x83",
+        "EventName": "MEM_UOPS_RETIRED.ALL",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of memory uops retired.  A single uop that performs both a load AND a store will be counted as 1, not 2 (e.g. ADD [mem], CONST)"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD1",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "MEM_LOAD_UOPS_RETIRED.L1_HIT",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of retired load uops.Counts the number of load ops retired that hit the L1 data cache"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD1",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "MEM_LOAD_UOPS_RETIRED.L2_HIT",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of load ops retired that hit in the L2 cache"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD1",
+        "Counter": "0,1,2,3",
+        "UMask": "0x8",
+        "EventName": "MEM_LOAD_UOPS_RETIRED.L1_MISS",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of load ops retired that miss in the L1 data cache"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD1",
+        "Counter": "0,1,2,3",
+        "UMask": "0x10",
+        "EventName": "MEM_LOAD_UOPS_RETIRED.L2_MISS",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of load ops retired that miss in the L2 cache"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD1",
+        "Counter": "0,1,2,3",
+        "UMask": "0x20",
+        "EventName": "MEM_LOAD_UOPS_RETIRED.HITM",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the loads retired that get the data from the other core or from the other module"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD1",
+        "Counter": "0,1,2,3",
+        "UMask": "0x40",
+        "EventName": "MEM_LOAD_UOPS_RETIRED.WCB_HIT",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of loads that hit in a write combining buffer (WCB), excluding the first load that caused the WCB to allocate."
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD1",
+        "Counter": "0,1,2,3",
+        "UMask": "0x80",
+        "EventName": "MEM_LOAD_UOPS_RETIRED.DRAM_HIT",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of load ops retired that hit in DRAM"
+    }
+]

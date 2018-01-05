@@ -1,0 +1,52 @@
+[
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x80",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "ICACHE.HIT",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts instruction cache activity in 64B line granularity - does not count access to same line .Counts every time the code stream enters into a new cache line by walking sequential from the previous line or being redirected by a jump and the instruction cache registers bytes are present."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x80",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "ICACHE.MISSES",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts every time the code stream enters into a new cache line by walking sequential from the previous line or being redirected by a jump and the instruction cache registers bytes are not present. -"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x80",
+        "Counter": "0,1,2,3",
+        "UMask": "0x3",
+        "EventName": "ICACHE.ACCESSES",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts every time the code stream enters into a new cache line by walking sequential from the previous line or being redirected by a jump."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xE7",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "MS_DECODED.MS_ENTRY",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of times entered into a ucode flow in the FEC.  Includes inserted flows due to front-end detected faults or assists."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xE9",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "DECODE_RESTRICTION.PREDECODE_WRONG",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts major decode penalties..Counts the number of times a decode restriction reduces the decode throughput due to wrong instruction length prediction."
+    }
+]

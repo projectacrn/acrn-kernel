@@ -1,0 +1,292 @@
+[
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x0E",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "UOPS_ISSUED.ANY",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of uops issued by the front end (max 4) every cycle.When 4-uops are requested and only 2-uops are delivered, the event counts 2.  Uops_issued correlates to the number of ROB entries.  If uop takes 2 ROB slots it counts as 2 uops_issued."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x3C",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "CPU_CLK_UNHALTED.CORE_P",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Counts the number of unhalted clock cycles.Counts the number of unhalted core clock cycles"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x3C",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "CPU_CLK_UNHALTED.REF",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Counts the number of unhalted reference clock cycles (bus clock)"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "INST_RETIRED.ANY_P",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Counts the number of instructions retired.Counts the number of instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC2",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "UOPS_RETIRED.MS",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Counts the number of uops that are from the complex flows issued by the micro-sequencer (MS).  This includes uops from flows due to complex instructions, faults, assists, and inserted flows."
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC2",
+        "Counter": "0,1,2,3",
+        "UMask": "0x8",
+        "EventName": "UOPS_RETIRED.FPDIV",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Counts the number of floating point divide uops retired (x87 and sse, including x87 sqrt)"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC2",
+        "Counter": "0,1,2,3",
+        "UMask": "0x10",
+        "EventName": "UOPS_RETIRED.IDIV",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Counts the number of integer divide uops retired"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xC3",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "MACHINE_CLEARS.SMC",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "20003",
+        "BriefDescription": "Counts the number of times that the machine clears due typically to program modifying data (self modifying code) within 1K of a recently fetched code page"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xC3",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "MACHINE_CLEARS.FP_ASSIST",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "20003",
+        "BriefDescription": "Counts the number of floating point assists which is not a reflection of the number of fp operations, instructions or uops. \nCounts the number of floating point operations retired that required microcode assist intervention. These assists are required in"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xC3",
+        "Counter": "0,1,2,3",
+        "UMask": "0x20",
+        "EventName": "MACHINE_CLEARS.PAGE_FAULT",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "20003",
+        "BriefDescription": "Counts the number of times that the machine clears due to a page fault.  Covers both I-Side and D-Side (Loads/Stores) page faults.  A page fault occurs when either the page is not present, or an access violation."
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC4",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "BR_INST_RETIRED.ALL_BRANCHES",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of instructions in which the Instruction Pointer (IP) of the processor is resteered due to a branch instruction and the branch instruction successfully retires.  All branch type instructions are accounted for.  .Counts the number of branch instructions retired for all branch types"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC4",
+        "Counter": "0,1,2,3",
+        "UMask": "0x7e",
+        "EventName": "BR_INST_RETIRED.JCC",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts retired JCC (Jump on Conditional Code) branch instructions retired includes both taken and not taken branches"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC4",
+        "Counter": "0,1,2,3",
+        "UMask": "0xbf",
+        "EventName": "BR_INST_RETIRED.FAR_BRANCH",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of far branch instructions retired, includes far jump, far call and return, and Interrupt call and return"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC4",
+        "Counter": "0,1,2,3",
+        "UMask": "0xeb",
+        "EventName": "BR_INST_RETIRED.NON_RETURN_IND",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of near indirect JMP and near indirect CALL branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC4",
+        "Counter": "0,1,2,3",
+        "UMask": "0xf7",
+        "EventName": "BR_INST_RETIRED.RETURN",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of near RET branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC4",
+        "Counter": "0,1,2,3",
+        "UMask": "0xf9",
+        "EventName": "BR_INST_RETIRED.CALL",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of near CALL branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC4",
+        "Counter": "0,1,2,3",
+        "UMask": "0xfb",
+        "EventName": "BR_INST_RETIRED.IND_CALL",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of near indirect CALL branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC4",
+        "Counter": "0,1,2,3",
+        "UMask": "0xfd",
+        "EventName": "BR_INST_RETIRED.REL_CALL",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of near relative CALL branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC4",
+        "Counter": "0,1,2,3",
+        "UMask": "0xfe",
+        "EventName": "BR_INST_RETIRED.TAKEN_JCC",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of taken JCC branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC5",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "BR_MISP_RETIRED.ALL_BRANCHES",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of mispredicted branch instructions retired.  All branch type instructions are accounted for.  Prediction of the branch target address enables the processor to begin executing instructions before the non-speculative execution path is kno.Counts the number of mispredicted branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC5",
+        "Counter": "0,1,2,3",
+        "UMask": "0x7e",
+        "EventName": "BR_MISP_RETIRED.JCC",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of mispredicted JCC branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC5",
+        "Counter": "0,1,2,3",
+        "UMask": "0xeb",
+        "EventName": "BR_MISP_RETIRED.NON_RETURN_IND",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of mispredicted near indirect JMP and near indirect CALL branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC5",
+        "Counter": "0,1,2,3",
+        "UMask": "0xf7",
+        "EventName": "BR_MISP_RETIRED.RETURN",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of mispredicted near RET branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC5",
+        "Counter": "0,1,2,3",
+        "UMask": "0xfb",
+        "EventName": "BR_MISP_RETIRED.IND_CALL",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of mispredicted near indirect CALL branch instructions retired"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC5",
+        "Counter": "0,1,2,3",
+        "UMask": "0xfe",
+        "EventName": "BR_MISP_RETIRED.TAKEN_JCC",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of mispredicted taken JCC branch instructions retired"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xCD",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "CYCLES_DIV_BUSY.IDIV",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Cycles the integer divider is busy.  Does not imply a stall waiting for the divider."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xCD",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "CYCLES_DIV_BUSY.FPDIV",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Cycles the floating point divider is busy.  Does not imply a stall waiting for the divider."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xE6",
+        "Counter": "0,1,2,3",
+        "UMask": "0x8",
+        "EventName": "BACLEARS.RETURN",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of RETURN baclears"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xE6",
+        "Counter": "0,1,2,3",
+        "UMask": "0x10",
+        "EventName": "BACLEARS.COND",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of JCC baclears"
+    }
+]
