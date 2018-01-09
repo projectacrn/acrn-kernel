@@ -592,10 +592,12 @@ struct rt_rq {
 	} highest_prio;
 #endif
 #ifdef CONFIG_SMP
-	unsigned long		rt_nr_migratory;
-	unsigned long		rt_nr_total;
-	int			overloaded;
-	struct plist_head	pushable_tasks;
+	unsigned long rt_nr_migratory;
+	unsigned long rt_nr_total;
+	int overloaded;
+	struct plist_head pushable_tasks;
+
+	struct sched_avg avg;
 #endif /* CONFIG_SMP */
 	int			rt_queued;
 

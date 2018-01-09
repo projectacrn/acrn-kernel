@@ -7773,6 +7773,7 @@ static void update_blocked_averages(int cpu)
 	if (done)
 		rq->has_blocked_load = 0;
 #endif
+	update_rt_rq_load_avg(rq_clock_task(rq), cpu, &rq->rt, 0);
 	rq_unlock_irqrestore(rq, &rf);
 }
 
@@ -7837,6 +7838,7 @@ static inline void update_blocked_averages(int cpu)
 	if (!cfs_rq_has_blocked(cfs_rq))
 		rq->has_blocked_load = 0;
 #endif
+	update_rt_rq_load_avg(rq_clock_task(rq), cpu, &rq->rt, 0);
 	rq_unlock_irqrestore(rq, &rf);
 }
 
