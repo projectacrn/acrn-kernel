@@ -147,6 +147,13 @@
 #define MEI_DEV_ID_ICP_N      0x38E0  /* Ice Lake Point N */
 #define MEI_DEV_ID_ICP_H      0x3DE0  /* Ice Lake Point H */
 
+#define MEI_DEV_ID_TGP_LP     0xA0E0  /* Tiger Lake LP */
+#define MEI_DEV_ID_TGP_LP_4   0xA0E5  /* Tiger Lake LP 4 */
+#define MEI_DEV_ID_TGP_K      0x42E0  /* Tiger Lake K */
+#define MEI_DEV_ID_TGP_K_4    0x42E5  /* Tiger Lake K 4 */
+#define MEI_DEV_ID_TGP_H      0x43E0  /* Tiger Lake H */
+#define MEI_DEV_ID_TGP_H_4    0x43E5  /* Tiger Lake H 4 */
+
 /*
  * MEI HW Section
  */
