@@ -86,6 +86,10 @@ struct cpuidle_state;
 #define TASK_ON_RQ_QUEUED	1
 #define TASK_ON_RQ_MIGRATING	2
 
+#define UTIL_EST_NEED_UPDATE_FLAG 0x1
+
+#define UTIL_AVG_UNCHANGED 0x1
+
 extern __read_mostly int scheduler_running;
 
 extern unsigned long calc_load_update;
@@ -666,7 +670,34 @@ struct dl_rq {
 	u64			bw_ratio;
 };
 
+#ifdef CONFIG_FAIR_GROUP_SCHED
+/* An entity is a task if it doesn't "own" a runqueue */
+#define entity_is_task(se)	(!se->my_q)
+#else
+#define entity_is_task(se)	1
+#endif
+
+static inline struct task_struct *task_of(struct sched_entity *se)
+{
+#ifdef CONFIG_FAIR_GROUP_SCHED
+    SCHED_WARN_ON(!entity_is_task(se));
+#endif
+    return container_of(se, struct task_struct, se);
+}
+
 #ifdef CONFIG_SMP
+/*
+ * XXX we want to get rid of these helpers and use the full load resolution.
+ */
+static inline long se_weight(struct sched_entity *se)
+{
+	return scale_load_down(se->load.weight);
+}
+
+static inline long se_runnable(struct sched_entity *se)
+{
+	return scale_load_down(se->runnable_weight);
+}
 
 static inline bool sched_asym_prefer(int a, int b)
 {
