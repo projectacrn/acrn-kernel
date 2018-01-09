@@ -1367,8 +1367,8 @@ enum i915_power_well_id {
 	GLK_DPIO_CMN_C,			/* 18 */
 
 	/*
-	 * GEN11+
-	 *  - HSW_PWR_WELL_CTL_DRIVER(0)
+	 * GEN11
+	 *  - _HSW_PWR_WELL_CTL1-4
 	 *    (status bit: (id&15)*2, req bit:(id&15)*2+1)
 	 */
 	ICL_DISP_PW_1 = 0,
@@ -1377,7 +1377,8 @@ enum i915_power_well_id {
 	ICL_DISP_PW_4,
 
 	/*
-	 *  - HSW_PWR_WELL_CTL_DRIVER(1)
+	 * GEN11
+	 *  - _HSW_PWR_WELL_CTL_AUX1/2/4
 	 *    (status bit: (id&15)*2, req bit:(id&15)*2+1)
 	 */
 	ICL_DISP_PW_AUX_A = 16,
@@ -1393,7 +1394,30 @@ enum i915_power_well_id {
 	ICL_DISP_PW_AUX_TBT4,
 
 	/*
-	 *  - HSW_PWR_WELL_CTL_DRIVER(2)
+	 * GEN11.5+
+	 *  - _HSW_PWR_WELL_CTL_AUX1/2/4
+	 *    (status bit: (id&15)*2, req bit:(id&15)*2+1)
+	 */
+	ICL_11_5_DISP_PW_AUX_A = 16,
+	ICL_11_5_DISP_PW_AUX_B,
+	ICL_11_5_DISP_PW_AUX_C,
+	ICL_11_5_DISP_PW_AUX_TC1,
+	ICL_11_5_DISP_PW_AUX_TC2,
+	ICL_11_5_DISP_PW_AUX_TC3,
+	ICL_11_5_DISP_PW_AUX_TC4,
+	ICL_11_5_DISP_PW_AUX_TC5,
+	ICL_11_5_DISP_PW_AUX_TC6,
+
+	ICL_11_5_DISP_PW_AUX_TBT1,		/* 25 */
+	ICL_11_5_DISP_PW_AUX_TBT2,
+	ICL_11_5_DISP_PW_AUX_TBT3,
+	ICL_11_5_DISP_PW_AUX_TBT4,
+	ICL_11_5_DISP_PW_AUX_TBT5,
+	ICL_11_5_DISP_PW_AUX_TBT6,
+
+	/*
+	 * GEN11
+	 *  - _HSW_PWR_WELL_CTL_DDI1/2/4
 	 *    (status bit: (id&15)*2, req bit:(id&15)*2+1)
 	 */
 	ICL_DISP_PW_DDI_A = 32,
@@ -1404,11 +1428,26 @@ enum i915_power_well_id {
 	ICL_DISP_PW_DDI_F,                      /* 37 */
 
 	/*
+	 * GEN11.5+
+	 *  - _HSW_PWR_WELL_CTL_DDI1/2/4
+	 *    (status bit: (id&15)*2, req bit:(id&15)*2+1)
+	 */
+	ICL_11_5_DISP_PW_DDI_A = 32,
+	ICL_11_5_DISP_PW_DDI_B,
+	ICL_11_5_DISP_PW_DDI_C,
+	ICL_11_5_DISP_PW_DDI_TC1,
+	ICL_11_5_DISP_PW_DDI_TC2,
+	ICL_11_5_DISP_PW_DDI_TC3,
+	ICL_11_5_DISP_PW_DDI_TC4,
+	ICL_11_5_DISP_PW_DDI_TC5,
+	ICL_11_5_DISP_PW_DDI_TC6,		/* 40 */
+
+	/*
 	 * Multiple platforms.
 	 * Must start following the highest ID of any platform.
 	 * - custom power wells
 	 */
-	SKL_DISP_PW_DC_OFF = 38,
+	SKL_DISP_PW_DC_OFF = 41,
 	I915_DISP_PW_ALWAYS_ON,
 };
 
@@ -2024,10 +2063,12 @@ enum i915_power_well_id {
 
 #define _ICL_PORT_CL_DW12_A		0x162030
 #define _ICL_PORT_CL_DW12_B		0x6C030
+#define _ICL_11_5_PORT_CL_DW12_C	0x160030
 #define   ICL_LANE_ENABLE_AUX		(1 << 0)
 #define ICL_PORT_CL_DW12(port)		_MMIO(_PICK((port),		 \
 						    _ICL_PORT_CL_DW12_A, \
-						    _ICL_PORT_CL_DW12_B))
+						    _ICL_PORT_CL_DW12_B, \
+						    _ICL_11_5_PORT_CL_DW12_C))
 
 #define _PORT_CL1CM_DW28_A		0x162070
 #define _PORT_CL1CM_DW28_BC		0x6C070
