@@ -3201,7 +3201,7 @@ int intel_power_domains_init(struct drm_i915_private *dev_priv)
 	 */
 	if (IS_ICELAKE(dev_priv)) {
 		set_power_wells(power_domains, icl_power_wells);
-	} else if (IS_ICL_11_5(dev_priv)) {
+	} else if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		set_power_wells(power_domains, icl_11_5_power_wells);
 	} else if (IS_HASWELL(dev_priv)) {
 		set_power_wells(power_domains, hsw_power_wells);
@@ -3891,7 +3891,7 @@ void intel_power_domains_init_hw(struct drm_i915_private *dev_priv, bool resume)
 
 	power_domains->initializing = true;
 
-	if (IS_ICELAKE(dev_priv)) {
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		icl_display_core_init(dev_priv, resume);
 	} else if (IS_CANNONLAKE(dev_priv)) {
 		cnl_display_core_init(dev_priv, resume);
