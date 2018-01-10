@@ -31,6 +31,7 @@ enum pipe {
 	PIPE_A = 0,
 	PIPE_B,
 	PIPE_C,
+	PIPE_D,
 	_PIPE_EDP,
 
 	I915_MAX_PIPES = _PIPE_EDP
