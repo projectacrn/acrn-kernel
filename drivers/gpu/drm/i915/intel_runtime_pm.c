@@ -69,18 +69,24 @@ intel_display_power_domain_str(struct drm_i915_private *dev_priv,
 		return "PIPE_B";
 	case POWER_DOMAIN_PIPE_C:
 		return "PIPE_C";
+	case POWER_DOMAIN_PIPE_D:
+		return "PIPE_D";
 	case POWER_DOMAIN_PIPE_A_PANEL_FITTER:
 		return "PIPE_A_PANEL_FITTER";
 	case POWER_DOMAIN_PIPE_B_PANEL_FITTER:
 		return "PIPE_B_PANEL_FITTER";
 	case POWER_DOMAIN_PIPE_C_PANEL_FITTER:
 		return "PIPE_C_PANEL_FITTER";
+	case POWER_DOMAIN_PIPE_D_PANEL_FITTER:
+		return "PIPE_D_PANEL_FITTER";
 	case POWER_DOMAIN_TRANSCODER_A:
 		return "TRANSCODER_A";
 	case POWER_DOMAIN_TRANSCODER_B:
 		return "TRANSCODER_B";
 	case POWER_DOMAIN_TRANSCODER_C:
 		return "TRANSCODER_C";
+	case POWER_DOMAIN_TRANSCODER_D:
+		return "TRANSCODER_D";
 	case POWER_DOMAIN_TRANSCODER_EDP:
 		return "TRANSCODER_EDP";
 	case POWER_DOMAIN_TRANSCODER_DSI_A:
@@ -2005,11 +2011,17 @@ void intel_display_power_put(struct drm_i915_private *dev_priv,
  *   GEN 11.5: DDI_A-C
  * - FBC
  */
-/* TODO: ICL_11_5_PW_5_POWER_DOMAINS: PIPE_D */
+#define ICL_11_5_PW_5_POWER_DOMAINS (			\
+	BIT_ULL(POWER_DOMAIN_PIPE_D) |			\
+	BIT_ULL(POWER_DOMAIN_PIPE_D_PANEL_FITTER) |     \
+	BIT_ULL(POWER_DOMAIN_INIT))
 #define ICL_PW_4_POWER_DOMAINS (			\
 	BIT_ULL(POWER_DOMAIN_PIPE_C) |			\
 	BIT_ULL(POWER_DOMAIN_PIPE_C_PANEL_FITTER) |	\
 	BIT_ULL(POWER_DOMAIN_INIT))
+#define ICL_11_5_PW_4_POWER_DOMAINS (			\
+	ICL_11_5_PW_5_POWER_DOMAINS |			\
+	ICL_PW_4_POWER_DOMAINS)
 	/* VDSC/joining */
 #define ICL_PW_3_POWER_DOMAINS (			\
 	ICL_PW_4_POWER_DOMAINS |			\
@@ -2041,11 +2053,11 @@ void intel_display_power_put(struct drm_i915_private *dev_priv,
 	BIT_ULL(POWER_DOMAIN_AUDIO) |			\
 	BIT_ULL(POWER_DOMAIN_INIT))
 #define ICL_11_5_PW_3_POWER_DOMAINS (			\
-	ICL_PW_4_POWER_DOMAINS |			\
+	ICL_11_5_PW_4_POWER_DOMAINS |			\
 	BIT_ULL(POWER_DOMAIN_PIPE_B) |			\
 	BIT_ULL(POWER_DOMAIN_TRANSCODER_B) |		\
 	BIT_ULL(POWER_DOMAIN_TRANSCODER_C) |		\
-	/* TODO: TRANSCODER_D */			\
+	BIT_ULL(POWER_DOMAIN_TRANSCODER_D) |		\
 	BIT_ULL(POWER_DOMAIN_PIPE_B_PANEL_FITTER) |	\
 	BIT_ULL(POWER_DOMAIN_PORT_DDI_TC1_LANES) |	\
 	BIT_ULL(POWER_DOMAIN_PORT_DDI_TC1_IO) |		\
@@ -3065,13 +3077,20 @@ static struct i915_power_well icl_11_5_power_wells[] = {
 	},
 	{
 		.name = "power well 4",
-		.domains = ICL_PW_4_POWER_DOMAINS,
+		.domains = ICL_11_5_PW_4_POWER_DOMAINS,
 		.ops = &hsw_power_well_ops,
 		.id = ICL_DISP_PW_4,
 		.hsw.has_fuses = true,
 		.hsw.irq_pipe_mask = BIT(PIPE_C),
 	},
-	/* TODO: power well 5 for pipe D */
+	{
+		.name = "power well 5",
+		.domains = ICL_11_5_PW_5_POWER_DOMAINS,
+		.ops = &hsw_power_well_ops,
+		.id = ICL_DISP_PW_5,
+		.hsw.has_fuses = true,
+		.hsw.irq_pipe_mask = BIT(PIPE_D),
+	},
 };
 
 static int
