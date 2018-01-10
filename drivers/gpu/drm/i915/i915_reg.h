@@ -1127,6 +1127,7 @@ enum i915_power_well_id {
 	ICL_DISP_PW_2,
 	ICL_DISP_PW_3,
 	ICL_DISP_PW_4,
+	ICL_DISP_PW_5,
 
 	/*
 	 * GEN11
