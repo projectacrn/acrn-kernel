@@ -5671,6 +5671,7 @@ enum {
 #define PIPE_A_OFFSET		0x70000
 #define PIPE_B_OFFSET		0x71000
 #define PIPE_C_OFFSET		0x72000
+#define PIPE_D_OFFSET           0x73000
 #define CHV_PIPE_C_OFFSET	0x74000
 /*
  * There's actually no pipe EDP. Some pipe registers have
