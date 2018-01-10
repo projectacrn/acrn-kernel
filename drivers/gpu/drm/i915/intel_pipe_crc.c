@@ -182,6 +182,10 @@ static struct pipe_crc_info i915_pipe_crc_data[I915_MAX_PIPES] = {
 		.name = "i915_pipe_C_crc",
 		.pipe = PIPE_C,
 	},
+	{
+		.name = "i915_pipe_D_crc",
+		.pipe = PIPE_D,
+	},
 };
 
 static const char * const pipe_crc_sources[] = {
