@@ -42,6 +42,7 @@ enum transcoder {
 	TRANSCODER_A = 0,
 	TRANSCODER_B,
 	TRANSCODER_C,
+	TRANSCODER_D,
 	TRANSCODER_EDP,
 	TRANSCODER_DSI_0,
 	TRANSCODER_DSI_1,
@@ -60,6 +61,8 @@ static inline const char *transcoder_name(enum transcoder transcoder)
 		return "B";
 	case TRANSCODER_C:
 		return "C";
+	case TRANSCODER_D:
+		return "D";
 	case TRANSCODER_EDP:
 		return "EDP";
 	case TRANSCODER_DSI_A:
