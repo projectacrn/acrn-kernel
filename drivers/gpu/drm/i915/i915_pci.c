@@ -613,6 +613,7 @@ static const struct intel_device_info intel_icelake_11_info = {
 static const struct intel_device_info intel_icelake_11_5_info = {
 	GEN11_FEATURES,
 	PLATFORM(INTEL_ICELAKE),
+	.num_pipes = 4,
 	.is_alpha_support = 1,
 	.has_global_mocs = 1,
 	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | VEBOX2_RING |
