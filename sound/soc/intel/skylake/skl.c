@@ -519,7 +519,6 @@ static int skl_machine_device_register(struct skl *skl, void *driver_data)
 	    IS_ENABLED(CONFIG_SND_SOC_INTEL_CNL_FPGA))
 		goto out;
 
-	mach = sst_acpi_find_machine(mach);
 	if (mach == NULL) {
 		dev_err(bus->dev, "No matching machine driver found\n");
 		return -ENODEV;
@@ -1110,7 +1109,7 @@ static struct snd_soc_acpi_mach sst_glk_devdata[] = {
 	{}
 };
 
-static const struct sst_acpi_mach sst_cnl_devdata[] = {
+static const struct snd_soc_acpi_mach sst_cnl_devdata[] = {
 #if !IS_ENABLED(CONFIG_SND_SOC_RT700)
 	{
 		.id = "INT34C2",
@@ -1126,7 +1125,7 @@ static const struct sst_acpi_mach sst_cnl_devdata[] = {
 #endif
 };
 
-static struct sst_acpi_mach sst_icl_devdata[] = {
+static struct snd_soc_acpi_mach sst_icl_devdata[] = {
 #if IS_ENABLED(CONFIG_SND_SOC_RT700)
 	{ "dummy", "icl_rt700", "intel/dsp_fw_icl.bin", NULL, NULL, NULL },
 #elif IS_ENABLED(CONFIG_SND_SOC_WM5110)
