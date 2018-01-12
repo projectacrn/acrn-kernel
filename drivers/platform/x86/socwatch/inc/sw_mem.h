@@ -5,7 +5,7 @@
 
   GPL LICENSE SUMMARY
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of version 2 of the GNU General Public License as
@@ -24,7 +24,7 @@
 
   BSD LICENSE
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -69,8 +69,7 @@ void sw_kfree(const void *obj);
 /*
  * Allocate free pages.
  */
-unsigned long sw_allocate_pages(unsigned int flags,
-				unsigned int alloc_size_in_bytes);
+unsigned long sw_allocate_pages(unsigned int flags, unsigned int alloc_size_in_bytes);
 /*
  * Free up previously allocated pages.
  */

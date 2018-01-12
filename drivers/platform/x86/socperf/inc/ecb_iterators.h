@@ -24,7 +24,7 @@
 
   BSD LICENSE
 
-  Copyright(c) 2005-2014 Intel Corporation. All rights reserved.
+  Copyright(c) 2005-2016 Intel Corporation. All rights reserved.
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
@@ -105,7 +105,7 @@ extern "C" {
     ECB        (pecb)    = LWPMU_DEVICE_PMU_register_data(device_uncore)[(cur_grp)];  \
     if ((pecb)) {                                                                              \
         for ((idx) = 0; (idx) < ECB_num_entries(pecb); (idx)++) {                              \
-            if (ECB_entries_reg_id((pecb),(idx)) == 0) {                                       \
+            if (ECB_entries_bus_no((pecb),(idx)) == 0 && ECB_entries_reg_id((pecb),(idx)) == 0) {    \
                 continue;                                                                      \
             }
 

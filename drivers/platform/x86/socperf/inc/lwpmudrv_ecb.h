@@ -254,7 +254,8 @@ typedef enum {
 
 typedef enum {
     STATIC_COUNTER = 1,
-    FREERUN_COUNTER
+    FREERUN_COUNTER,
+    PROG_FREERUN_COUNTER
 } COUNTER_TYPES;
 
 typedef enum {
@@ -285,6 +286,11 @@ typedef enum {
     DEVICE_UNC_EDC,
     DEVICE_UNC_IIO,
     DEVICE_UNC_M2M,
+    DEVICE_UNC_EDRAM,
+    DEVICE_UNC_FPGA_CACHE,
+    DEVICE_UNC_FPGA_FAB,
+    DEVICE_UNC_FPGA_THERMAL,
+    DEVICE_UNC_FPGA_POWER,
     DEVICE_UNC_KNC_SBOX  = 100,       // KNC UNCORE DEVICES START
     DEVICE_UNC_KNC_GBOX_FBOX,
     DEVICE_UNC_KNC_GBOX_MBOX,
@@ -439,6 +445,7 @@ struct EVENT_REG_NODE_S {
 #define EVENT_REG_pci_id_offset(x,i)               (x)[(i)].event_reg_id.pci_id.offset
 #define EVENT_REG_pci_id_size(x,i)                 (x)[(i)].event_reg_id.pci_id.data_size
 #define EVENT_REG_desc_id(x,i)                     (x)[(i)].desc_id
+#define EVENT_REG_flags(x,i)                       (x)[(i)].flags
 #define EVENT_REG_reg_value(x,i)                   (x)[(i)].reg_value
 #define EVENT_REG_max_bits(x,i)                    (x)[(i)].max_bits
 #define EVENT_REG_scheduled(x,i)                   (x)[(i)].scheduled
@@ -561,7 +568,9 @@ struct DRV_PCI_DEVICE_ENTRY_NODE_S {
     U64        virtual_address;
     U32        port_id;
     U32        op_code;
-    U64        reserved1;
+    U32        device_id;
+    U16        bar_num;
+    U16        feature_id;
     U64        reserved2;
     U64        reserved3;
     U64        reserved4;
@@ -590,6 +599,9 @@ struct DRV_PCI_DEVICE_ENTRY_NODE_S {
 #define DRV_PCI_DEVICE_ENTRY_virtual_address(x)       (x)->virtual_address
 #define DRV_PCI_DEVICE_ENTRY_port_id(x)               (x)->port_id
 #define DRV_PCI_DEVICE_ENTRY_op_code(x)               (x)->op_code
+#define DRV_PCI_DEVICE_ENTRY_device_id(x)             (x)->device_id
+#define DRV_PCI_DEVICE_ENTRY_bar_num(x)               (x)->bar_num
+#define DRV_PCI_DEVICE_ENTRY_feature_id(x)            (x)->feature_id
 
 // ***************************************************************************
 typedef enum {
@@ -761,8 +773,13 @@ struct ECB_NODE_S {
 #define ECB_entries_emon_event_id_index_local(x,i)   EVENT_REG_emon_event_id_index_local((ECB_entries(x)),(i))
 #define ECB_entries_counter_event_offset(x,i)        EVENT_REG_counter_event_offset((ECB_entries(x)),(i))
 #define ECB_entries_reg_id(x,i)                      EVENT_REG_reg_id((ECB_entries(x)),(i))
+#define ECB_entries_reg_prog_type(x,i)               EVENT_REG_reg_prog_type((ECB_entries(x)),(i))
 #define ECB_entries_pci_id(x,i)                      EVENT_REG_pci_id((ECB_entries(x)),(i))
 #define ECB_entries_pci_id_offset(x,i)               EVENT_REG_pci_id_offset((ECB_entries(x)),(i))
+#define ECB_entries_pci_id_data_size(x,i)            EVENT_REG_pci_id_size((ECB_entries(x)),(i))
+#define ECB_entries_desc_id(x,i)                     EVENT_REG_desc_id((ECB_entries(x)),i)
+#define ECB_entries_flags(x,i)                       EVENT_REG_flags((ECB_entries(x)),i)
+#define ECB_entries_reg_order(x,i)                   EVENT_REG_reg_order((ECB_entries(x)),i)
 #define ECB_entries_reg_value(x,i)                   EVENT_REG_reg_value((ECB_entries(x)),(i))
 #define ECB_entries_max_bits(x,i)                    EVENT_REG_max_bits((ECB_entries(x)),(i))
 #define ECB_entries_scheduled(x,i)                   EVENT_REG_scheduled((ECB_entries(x)),(i))

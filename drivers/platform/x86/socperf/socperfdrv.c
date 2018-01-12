@@ -24,7 +24,7 @@
 
   BSD LICENSE
 
-  Copyright(c) 2005-2014 Intel Corporation. All rights reserved.
+  Copyright(c) 2005-2016 Intel Corporation. All rights reserved.
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or without
@@ -90,7 +90,7 @@
 #include "inc/utility.h"
 
 
-MODULE_AUTHOR("Copyright(c) 2007-2014 Intel Corporation");
+MODULE_AUTHOR("Copyright(c) 2007-2016 Intel Corporation");
 MODULE_VERSION(SOCPERF_NAME"_"SOCPERF_VERSION_STR);
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -596,17 +596,12 @@ socperf_Configure_Events_Uncore (
         in_ecb = SOCPERF_Free_Memory(in_ecb);
         return OS_NO_MEM;
     }
-    if (!in_ecb) {
+    group_id                        = ECB_group_id(in_ecb);
+    PMU_register_data_unc[group_id] = in_ecb;
+    if (!PMU_register_data_unc[group_id]) {
         SOCPERF_PRINT_ERROR("ECB memory allocation failed\n");
         return OS_NO_MEM;
     }
-    group_id                        = ECB_group_id(in_ecb);
-    if (unlikely(group_id > U32_MAX)) {
-        SOCPERF_PRINT_ERROR("group ID of ECB is over limit\n");
-        in_ecb = SOCPERF_Free_Memory(in_ecb);
-        return OS_INVALID;
-    }
-    PMU_register_data_unc[group_id] = in_ecb;
 
     //
     // Make a copy of the data for global use.

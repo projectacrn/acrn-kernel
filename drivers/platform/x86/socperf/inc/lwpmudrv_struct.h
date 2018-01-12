@@ -42,17 +42,20 @@ extern "C" {
 #define DEV_UNC         0x02
 
 // eflags defines
-#define EFLAGS_VM       0x00020000  // V86 mode
-#define EFLAGS_IOPL0    0
-#define EFLAGS_IOPL1    0x00001000
-#define EFLAGS_IOPL2    0x00002000
-#define EFLAGS_IOPL3    0x00003000
-#define MAX_EMON_GROUPS 1000
-#define MAX_PCI_BUSNO   256
-#define MAX_DEVICES     30
-#define MAX_EMON_GROUPS 1000
-#define MAX_PCI_DEVNO   32
-#define MAX_PCI_FUNCNO  8
+#define EFLAGS_VM             0x00020000  // V86 mode
+#define EFLAGS_IOPL0          0
+#define EFLAGS_IOPL1          0x00001000
+#define EFLAGS_IOPL2          0x00002000
+#define EFLAGS_IOPL3          0x00003000
+#define MAX_EMON_GROUPS       1000
+#define MAX_PCI_BUSNO         256
+#define MAX_DEVICES           30
+#define MAX_REGS              64
+#define MAX_EMON_GROUPS       1000
+#define MAX_PCI_DEVNO         32
+#define MAX_PCI_FUNCNO        8
+#define MAX_TURBO_VALUES      32
+#define REG_BIT_MASK          0xFFFFFFFFFFFFFFFFULL
 
 extern float freq_multiplier;
 
@@ -412,7 +415,8 @@ typedef struct SampleRecordPC_s {   // Program Counter section
 typedef struct UncoreSampleRecordPC_s {
     U32   descriptor_id;
     U32   osid;
-    U32   cpuNum;
+    U16   cpuNum;
+    U16   pkgNum;
     union {
         U32 flags;
         struct {
@@ -420,13 +424,14 @@ typedef struct UncoreSampleRecordPC_s {
             U32 reserved1       : 31;
         } s1;
     } u1;
-    U64 tsc;                          // processor timestamp counter
     U64 reserved2;
+    U64 tsc;                          // processor timestamp counter
 } UncoreSampleRecordPC, *PUnocreSampleRecordPC;
 
 #define UNCORE_SAMPLE_RECORD_descriptor_id(x)       (x)->descriptor_id
 #define UNCORE_SAMPLE_RECORD_osid(x)                (x)->osid
 #define UNCORE_SAMPLE_RECORD_cpu_num(x)             (x)->cpuNum
+#define UNCORE_SAMPLE_RECORD_pkg_num(x)             (x)->pkgNum
 #define UNCORE_SAMPLE_RECORD_uncore_valid(x)        (x)->u1.s1.uncore_valid
 #define UNCORE_SAMPLE_RECORD_tsc(x)                 (x)->tsc
 
@@ -817,6 +822,16 @@ struct DRV_TOPOLOGY_INFO_NODE_S {
 #define DRV_TOPOLOGY_INFO_cpu_module_master(dti)   (dti)->cpu_module_master
 #define DRV_TOPOLOGY_INFO_cpu_num_modules(dti)     (dti)->cpu_num_modules
 
+#define DIMM_MEM_TYPE_OFFSET             1
+#define DIMM_CHANNEL_OFFSET              3
+#define DIMM_SIZE_OFFSET                 8
+#define DIMM_VOLATILE_MEM_TYPE           0
+#define DIMM_NONVOLATILE_MEM_TYPE        1
+#define DIMM_COMBO_MEM_TYPE              2
+#define DIMM_VOLATILE_MEM_VALID_VALUE    1
+#define DIMM_NONVOLATILE_MEM_VALID_VALUE 3
+#define DIMM_COMBO_MEM_VALID_VALUE       5
+
 // dimm information
 typedef struct DRV_DIMM_INFO_NODE_S DRV_DIMM_INFO_NODE;
 typedef        DRV_DIMM_INFO_NODE  *DRV_DIMM_INFO;
@@ -826,14 +841,27 @@ struct DRV_DIMM_INFO_NODE_S {
   U32 channel_num;
   U32 rank_num;
   U32 value;
-  U64 reserved1;
-  U64 reserved2;
+  U8  mc_num;
+  U8  dimm_valid;
+  U8  valid_value;
+  U8  rank_value;
+  U8  density_value;
+  U8  width_value;
+  U16 socket_num;
+  U64 reserved;
 };
 
-#define DRV_DIMM_INFO_platform_id(di) (di)->platform_id
-#define DRV_DIMM_INFO_channel_num(di) (di)->channel_num
-#define DRV_DIMM_INFO_rank_num(di)    (di)->rank_num
-#define DRV_DIMM_INFO_value(di)       (di)->value
+#define DRV_DIMM_INFO_platform_id(di)   (di)->platform_id
+#define DRV_DIMM_INFO_channel_num(di)   (di)->channel_num
+#define DRV_DIMM_INFO_rank_num(di)      (di)->rank_num
+#define DRV_DIMM_INFO_value(di)         (di)->value
+#define DRV_DIMM_INFO_mc_num(di)        (di)->mc_num
+#define DRV_DIMM_INFO_dimm_valid(di)    (di)->dimm_valid
+#define DRV_DIMM_INFO_valid_value(di)   (di)->valid_value
+#define DRV_DIMM_INFO_rank_value(di)    (di)->rank_value
+#define DRV_DIMM_INFO_density_value(di) (di)->density_value
+#define DRV_DIMM_INFO_width_value(di)   (di)->width_value
+#define DRV_DIMM_INFO_socket_num(di)    (di)->socket_num
 
 //platform information. need to get from driver
 #define MAX_PACKAGES  16
@@ -848,7 +876,14 @@ struct DRV_PLATFORM_INFO_NODE_S {
     U64 ddr_freq_index;           // freq table index
     U8  misc_valid;               // misc enabled valid bit
     U8  reserved1;                // added for alignment purpose
-    U16 reserved2;                // added for alignment purpose
+    union {
+        U16 dimm_hierarchy_info;    // contains number of socket, memory controller and channel info
+        struct {
+            U16 num_socket  : 6;
+            U16 num_mc      : 5;
+            U16 num_channel : 5;
+        } s1;
+    } u1;
     U32 vmm_timer_freq;           // timer frequency from VMM on SoFIA (in HZ)
     U64 misc_info;                // misc enabled info
     U64 ufs_freq;                 // ufs frequency (HSX only)
@@ -859,6 +894,7 @@ struct DRV_PLATFORM_INFO_NODE_S {
     U64 reserved5;
     U64 reserved6;
 };
+
 #define DRV_PLATFORM_INFO_info(data)              (data)->info
 #define DRV_PLATFORM_INFO_ddr_freq_index(data)    (data)->ddr_freq_index
 #define DRV_PLATFORM_INFO_misc_valid(data)        (data)->misc_valid
@@ -867,6 +903,9 @@ struct DRV_PLATFORM_INFO_NODE_S {
 #define DRV_PLATFORM_INFO_dimm_info(data)         (data)->dimm_info
 #define DRV_PLATFORM_INFO_energy_multiplier(data) (data)->energy_multiplier
 #define DRV_PLATFORM_INFO_vmm_timer_freq(data)    (data)->vmm_timer_freq
+#define DRV_PLATFORM_INFO_num_socket(data)        (data)->u1.s1.num_socket
+#define DRV_PLATFORM_INFO_num_mc(data)            (data)->u1.s1.num_mc
+#define DRV_PLATFORM_INFO_num_channel(data)       (data)->u1.s1.num_channel
 
 //platform information. need to get from Platform picker
 typedef struct PLATFORM_FREQ_INFO_NODE_S PLATFORM_FREQ_INFO_NODE;
@@ -912,7 +951,8 @@ struct DEVICE_INFO_NODE_S {
     U32                 num_units;
     U32                 device_type;
     U64                 reserved1;
-    U64                 reserved2;
+    U32                 pmu_clone_id;   // cti_type of platform to impersonate in device DLLs
+    U32                 reserved2;
     U64                 reserved3;
     U64                 reserved4;
 };
@@ -926,6 +966,7 @@ struct DEVICE_INFO_NODE_S {
 #define DEVICE_INFO_event_db_file_name(pdev)        (pdev)->event_db_file_name
 #define DEVICE_INFO_plat_type(pdev)                 (pdev)->plat_type
 #define DEVICE_INFO_plat_sub_type(pdev)             (pdev)->plat_sub_type
+#define DEVICE_INFO_pmu_clone_id(pdev)              (pdev)->pmu_clone_id
 #define DEVICE_INFO_dispatch_id(pdev)               (pdev)->dispatch_id
 #define DEVICE_INFO_ecb(pdev)                       (pdev)->ecb
 #define DEVICE_INFO_ec(pdev)                        (pdev)->ec
@@ -1059,12 +1100,13 @@ struct UNCORE_PCIDEV_NODE_S {
     U32                deviceid_list[MAX_PCI_DEVNO];
 };
 
+// Structure used to perform uncore device discovery
 
 typedef struct UNCORE_TOPOLOGY_INFO_NODE_S   UNCORE_TOPOLOGY_INFO_NODE;
 typedef        UNCORE_TOPOLOGY_INFO_NODE     *UNCORE_TOPOLOGY_INFO;
 
 struct UNCORE_TOPOLOGY_INFO_NODE_S {
-     UNCORE_PCIDEV_NODE   device[MAX_DEVICES];
+     UNCORE_PCIDEV_NODE              device[MAX_DEVICES];
 };
 
 #define UNCORE_TOPOLOGY_INFO_device(x, dev_index)                                             (x)->device[dev_index]
@@ -1083,6 +1125,77 @@ struct UNCORE_TOPOLOGY_INFO_NODE_S {
 #define UNCORE_TOPOLOGY_INFO_pcidev_is_devno_funcno_valid(x, dev_index, devno, funcno)        ((x)->device[dev_index].pcidev[devno].func_info[funcno].valid ? TRUE : FALSE)
 #define UNCORE_TOPOLOGY_INFO_pcidev_is_device_found(x, dev_index, devno, funcno)              ((x)->device[dev_index].pcidev[devno].func_info[funcno].is_found_in_platform ? TRUE : FALSE)
 
+typedef enum
+{
+    CORE_TOPOLOGY_NODE                = 0,
+    UNCORE_TOPOLOGY_NODE_IMC          = 1,
+    UNCORE_TOPOLOGY_NODE_UBOX         = 2,
+    UNCORE_TOPOLOGY_NODE_QPI          = 3,
+    MAX_TOPOLOGY_DEV                  = 4, // When you adding new topo node to this enum, make sue MAX_TOPOLOGY_DEV is always the last one.
+}   UNCORE_TOPOLOGY_NODE_INDEX_TYPE;
+
+typedef struct PLATFORM_TOPOLOGY_REG_NODE_S    PLATFORM_TOPOLOGY_REG_NODE;
+typedef        PLATFORM_TOPOLOGY_REG_NODE     *PLATFORM_TOPOLOGY_REG;
+
+struct PLATFORM_TOPOLOGY_REG_NODE_S {
+    U32 bus;
+    U32 device;
+    U32 function;
+    U32 reg_id;
+    U64 reg_mask;
+    U64 reg_value[MAX_PACKAGES];
+    U8  reg_type;
+    U8  device_valid;
+    U16 reserved1;
+    U32 reserved2;
+    U64 reserved3;
+    U64 reserved4;
+};
+
+#define PLATFORM_TOPOLOGY_REG_bus(x,i)                     (x)[(i)].bus
+#define PLATFORM_TOPOLOGY_REG_device(x,i)                  (x)[(i)].device
+#define PLATFORM_TOPOLOGY_REG_function(x,i)                (x)[(i)].function
+#define PLATFORM_TOPOLOGY_REG_reg_id(x,i)                  (x)[(i)].reg_id
+#define PLATFORM_TOPOLOGY_REG_reg_mask(x,i)                (x)[(i)].reg_mask
+#define PLATFORM_TOPOLOGY_REG_reg_type(x,i)                (x)[(i)].reg_type
+#define PLATFORM_TOPOLOGY_REG_device_valid(x,i)            (x)[(i)].device_valid
+#define PLATFORM_TOPOLOGY_REG_reg_value(x,i,package_no)    (x)[(i)].reg_value[package_no]
+
+typedef struct PLATFORM_TOPOLOGY_DISCOVERY_NODE_S    PLATFORM_TOPOLOGY_DISCOVERY_NODE;
+typedef        PLATFORM_TOPOLOGY_DISCOVERY_NODE     *PLATFORM_TOPOLOGY_DISCOVERY;
+
+struct PLATFORM_TOPOLOGY_DISCOVERY_NODE_S {
+    U32                         device_index;
+    U32                         device_id;
+    U32                         num_registers;
+    U8                          scope;
+    U8                          prog_valid;
+    U16                         reserved2;
+    U64                         reserved3;
+    U64                         reserved4;
+    U64                         reserved5;
+    PLATFORM_TOPOLOGY_REG_NODE  topology_regs[MAX_REGS];
+};
+
+//Structure used to discover the uncore device topology_device
+
+typedef struct PLATFORM_TOPOLOGY_PROG_NODE_S    PLATFORM_TOPOLOGY_PROG_NODE;
+typedef        PLATFORM_TOPOLOGY_PROG_NODE     *PLATFORM_TOPOLOGY_PROG;
+
+struct PLATFORM_TOPOLOGY_PROG_NODE_S {
+    U32                                  num_devices;
+    PLATFORM_TOPOLOGY_DISCOVERY_NODE     topology_device[MAX_TOPOLOGY_DEV];
+};
+
+#define PLATFORM_TOPOLOGY_PROG_num_devices(x)                                            (x)->num_devices
+#define PLATFORM_TOPOLOGY_PROG_topology_device(x, dev_index)                             (x)->topology_device[dev_index]
+#define PLATFORM_TOPOLOGY_PROG_topology_device_device_index(x, dev_index)                (x)->topology_device[dev_index].device_index
+#define PLATFORM_TOPOLOGY_PROG_topology_device_device_id(x, dev_index)                   (x)->topology_device[dev_index].device_id
+#define PLATFORM_TOPOLOGY_PROG_topology_device_scope(x, dev_index)                       (x)->topology_device[dev_index].scope
+#define PLATFORM_TOPOLOGY_PROG_topology_device_num_registers(x, dev_index)               (x)->topology_device[dev_index].num_registers
+#define PLATFORM_TOPOLOGY_PROG_topology_device_prog_valid(x, dev_index)                  (x)->topology_device[dev_index].prog_valid
+#define PLATFORM_TOPOLOGY_PROG_topology_topology_regs(x, dev_index)                      (x)->topology_device[dev_index].topology_regs
+
 typedef struct DEV_FUNC_PAIRS_NODE_S DEV_FUNC_PAIRS_NODE;
 typedef        DEV_FUNC_PAIRS_NODE  *DEV_FUNC_PAIRS;
 
@@ -1100,17 +1213,22 @@ struct DEV_FUNC_PAIRS_NODE_S {
     DEV_FUNC_PAIRS_funcno(&(dev_funcs)[i]) = 0;                         \
   }
 
-#define GET_NUM_UNITS(x, dev_index, d, f, num_units, valid_dev_funcs)                                      \
-    num_units = 0;                                                                                         \
-    for((d) =0; (d) < MAX_PCI_DEVNO; (d)++) {                                                              \
-        if (!(UNCORE_TOPOLOGY_INFO_pcidev_valid((x), (dev_index), (d)))) continue;                         \
-        for ( (f)=0; (f) < MAX_PCI_FUNCNO; (f)++) {                                                        \
-            if (!(UNCORE_TOPOLOGY_INFO_pcidev_is_devno_funcno_valid((x), (dev_index), (d),(f)))) continue; \
-            if (!(UNCORE_TOPOLOGY_INFO_pcidev_is_device_found((x), (dev_index), (d),(f)))) continue;       \
-            DEV_FUNC_PAIRS_devno(&(valid_dev_funcs)[num_units]) = (d);                                     \
-            DEV_FUNC_PAIRS_funcno(&(valid_dev_funcs)[num_units]) = (f);                                    \
-            (num_units)++;                                                                                 \
-        }                                                                                                  \
+#define GET_NUM_UNITS(x, dev_index, d, f, num_units, valid_dev_funcs)                                          \
+    num_units = 0;                                                                                             \
+    if (SAMP_PARAMS_driver_loaded(sp_local)) {                                                                 \
+        for((d) =0; (d) < MAX_PCI_DEVNO; (d)++) {                                                              \
+            if (!(UNCORE_TOPOLOGY_INFO_pcidev_valid((x), (dev_index), (d)))) continue;                         \
+            for ( (f)=0; (f) < MAX_PCI_FUNCNO; (f)++) {                                                        \
+                if (!(UNCORE_TOPOLOGY_INFO_pcidev_is_devno_funcno_valid((x), (dev_index), (d),(f)))) continue; \
+                if (!(UNCORE_TOPOLOGY_INFO_pcidev_is_device_found((x), (dev_index), (d),(f)))) continue;       \
+                DEV_FUNC_PAIRS_devno(&(valid_dev_funcs)[num_units]) = (d);                                     \
+                DEV_FUNC_PAIRS_funcno(&(valid_dev_funcs)[num_units]) = (f);                                    \
+                (num_units)++;                                                                                 \
+            }                                                                                                  \
+        }                                                                                                      \
+    }                                                                                                          \
+    else {                                                                                                     \
+        (num_units) = DEVICE_INFO_num_units(device);                                                           \
     }
 
 
@@ -1128,7 +1246,12 @@ typedef enum
     UNCORE_TOPOLOGY_INFO_NODE_M2M        =   9,
     UNCORE_TOPOLOGY_INFO_NODE_HFI_RXE    =   10,
     UNCORE_TOPOLOGY_INFO_NODE_HFI_TXE    =   11,
+    UNCORE_TOPOLOGY_INFO_NODE_FPGA_CACHE =   12,
+    UNCORE_TOPOLOGY_INFO_NODE_FPGA_FAB   =   13,
+    UNCORE_TOPOLOGY_INFO_NODE_FPGA_THERMAL = 14,
+    UNCORE_TOPOLOGY_INFO_NODE_FPGA_POWER =   15,
 }   UNCORE_TOPOLOGY_INFO_NODE_INDEX_TYPE;
+
 
 typedef struct SIDEBAND_INFO_NODE_S  SIDEBAND_INFO_NODE;
 typedef        SIDEBAND_INFO_NODE   *SIDEBAND_INFO;
@@ -1240,6 +1363,11 @@ struct DRV_MASKS_NODE_S {
 /*
  *  VMM vendor information
  */
+#define  KVM_SIGNATURE              "KVMKVMKVM\0\0\0"
+#define  XEN_SIGNATURE              "XenVMMXenVMM"
+#define  VMWARE_SIGNATURE           "VMwareVMware"
+#define  HYPERV_SIGNATURE           "Microsoft Hv"
+
 #define  DRV_VMM_UNKNOWN            0
 #define  DRV_VMM_INTEL              1
 #define  DRV_VMM_KVM                2

@@ -24,7 +24,7 @@
 
   BSD LICENSE 
 
-  Copyright(c) 2005-2014 Intel Corporation. All rights reserved.
+  Copyright(c) 2005-2016 Intel Corporation. All rights reserved.
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or without 
@@ -69,6 +69,8 @@
 #include "utility.h"
 #if defined(DRV_SOFIA)
 #include "noc_uncore.h"
+#elif defined(DRV_BUTTER)
+#include "axi_uncore.h"
 #else
 #include "soc_uncore.h"
 #include "haswellunc_sa.h"
@@ -160,6 +162,11 @@ SOCPERF_UTILITY_Configure_CPU (
         case 1000:
             SOCPERF_PRINT_DEBUG("Set up the SoC Uncore NOC dispatch table\n");
             dispatch = &noc_dispatch;
+            break;
+#elif defined(DRV_BUTTER)
+        case 1100:
+            SOCPERF_PRINT_DEBUG("Set up the SoC Uncore AXI dispatch table\n");
+            dispatch = &axi_dispatch;
             break;
 #else
         case 230:

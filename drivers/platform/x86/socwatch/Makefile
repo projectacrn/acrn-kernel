@@ -2,8 +2,7 @@
 # Makefile for the socwatch driver.
 #
 
-ccflags-y += -Idrivers/platform/x86/socwatch/common/ \
-	-Idrivers/platform/x86/socwatch/inc/
+ccflags-y += -Idrivers/platform/x86/socwatch/inc/
 
 obj-$(CONFIG_INTEL_SOCWATCH)    += socwatch.o
 

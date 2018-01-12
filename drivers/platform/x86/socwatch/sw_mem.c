@@ -5,7 +5,7 @@
 
   GPL LICENSE SUMMARY
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of version 2 of the GNU General Public License as
@@ -24,7 +24,7 @@
 
   BSD LICENSE
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -79,16 +79,8 @@ static atomic_t pw_mem_should_panic = ATOMIC_INIT(0);
 /*
  * Macro to check if PANIC is on.
  */
-#define MEM_PANIC() do {					\
-	atomic_set(&pw_mem_should_panic, 1); smp_mb();		\
-} while (0)
-
-#define SHOULD_TRACE() ({					\
-	bool __tmp = false;					\
-	smp_mb();						\
-	__tmp = (atomic_read(&pw_mem_should_panic) == 0);	\
-	__tmp;							\
-})
+#define MEM_PANIC() do{ atomic_set(&pw_mem_should_panic, 1); smp_mb(); }while(0)
+#define SHOULD_TRACE() ({bool __tmp = false; smp_mb(); __tmp = (atomic_read(&pw_mem_should_panic) == 0); __tmp;})
 
 #else // if !DO_MEM_PANIC_ON_ALLOC_ERROR
 
@@ -118,36 +110,34 @@ static u64 max_num_bytes_alloced = 0;
 
 u64 sw_get_total_bytes_alloced(void)
 {
-	return total_num_bytes_alloced;
+    return total_num_bytes_alloced;
 };
 
 u64 sw_get_max_bytes_alloced(void)
 {
-	return max_num_bytes_alloced;
+    return max_num_bytes_alloced;
 };
 
 u64 sw_get_curr_bytes_alloced(void)
 {
-	return curr_num_bytes_alloced;
+    return curr_num_bytes_alloced;
 };
 
 /*
  * Allocate free pages.
  * TODO: add memory tracker?
  */
-unsigned long sw_allocate_pages(unsigned int flags,
-				unsigned int alloc_size_in_bytes)
+unsigned long sw_allocate_pages(unsigned int flags, unsigned int alloc_size_in_bytes)
 {
-	return __get_free_pages((gfp_t) flags, get_order(alloc_size_in_bytes));
+    return __get_free_pages((gfp_t)flags, get_order(alloc_size_in_bytes));
 }
-
 /*
  * Free up previously allocated pages.
  * TODO: add memory tracker?
  */
 void sw_release_pages(unsigned long addr, unsigned int alloc_size_in_bytes)
 {
-	free_pages(addr, get_order(alloc_size_in_bytes));
+    free_pages(addr, get_order(alloc_size_in_bytes));
 }
 
 #if DO_TRACK_MEMORY_USAGE
@@ -194,137 +184,116 @@ static SW_DEFINE_SPINLOCK(sw_kmalloc_lock);
  */
 #define PW_MEM_MAGIC 0xdeadbeef
 
-#define PW_ADD_MAGIC(x) ({			\
-	char *__tmp1 = (char *)(x);		\
-	*((int *)__tmp1) = PW_MEM_MAGIC;	\
-	__tmp1 += sizeof(int);			\
-	__tmp1;					\
-})
+#define PW_ADD_MAGIC(x) ({char *__tmp1 = (char *)(x); *((int *)__tmp1) = PW_MEM_MAGIC; __tmp1 += sizeof(int); __tmp1;})
+#define PW_ADD_SIZE(x,s) ({char *__tmp1 = (char *)(x); *((int *)__tmp1) = (s); __tmp1 += sizeof(int); __tmp1;})
+#define PW_ADD_STAMP(x,s) PW_ADD_MAGIC(PW_ADD_SIZE((x), (s)))
 
-#define PW_ADD_SIZE(x, s) ({			\
-	char *__tmp1 = (char *)(x);		\
-	*((int *)__tmp1) = (s);			\
-	__tmp1 += sizeof(int);			\
-	__tmp1;					\
-})
-
-#define PW_ADD_STAMP(x, s) PW_ADD_MAGIC(PW_ADD_SIZE((x), (s)))
-
-#define PW_IS_MAGIC(x) ({					\
-	int *__tmp1 = (int *)((char *)(x) - sizeof(int));	\
-	*__tmp1 == PW_MEM_MAGIC;				\
-})
-
-#define PW_REMOVE_STAMP(x) ({			\
-	char *__tmp1 = (char *)(x);		\
-	__tmp1 -= sizeof(int) * 2;		\
-	__tmp1;					\
-})
-
+#define PW_IS_MAGIC(x) ({int *__tmp1 = (int *)((char *)(x) - sizeof(int)); *__tmp1 == PW_MEM_MAGIC;})
+#define PW_REMOVE_STAMP(x) ({char *__tmp1 = (char *)(x); __tmp1 -= sizeof(int) * 2; __tmp1;})
 #define PW_GET_SIZE(x) (*((int *)(x)))
 
 void *sw_kmalloc(size_t size, unsigned flags)
 {
-	size_t act_size = 0;
-	void *retVal = NULL;
-	/*
-	 * No point in allocating if
-	 * we were unable to allocate
-	 * previously!
-	 */
-	{
-		if (!SHOULD_TRACE()) {
-			return NULL;
-		}
-	}
-	/*
-	 * (1) Allocate requested block.
-	 */
-	act_size = size + sizeof(int) * 2;
-	retVal = kmalloc(act_size, (gfp_t) flags);
-	if (!retVal) {
-		/*
-		 * Panic if we couldn't allocate
-		 * requested memory.
-		 */
-		printk(KERN_INFO "ERROR: could NOT allocate memory!\n");
-		MEM_PANIC();
-		return NULL;
-	}
-	/*
-	 * (2) Update memory usage stats.
-	 */
-	LOCK(sw_kmalloc_lock);
-	{
-		total_num_bytes_alloced += size;
-		curr_num_bytes_alloced += size;
-		if (curr_num_bytes_alloced > max_num_bytes_alloced)
-			max_num_bytes_alloced = curr_num_bytes_alloced;
-	}
-	UNLOCK(sw_kmalloc_lock);
-	/*
-	 * (3) And finally, add the 'size'
-	 * and 'magic' stamps.
-	 */
-	return PW_ADD_STAMP(retVal, size);
+    size_t act_size = 0;
+    void *retVal = NULL;
+    /*
+     * No point in allocating if
+     * we were unable to allocate
+     * previously!
+     */
+    {
+        if (!SHOULD_TRACE()) {
+            return NULL;
+        }
+    }
+    /*
+     * (1) Allocate requested block.
+     */
+    act_size = size + sizeof(int) * 2;
+    retVal = kmalloc(act_size, (gfp_t)flags);
+    if (!retVal) {
+        /*
+         * Panic if we couldn't allocate
+         * requested memory.
+         */
+        printk(KERN_INFO "ERROR: could NOT allocate memory!\n");
+        MEM_PANIC();
+        return NULL;
+    }
+    /*
+     * (2) Update memory usage stats.
+     */
+    LOCK(sw_kmalloc_lock);
+    {
+        total_num_bytes_alloced += size;
+        curr_num_bytes_alloced += size;
+        if (curr_num_bytes_alloced > max_num_bytes_alloced)
+            max_num_bytes_alloced = curr_num_bytes_alloced;
+    }
+    UNLOCK(sw_kmalloc_lock);
+    /*
+     * (3) And finally, add the 'size'
+     * and 'magic' stamps.
+     */
+    return PW_ADD_STAMP(retVal, size);
 };
 
 void sw_kfree(const void *obj)
 {
-	void *tmp = NULL;
-	size_t size = 0;
+    void *tmp = NULL;
+    size_t size = 0;
 
-	/*
-	 * (1) Check if this block was allocated
-	 * by us.
-	 */
-	if (!PW_IS_MAGIC(obj)) {
-		printk(KERN_INFO "ERROR: %p is NOT a PW_MAGIC ptr!\n", obj);
-		return;
-	}
-	/*
-	 * (2) Strip the magic num...
-	 */
-	tmp = PW_REMOVE_STAMP(obj);
-	/*
-	 * ...and retrieve size of block.
-	 */
-	size = PW_GET_SIZE(tmp);
-	/*
-	 * (3) Update memory usage stats.
-	 */
-	LOCK(sw_kmalloc_lock);
-	{
-		curr_num_bytes_alloced -= size;
-	}
-	UNLOCK(sw_kmalloc_lock);
-	/*
-	 * And finally, free the block.
-	 */
-	kfree(tmp);
+    /*
+     * (1) Check if this block was allocated
+     * by us.
+     */
+    if (!PW_IS_MAGIC(obj)) {
+        printk(KERN_INFO "ERROR: %p is NOT a PW_MAGIC ptr!\n", obj);
+        return;
+    }
+    /*
+     * (2) Strip the magic num...
+     */
+    tmp = PW_REMOVE_STAMP(obj);
+    /*
+     * ...and retrieve size of block.
+     */
+    size = PW_GET_SIZE(tmp);
+    /*
+     * (3) Update memory usage stats.
+     */
+    LOCK(sw_kmalloc_lock);
+    {
+        curr_num_bytes_alloced -= size;
+    }
+    UNLOCK(sw_kmalloc_lock);
+    /*
+     * And finally, free the block.
+     */
+    kfree(tmp);
 };
 
 #else // !DO_TRACK_MEMORY_USAGE
 
 void *sw_kmalloc(size_t size, unsigned flags)
 {
-	void *ret = NULL;
+    void *ret = NULL;
 
-	if (SHOULD_TRACE()) {
-		if (!(ret = kmalloc(size, (gfp_t) flags))) {
-			/*
-			 * Panic if we couldn't allocate
-			 * requested memory.
-			 */
-			MEM_PANIC();
-		}
-	}
-	return ret;
+    if (SHOULD_TRACE()) {
+        if (!(ret = kmalloc(size, (gfp_t)flags))) {
+            /*
+             * Panic if we couldn't allocate
+             * requested memory.
+             */
+            MEM_PANIC();
+        }
+    }
+    return ret;
 };
 
 void sw_kfree(const void *mem)
 {
-	kfree(mem);
+    kfree(mem);
 };
 
 #endif // DO_TRACK_MEMORY_USAGE

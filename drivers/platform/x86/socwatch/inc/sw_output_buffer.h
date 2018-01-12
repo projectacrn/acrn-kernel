@@ -5,7 +5,7 @@
 
   GPL LICENSE SUMMARY
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of version 2 of the GNU General Public License as
@@ -24,7 +24,7 @@
 
   BSD LICENSE
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -75,9 +75,9 @@ struct sw_driver_msg;
  * Data structures.
  */
 enum sw_wakeup_action {
-	SW_WAKEUP_ACTION_DIRECT,
-	SW_WAKEUP_ACTION_TIMER,
-	SW_WAKEUP_ACTION_NONE,
+    SW_WAKEUP_ACTION_DIRECT,
+    SW_WAKEUP_ACTION_TIMER,
+    SW_WAKEUP_ACTION_NONE,
 };
 
 /*

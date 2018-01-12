@@ -53,57 +53,22 @@
   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
-#ifndef __SW_HARDWARE_IO_H__
-#define __SW_HARDWARE_IO_H__
 
-#include "sw_structs.h"
+#ifndef __SW_VERSION_H__
+#define __SW_VERSION_H__ 1
 
-typedef int (*sw_io_desc_init_func_t)(struct sw_driver_io_descriptor *descriptor);
-typedef void (*sw_hardware_op_func_t)(char *dst_vals, int cpu, const struct sw_driver_io_descriptor *descriptor, u16 counter_size_in_bytes);
-typedef int (*sw_io_desc_print_func_t)(const struct sw_driver_io_descriptor *descriptor);
-typedef int (*sw_io_desc_reset_func_t)(const struct sw_driver_io_descriptor *descriptor);
-typedef bool (*sw_io_desc_available_func_t)(void);
-
-/**
- * struct sw_hw_ops - Operations for each of the HW collection mechanisms
- *                    in swkernelcollector.
- * @name:       A descriptive name used to identify this particular operation.
- * @init:       Initialize a metric's collection.
- * @read:       Read a metric's data.
- * @write:      Write to the HW for the metric(?).
- * @print:      Print out the data.
- * @reset:      Opposite of init--called after we're done collecting.
- * @available:  Decide whether this H/W op is available on the current platform.
+/*
+ * SOCWatch driver version
  */
-struct sw_hw_ops {
-    const char *name;
-    sw_io_desc_init_func_t       init;
-    sw_hardware_op_func_t        read;
-    sw_hardware_op_func_t        write;
-    sw_io_desc_print_func_t      print;
-    sw_io_desc_reset_func_t      reset;
-    sw_io_desc_available_func_t  available;
-};
+#define SW_DRIVER_VERSION_MAJOR 2
+#define SW_DRIVER_VERSION_MINOR 4
+#define SW_DRIVER_VERSION_OTHER 0
 
-bool sw_is_valid_hw_op_id(int id);
-int sw_get_hw_op_id(const struct sw_hw_ops *op);
-const struct sw_hw_ops *sw_get_hw_ops_for(int id);
-const char *sw_get_hw_op_abstract_name(const struct sw_hw_ops *op);
-
-int sw_for_each_hw_op(int (*func)(const struct sw_hw_ops *op, void *priv),
-                      void *priv, bool return_on_error);
-
-/**
- * Add an operation to the list of providers.
+/*
+ * Every SOC Watch userspace component shares the same version number.
  */
-int sw_register_hw_op(const struct sw_hw_ops *ops);
-/**
- * Register all H/W operations.
- */
-int sw_register_hw_ops(void);
-/**
- * Unregister previously registered H/W operations.
- */
-void sw_free_hw_ops(void);
+#define SOCWATCH_VERSION_MAJOR 2
+#define SOCWATCH_VERSION_MINOR 4
+#define SOCWATCH_VERSION_OTHER 1
 
-#endif // __SW_HARDWARE_IO_H__
+#endif // __SW_VERSION_H__

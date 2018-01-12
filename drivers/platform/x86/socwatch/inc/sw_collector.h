@@ -5,7 +5,7 @@
 
   GPL LICENSE SUMMARY
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of version 2 of the GNU General Public License as
@@ -24,7 +24,7 @@
 
   BSD LICENSE
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -81,34 +81,32 @@ struct sw_hw_ops;
  * @msg:                    Ptr to collected data
  */
 typedef struct sw_collector_data {
-	SW_LIST_ENTRY(list, sw_collector_data);
-	struct cpumask cpumask;
-	struct sw_driver_interface_info *info;
-	const struct sw_hw_ops **ops;
-	size_t per_msg_payload_size;
-	u64 last_update_jiffies;
-	struct sw_driver_msg *msg;
+    SW_LIST_ENTRY(list, sw_collector_data);
+    struct cpumask                  cpumask;
+    struct sw_driver_interface_info *info;
+    const struct sw_hw_ops          **ops;
+    size_t                          per_msg_payload_size;
+    u64                             last_update_jiffies;
+    struct sw_driver_msg *msg;
 } sw_collector_data_t;
-#define GET_MSG_SLOT_FOR_CPU(msgs, cpu, size) ((struct sw_driver_msg *) &(((char *)(msgs))[(cpu) * (sizeof(struct sw_driver_msg) + (size))]))
+#define GET_MSG_SLOT_FOR_CPU(msgs, cpu, size) ( (struct sw_driver_msg *) &(((char *)(msgs))[(cpu) * (sizeof(struct sw_driver_msg) + (size))]) )
 
 struct sw_collector_data *sw_alloc_collector_node(void);
 void sw_free_collector_node(struct sw_collector_data *node);
 int sw_handle_collector_node(struct sw_collector_data *data);
+int sw_handle_collector_node_on_cpu(struct sw_collector_data *data, int cpu);
 int sw_write_collector_node(struct sw_collector_data *data);
 
 void sw_init_collector_list(void *list_head);
 void sw_destroy_collector_list(void *list_head);
-int sw_handle_collector_list(void *list_head,
-			     int (*func)(struct sw_collector_data *data));
+int sw_handle_collector_list(void *list_head, int (*func)(struct sw_collector_data *data));
+int sw_handle_collector_list_on_cpu(void *list_head, int (*func)(struct sw_collector_data *data, int cpu), int cpu);
 
-int sw_handle_driver_io_descriptor(char *dst_vals, int cpu,
-				   const struct sw_driver_io_descriptor
-				   *descriptor, const struct sw_hw_ops *hw_ops);
+int sw_handle_driver_io_descriptor(char *dst_vals, int cpu, const struct sw_driver_io_descriptor *descriptor, const struct sw_hw_ops *hw_ops);
 int sw_init_driver_io_descriptor(struct sw_driver_io_descriptor *descriptor);
 int sw_reset_driver_io_descriptor(struct sw_driver_io_descriptor *descriptor);
 
-int sw_add_driver_info(void *list_head,
-		       const struct sw_driver_interface_info *info);
+int sw_add_driver_info(void *list_head, const struct sw_driver_interface_info *info);
 
 void sw_handle_per_cpu_msg(void *info);
 void sw_handle_per_cpu_msg_no_sched(void *info);
@@ -116,4 +114,12 @@ void sw_handle_per_cpu_msg_on_cpu(int cpu, void *info);
 
 void sw_set_collector_ops(const struct sw_hw_ops *hw_ops);
 
+/**
+ * Process all messages for the given time.
+ * @param[in]   when    The time period e.g. 'BEGIN' or 'END'
+ *
+ * @returns     0   on success, non-zero on error
+ */
+extern int sw_process_snapshot(enum sw_when_type when);
+extern int sw_process_snapshot_on_cpu(enum sw_when_type when, int cpu);
 #endif // __SW_COLLECTOR_H__

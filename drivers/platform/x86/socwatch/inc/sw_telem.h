@@ -5,7 +5,7 @@
 
   GPL LICENSE SUMMARY
 
-  Copyright(c) 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of version 2 of the GNU General Public License as
@@ -24,7 +24,7 @@
 
   BSD LICENSE
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -57,17 +57,18 @@
 #ifndef _SW_TELEM_H_
 #define _SW_TELEM_H_ 1
 
-#include "sw_structs.h"		// sw_driver_io_descriptor
-#include "sw_types.h"		// u8 and other types
+#include "sw_structs.h"      // sw_driver_io_descriptor
+#include "sw_types.h"        // u8 and other types
 
 int sw_telem_init_func(struct sw_driver_io_descriptor *descriptor);
 void sw_read_telem_info(char *dst_vals, int cpu,
-			const struct sw_driver_io_descriptor *descriptor,
-			u16 counter_size_in_bytes);
+                          const struct sw_driver_io_descriptor *descriptor,
+                          u16 counter_size_in_bytes);
 void sw_write_telem_info(char *dst_vals, int cpu,
-			 const struct sw_driver_io_descriptor *descriptor,
-			 u16 counter_size_in_bytes);
+                           const struct sw_driver_io_descriptor *descriptor,
+                           u16 counter_size_in_bytes);
 int sw_reset_telem(const struct sw_driver_io_descriptor *descriptor);
 bool sw_telem_available(void);
+
 
 #endif /* SW_TELEM_H */

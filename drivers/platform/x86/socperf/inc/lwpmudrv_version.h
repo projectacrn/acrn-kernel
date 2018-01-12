@@ -24,7 +24,7 @@
 
   BSD LICENSE 
 
-  Copyright(c) 2010-2014 Intel Corporation. All rights reserved.
+  Copyright(c) 2010-2016 Intel Corporation. All rights reserved.
   All rights reserved.
 
   Redistribution and use in source and binary forms, with or without 
@@ -105,9 +105,21 @@ struct SOCPERF_VERSION_NODE_S {
 #define _STRINGIFY_W(x)   L#x
 #define STRINGIFY_W(x)    _STRINGIFY_W(x)
 
-#define SOCPERF_MAJOR_VERSION 2
-#define SOCPERF_MINOR_VERSION 0
-#define SOCPERF_API_VERSION   0
+#define SOCPERF_MAJOR_VERSION  2
+#define SOCPERF_MINOR_VERSION  0
+#define SOCPERF_API_VERSION    0
+#define SOCPERF_UPDATE_VERSION 0
+#if SOCPERF_UPDATE_VERSION > 0
+#define SOCPERF_UPDATE_STRING  " Update "STRINGIFY(SOCPERF_UPDATE_VERSION)
+#else
+#define SOCPERF_UPDATE_STRING  ""
+#endif
+
+#define SOCPERF_PRODUCT_NAME  "Sampling Enabling Product"
+#define PRODUCT_VERSION_DATE    __DATE__ " at " __TIME__
+#define PRODUCT_COPYRIGHT   "Copyright (C) 2011-2017 Intel Corporation. All rights reserved."
+#define PRODUCT_DISCLAIMER  "Warning: This computer program is protected under U.S. and international\ncopyright laws, and may only be used or copied in accordance with the terms\nof the license agreement. Except as permitted by such license, no part\nof this computer program may be reproduced, stored in a retrieval system,\nor transmitted in any form or by any means without the express written consent\nof Intel Corporation."
+#define PRODUCT_VERSION     "4.1"
 
 #define SOCPERF_NAME          "socperf"
 #define SOCPERF_NAME_W        L"socperf"

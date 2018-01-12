@@ -241,6 +241,7 @@
 #define VT_NO_SPACE                            195
 #define VT_MSR_ACCESS_ERROR                    196
 #define VT_PEBS_NOT_SUPPORTED                  197
+#define VT_LUA_PARSE_ERROR                     198
 /*
  * define error code for checking on async marker request
  */
@@ -261,7 +262,7 @@
 // To make error checking easier, the special VT_LAST_ERROR_CODE
 // should be set to whatever is the last error on the list above
 //
-#define VT_LAST_ERROR_CODE                     VT_PEBS_NOT_SUPPORTED
+#define VT_LAST_ERROR_CODE                     VT_LUA_PARSE_ERROR
 
 //
 // Define a macro to determine success or failure. Users of this

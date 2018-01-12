@@ -5,7 +5,7 @@
 
   GPL LICENSE SUMMARY
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of version 2 of the GNU General Public License as
@@ -24,7 +24,7 @@
 
   BSD LICENSE
 
-  Copyright(c) 2014 - 2015 Intel Corporation.
+  Copyright(c) 2014 - 2017 Intel Corporation.
 
   Redistribution and use in source and binary forms, with or without
   modification, are permitted provided that the following conditions
@@ -85,89 +85,84 @@
      * Kernels >= 3.19 don't include a definition
      * of '__get_cpu_var'. Create one now.
      */
-#define __get_cpu_var(var) *this_cpu_ptr(&var)
+    #define __get_cpu_var(var) *this_cpu_ptr(&var)
 #endif // __get_cpu_var
 #ifndef __raw_get_cpu_var
     /*
      * Kernels >= 3.19 don't include a definition
      * of '__raw_get_cpu_var'. Create one now.
      */
-#define __raw_get_cpu_var(var) *raw_cpu_ptr(&var)
+    #define __raw_get_cpu_var(var) *raw_cpu_ptr(&var)
 #endif // __get_cpu_var
 
+extern u64 sw_timestamp(void);
+
 #define DECLARE_OVERHEAD_VARS(name)					\
-static DEFINE_PER_CPU(u64, name##_elapsed_time) = 0;			\
-static DEFINE_PER_CPU(local_t, name##_num_iters) = LOCAL_INIT(0);	\
+    static DEFINE_PER_CPU(u64, name##_elapsed_time) = 0;				\
+    static DEFINE_PER_CPU(local_t, name##_num_iters) = LOCAL_INIT(0);		\
 									\
-static inline u64 get_my_cumulative_elapsed_time_##name(void)		\
-{									\
+    static inline u64 get_my_cumulative_elapsed_time_##name(void){		\
 	return *(&__get_cpu_var(name##_elapsed_time));			\
-}									\
-static inline int get_my_cumulative_num_iters_##name(void)		\
-{									\
+    }									\
+    static inline int get_my_cumulative_num_iters_##name(void){		\
 	return local_read(&__get_cpu_var(name##_num_iters));		\
-}									\
+    }									\
 									\
-static inline u64 name##_get_cumulative_elapsed_time_for(int cpu)	\
-{									\
+    static inline u64 name##_get_cumulative_elapsed_time_for(int cpu){	\
 	return *(&per_cpu(name##_elapsed_time, cpu));			\
-}									\
+    }									\
 									\
-static inline int name##_get_cumulative_num_iters_for(int cpu)		\
-{									\
-	return local_read(&per_cpu(name##_num_iters, cpu));		\
-}									\
+    static inline int name##_get_cumulative_num_iters_for(int cpu){	\
+    	return local_read(&per_cpu(name##_num_iters, cpu));		\
+    }									\
 									\
-static inline void name##_get_cumulative_overhead_params(u64 *time,	\
-							 int *iters)	\
-{									\
+    static inline void name##_get_cumulative_overhead_params(u64 *time,	\
+							     int *iters){ \
 	int cpu = 0;							\
 	*time = 0; *iters = 0;						\
-	for_each_online_cpu(cpu) {					\
-		*iters += name##_get_cumulative_num_iters_for(cpu);	\
-		*time += name##_get_cumulative_elapsed_time_for(cpu);	\
+	for_each_online_cpu(cpu){					\
+	    *iters += name##_get_cumulative_num_iters_for(cpu);		\
+	    *time += name##_get_cumulative_elapsed_time_for(cpu);	\
 	}								\
 	return;								\
-}									\
-									\
-static inline void name##_print_cumulative_overhead_params(const char *str) \
-{									\
-	int num = 0;							\
-	u64 time = 0;							\
-	name##_get_cumulative_overhead_params(&time, &num);		\
-	printk(KERN_INFO "%s: %d iters took %llu cycles!\n",		\
-	       str, num, time);						\
+    }									\
+	\
+static inline void name##_print_cumulative_overhead_params(const char *str){\
+	int num = 0; \
+	u64 time = 0; \
+	name##_get_cumulative_overhead_params(&time, &num); \
+	printk(KERN_INFO "%s: %d iters took %llu nano seconds!\n", str, num, time); \
 }
 
-#define DO_PER_CPU_OVERHEAD_FUNC(func, ...) do {		\
+#define DO_PER_CPU_OVERHEAD_FUNC(func, ...) do{		\
 	u64 *__v = &__raw_get_cpu_var(func##_elapsed_time);	\
-	u64 tmp_1 = 0, tmp_2 = 0;				\
+	u64 tmp_1 = 0, tmp_2 = 0;			\
 	local_inc(&__raw_get_cpu_var(func##_num_iters));	\
-	tmp_1 = tscval();					\
-	{							\
-	    func(__VA_ARGS__);					\
-	}							\
-	tmp_2 = tscval();					\
-	*(__v) += (tmp_2 - tmp_1);				\
-} while (0)
+	tmp_1 = sw_timestamp();				\
+	{						\
+	    func(__VA_ARGS__);				\
+	}						\
+	tmp_2 = sw_timestamp();				\
+	*(__v) += (tmp_2 - tmp_1);			\
+    }while(0)
 
 #define DO_PER_CPU_OVERHEAD_FUNC_RET(type, func, ...) ({	\
-	type __ret;						\
+        type __ret;                                     \
 	u64 *__v = &__raw_get_cpu_var(func##_elapsed_time);	\
 	u64 tmp_1 = 0, tmp_2 = 0;				\
 	local_inc(&__raw_get_cpu_var(func##_num_iters));        \
-	tmp_1 = tscval();				        \
+	tmp_1 = sw_timestamp();				        \
 	{							\
 	    __ret = func(__VA_ARGS__);				\
 	}							\
-	tmp_2 = tscval();				        \
+	tmp_2 = sw_timestamp();				        \
 	*(__v) += (tmp_2 - tmp_1);				\
-	__ret;                                                  \
-})
+        __ret;                                                  \
+    })
 
 #else // !DO_OVERHEAD_MEASUREMENTS
 #define DECLARE_OVERHEAD_VARS(name) \
-	static inline void name##_print_cumulative_overhead_params(const char *str) { /* NOP */ }
+    static inline void name##_print_cumulative_overhead_params(const char *str) { /* NOP */ }
 
 #define DO_PER_CPU_OVERHEAD_FUNC(func, ...) func(__VA_ARGS__)
 #define DO_PER_CPU_OVERHEAD_FUNC_RET(type, func, ...) func(__VA_ARGS__)
@@ -175,6 +170,6 @@ static inline void name##_print_cumulative_overhead_params(const char *str) \
 #endif // DO_OVERHEAD_MEASUREMENTS
 
 #define PRINT_CUMULATIVE_OVERHEAD_PARAMS(name, str) \
-	name##_print_cumulative_overhead_params(str)
+    name##_print_cumulative_overhead_params(str)
 
 #endif // _PW_OVERHEAD_MEASUREMENTS_H_

@@ -53,57 +53,100 @@
   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 */
-#ifndef __SW_HARDWARE_IO_H__
-#define __SW_HARDWARE_IO_H__
 
-#include "sw_structs.h"
+#ifndef _PW_TYPES_H_
+#define _PW_TYPES_H_
 
-typedef int (*sw_io_desc_init_func_t)(struct sw_driver_io_descriptor *descriptor);
-typedef void (*sw_hardware_op_func_t)(char *dst_vals, int cpu, const struct sw_driver_io_descriptor *descriptor, u16 counter_size_in_bytes);
-typedef int (*sw_io_desc_print_func_t)(const struct sw_driver_io_descriptor *descriptor);
-typedef int (*sw_io_desc_reset_func_t)(const struct sw_driver_io_descriptor *descriptor);
-typedef bool (*sw_io_desc_available_func_t)(void);
+#if defined (__linux__) || defined (__APPLE__) || defined (__QNX__)
 
-/**
- * struct sw_hw_ops - Operations for each of the HW collection mechanisms
- *                    in swkernelcollector.
- * @name:       A descriptive name used to identify this particular operation.
- * @init:       Initialize a metric's collection.
- * @read:       Read a metric's data.
- * @write:      Write to the HW for the metric(?).
- * @print:      Print out the data.
- * @reset:      Opposite of init--called after we're done collecting.
- * @available:  Decide whether this H/W op is available on the current platform.
+#ifndef __KERNEL__
+/*
+ * Called from Ring-3.
  */
-struct sw_hw_ops {
-    const char *name;
-    sw_io_desc_init_func_t       init;
-    sw_hardware_op_func_t        read;
-    sw_hardware_op_func_t        write;
-    sw_io_desc_print_func_t      print;
-    sw_io_desc_reset_func_t      reset;
-    sw_io_desc_available_func_t  available;
-};
-
-bool sw_is_valid_hw_op_id(int id);
-int sw_get_hw_op_id(const struct sw_hw_ops *op);
-const struct sw_hw_ops *sw_get_hw_ops_for(int id);
-const char *sw_get_hw_op_abstract_name(const struct sw_hw_ops *op);
-
-int sw_for_each_hw_op(int (*func)(const struct sw_hw_ops *op, void *priv),
-                      void *priv, bool return_on_error);
-
-/**
- * Add an operation to the list of providers.
+#include <stdint.h> // Grab 'uint64_t' etc.
+#include <unistd.h> // Grab 'pid_t'
+/*
+ * UNSIGNED types...
  */
-int sw_register_hw_op(const struct sw_hw_ops *ops);
-/**
- * Register all H/W operations.
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+/*
+ * SIGNED types...
  */
-int sw_register_hw_ops(void);
-/**
- * Unregister previously registered H/W operations.
- */
-void sw_free_hw_ops(void);
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
 
-#endif // __SW_HARDWARE_IO_H__
+#else // __KERNEL__
+#if !defined (__APPLE__)
+#include <linux/types.h>
+#else // __APPLE__
+#include <sys/types.h>
+#include <stdint.h> // Grab 'uint64_t' etc.
+
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+/*
+* SIGNED types...
+*/
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+#endif // __APPLE__
+#endif // __KERNEL__
+
+#elif defined (_WIN32)
+typedef __int32 int32_t;
+typedef unsigned __int32 uint32_t;
+typedef __int64 int64_t;
+typedef unsigned __int64 uint64_t;
+
+/*
+ * UNSIGNED types...
+ */
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+typedef unsigned long long u64;
+
+/*
+ * SIGNED types...
+ */
+typedef signed char s8;
+typedef signed short s16;
+typedef signed int s32;
+typedef signed long long s64;
+typedef s32 pid_t;
+typedef s32 ssize_t;
+
+#endif // _WIN32
+
+/* ************************************
+ * Common to both operating systems.
+ * ************************************
+ */
+/*
+ * UNSIGNED types...
+ */
+typedef u8 pw_u8_t;
+typedef u16 pw_u16_t;
+typedef u32 pw_u32_t;
+typedef u64 pw_u64_t;
+
+/*
+ * SIGNED types...
+ */
+typedef s8 pw_s8_t;
+typedef s16 pw_s16_t;
+typedef s32 pw_s32_t;
+typedef s64 pw_s64_t;
+
+typedef pid_t pw_pid_t;
+
+#endif // _PW_TYPES_H_
