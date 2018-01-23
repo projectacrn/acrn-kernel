@@ -51,6 +51,18 @@ void acpi_processor_power_init_bm_check(struct acpi_processor_flags *flags,
 	if (c->x86_vendor == X86_VENDOR_INTEL &&
 	    (c->x86 > 0xf || (c->x86 == 6 && c->x86_model >= 0x0f)))
 			flags->bm_control = 0;
+
+        if (c->x86_vendor == X86_VENDOR_CENTAUR) {
+		/*
+		 * On all Centaur CPUs, software need not flush the CPU caches
+		 * when entering C3-type C-states.
+		 *
+		 * On all Centaur platforms, software need not disable bus
+		 * master arbitration when entering C3-type C-states.
+		 */
+		flags->bm_check = 1;
+		flags->bm_control = 0;
+	}
 }
 EXPORT_SYMBOL(acpi_processor_power_init_bm_check);
 
