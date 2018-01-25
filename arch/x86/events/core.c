@@ -1910,6 +1910,12 @@ static inline void x86_pmu_read(struct perf_event *event)
 	x86_perf_event_update(event);
 }
 
+static void x86_pmu_reset(struct perf_event *event)
+{
+	if (x86_pmu.reset)
+		x86_pmu.reset(event);
+}
+
 /*
  * Start group events scheduling transaction
  * Set the flag to make pmu::enable() not perform the
@@ -2307,6 +2313,7 @@ static struct pmu pmu = {
 	.start			= x86_pmu_start,
 	.stop			= x86_pmu_stop,
 	.read			= x86_pmu_read,
+	.reset			= x86_pmu_reset,
 
 	.start_txn		= x86_pmu_start_txn,
 	.cancel_txn		= x86_pmu_cancel_txn,
