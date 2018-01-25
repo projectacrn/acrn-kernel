@@ -2030,12 +2030,15 @@ group_sched_out(struct perf_event *group_event,
 		struct perf_cpu_context *cpuctx,
 		struct perf_event_context *ctx)
 {
+	struct pmu *pmu = ctx->pmu;
 	struct perf_event *event;
 
 	if (group_event->state != PERF_EVENT_STATE_ACTIVE)
 		return;
 
 	perf_pmu_disable(ctx->pmu);
+
+	pmu->start_txn(pmu, PERF_PMU_TXN_REMOVE);
 
 	event_sched_out(group_event, cpuctx, ctx);
 
@@ -2049,6 +2052,8 @@ group_sched_out(struct perf_event *group_event,
 
 	if (group_event->attr.exclusive)
 		cpuctx->exclusive = 0;
+
+	pmu->commit_txn(pmu);
 }
 
 #define DETACH_GROUP	0x01UL
