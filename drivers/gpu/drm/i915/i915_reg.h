@@ -10435,6 +10435,166 @@ enum skl_power_gate {
 						 _ICL_PHY_MISC_B)
 #define  ICL_PHY_MISC_DE_IO_COMP_PWR_DOWN	(1 << 23)
 
+/* Icelake Display Stream Compression Registers */
+#define _ICL_DSC0_PB_PPS_0	0x78270
+#define _ICL_DSC1_PB_PPS_0	0x78370
+#define _ICL_DSC0_PC_PPS_0	0x78470
+#define _ICL_DSC1_PC_PPS_0	0x78570
+#define ICL_DSC0_PPS_0(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC0_PB_PPS_0, \
+					    _ICL_DSC0_PC_PPS_0)
+#define ICL_DSC1_PPS_0(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_0, \
+					    _ICL_DSC1_PC_PPS_0)
+#define  ICL_DSC_PPS_VBR_ENABLE			(1 << 19)
+#define  ICL_DSC_PPS_422_ENABLE			(1 << 18)
+#define  ICL_DSC_PPS_COLOR_SPACE_CONVERSION	(1 << 17)
+#define  ICL_DSC_PPS_BLOCK_PREDICTION		(1 << 16)
+#define  ICL_DSC_PPS_LINE_BUF_DEPTH_8		(0x8 << 12)
+#define  ICL_DSC_PPS_LINE_BUF_DEPTH_9		(0x9 << 12)
+#define  ICL_DSC_PPS_LINE_BUF_DEPTH_10		(0xA << 12)
+#define  ICL_DSC_PPS_LINE_BUF_DEPTH_11		(0xB << 12)
+#define  ICL_DSC_PPS_LINE_BUF_DEPTH_12		(0xC << 12)
+#define  ICL_DSC_PPS_LINE_BUF_DEPTH_13		(0xD << 12)
+#define  ICL_DSC_PPS_8BPC			(0x8 << 8)
+#define  ICL_DSC_PPS_10BPC			(0xA << 8)
+#define  ICL_DSC_PPS_12BPC			(0xC << 8)
+#define  ICL_DSC_PPS_VER_MIN			(0x1 << 4)
+#define  ICL_DSC_PPS_VER_MAJ			(0x1 << 0)
+
+#define _ICL_DSC0_PB_PPS_1	0x78274
+#define _ICL_DSC1_PB_PPS_1	0x78374
+#define _ICL_DSC0_PC_PPS_1	0x78474
+#define _ICL_DSC1_PC_PPS_1	0x78574
+#define ICL_DSC0_PPS_1(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC0_PB_PPS_1, \
+					    _ICL_DSC0_PC_PPS_1)
+#define ICL_DSC1_PPS_1(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_1, \
+					    _ICL_DSC1_PC_PPS_1)
+#define ICL_DSC_PPS_BPP(bpp)	(bpp << 0)
+
+#define _ICL_DSC0_PB_PPS_2	0x78278
+#define _ICL_DSC1_PB_PPS_2	0x78378
+#define _ICL_DSC0_PC_PPS_2	0x78478
+#define _ICL_DSC1_PC_PPS_2	0x78578
+#define ICL_DSC0_PPS_2(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC0_PB_PPS_2, \
+					    _ICL_DSC0_PC_PPS_2)
+#define ICL_DSC1_PPS_2(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_2, \
+					    _ICL_DSC1_PC_PPS_2)
+#define ICL_DSC_PPS_PIC_WIDTH(pic_width)	(pic_width << 16)
+#define ICL_DSC_PPS_PIC_HEIGHT(pic_height)	(pic_height << 0)
+
+#define _ICL_DSC0_PB_PPS_3	0x7827C
+#define _ICL_DSC1_PB_PPS_3	0x7837C
+#define _ICL_DSC0_PC_PPS_3	0x7847C
+#define _ICL_DSC1_PC_PPS_3	0x7857C
+#define ICL_DSC0_PPS_3(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC0_PB_PPS_3, \
+					    _ICL_DSC0_PC_PPS_3)
+#define ICL_DSC1_PPS_3(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_3, \
+					    _ICL_DSC1_PC_PPS_3)
+#define ICL_DSC_PPS_SLICE_WIDTH(slice_width)	(slice_width << 16)
+#define ICL_DSC_PPS_SLICE_HEIGHT(slice_height)	(slice_height << 0)
+
+#define _ICL_DSC0_PB_PPS_4	0x78280
+#define _ICL_DSC1_PB_PPS_4	0x78380
+#define _ICL_DSC0_PC_PPS_4	0x78480
+#define _ICL_DSC1_PC_PPS_4	0x78580
+#define ICL_DSC0_PPS_4(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC0_PB_PPS_4, \
+					    _ICL_DSC0_PC_PPS_4)
+#define ICL_DSC1_PPS_4(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_4, \
+					    _ICL_DSC1_PC_PPS_4)
+#define ICL_DSC_PPS_INITIAL_DEC_DELAY(dec_delay)	(dec_delay << 16)
+#define ICL_DSC_PPS_INITIAL_XMIT_DELAY(xmit_delay)	(xmit_delay << 0)
+
+#define _ICL_DSC0_PB_PPS_5	0x78284
+#define _ICL_DSC1_PB_PPS_5	0x78384
+#define _ICL_DSC0_PC_PPS_5	0x78484
+#define _ICL_DSC1_PC_PPS_5	0x78584
+#define ICL_DSC0_PPS_5(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC0_PB_PPS_5, \
+					    _ICL_DSC0_PC_PPS_5)
+#define ICL_DSC1_PPS_5(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PC_PPS_5, \
+					    _ICL_DSC1_PC_PPS_5)
+#define ICL_DSC_PPS_SCALE_DEC_INT(scale_dec)	(scale_dec << 16)
+#define ICL_DSC_PPS_SCALE_INC_INT(scale_inc)	(scale_inc << 0)
+
+#define _ICL_DSC0_PB_PPS_6	0x78288
+#define _ICL_DSC1_PB_PPS_6	0x78388
+#define _ICL_DSC0_PC_PPS_6	0x78488
+#define _ICL_DSC1_PC_PPS_6	0x78588
+#define ICL_DSC0_PPS_6(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC0_PB_PPS_6, \
+					    _ICL_DSC0_PC_PPS_6)
+#define ICL_DSC1_PPS_6(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_6, \
+					    _ICL_DSC1_PC_PPS_6)
+#define ICL_DSC_PPS_FLATNESS_MAX_QP(max_qp)	(qp << 24)
+#define ICL_DSC_PPS_FLATNESS_MIN_QP(min_qp)	(qp << 16)
+#define ICL_DSC_PPS_FIRST_LINE_BPG_OFFSET(offset)	(offset << 8)
+#define ICL_DSC_PPS_INITIAL_SCALE_VALUE(value)		(value << 0)
+
+#define _ICL_DSC0_PB_PPS_7	0x7828C
+#define _ICL_DSC1_PB_PPS_7	0x7838C
+#define _ICL_DSC0_PC_PPS_7	0x7848C
+#define _ICL_DSC1_PC_PPS_7	0x7858C
+#define ICL_DSC0_PPS_7(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC0_PB_PPS_7, \
+					    _ICL_DSC0_PC_PPS_7)
+#define ICL_DSC1_PPS_7(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_7, \
+					    _ICL_DSC1_PC_PPS_7)
+#define ICL_DSC_PPS_NFL_BPG_OFFSET(bpg_offset)		(bpg_offset << 16)
+#define ICL_DSC_PPS_SLICE_BPG_OFFSET(bpg_offset)	(bpg_offset << 0)
+
+#define _ICL_DSC0_PB_PPS_8	0x78290
+#define _ICL_DSC1_PB_PPS_8	0x78390
+#define _ICL_DSC0_PC_PPS_8	0x78490
+#define _ICL_DSC1_PC_PPS_8	0x78590
+#define ICL_DSC0_PPS_8(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					   _ICL_DSC0_PB_PPS_8, \
+					   _ICL_DSC0_PC_PPS_8)
+#define ICL_DSC1_PPS_8(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_8, \
+					    _ICL_DSC1_PC_PPS_8)
+#define ICL_DSC_PPS_INITIAL_OFFSET(initial_offset)	(initial_offset << 16)
+#define ICL_DSC_PPS_FINAL_OFFSET(final_offset)		(final_offset << 0)
+
+#define _ICL_DSC0_PB_PPS_9	0x78294
+#define _ICL_DSC1_PB_PPS_9	0x78394
+#define _ICL_DSC0_PC_PPS_9	0x78494
+#define _ICL_DSC1_PC_PPS_9	0x78594
+#define ICL_DSC0_PPS_9(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					   _ICL_DSC0_PB_PPS_9, \
+					   _ICL_DSC0_PC_PPS_9)
+#define ICL_DSC1_PPS_9(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_9, \
+					    _ICL_DSC1_PC_PPS_9)
+#define ICL_DSC_PPS_RC_EDGE_FACTOR(rc_edge_fact)	(rc_edge_fact << 16)
+#define ICL_DSC_PPS_RC_MODEL_SIZE(rc_model_size)	(rc_model_size << 0)
+
+#define _ICL_DSC0_PB_PPS_10	0x78298
+#define _ICL_DSC1_PB_PPS_10	0x78398
+#define _ICL_DSC0_PC_PPS_10	0x78498
+#define _ICL_DSC1_PC_PPS_10	0x78598
+#define ICL_DSC0_PPS_10(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					   _ICL_DSC0_PB_PPS_10, \
+					   _ICL_DSC0_PC_PPS_10)
+#define ICL_DSC1_PPS_10(pipe)	_MMIO_PIPE((pipe) - PIPE_B, \
+					    _ICL_DSC1_PB_PPS_10, \
+					    _ICL_DSC1_PC_PPS_10)
+#define ICL_DSC_PPS_RC_TARGET_OFF_LOW(rc_tgt_off_low)	(rc_tgt_off_low << 20)
+#define ICL_DSC_PPS_RC_TARGET_OFF_HIGH(rc_tgt_off_high)	(rc_tgt_off_high << 16)
+#define ICL_DSC_PPS_RC_QUANT_INC_LIMIT1(lim)	(lim << 8)
+#define ICL_DSC_PPS_RC_QUANT_INC_LIMIT0(lim)	(lim << 0)
+
 #define PORT_TX_DFLEXDPPMS				_MMIO(0x163890)
 #define   DP_PHY_MODE_STATUS_COMPLETED(tc_port)		(1 << (tc_port))
 
