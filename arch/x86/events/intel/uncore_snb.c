@@ -16,6 +16,7 @@
 #define PCI_DEVICE_ID_INTEL_SKL_SD_IMC	0x190f
 #define PCI_DEVICE_ID_INTEL_SKL_SQ_IMC	0x191f
 #define PCI_DEVICE_ID_INTEL_CNL_U_IMC	0x5a04
+#define PCI_DEVICE_ID_INTEL_ICL_U_IMC	0x8a02
 
 /* SNB event control */
 #define SNB_UNC_CTL_EV_SEL_MASK			0x000000ff
@@ -715,6 +716,14 @@ static const struct pci_device_id cnl_uncore_pci_ids[] = {
 	{ /* end: all zeroes */ },
 };
 
+static const struct pci_device_id icl_uncore_pci_ids[] = {
+	{ /* IMC */
+		PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_ICL_U_IMC),
+		.driver_data = UNCORE_PCI_DEV_DATA(SNB_PCI_UNCORE_IMC, 0),
+	},
+	{ /* end: all zeroes */ },
+};
+
 static struct pci_driver snb_uncore_pci_driver = {
 	.name		= "snb_uncore",
 	.id_table	= snb_uncore_pci_ids,
@@ -745,6 +754,11 @@ static struct pci_driver cnl_uncore_pci_driver = {
 	.id_table	= cnl_uncore_pci_ids,
 };
 
+static struct pci_driver icl_uncore_pci_driver = {
+	.name		= "icl_uncore",
+	.id_table	= icl_uncore_pci_ids,
+};
+
 struct imc_uncore_pci_dev {
 	__u32 pci_id;
 	struct pci_driver *driver;
@@ -766,6 +780,7 @@ static const struct imc_uncore_pci_dev desktop_imc_pci_ids[] = {
 	IMC_DEV(SKL_SD_IMC, &skl_uncore_pci_driver),  /* 6th Gen Core S Dual Core */
 	IMC_DEV(SKL_SQ_IMC, &skl_uncore_pci_driver),  /* 6th Gen Core S Quad Core */
 	IMC_DEV(CNL_U_IMC, &cnl_uncore_pci_driver),  /* 7th Gen Core Mobile */
+	IMC_DEV(ICL_U_IMC, &icl_uncore_pci_driver),  /* 8th Gen Core Mobile */
 	{  /* end marker */ }
 };
 
