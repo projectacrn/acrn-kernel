@@ -633,6 +633,7 @@ static const struct x86_cpu_id intel_pmc_core_ids[] = {
 	ICPU(INTEL_FAM6_KABYLAKE_MOBILE, &spt_reg_map),
 	ICPU(INTEL_FAM6_KABYLAKE_DESKTOP, &spt_reg_map),
 	ICPU(INTEL_FAM6_CANNONLAKE_MOBILE, &cnp_reg_map),
+	ICPU(INTEL_FAM6_CANNONLAKE_DESKTOP, &cnp_reg_map),
 	{}
 };
 
