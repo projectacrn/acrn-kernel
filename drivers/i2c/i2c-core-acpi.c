@@ -105,8 +105,10 @@ static int i2c_acpi_do_lookup(struct acpi_device *adev,
 	struct list_head resource_list;
 	int ret;
 
-	if (acpi_bus_get_status(adev) || !adev->status.present ||
-	    acpi_device_enumerated(adev))
+	if (acpi_bus_get_status(adev) || !adev->status.present)
+		return -EINVAL;
+
+	if (lookup->index == -1 && acpi_device_enumerated(adev))
 		return -EINVAL;
 
 	if (acpi_match_device_ids(adev, i2c_acpi_ignored_device_ids) == 0)
@@ -205,20 +207,74 @@ static void i2c_acpi_register_device(struct i2c_adapter *adapter,
 	}
 }
 
+static const struct acpi_device_id i2c_acpi_multiple_devices_ids[] = {
+	/*
+	 * Some devices are defined as a single ACPI entry while
+	 * providing more than one instance of the same IP. Try to
+	 * enumerate them all.
+	 */
+	{ "BOSC0200", 0 },
+	{ "INT3515", 0 },
+	{}
+};
+
+static int i2c_acpi_check_resource(struct acpi_resource *ares, void *data)
+{
+	struct acpi_resource_i2c_serialbus *sb;
+	int *count = data;
+
+	if (i2c_acpi_get_i2c_resource(ares, &sb))
+		*count = *count + 1;
+
+	return 1;
+}
+
+static int i2c_acpi_count_resource(struct acpi_device *adev)
+{
+	LIST_HEAD(r);
+	int count = 0;
+	int ret;
+
+	ret = acpi_dev_get_resources(adev, &r, i2c_acpi_check_resource, &count);
+	if (ret < 0)
+		return ret;
+
+	acpi_dev_free_resource_list(&r);
+	return count;
+}
+
 static acpi_status i2c_acpi_add_device(acpi_handle handle, u32 level,
 				       void *data, void **return_value)
 {
 	struct i2c_adapter *adapter = data;
 	struct acpi_device *adev;
 	struct i2c_board_info info;
+	int index, count;
 
 	if (acpi_bus_get_device(handle, &adev))
 		return AE_OK;
 
-	if (i2c_acpi_get_info(adev, &info, -1, adapter, NULL))
-		return AE_OK;
+	if (!acpi_match_device_ids(adev, i2c_acpi_multiple_devices_ids)) {
+		count = i2c_acpi_count_resource(adev);
+		if (count < 0)
+			return AE_OK;
+	} else {
+		count = 1;
+	}
 
-	i2c_acpi_register_device(adapter, adev, &info);
+	for (index = 0; index < count; index++) {
+		char name[16];
+
+		if (i2c_acpi_get_info(adev, &info, index, adapter, NULL))
+			return AE_OK;
+
+		if (count > 1) {
+			sprintf(name, "%s.%d", acpi_dev_name(adev), index);
+			info.dev_name = name;
+		}
+
+		i2c_acpi_register_device(adapter, adev, &info);
+	}
 
 	return AE_OK;
 }
@@ -384,8 +440,28 @@ const struct acpi_device_id *
 i2c_acpi_match_device(const struct acpi_device_id *matches,
 		      struct i2c_client *client)
 {
+	struct acpi_device *adev;
+
 	if (!(client && matches))
 		return NULL;
+
+	adev = ACPI_COMPANION(&client->dev);
+
+	/*
+	 * With multi devices, the first physical device must be used for
+	 * matching.
+	 */
+	if (!acpi_match_device_ids(adev, i2c_acpi_multiple_devices_ids)) {
+		const struct acpi_device_id *id;
+
+		client = i2c_acpi_find_client_by_adev(adev);
+		if (!client)
+			return NULL;
+
+		id = acpi_match_device(matches, &client->dev);
+		put_device(&client->dev);
+		return id;
+	}
 
 	return acpi_match_device(matches, &client->dev);
 }
