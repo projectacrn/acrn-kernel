@@ -498,8 +498,10 @@ icl_combo_phy_aux_power_well_enable(struct drm_i915_private *dev_priv,
 	val = I915_READ(HSW_PWR_WELL_CTL_DRIVER(id));
 	I915_WRITE(HSW_PWR_WELL_CTL_DRIVER(id), val | HSW_PWR_WELL_CTL_REQ(id));
 
-	val = I915_READ(ICL_PORT_CL_DW12(port));
-	I915_WRITE(ICL_PORT_CL_DW12(port), val | ICL_LANE_ENABLE_AUX);
+	if (!IS_TIGERLAKE(dev_priv)) {
+		val = I915_READ(ICL_PORT_CL_DW12(port));
+		I915_WRITE(ICL_PORT_CL_DW12(port), val | ICL_LANE_ENABLE_AUX);
+	}
 
 	hsw_wait_for_power_well_enable(dev_priv, power_well);
 
