@@ -109,7 +109,7 @@ static int i2c_device_match(struct device *dev, struct device_driver *drv)
 		return 1;
 
 	/* Then ACPI style match */
-	if (acpi_driver_match_device(dev, drv))
+	if (i2c_acpi_match_device(drv->acpi_match_table, client))
 		return 1;
 
 	driver = to_i2c_driver(drv);
