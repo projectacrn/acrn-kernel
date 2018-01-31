@@ -14,6 +14,7 @@
  * raised, the LCR needs to be rewritten and the uart status register read.
  */
 #include <linux/device.h>
+#include <linux/gpio/consumer.h>
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/serial_8250.h>
@@ -21,12 +22,16 @@
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
+#include <linux/pinctrl/consumer.h>
 #include <linux/platform_device.h>
+#include <linux/pm_wakeirq.h>
 #include <linux/slab.h>
 #include <linux/acpi.h>
+#include <linux/pci.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
 #include <linux/pm_runtime.h>
+#include <linux/console.h>
 
 #include <asm/byteorder.h>
 
@@ -240,18 +245,6 @@ static int dw8250_handle_irq(struct uart_port *p)
 	return 0;
 }
 
-static void
-dw8250_do_pm(struct uart_port *port, unsigned int state, unsigned int old)
-{
-	if (!state)
-		pm_runtime_get_sync(port->dev);
-
-	serial8250_do_pm(port, state, old);
-
-	if (state)
-		pm_runtime_put_sync_suspend(port->dev);
-}
-
 static void dw8250_set_termios(struct uart_port *p, struct ktermios *termios,
 			       struct ktermios *old)
 {
@@ -406,12 +399,47 @@ static void dw8250_setup_port(struct uart_port *p)
 		up->capabilities |= UART_CAP_IRDA;
 }
 
+static int dw8250_init_wakeup(struct device *dev)
+{
+	struct gpio_desc *wake;
+	int irq, err;
+
+	/* Set up RxD or CTS pin as wake source */
+	wake = gpiod_get(dev, "rx", GPIOD_IN);
+	if (IS_ERR(wake))
+		wake = gpiod_get(dev, "cts", GPIOD_IN);
+	if (IS_ERR(wake))
+		return PTR_ERR(wake);
+
+	irq = gpiod_to_irq(wake);
+	if (irq < 0) {
+		err = irq;
+	} else {
+		device_init_wakeup(dev, true);
+		err = dev_pm_set_dedicated_wake_irq(dev, irq);
+		if (err) {
+			dev_warn(dev, "Can't set dedicated wake IRQ: %d\n", err);
+			device_init_wakeup(dev, false);
+		} else {
+			irq_set_irq_type(irq, IRQ_TYPE_EDGE_BOTH);
+		}
+	}
+	gpiod_put(wake);
+	return err;
+}
+
+static void dw8250_clear_wakeup(struct device *dev)
+{
+	dev_pm_clear_wake_irq(dev);
+	device_init_wakeup(dev, false);
+}
+
 static int dw8250_probe(struct platform_device *pdev)
 {
-	struct uart_8250_port uart = {};
+	struct uart_8250_port uart = {}, *up = &uart;
 	struct resource *regs = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	int irq = platform_get_irq(pdev, 0);
-	struct uart_port *p = &uart.port;
+	struct uart_port *p = &up->port;
 	struct device *dev = &pdev->dev;
 	struct dw8250_data *data;
 	int err;
@@ -432,7 +460,6 @@ static int dw8250_probe(struct platform_device *pdev)
 	p->mapbase	= regs->start;
 	p->irq		= irq;
 	p->handle_irq	= dw8250_handle_irq;
-	p->pm		= dw8250_do_pm;
 	p->type		= PORT_8250;
 	p->flags	= UPF_SHARE_IRQ | UPF_FIXED_PORT;
 	p->dev		= dev;
@@ -549,16 +576,23 @@ static int dw8250_probe(struct platform_device *pdev)
 	if (p->fifosize) {
 		data->dma.rxconf.src_maxburst = p->fifosize / 4;
 		data->dma.txconf.dst_maxburst = p->fifosize / 4;
-		uart.dma = &data->dma;
+		up->dma = &data->dma;
 	}
 
-	data->line = serial8250_register_8250_port(&uart);
+	data->line = serial8250_register_8250_port(up);
 	if (data->line < 0) {
 		err = data->line;
 		goto err_reset;
 	}
 
+	err = dw8250_init_wakeup(dev);
+	if (err)
+		dev_dbg(dev, "Can't init wakeup: %d\n", err);
+
 	platform_set_drvdata(pdev, data);
+
+	pm_runtime_use_autosuspend(dev);
+	pm_runtime_set_autosuspend_delay(dev, -1);
 
 	pm_runtime_set_active(dev);
 	pm_runtime_enable(dev);
@@ -582,8 +616,11 @@ err_clk:
 static int dw8250_remove(struct platform_device *pdev)
 {
 	struct dw8250_data *data = platform_get_drvdata(pdev);
+	struct device *dev = &pdev->dev;
 
-	pm_runtime_get_sync(&pdev->dev);
+	dw8250_clear_wakeup(dev);
+
+	pm_runtime_get_sync(dev);
 
 	serial8250_unregister_port(data->line);
 
@@ -595,8 +632,8 @@ static int dw8250_remove(struct platform_device *pdev)
 	if (!IS_ERR(data->clk))
 		clk_disable_unprepare(data->clk);
 
-	pm_runtime_disable(&pdev->dev);
-	pm_runtime_put_noidle(&pdev->dev);
+	pm_runtime_disable(dev);
+	pm_runtime_put_noidle(dev);
 
 	return 0;
 }
@@ -605,6 +642,20 @@ static int dw8250_remove(struct platform_device *pdev)
 static int dw8250_suspend(struct device *dev)
 {
 	struct dw8250_data *data = dev_get_drvdata(dev);
+
+	/*
+	 * FIXME: For Platforms with LPSS PCI UARTs, the parent device should
+	 * be prevented from going into D3 for the no_console_suspend flag to
+	 * work as expected.
+	 */
+	if (platform_get_resource_byname(to_platform_device(dev),
+					 IORESOURCE_MEM, "lpss_dev")) {
+		struct uart_8250_port *up = serial8250_get_port(data->line);
+		struct pci_dev *pdev = to_pci_dev(dev->parent);
+
+		if (pdev && !console_suspend_enabled && uart_console(&up->port))
+			pdev->dev_flags |= PCI_DEV_FLAGS_NO_D3;
+	}
 
 	serial8250_suspend_port(data->line);
 
@@ -626,6 +677,8 @@ static int dw8250_runtime_suspend(struct device *dev)
 {
 	struct dw8250_data *data = dev_get_drvdata(dev);
 
+	pinctrl_pm_select_sleep_state(dev);
+
 	if (!IS_ERR(data->clk))
 		clk_disable_unprepare(data->clk);
 
@@ -638,6 +691,7 @@ static int dw8250_runtime_suspend(struct device *dev)
 static int dw8250_runtime_resume(struct device *dev)
 {
 	struct dw8250_data *data = dev_get_drvdata(dev);
+	struct uart_8250_port *up = serial8250_get_port(data->line);
 
 	if (!IS_ERR(data->pclk))
 		clk_prepare_enable(data->pclk);
@@ -645,6 +699,12 @@ static int dw8250_runtime_resume(struct device *dev)
 	if (!IS_ERR(data->clk))
 		clk_prepare_enable(data->clk);
 
+	pinctrl_pm_select_default_state(dev);
+
+	/* Restore context */
+	serial8250_do_restore_context(&up->port);
+
+	/* TODO: Check if it needs more than it's done in serial8250_console_restore() */
 	return 0;
 }
 #endif
