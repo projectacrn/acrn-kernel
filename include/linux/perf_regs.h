@@ -11,14 +11,14 @@ struct perf_regs {
 
 #ifdef CONFIG_HAVE_PERF_REGS
 #include <asm/perf_regs.h>
-u64 perf_reg_value(struct pt_regs *regs, int idx);
+u64 perf_reg_value(struct pt_regs *regs, u64 *extra_regs, int idx);
 int perf_reg_validate(u64 mask);
 u64 perf_reg_abi(struct task_struct *task);
 void perf_get_regs_user(struct perf_regs *regs_user,
 			struct pt_regs *regs,
 			struct pt_regs *regs_user_copy);
 #else
-static inline u64 perf_reg_value(struct pt_regs *regs, int idx)
+static inline u64 perf_reg_value(struct pt_regs *regs, u64 *extra_regs, int idx)
 {
 	return 0;
 }

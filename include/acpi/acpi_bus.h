@@ -658,8 +658,12 @@ static inline int acpi_pm_set_bridge_wakeup(struct device *dev, bool enable)
 
 #ifdef CONFIG_ACPI_SLEEP
 u32 acpi_target_system_state(void);
+int register_acpi_s2idle_wake_notifier(struct notifier_block *nb);
+int unregister_acpi_s2idle_wake_notifier(struct notifier_block *nb);
 #else
 static inline u32 acpi_target_system_state(void) { return ACPI_STATE_S0; }
+static inline int register_acpi_s2idle_wake_notifier(struct notifier_block *nb) { return 0; }
+static inline int unregister_acpi_s2idle_wake_notifier(struct notifier_block *nb) { return 0; }
 #endif
 
 static inline bool acpi_device_power_manageable(struct acpi_device *adev)
@@ -683,6 +687,8 @@ static inline bool acpi_device_can_poweroff(struct acpi_device *adev)
 
 static inline int register_acpi_bus_type(void *bus) { return 0; }
 static inline int unregister_acpi_bus_type(void *bus) { return 0; }
+static inline int register_acpi_s2idle_wake_notifier(struct notifier_block *nb) { return 0; }
+static inline int unregister_acpi_s2idle_wake_notifier(struct notifier_block *nb) { return 0; }
 
 #endif				/* CONFIG_ACPI */
 

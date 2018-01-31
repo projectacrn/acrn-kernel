@@ -101,6 +101,9 @@ again:
 	delta = (new_raw_count << shift) - (prev_raw_count << shift);
 	delta >>= shift;
 
+	if (hwc->flags & PERF_X86_EVENT_UPDATE)
+		delta = x86_pmu.metric_update_event(event, delta);
+
 	local64_add(delta, &event->count);
 	local64_sub(delta, &hwc->period_left);
 
@@ -220,6 +223,8 @@ static bool check_hw_exists(void)
 		if (ret)
 			goto msr_fail;
 		for (i = 0; i < x86_pmu.num_counters_fixed; i++) {
+			if (fixed_counter_disabled(i))
+				continue;
 			if (val & (0x03 << i*4)) {
 				bios_fail = 1;
 				val_fail = val;
@@ -1010,16 +1015,30 @@ static inline void x86_assign_hw_event(struct perf_event *event,
 	struct hw_perf_event *hwc = &event->hw;
 
 	hwc->idx = cpuc->assign[i];
+	hwc->reg_idx = hwc->idx;
 	hwc->last_cpu = smp_processor_id();
 	hwc->last_tag = ++cpuc->tags[i];
+
+	/*
+	 * Metrics counters use different indexes in the scheduler
+	 * versus the hardware.
+	 *
+	 * Map metrics to fixed counter 3 (which is the base count),
+	 * but the update event callback reads the extra metric register
+	 * and converts to the right metric.
+	 */
+	if (is_metric_idx(hwc->idx))
+		hwc->reg_idx = INTEL_PMC_IDX_FIXED_SLOTS;
 
 	if (hwc->idx == INTEL_PMC_IDX_FIXED_BTS) {
 		hwc->config_base = 0;
 		hwc->event_base	= 0;
 	} else if (hwc->idx >= INTEL_PMC_IDX_FIXED) {
 		hwc->config_base = MSR_ARCH_PERFMON_FIXED_CTR_CTRL;
-		hwc->event_base = MSR_ARCH_PERFMON_FIXED_CTR0 + (hwc->idx - INTEL_PMC_IDX_FIXED);
-		hwc->event_base_rdpmc = (hwc->idx - INTEL_PMC_IDX_FIXED) | 1<<30;
+		hwc->event_base = MSR_ARCH_PERFMON_FIXED_CTR0 +
+			(hwc->reg_idx - INTEL_PMC_IDX_FIXED);
+		hwc->event_base_rdpmc = (hwc->reg_idx - INTEL_PMC_IDX_FIXED)
+			| 1<<30;
 	} else {
 		hwc->config_base = x86_pmu_config_addr(hwc->idx);
 		hwc->event_base  = x86_pmu_event_addr(hwc->idx);
@@ -1166,6 +1185,9 @@ int x86_perf_event_set_period(struct perf_event *event)
 
 		wrmsrl(hwc->event_base, (u64)(-left) & x86_pmu.cntval_mask);
 	}
+
+	if (x86_pmu.update_counter)
+		x86_pmu.update_counter(event);
 
 	/*
 	 * Due to erratum on certan cpu we need
@@ -1332,6 +1354,8 @@ void perf_event_print_debug(void)
 			cpu, idx, prev_left);
 	}
 	for (idx = 0; idx < x86_pmu.num_counters_fixed; idx++) {
+		if (fixed_counter_disabled(idx))
+			continue;
 		rdmsrl(MSR_ARCH_PERFMON_FIXED_CTR0 + idx, pmc_count);
 
 		pr_info("CPU#%d: fixed-PMC%d count: %016llx\n",
@@ -1843,7 +1867,9 @@ static int __init init_hw_perf_events(void)
 	pr_info("... generic registers:      %d\n",     x86_pmu.num_counters);
 	pr_info("... value mask:             %016Lx\n", x86_pmu.cntval_mask);
 	pr_info("... max period:             %016Lx\n", x86_pmu.max_period);
-	pr_info("... fixed-purpose events:   %d\n",     x86_pmu.num_counters_fixed);
+	pr_info("... fixed-purpose events:   %lu\n",
+			hweight64((((1ULL << x86_pmu.num_counters_fixed) - 1)
+					<< INTEL_PMC_IDX_FIXED) & x86_pmu.intel_ctrl));
 	pr_info("... event mask:             %016Lx\n", x86_pmu.intel_ctrl);
 
 	/*
@@ -1887,14 +1913,16 @@ static inline void x86_pmu_read(struct perf_event *event)
 	x86_perf_event_update(event);
 }
 
+static void x86_pmu_reset(struct perf_event *event)
+{
+	if (x86_pmu.reset)
+		x86_pmu.reset(event);
+}
+
 /*
  * Start group events scheduling transaction
  * Set the flag to make pmu::enable() not perform the
  * schedulability test, it will be performed at commit time
- *
- * We only support PERF_PMU_TXN_ADD transactions. Save the
- * transaction flags but otherwise ignore non-PERF_PMU_TXN_ADD
- * transactions.
  */
 static void x86_pmu_start_txn(struct pmu *pmu, unsigned int txn_flags)
 {
@@ -1903,6 +1931,7 @@ static void x86_pmu_start_txn(struct pmu *pmu, unsigned int txn_flags)
 	WARN_ON_ONCE(cpuc->txn_flags);		/* txn already in flight */
 
 	cpuc->txn_flags = txn_flags;
+	cpuc->txn_regs = 0;
 	if (txn_flags & ~PERF_PMU_TXN_ADD)
 		return;
 
@@ -1924,6 +1953,8 @@ static void x86_pmu_cancel_txn(struct pmu *pmu)
 
 	txn_flags = cpuc->txn_flags;
 	cpuc->txn_flags = 0;
+	cpuc->txn_metric = 0;
+	cpuc->txn_regs = 0;
 	if (txn_flags & ~PERF_PMU_TXN_ADD)
 		return;
 
@@ -1951,6 +1982,7 @@ static int x86_pmu_commit_txn(struct pmu *pmu)
 
 	WARN_ON_ONCE(!cpuc->txn_flags);	/* no txn in flight */
 
+	cpuc->txn_metric = 0;
 	if (cpuc->txn_flags & ~PERF_PMU_TXN_ADD) {
 		cpuc->txn_flags = 0;
 		return 0;
@@ -2283,6 +2315,7 @@ static struct pmu pmu = {
 	.start			= x86_pmu_start,
 	.stop			= x86_pmu_stop,
 	.read			= x86_pmu_read,
+	.reset			= x86_pmu_reset,
 
 	.start_txn		= x86_pmu_start_txn,
 	.cancel_txn		= x86_pmu_cancel_txn,
