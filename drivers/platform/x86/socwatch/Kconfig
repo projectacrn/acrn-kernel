@@ -1,0 +1,23 @@
+menuconfig INTEL_SOCWATCH
+	depends on X86
+	tristate "SocWatch Driver Support"
+	help
+	  Say Y here to enable SocWatch
+
+config SOCWATCH_ANDROID
+	depends on INTEL_SOCWATCH
+	bool "Android support"
+	help
+	  Say Y here to enable SocWatch support for Android
+
+config SOCWATCH_SOCPERF
+	depends on INTEL_SOCWATCH && INTEL_SOCPERF
+	bool "SocPerf Support"
+	help
+	  Say Y here to enable SocWatch SocPerf support
+
+config SOCWATCH_DRIVER_PROFILING
+	depends on INTEL_SOCWATCH
+	bool "Driver Profiling Support"
+	help
+	  Say Y here to enable SocWatch driver profiling

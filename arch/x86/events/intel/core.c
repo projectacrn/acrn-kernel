@@ -238,6 +238,53 @@ static struct extra_reg intel_skl_extra_regs[] __read_mostly = {
 	EVENT_EXTRA_END
 };
 
+static struct event_constraint intel_icl_event_constraints[] = {
+	FIXED_EVENT_CONSTRAINT(0x00c0, 0),	/* INST_RETIRED.ANY */
+	INTEL_UEVENT_CONSTRAINT(0x1c0, 0),	/* INST_RETIRED.PREC_DIST */
+	FIXED_EVENT_CONSTRAINT(0x003c, 1),	/* CPU_CLK_UNHALTED.CORE */
+	FIXED_EVENT_CONSTRAINT(0x0300, 2),	/* CPU_CLK_UNHALTED.REF */
+	FIXED_EVENT_CONSTRAINT(0x05ff, 3),	/* SLOTS */
+	METRIC_EVENT_CONSTRAINT(0x01ff, 0),     /* Retiring metric */
+	METRIC_EVENT_CONSTRAINT(0x02ff, 1),     /* Bad speculation metric */
+	METRIC_EVENT_CONSTRAINT(0x03ff, 2),     /* FE bound metric */
+	METRIC_EVENT_CONSTRAINT(0x04ff, 3),     /* BE bound metric */
+	INTEL_EVENT_CONSTRAINT_RANGE(0x03, 0x0a, 0xf),
+	INTEL_UEVENT_CONSTRAINT(0x800d, 0xf),	/* INT_MISC.CLEAR_RESTEER_CYCLES */
+
+	/* Mark events that can't use all 8 generic counters */
+
+/* FIXME sync with final events */
+	INTEL_EVENT_CONSTRAINT_RANGE(0x1f, 0x28, 0xf),
+
+	INTEL_EVENT_CONSTRAINT_RANGE(0x48, 0x54, 0xf),
+	INTEL_EVENT_CONSTRAINT_RANGE(0x60, 0x8b, 0xf),
+	INTEL_UEVENT_CONSTRAINT(0x04a3, 0xff),  /* CYCLE_ACTIVITY.STALLS_TOTAL */
+	INTEL_UEVENT_CONSTRAINT(0x10a3, 0xff),  /* CYCLE_ACTIVITY.STALLS_MEM_ANY */
+	INTEL_EVENT_CONSTRAINT(0xa3, 0xf),      /* CYCLE_ACTIVITY.* */
+	INTEL_EVENT_CONSTRAINT_RANGE(0xa8, 0xb0, 0xf),
+	INTEL_EVENT_CONSTRAINT_RANGE(0xb7, 0xbd, 0xf),
+	INTEL_EVENT_CONSTRAINT_RANGE(0xd0, 0xe6, 0xf),
+	INTEL_EVENT_CONSTRAINT_RANGE(0xf0, 0xf4, 0xf),
+
+	EVENT_CONSTRAINT_END
+};
+
+static struct extra_reg intel_icl_extra_regs[] __read_mostly = {
+	INTEL_UEVENT_EXTRA_REG(0x01b7, MSR_OFFCORE_RSP_0, 0x1fffffbfffull, RSP_0),
+	INTEL_UEVENT_EXTRA_REG(0x01bb, MSR_OFFCORE_RSP_1, 0x1fffffbfffull, RSP_1),
+	INTEL_UEVENT_PEBS_LDLAT_EXTRA_REG(0x01cd),
+	INTEL_UEVENT_EXTRA_REG(0x01c6, MSR_PEBS_FRONTEND, 0x7fff17, FE),
+	/*
+         * PERF_METRICS does exist, but it is not configured. But we
+         * share the original Fixed Ctr 3 from different metrics
+         * events. So use the extra reg to enforce the same
+         * configuration on the original register, but do not actually
+         * write to it.
+         */
+        INTEL_EVENT_EXTRA_REG(0xff, 0, -1L, PERF_METRICS),
+	EVENT_EXTRA_END
+};
+
 EVENT_ATTR_STR(mem-loads,	mem_ld_nhm,	"event=0x0b,umask=0x10,ldlat=3");
 EVENT_ATTR_STR(mem-loads,	mem_ld_snb,	"event=0xcd,umask=0x1,ldlat=3");
 EVENT_ATTR_STR(mem-stores,	mem_st_snb,	"event=0xcd,umask=0x2");
@@ -276,6 +323,12 @@ EVENT_ATTR_STR_HT(topdown-recovery-bubbles, td_recovery_bubbles,
 	"event=0xd,umask=0x3,cmask=1,any=1");	/* int_misc.recovery_cycles_any */
 EVENT_ATTR_STR_HT(topdown-recovery-bubbles.scale, td_recovery_bubbles_scale,
 	"4", "2");
+
+EVENT_ATTR_STR(slots,                   slots,          "event=0xff,umask=0x5");
+EVENT_ATTR_STR(topdown-retiring,	td_retiring,	"event=0xff,umask=0x1");
+EVENT_ATTR_STR(topdown-bad-spec,	td_bad_spec,	"event=0xff,umask=0x2");
+EVENT_ATTR_STR(topdown-fe-bound,	td_fe_bound,	"event=0xff,umask=0x3");
+EVENT_ATTR_STR(topdown-be-bound,	td_be_bound,	"event=0xff,umask=0x4");
 
 static struct attribute *snb_events_attrs[] = {
 	EVENT_PTR(mem_ld_snb),
@@ -2011,10 +2064,10 @@ static inline void intel_pmu_ack_status(u64 ack)
 
 static void intel_pmu_disable_fixed(struct hw_perf_event *hwc)
 {
-	int idx = hwc->idx - INTEL_PMC_IDX_FIXED;
+	int idx = hwc->reg_idx - INTEL_PMC_IDX_FIXED;
 	u64 ctrl_val, mask;
 
-	mask = 0xfULL << (idx * 4);
+	mask = 0x10000000fULL << (idx * 4);
 
 	rdmsrl(hwc->config_base, ctrl_val);
 	ctrl_val &= ~mask;
@@ -2037,9 +2090,22 @@ static void intel_pmu_disable_event(struct perf_event *event)
 		return;
 	}
 
-	cpuc->intel_ctrl_guest_mask &= ~(1ull << hwc->idx);
-	cpuc->intel_ctrl_host_mask &= ~(1ull << hwc->idx);
-	cpuc->intel_cp_status &= ~(1ull << hwc->idx);
+	__clear_bit(hwc->idx, cpuc->enabled_events);
+
+	/*
+	 * When any other slots sharing event is still enabled,
+	 * cancel the disabling.
+	 */
+	if (is_any_slots_idx(hwc->idx) &&
+	    (*(u64 *)&cpuc->enabled_events & INTEL_PMC_MSK_ANY_SLOTS))
+		return;
+
+	cpuc->intel_ctrl_guest_mask &= ~(1ull << hwc->reg_idx);
+	cpuc->intel_ctrl_host_mask &= ~(1ull << hwc->reg_idx);
+	cpuc->intel_cp_status &= ~(1ull << hwc->reg_idx);
+
+	if (unlikely(event->attr.precise_ip))
+		intel_pmu_pebs_disable(event);
 
 	if (unlikely(hwc->config_base == MSR_ARCH_PERFMON_FIXED_CTR_CTRL)) {
 		intel_pmu_disable_fixed(hwc);
@@ -2047,9 +2113,6 @@ static void intel_pmu_disable_event(struct perf_event *event)
 	}
 
 	x86_pmu_disable_event(event);
-
-	if (unlikely(event->attr.precise_ip))
-		intel_pmu_pebs_disable(event);
 }
 
 static void intel_pmu_del_event(struct perf_event *event)
@@ -2060,17 +2123,24 @@ static void intel_pmu_del_event(struct perf_event *event)
 		intel_pmu_pebs_del(event);
 }
 
-static void intel_pmu_enable_fixed(struct hw_perf_event *hwc)
+static void intel_pmu_enable_fixed(struct perf_event *event)
 {
-	int idx = hwc->idx - INTEL_PMC_IDX_FIXED;
+	struct hw_perf_event *hwc = &event->hw;
+	int idx = hwc->reg_idx - INTEL_PMC_IDX_FIXED;
 	u64 ctrl_val, bits, mask;
 
 	/*
-	 * Enable IRQ generation (0x8),
+	 * Enable IRQ generation (0x8), if not PEBS,
 	 * and enable ring-3 counting (0x2) and ring-0 counting (0x1)
 	 * if requested:
 	 */
-	bits = 0x8ULL;
+	if (event->attr.precise_ip) {
+		if (hwc->config & ICL_EVENTSEL_ADAPTIVE)
+			bits = 1ULL<<32;
+		else
+			bits = 0;
+	} else
+		bits = 0x8ULL;
 	if (hwc->config & ARCH_PERFMON_EVENTSEL_USR)
 		bits |= 0x2;
 	if (hwc->config & ARCH_PERFMON_EVENTSEL_OS)
@@ -2105,20 +2175,21 @@ static void intel_pmu_enable_event(struct perf_event *event)
 	}
 
 	if (event->attr.exclude_host)
-		cpuc->intel_ctrl_guest_mask |= (1ull << hwc->idx);
+		cpuc->intel_ctrl_guest_mask |= (1ull << hwc->reg_idx);
 	if (event->attr.exclude_guest)
-		cpuc->intel_ctrl_host_mask |= (1ull << hwc->idx);
+		cpuc->intel_ctrl_host_mask |= (1ull << hwc->reg_idx);
 
 	if (unlikely(event_is_checkpointed(event)))
-		cpuc->intel_cp_status |= (1ull << hwc->idx);
-
-	if (unlikely(hwc->config_base == MSR_ARCH_PERFMON_FIXED_CTR_CTRL)) {
-		intel_pmu_enable_fixed(hwc);
-		return;
-	}
+		cpuc->intel_cp_status |= (1ull << hwc->reg_idx);
 
 	if (unlikely(event->attr.precise_ip))
 		intel_pmu_pebs_enable(event);
+
+	if (unlikely(hwc->config_base == MSR_ARCH_PERFMON_FIXED_CTR_CTRL)) {
+		if (!__test_and_set_bit(hwc->idx, cpuc->enabled_events))
+			intel_pmu_enable_fixed(event);
+		return;
+	}
 
 	__x86_pmu_enable_event(hwc, ARCH_PERFMON_EVENTSEL_ENABLE);
 }
@@ -2131,12 +2202,34 @@ static void intel_pmu_add_event(struct perf_event *event)
 		intel_pmu_lbr_add(event);
 }
 
+/* When SLOTS overflowed update all the active topdown-* events */
+static void intel_pmu_update_metrics(struct perf_event *event)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+	int idx;
+	u64 slots_events;
+
+	slots_events = *(u64 *)cpuc->enabled_events & INTEL_PMC_MSK_ANY_SLOTS;
+
+	for_each_set_bit (idx, (unsigned long *)&slots_events, 64) {
+		struct perf_event *ev = cpuc->events[idx];
+		if (ev == event)
+			continue;
+		x86_perf_event_update(event);
+	}
+}
+
 /*
  * Save and restart an expired event. Called by NMI contexts,
  * so it has to be careful about preempting normal event ops:
  */
 int intel_pmu_save_and_restart(struct perf_event *event)
 {
+	struct hw_perf_event *hwc = &event->hw;
+
+	if (unlikely(hwc->reg_idx == INTEL_PMC_IDX_FIXED_SLOTS))
+		intel_pmu_update_metrics(event);
+
 	x86_perf_event_update(event);
 	/*
 	 * For a checkpointed counter always reset back to 0.  This
@@ -2169,8 +2262,11 @@ static void intel_pmu_reset(void)
 		wrmsrl_safe(x86_pmu_config_addr(idx), 0ull);
 		wrmsrl_safe(x86_pmu_event_addr(idx),  0ull);
 	}
-	for (idx = 0; idx < x86_pmu.num_counters_fixed; idx++)
+	for (idx = 0; idx < x86_pmu.num_counters_fixed; idx++) {
+		if (fixed_counter_disabled(idx))
+			continue;
 		wrmsrl_safe(MSR_ARCH_PERFMON_FIXED_CTR0 + idx, 0ull);
+	}
 
 	if (ds)
 		ds->bts_index = ds->bts_buffer_base;
@@ -2203,6 +2299,7 @@ static int intel_pmu_handle_irq(struct pt_regs *regs)
 	int handled;
 
 	cpuc = this_cpu_ptr(&cpu_hw_events);
+	cpuc->nmi_metric = 0;
 
 	/*
 	 * No known reason to not always do late ACK,
@@ -2526,7 +2623,7 @@ x86_get_event_constraints(struct cpu_hw_events *cpuc, int idx,
 
 	if (x86_pmu.event_constraints) {
 		for_each_event_constraint(c, x86_pmu.event_constraints) {
-			if ((event->hw.config & c->cmask) == c->code) {
+			if (constraint_match(c, event->hw.config)) {
 				event->hw.flags |= c->flags;
 				return c;
 			}
@@ -2960,7 +3057,8 @@ static unsigned long intel_pmu_free_running_flags(struct perf_event *event)
 		flags &= ~PERF_SAMPLE_TIME;
 	if (!event->attr.exclude_kernel)
 		flags &= ~PERF_SAMPLE_REGS_USER;
-	if (event->attr.sample_regs_user & ~PEBS_REGS)
+	if ((event->attr.sample_regs_user | event->attr.sample_regs_intr)
+			& ~(PEBS_REGS | PEBS_XMM_REGS))
 		flags &= ~(PERF_SAMPLE_REGS_USER | PERF_SAMPLE_REGS_INTR);
 	return flags;
 }
@@ -2968,6 +3066,7 @@ static unsigned long intel_pmu_free_running_flags(struct perf_event *event)
 static int intel_pmu_hw_config(struct perf_event *event)
 {
 	int ret = x86_pmu_hw_config(event);
+	unsigned ecode;
 
 	if (ret)
 		return ret;
@@ -3002,6 +3101,32 @@ static int intel_pmu_hw_config(struct perf_event *event)
 
 	if (event->attr.type != PERF_TYPE_RAW)
 		return 0;
+
+	/* Fixed Counter 3 with its metric sub events */
+	ecode = event->attr.config & INTEL_ARCH_EVENT_MASK;
+	if (x86_pmu.has_metric &&
+		(ecode & 0xff) == 0xff &&
+		ecode >= 0x01ff && ecode <= 0x05ff) {
+		if (event->attr.config1 != 0)
+			return -EINVAL;
+		if (event->attr.config & ARCH_PERFMON_EVENTSEL_ANY)
+			return -EINVAL;
+		/*
+		 * Put configuration (minus event) into config1 so that
+		 * the scheduler enforces through an extra_reg that
+		 * all instances of the metrics events have the same
+		 * configuration.
+		 */
+		event->attr.config1 = event->hw.config & X86_ALL_EVENT_FLAGS;
+		if (ecode != 0x05ff) {
+			if (!x86_pmu.intel_cap.perf_metrics_available)
+				return -EINVAL;
+			if (event->attr.sample_period)
+				return -EINVAL;
+			event->hw.flags |= PERF_X86_EVENT_UPDATE;
+		}
+		return 0;
+	}
 
 	if (!(event->attr.config & ARCH_PERFMON_EVENTSEL_ANY))
 		return 0;
@@ -3261,6 +3386,8 @@ static struct intel_excl_cntrs *allocate_excl_cntrs(int cpu)
 static int intel_pmu_cpu_prepare(int cpu)
 {
 	struct cpu_hw_events *cpuc = &per_cpu(cpu_hw_events, cpu);
+
+	cpuc->pebs_record_size = x86_pmu.pebs_record_size;
 
 	if (x86_pmu.extra_regs || x86_pmu.lbr_sel_map) {
 		cpuc->shared_regs = allocate_shared_regs(cpu);
@@ -3716,6 +3843,88 @@ static __init void intel_ht_bug(void)
 	x86_pmu.stop_scheduling = intel_stop_scheduling;
 }
 
+/*
+ * Update metric event with the PERF_METRICS register.
+ *
+ * Metric events are defined as SLOTS * metric. The original
+ * metric can be reconstructed by taking SUM(all-metrics)/metric
+ * (or SLOTS/metric)
+ */
+static u64 icl_metric_update_event(struct perf_event *event, u64 val)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+	struct hw_perf_event *hwc = &event->hw;
+	u64 newval, metric;
+	bool nmi = in_nmi();
+	int txn_flags = nmi ? 0 : cpuc->txn_flags;
+
+	/*
+	 * Use cached value for transaction.
+	 */
+	newval = 0;
+	if (txn_flags)
+		newval = cpuc->txn_metric;
+	else if (nmi)
+		newval = cpuc->nmi_metric;
+	if (!newval) {
+		rdpmcl((1<<29) | 0, newval);
+		if (txn_flags)
+			cpuc->txn_metric = newval;
+		else if (nmi)
+			cpuc->nmi_metric = newval;
+		if (!(txn_flags & PERF_PMU_TXN_REMOVE))
+			wrmsrl(MSR_PERF_METRICS, 0);
+	}
+	metric = (newval >> ((hwc->idx - INTEL_PMC_IDX_FIXED_METRIC_BASE)*8)) & 0xff;
+	/*
+	 * If we're scheduled out save the metric value for later restore.
+	 */
+	if (txn_flags & PERF_PMU_TXN_REMOVE)
+		hwc->saved_metric = newval;
+
+	/*
+	 * The metric is reported as an 8bit integer percentage
+	 * suming up to 0xff. As the counter is less than 64bits
+	 * we can use the not used bits to get the needed precision.
+	 * Use 16bit fixed point arithmetic for
+	 * slots-in-metric = (MetricPct / 0xff) * val
+	 * This works fine for upto 48bit counters, but will
+	 * lose precision above that.
+	 */
+	return (((metric * 0xffff) >> 8) * val) >> 16;
+}
+
+/*
+ * Update metrics counter after metric event has been restored
+ */
+static void icl_update_counter(struct perf_event *event)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+
+	if (!cpuc->txn_flags & PERF_PMU_TXN_ADD)
+		return;
+	if (is_metric_idx(event->hw.idx) &&
+	    !__test_and_set_bit(event->hw.idx, &cpuc->txn_regs))
+		wrmsrl(MSR_PERF_METRICS, event->hw.saved_metric);
+}
+
+static void icl_reset(struct perf_event *event)
+{
+	struct hw_perf_event *hwc = &event->hw;
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+
+	if (!is_metric_idx(event->hw.idx))
+		return;
+	/* Prevent races with NMI */
+	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL, 0);
+	local64_set(&hwc->prev_count, 0);
+	wrmsrl(hwc->event_base, 0);
+	wrmsrl(MSR_PERF_METRICS, 0);
+	event->hw.saved_metric = 0;
+	wrmsrl(MSR_CORE_PERF_GLOBAL_CTRL,
+	       x86_pmu.intel_ctrl & ~cpuc->intel_ctrl_guest_mask);
+}
+
 EVENT_ATTR_STR(mem-loads,	mem_ld_hsw,	"event=0xcd,umask=0x1,ldlat=3");
 EVENT_ATTR_STR(mem-stores,	mem_st_hsw,	"event=0xd0,umask=0x82")
 
@@ -3768,6 +3977,31 @@ static __init struct attribute **get_hsw_events_attrs(void)
 		merge_attr(hsw_events_attrs, hsw_tsx_events_attrs) :
 		hsw_events_attrs;
 }
+
+EVENT_ATTR_STR(mem-stores,	  mem_st_icl,	     "event=0xd0,umask=0x2");
+EVENT_ATTR_STR(tx-capacity-read,  tx_capacity_read,  "event=0x54,umask=0x80");
+EVENT_ATTR_STR(tx-capacity-write, tx_capacity_write, "event=0x54,umask=0x2");
+
+static struct attribute *icl_events_attrs[] = {
+	EVENT_PTR(tx_start),
+	EVENT_PTR(tx_abort),
+	EVENT_PTR(tx_commit),
+	EVENT_PTR(tx_capacity_read),
+	EVENT_PTR(tx_capacity_write),
+	EVENT_PTR(el_start),
+	EVENT_PTR(el_abort),
+	EVENT_PTR(el_commit),
+	EVENT_PTR(cycles_t),
+	EVENT_PTR(cycles_ct),
+	EVENT_PTR(mem_ld_hsw),
+	EVENT_PTR(mem_st_icl),
+	EVENT_PTR(slots),
+	EVENT_PTR(td_retiring),
+	EVENT_PTR(td_bad_spec),
+	EVENT_PTR(td_fe_bound),
+	EVENT_PTR(td_be_bound),
+	NULL,
+};
 
 static ssize_t freeze_on_smi_show(struct device *cdev,
 				  struct device_attribute *attr,
@@ -3851,7 +4085,7 @@ __init int intel_pmu_init(void)
 	union cpuid10_eax eax;
 	union cpuid10_ebx ebx;
 	struct event_constraint *c;
-	unsigned int unused;
+	unsigned int fixed_mask;
 	struct extra_reg *er;
 	int version, i;
 	struct attribute **extra_attr = NULL;
@@ -3873,9 +4107,11 @@ __init int intel_pmu_init(void)
 	 * Check whether the Architectural PerfMon supports
 	 * Branch Misses Retired hw_event or not.
 	 */
-	cpuid(10, &eax.full, &ebx.full, &unused, &edx.full);
+	cpuid(10, &eax.full, &ebx.full, &fixed_mask, &edx.full);
 	if (eax.split.mask_length < ARCH_PERFMON_EVENTS_COUNT)
 		return -ENODEV;
+	if (!fixed_mask)
+		fixed_mask = -1;
 
 	version = eax.split.version_id;
 	if (version < 2)
@@ -4301,6 +4537,42 @@ __init int intel_pmu_init(void)
 		name = "skylake";
 		break;
 
+	case INTEL_FAM6_ICELAKE_X:
+	case INTEL_FAM6_ICELAKE_DESKTOP:
+	case INTEL_FAM6_ICELAKE_MOBILE:
+		x86_pmu.late_ack = true;
+		memcpy(hw_cache_event_ids, skl_hw_cache_event_ids, sizeof(hw_cache_event_ids));
+		memcpy(hw_cache_extra_regs, skl_hw_cache_extra_regs, sizeof(hw_cache_extra_regs));
+		hw_cache_event_ids[C(ITLB)][C(OP_READ)][C(RESULT_ACCESS)] = -1;
+		intel_pmu_lbr_init_skl();
+
+		x86_pmu.event_constraints = intel_icl_event_constraints;
+		x86_pmu.pebs_constraints = intel_icl_pebs_event_constraints;
+		x86_pmu.extra_regs = intel_icl_extra_regs;
+		x86_pmu.pebs_aliases = NULL;
+		x86_pmu.pebs_prec_dist = true;
+		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
+		x86_pmu.flags |= PMU_FL_NO_HT_SHARING;
+		x86_pmu.flags |= PMU_FL_PEBS_ALL;
+
+		x86_pmu.hw_config = hsw_hw_config;
+		x86_pmu.get_event_constraints = hsw_get_event_constraints;
+		extra_attr = boot_cpu_has(X86_FEATURE_RTM) ?
+			hsw_format_attr : nhm_format_attr;
+		extra_attr = merge_attr(extra_attr, skl_format_attr);
+		x86_pmu.cpu_events = icl_events_attrs;
+		x86_pmu.force_gpr_event = 0x2ca;
+		x86_pmu.lbr_pt_coexist = true;
+		intel_pmu_pebs_data_source_skl(
+			boot_cpu_data.x86_model == INTEL_FAM6_ICELAKE_X);
+		x86_pmu.has_metric = x86_pmu.intel_cap.perf_metrics_available;
+		x86_pmu.metric_update_event = icl_metric_update_event;
+		x86_pmu.update_counter = icl_update_counter;
+		x86_pmu.reset = icl_reset;
+		pr_cont("Icelake events, ");
+		name = "icelake";
+		break;
+
 	default:
 		switch (x86_pmu.version) {
 		case 1:
@@ -4341,7 +4613,8 @@ __init int intel_pmu_init(void)
 	}
 
 	x86_pmu.intel_ctrl |=
-		((1LL << x86_pmu.num_counters_fixed)-1) << INTEL_PMC_IDX_FIXED;
+		(((1LL << x86_pmu.num_counters_fixed)-1) & (u64)fixed_mask)
+			<< INTEL_PMC_IDX_FIXED;
 
 	if (x86_pmu.event_constraints) {
 		/*
@@ -4349,9 +4622,20 @@ __init int intel_pmu_init(void)
 		 * counter, so do not extend mask to generic counters
 		 */
 		for_each_event_constraint(c, x86_pmu.event_constraints) {
-			if (c->cmask == FIXED_EVENT_FLAGS
-			    && c->idxmsk64 != INTEL_PMC_MSK_FIXED_REF_CYCLES) {
-				c->idxmsk64 |= (1ULL << x86_pmu.num_counters) - 1;
+			/*
+			 * Don't limit the event mask for topdown sub event
+			 * counters.
+			 */
+			if (x86_pmu.num_counters_fixed >= 3 &&
+			    c->idxmsk64 & INTEL_PMC_MSK_ANY_SLOTS) {
+				c->weight = hweight64(c->idxmsk64);
+				continue;
+			}
+			if (c->cmask == FIXED_EVENT_FLAGS)  {
+				if (c->idxmsk64 != INTEL_PMC_MSK_FIXED_REF_CYCLES)
+					c->idxmsk64 |= (1ULL << x86_pmu.num_counters) - 1;
+				/* Disabled fixed counters which are not in CPUID */
+				c->idxmsk64 &= x86_pmu.intel_ctrl;
 			}
 			c->idxmsk64 &=
 				~(~0ULL << (INTEL_PMC_IDX_FIXED + x86_pmu.num_counters_fixed));
@@ -4399,6 +4683,11 @@ __init int intel_pmu_init(void)
 		x86_pmu.max_period = x86_pmu.cntval_mask >> 1;
 		x86_pmu.perfctr = MSR_IA32_PMC0;
 		pr_cont("full-width counters, ");
+	}
+
+	if (x86_pmu.has_metric) {
+		x86_pmu.intel_ctrl |= 1ULL << 48;
+		pr_cont("TopDown, ");
 	}
 
 	return 0;

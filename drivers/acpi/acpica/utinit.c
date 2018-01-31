@@ -305,9 +305,11 @@ void acpi_ut_subsystem_shutdown(void)
 	acpi_ut_interface_terminate();
 #endif
 
+#if 0
 	/* Close the Namespace */
 
 	acpi_ns_terminate();
+#endif
 
 	/* Delete the ACPI tables */
 
@@ -317,8 +319,10 @@ void acpi_ut_subsystem_shutdown(void)
 
 	acpi_ut_terminate();
 
+#if 0
 	/* Purge the local caches */
 
 	(void)acpi_ut_delete_caches();
+#endif
 	return_VOID;
 }
