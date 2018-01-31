@@ -205,6 +205,7 @@ int drm_framebuffer_init(struct drm_device *dev,
 			 struct drm_framebuffer *fb,
 			 const struct drm_framebuffer_funcs *funcs);
 struct drm_framebuffer *drm_framebuffer_lookup(struct drm_device *dev,
+					       struct drm_file *file_priv,
 					       uint32_t id);
 void drm_framebuffer_remove(struct drm_framebuffer *fb);
 void drm_framebuffer_cleanup(struct drm_framebuffer *fb);
@@ -263,7 +264,7 @@ static inline void drm_framebuffer_unreference(struct drm_framebuffer *fb)
  *
  * This functions returns the framebuffer's reference count.
  */
-static inline uint32_t drm_framebuffer_read_refcount(struct drm_framebuffer *fb)
+static inline uint32_t drm_framebuffer_read_refcount(const struct drm_framebuffer *fb)
 {
 	return kref_read(&fb->base.refcount);
 }

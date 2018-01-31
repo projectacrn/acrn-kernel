@@ -33,6 +33,7 @@
 #include <linux/sync_file.h>
 
 #include "drm_crtc_internal.h"
+#include "drm_internal.h"
 
 void __drm_crtc_commit_free(struct kref *kref)
 {
@@ -163,13 +164,6 @@ void drm_atomic_state_default_clear(struct drm_atomic_state *state)
 		crtc->funcs->atomic_destroy_state(crtc,
 						  state->crtcs[i].state);
 
-		if (state->crtcs[i].commit) {
-			kfree(state->crtcs[i].commit->event);
-			state->crtcs[i].commit->event = NULL;
-			drm_crtc_commit_put(state->crtcs[i].commit);
-		}
-
-		state->crtcs[i].commit = NULL;
 		state->crtcs[i].ptr = NULL;
 		state->crtcs[i].state = NULL;
 	}
@@ -189,9 +183,6 @@ void drm_atomic_state_default_clear(struct drm_atomic_state *state)
 	for (i = 0; i < state->num_private_objs; i++) {
 		struct drm_private_obj *obj = state->private_objs[i].ptr;
 
-		if (!obj)
-			continue;
-
 		obj->funcs->atomic_destroy_state(obj,
 						 state->private_objs[i].state);
 		state->private_objs[i].ptr = NULL;
@@ -199,6 +190,10 @@ void drm_atomic_state_default_clear(struct drm_atomic_state *state)
 	}
 	state->num_private_objs = 0;
 
+	if (state->fake_commit) {
+		drm_crtc_commit_put(state->fake_commit);
+		state->fake_commit = NULL;
+	}
 }
 EXPORT_SYMBOL(drm_atomic_state_default_clear);
 
@@ -721,7 +716,7 @@ static int drm_atomic_plane_set_property(struct drm_plane *plane,
 	struct drm_mode_config *config = &dev->mode_config;
 
 	if (property == config->prop_fb_id) {
-		struct drm_framebuffer *fb = drm_framebuffer_lookup(dev, val);
+		struct drm_framebuffer *fb = drm_framebuffer_lookup(dev, NULL, val);
 		drm_atomic_set_fb_for_plane(state, fb);
 		if (fb)
 			drm_framebuffer_put(fb);
@@ -737,7 +732,7 @@ static int drm_atomic_plane_set_property(struct drm_plane *plane,
 			return -EINVAL;
 
 	} else if (property == config->prop_crtc_id) {
-		struct drm_crtc *crtc = drm_crtc_find(dev, val);
+		struct drm_crtc *crtc = drm_crtc_find(dev, NULL, val);
 		return drm_atomic_set_crtc_for_plane(state, crtc);
 	} else if (property == config->prop_crtc_x) {
 		state->crtc_x = U642I64(val);
@@ -913,11 +908,12 @@ static int drm_atomic_plane_check(struct drm_plane *plane,
 	    state->src_h > fb_height ||
 	    state->src_y > fb_height - state->src_h) {
 		DRM_DEBUG_ATOMIC("Invalid source coordinates "
-				 "%u.%06ux%u.%06u+%u.%06u+%u.%06u\n",
+				 "%u.%06ux%u.%06u+%u.%06u+%u.%06u (fb %ux%u)\n",
 				 state->src_w >> 16, ((state->src_w & 0xffff) * 15625) >> 10,
 				 state->src_h >> 16, ((state->src_h & 0xffff) * 15625) >> 10,
 				 state->src_x >> 16, ((state->src_x & 0xffff) * 15625) >> 10,
-				 state->src_y >> 16, ((state->src_y & 0xffff) * 15625) >> 10);
+				 state->src_y >> 16, ((state->src_y & 0xffff) * 15625) >> 10,
+				 state->fb->width, state->fb->height);
 		return -ENOSPC;
 	}
 
@@ -940,21 +936,8 @@ static void drm_atomic_plane_print_state(struct drm_printer *p,
 	drm_printf(p, "plane[%u]: %s\n", plane->base.id, plane->name);
 	drm_printf(p, "\tcrtc=%s\n", state->crtc ? state->crtc->name : "(null)");
 	drm_printf(p, "\tfb=%u\n", state->fb ? state->fb->base.id : 0);
-	if (state->fb) {
-		struct drm_framebuffer *fb = state->fb;
-		int i, n = fb->format->num_planes;
-		struct drm_format_name_buf format_name;
-
-		drm_printf(p, "\t\tformat=%s\n",
-		              drm_get_format_name(fb->format->format, &format_name));
-		drm_printf(p, "\t\t\tmodifier=0x%llx\n", fb->modifier);
-		drm_printf(p, "\t\tsize=%dx%d\n", fb->width, fb->height);
-		drm_printf(p, "\t\tlayers:\n");
-		for (i = 0; i < n; i++) {
-			drm_printf(p, "\t\t\tpitch[%d]=%u\n", i, fb->pitches[i]);
-			drm_printf(p, "\t\t\toffset[%d]=%u\n", i, fb->offsets[i]);
-		}
-	}
+	if (state->fb)
+		drm_framebuffer_print_info(p, 2, state->fb);
 	drm_printf(p, "\tcrtc-pos=" DRM_RECT_FMT "\n", DRM_RECT_ARG(&dest));
 	drm_printf(p, "\tsrc-pos=" DRM_RECT_FP_FMT "\n", DRM_RECT_FP_ARG(&src));
 	drm_printf(p, "\trotation=%x\n", state->rotation);
@@ -1152,7 +1135,7 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 	struct drm_mode_config *config = &dev->mode_config;
 
 	if (property == config->prop_crtc_id) {
-		struct drm_crtc *crtc = drm_crtc_find(dev, val);
+		struct drm_crtc *crtc = drm_crtc_find(dev, NULL, val);
 		return drm_atomic_set_crtc_for_connector(state, crtc);
 	} else if (property == config->dpms_property) {
 		/* setting DPMS property requires special handling, which
@@ -1814,11 +1797,11 @@ int drm_atomic_debugfs_init(struct drm_minor *minor)
 #endif
 
 /*
- * The big monstor ioctl
+ * The big monster ioctl
  */
 
 static struct drm_pending_vblank_event *create_vblank_event(
-		struct drm_device *dev, uint64_t user_data)
+		struct drm_crtc *crtc, uint64_t user_data)
 {
 	struct drm_pending_vblank_event *e = NULL;
 
@@ -1828,7 +1811,8 @@ static struct drm_pending_vblank_event *create_vblank_event(
 
 	e->event.base.type = DRM_EVENT_FLIP_COMPLETE;
 	e->event.base.length = sizeof(e->event);
-	e->event.user_data = user_data;
+	e->event.vbl.crtc_id = crtc->base.id;
+	e->event.vbl.user_data = user_data;
 
 	return e;
 }
@@ -2082,7 +2066,7 @@ static int prepare_crtc_signaling(struct drm_device *dev,
 		if (arg->flags & DRM_MODE_PAGE_FLIP_EVENT || fence_ptr) {
 			struct drm_pending_vblank_event *e;
 
-			e = create_vblank_event(dev, arg->user_data);
+			e = create_vblank_event(crtc, arg->user_data);
 			if (!e)
 				return -ENOMEM;
 
@@ -2237,7 +2221,7 @@ int drm_mode_atomic_ioctl(struct drm_device *dev,
 			(arg->flags & DRM_MODE_PAGE_FLIP_EVENT))
 		return -EINVAL;
 
-	drm_modeset_acquire_init(&ctx, 0);
+	drm_modeset_acquire_init(&ctx, DRM_MODESET_ACQUIRE_INTERRUPTIBLE);
 
 	state = drm_atomic_state_alloc(dev);
 	if (!state)
@@ -2262,7 +2246,7 @@ retry:
 			goto out;
 		}
 
-		obj = drm_mode_object_find(dev, obj_id, DRM_MODE_OBJECT_ANY);
+		obj = drm_mode_object_find(dev, file_priv, obj_id, DRM_MODE_OBJECT_ANY);
 		if (!obj) {
 			ret = -ENOENT;
 			goto out;
@@ -2350,8 +2334,9 @@ out:
 
 	if (ret == -EDEADLK) {
 		drm_atomic_state_clear(state);
-		drm_modeset_backoff(&ctx);
-		goto retry;
+		ret = drm_modeset_backoff(&ctx);
+		if (!ret)
+			goto retry;
 	}
 
 	drm_atomic_state_put(state);

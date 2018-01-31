@@ -1,0 +1,66 @@
+This is the Intel OTC GFX team's internal enabling tree. A few random
+best-practices:
+
+- Patches should be for embargoed changes, and should be sent to
+  upstream when no longer embargoed. The exceptions are patches labelled
+  as simulation or emulation (see below), or in rare cases a general
+  NOT_UPSTREAM tag.
+
+- Try to split out innocent refactoring patches so that they can be pushed
+  to upstream early.
+
+- Not-perfect stuff is acceptable, but please note any internal review feedback
+  which has not yet been acted upon in the commit message.
+
+- Please prefix patches as follows:
+
+  - drm/i915 - for platform independent patches.
+
+  - drm/i915/<platform-TLA> - for platform specific patches.
+
+  - drm/i915/sim - for simulation support patches.
+
+  - drm/i915/emu - for emulation support patches.
+
+- Tag patches as follows:
+
+  - Tags should be the first part of the headline, before the above prefix.
+
+  - NOT_UPSTREAM - patches which are not to be upstreamed. This is implied by
+    drm/i915/sim and drm/i915/emu.
+
+  - FIXME - patches which need some more work before upstreaming.
+
+In general though the same requirements apply to merging patches into the
+internal tree as for upstream. Specifically:
+
+- Any new features and interfaces need open-source userspace.
+
+- A feature is only done until all auxiliary tasks like writing testcases,
+  documentation and similar work is also completed.
+
+The only big difference is really that there's no requirement for in-depth
+review and that unresolved issues (due to unclear specs or lack of support in
+simulation enviromnents) are acceptable.
+
+The internal tree is maintained as a quilt patch with a bit of git-based
+tracking using my quilt flow tool. You can grab the latest version from the
+maintainer-tools branch of the upstream drm-intel git repository. Direct link:
+
+	http://cgit.freedesktop.org/drm-intel/plain/qf?h=maintainer-tools
+
+The script has an integrate howto and extensive on-line help for all
+subcommands.
+
+Branches:
+
+poweron/<codename>: Temporary branch used for Power On activities os that
+		    specific platform.
+
+platforms/<codename>: Chopped drm-intel-internal containing patches up to that
+		      plaform, but excluding newer platforms, simulation and
+		      any other internal hack.
+		      When a critical patch for that platform needs to be
+		      disabled also the platform branch update should be
+		      disabled as well. (Disabled on quilt series)
+		      Current active branches: cnl-h, icl-lp, icl-hp

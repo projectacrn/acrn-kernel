@@ -64,7 +64,7 @@ static unsigned long wait_timeout(void)
 
 static noinline void missed_breadcrumb(struct intel_engine_cs *engine)
 {
-	DRM_DEBUG_DRIVER("%s missed breadcrumb at %pF, irq posted? %s, current seqno=%x, last=%x\n",
+	DRM_DEBUG_DRIVER("%s missed breadcrumb at %pS, irq posted? %s, current seqno=%x, last=%x\n",
 			 engine->name, __builtin_return_address(0),
 			 yesno(test_bit(ENGINE_IRQ_BREADCRUMB,
 					&engine->irq_posted)),
@@ -74,9 +74,10 @@ static noinline void missed_breadcrumb(struct intel_engine_cs *engine)
 	set_bit(engine->id, &engine->i915->gpu_error.missed_irq_rings);
 }
 
-static void intel_breadcrumbs_hangcheck(unsigned long data)
+static void intel_breadcrumbs_hangcheck(struct timer_list *t)
 {
-	struct intel_engine_cs *engine = (struct intel_engine_cs *)data;
+	struct intel_engine_cs *engine = from_timer(engine, t,
+						    breadcrumbs.hangcheck);
 	struct intel_breadcrumbs *b = &engine->breadcrumbs;
 
 	if (!b->irq_armed)
@@ -108,9 +109,10 @@ static void intel_breadcrumbs_hangcheck(unsigned long data)
 	}
 }
 
-static void intel_breadcrumbs_fake_irq(unsigned long data)
+static void intel_breadcrumbs_fake_irq(struct timer_list *t)
 {
-	struct intel_engine_cs *engine = (struct intel_engine_cs *)data;
+	struct intel_engine_cs *engine = from_timer(engine, t,
+						    breadcrumbs.fake_irq);
 	struct intel_breadcrumbs *b = &engine->breadcrumbs;
 
 	/* The timer persists in case we cannot enable interrupts,
@@ -121,7 +123,7 @@ static void intel_breadcrumbs_fake_irq(unsigned long data)
 	 */
 
 	spin_lock_irq(&b->irq_lock);
-	if (!__intel_breadcrumbs_wakeup(b))
+	if (b->irq_armed && !__intel_breadcrumbs_wakeup(b))
 		__intel_engine_disarm_breadcrumbs(engine);
 	spin_unlock_irq(&b->irq_lock);
 	if (!b->irq_armed)
@@ -143,24 +145,36 @@ static void intel_breadcrumbs_fake_irq(unsigned long data)
 
 static void irq_enable(struct intel_engine_cs *engine)
 {
+	/*
+	 * FIXME: Ideally we want this on the API boundary, but for the
+	 * sake of testing with mock breadcrumbs (no HW so unable to
+	 * enable irqs) we place it deep within the bowels, at the point
+	 * of no return.
+	 */
+	GEM_BUG_ON(!intel_irqs_enabled(engine->i915));
+
 	/* Enabling the IRQ may miss the generation of the interrupt, but
 	 * we still need to force the barrier before reading the seqno,
 	 * just in case.
 	 */
 	set_bit(ENGINE_IRQ_BREADCRUMB, &engine->irq_posted);
 
-	/* Caller disables interrupts */
-	spin_lock(&engine->i915->irq_lock);
-	engine->irq_enable(engine);
-	spin_unlock(&engine->i915->irq_lock);
+	if (engine->irq_enable) {
+		/* Caller disables interrupts */
+		spin_lock(&engine->i915->irq_lock);
+		engine->irq_enable(engine);
+		spin_unlock(&engine->i915->irq_lock);
+	}
 }
 
 static void irq_disable(struct intel_engine_cs *engine)
 {
-	/* Caller disables interrupts */
-	spin_lock(&engine->i915->irq_lock);
-	engine->irq_disable(engine);
-	spin_unlock(&engine->i915->irq_lock);
+	if (engine->irq_disable) {
+		/* Caller disables interrupts */
+		spin_lock(&engine->i915->irq_lock);
+		engine->irq_disable(engine);
+		spin_unlock(&engine->i915->irq_lock);
+	}
 }
 
 void __intel_engine_disarm_breadcrumbs(struct intel_engine_cs *engine)
@@ -169,13 +183,35 @@ void __intel_engine_disarm_breadcrumbs(struct intel_engine_cs *engine)
 
 	lockdep_assert_held(&b->irq_lock);
 	GEM_BUG_ON(b->irq_wait);
+	GEM_BUG_ON(!b->irq_armed);
 
-	if (b->irq_enabled) {
+	GEM_BUG_ON(!b->irq_enabled);
+	if (!--b->irq_enabled)
 		irq_disable(engine);
-		b->irq_enabled = false;
-	}
 
 	b->irq_armed = false;
+}
+
+void intel_engine_pin_breadcrumbs_irq(struct intel_engine_cs *engine)
+{
+	struct intel_breadcrumbs *b = &engine->breadcrumbs;
+
+	spin_lock_irq(&b->irq_lock);
+	if (!b->irq_enabled++)
+		irq_enable(engine);
+	GEM_BUG_ON(!b->irq_enabled); /* no overflow! */
+	spin_unlock_irq(&b->irq_lock);
+}
+
+void intel_engine_unpin_breadcrumbs_irq(struct intel_engine_cs *engine)
+{
+	struct intel_breadcrumbs *b = &engine->breadcrumbs;
+
+	spin_lock_irq(&b->irq_lock);
+	GEM_BUG_ON(!b->irq_enabled); /* no underflow! */
+	if (!--b->irq_enabled)
+		irq_disable(engine);
+	spin_unlock_irq(&b->irq_lock);
 }
 
 void intel_engine_disarm_breadcrumbs(struct intel_engine_cs *engine)
@@ -195,7 +231,8 @@ void intel_engine_disarm_breadcrumbs(struct intel_engine_cs *engine)
 
 	spin_lock(&b->irq_lock);
 	first = fetch_and_zero(&b->irq_wait);
-	__intel_engine_disarm_breadcrumbs(engine);
+	if (b->irq_armed)
+		__intel_engine_disarm_breadcrumbs(engine);
 	spin_unlock(&b->irq_lock);
 
 	rbtree_postorder_for_each_entry_safe(wait, n, &b->waiters, node) {
@@ -239,6 +276,7 @@ static bool __intel_breadcrumbs_enable_irq(struct intel_breadcrumbs *b)
 	struct intel_engine_cs *engine =
 		container_of(b, struct intel_engine_cs, breadcrumbs);
 	struct drm_i915_private *i915 = engine->i915;
+	bool enabled;
 
 	lockdep_assert_held(&b->irq_lock);
 	if (b->irq_armed)
@@ -250,7 +288,6 @@ static bool __intel_breadcrumbs_enable_irq(struct intel_breadcrumbs *b)
 	 * the irq.
 	 */
 	b->irq_armed = true;
-	GEM_BUG_ON(b->irq_enabled);
 
 	if (I915_SELFTEST_ONLY(b->mock)) {
 		/* For our mock objects we want to avoid interaction
@@ -271,14 +308,15 @@ static bool __intel_breadcrumbs_enable_irq(struct intel_breadcrumbs *b)
 	 */
 
 	/* No interrupts? Kick the waiter every jiffie! */
-	if (intel_irqs_enabled(i915)) {
-		if (!test_bit(engine->id, &i915->gpu_error.test_irq_rings))
-			irq_enable(engine);
-		b->irq_enabled = true;
+	enabled = false;
+	if (!b->irq_enabled++ &&
+	    !test_bit(engine->id, &i915->gpu_error.test_irq_rings)) {
+		irq_enable(engine);
+		enabled = true;
 	}
 
 	enable_fake_irq(b);
-	return true;
+	return enabled;
 }
 
 static inline struct intel_wait *to_wait(struct rb_node *node)
@@ -515,6 +553,7 @@ static void __intel_engine_remove_wait(struct intel_engine_cs *engine,
 
 	GEM_BUG_ON(RB_EMPTY_NODE(&wait->node));
 	rb_erase(&wait->node, &b->waiters);
+	RB_CLEAR_NODE(&wait->node);
 
 out:
 	GEM_BUG_ON(b->irq_wait == wait);
@@ -787,12 +826,8 @@ int intel_engine_init_breadcrumbs(struct intel_engine_cs *engine)
 	spin_lock_init(&b->rb_lock);
 	spin_lock_init(&b->irq_lock);
 
-	setup_timer(&b->fake_irq,
-		    intel_breadcrumbs_fake_irq,
-		    (unsigned long)engine);
-	setup_timer(&b->hangcheck,
-		    intel_breadcrumbs_hangcheck,
-		    (unsigned long)engine);
+	timer_setup(&b->fake_irq, intel_breadcrumbs_fake_irq, 0);
+	timer_setup(&b->hangcheck, intel_breadcrumbs_hangcheck, 0);
 
 	/* Spawn a thread to provide a common bottom-half for all signals.
 	 * As this is an asynchronous interface we cannot steal the current
