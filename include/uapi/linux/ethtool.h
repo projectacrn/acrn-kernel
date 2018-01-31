@@ -170,6 +170,7 @@ static inline __u32 ethtool_cmd_speed(const struct ethtool_cmd *ep)
  *	and %ETHTOOL_SEEPROM commands, in bytes
  * @regdump_len: Size of register dump returned by the %ETHTOOL_GREGS
  *	command, in bytes
+ * @gcl_depth: Maximum length/depth of (IEEE802.1 Qbv) Gate Control List
  *
  * Users can use the %ETHTOOL_GSSET_INFO command to get the number of
  * strings in any string set (from Linux 2.6.34).
@@ -191,6 +192,7 @@ struct ethtool_drvinfo {
 	__u32	testinfo_len;
 	__u32	eedump_len;
 	__u32	regdump_len;
+	__u32	gcl_depth;
 };
 
 #define SOPASS_MAX	6
@@ -221,12 +223,25 @@ enum tunable_id {
 	ETHTOOL_ID_UNSPEC,
 	ETHTOOL_RX_COPYBREAK,
 	ETHTOOL_TX_COPYBREAK,
+	ETHTOOL_TX_EST_TILS,		/* EST: time interval left shift */
+	ETHTOOL_TX_EST_PTOV,		/* EST: PTP time offset */
+	ETHTOOL_TX_EST_CTOV,		/* EST: Current time offset */
+	ETHTOOL_TX_FPE_AFSZ,		/* FPE: Additional Frag Size */
+	ETHTOOL_TX_FPE_HADV,		/* FPE: Hold Advance */
+	ETHTOOL_TX_FPE_RADV,		/* FPE: Release Advance */
+	ETHTOOL_TX_TBS_ESTM,		/* TBS: EST mode or Absolute mode */
+	ETHTOOL_TX_TBS_FTOS,		/* TBS: Fetch time offset */
+	ETHTOOL_TX_TBS_FGOS,		/* TBS: Fetch GSN slot offset */
+	ETHTOOL_TX_TBS_LEOS,		/* TBS: Launch expiry offset */
+	ETHTOOL_TX_TBS_LEGOS,		/* TBS: Launch expiry GSN offset */
 	/*
 	 * Add your fresh new tubale attribute above and remember to update
 	 * tunable_strings[] in net/core/ethtool.c
 	 */
 	__ETHTOOL_TUNABLE_COUNT,
 };
+
+#define ETHTOOL_TUNABLE_STRING_MAX	20
 
 enum tunable_type_id {
 	ETHTOOL_TUNABLE_UNSPEC,
@@ -1280,6 +1295,193 @@ enum ethtool_fec_config_bits {
 #define ETHTOOL_FEC_RS			(1 << ETHTOOL_FEC_RS_BIT)
 #define ETHTOOL_FEC_BASER		(1 << ETHTOOL_FEC_BASER_BIT)
 
+/*
+ * enum ethtool_gate_op - gate operation ID
+ * @ETH_GATEOP_SET_GATE_STATES: Set gate states only.
+ * @ETH_GATEOP_SET_N_HOLD_MAC: Set gate states and port associated with
+ *                             pMAC stops transmitting preemptable
+ *                             frames.
+ * @ETH_GATEOP_SET_N_RELS_MAC: Set gate states and port associated with
+ *                             pMAC resumes transmitting preemptable
+ *                             frames.
+ */
+enum ethtool_gate_op {
+	ETH_GATEOP_SET_GATE_STATES	= 0,
+	ETH_GATEOP_SET_N_HOLD_MAC,
+	ETH_GATEOP_SET_N_RELS_MAC,
+};
+
+/**
+ * struct ethtool_gc_entry - basic gate control entity
+ * @opid: gate operation ID %ethtool_gate_op
+ * @gates: gate states
+ *         0 : Closed.
+ *         1 : Open.
+ *         Where least significant bit represents traffic class-0.
+ *         So, 0x31 means TC5, TC4 & TC0 are open.
+ * @ti_ns: time interval of GC entry in nano-seconds.
+ */
+struct ethtool_gc_entry {
+	__u8	opid;
+	__u8	gates;
+	__u8	reserved[2];
+	__u32	ti_ns;
+};
+
+/**
+ * struct ethtool_gce - Gate Control Entry.
+ * @cmd: Command number - %ETHTOOL_{G,S}GCE.
+ * @own: Ownership of GC entry.
+ *        0: Operational.
+ *        1: Admin.
+ *        Note: Operational means the configuration is owned by hardware.
+ * @row: On entry, this field specifies which row in GCL read or written.
+ * @gce: gate control entry read or write.
+ */
+struct ethtool_gce {
+	__u32	cmd;
+	__u32	own;
+	__u32	row;
+	struct ethtool_gc_entry gce;
+};
+
+/**
+ * struct ethtool_gcl - Gate Control List.
+ * @cmd: Command number - %ETHTOOL_{G,S}GCL.
+ * @own: Ownership of GCL.
+ *        0: Operational.
+ *        1: Admin.
+ *        Note: Operational means the configuration is owned by hardware.
+ * @len: For %ETHTOOL_SGC{E,L}, on entry, this specifies the length
+ *       of GC entries list to write. In success return, this field
+ *       specifies the length of GCL read or written.
+ *       On fail return, this field should be ignored by caller.
+ * @gcl: Array that contains GC read or written.
+ */
+struct ethtool_gcl {
+	__u32	cmd;
+	__u32	own;
+	__u32	len;
+	struct ethtool_gc_entry gcl[0];
+};
+
+/**
+ * struct ethtool_lgcl - Length of GCL.
+ * @cmd: Command number - %ETHTOOL_GLGCL.
+ * @own: Ownership of GCL.
+ *        0: Operational.
+ *        1: Admin.
+ *        Note: Operational means the configuration is owned by hardware.
+ * @len: In success return, this field specifies the length of GCL to read.
+ *       On fail return, this field should be ignored by caller.
+ */
+struct ethtool_lgcl {
+	__u32	cmd;
+	__u32	own;
+	__u32	len;
+};
+
+/**
+ * struct ethtool_est_info - configuring IEEE802.1 Qbv Enhancements for
+ * Scheduled Traffic (EST).
+ * @cmd: Command number - %ETHTOOL_{G,S}ESTINFO.
+ * @own: Ownership of EST info.
+ *        0: Operational.
+ *        1: Admin.
+ *        Note: Operational means the configuration owned by hardware.
+ * @cycle_s: Numerator of cycle time in seconds.
+ * @cycle_ns: Denominator of cycle time in nano-seconds.
+ * @extension_s: Numerator of cycle time extension in seconds.
+ * @extension_ns: Denominator of cycle time extension in nano-seconds.
+ * @base_s: Numerator of base time in seconds.
+ * @base_ns: Denominator of base time in nano-seconds.
+ * @cgce_n: Number of time where constant gate control error is triggered.
+ * @hlbs_q: Queue number that experience the head-of-line blocking due to
+ *          scheduling. Example: hlbs_q = 0x5 (0000_0101b) means queue 0
+ *          and queue 2 is having hlbs error.
+ * @hlbf_sz: Frame size that causes the head-of-line blocking for each
+ *           queue.
+ * @btre_n: Count for condition when (base time) < (current time) and
+ *          manage to update to new base time within 8 iteration of
+ *          cycle time.
+ * @btre_max_n: Count for condition when (base time) < (current time)
+ *              and did not manage to update to new base time within 8
+ *              iteration of cycle time.
+ * @btrl: Minimum count (N) for which the equation
+ *        Current Time =< New BTR + (N * New Cycle Time)
+ *        becomes true.
+ */
+struct ethtool_est_info {
+	__u32	cmd;
+	__u32	own;
+	__u32	cycle_s;
+	__u32	cycle_ns;
+	__u32	extension_s;
+	__u32	extension_ns;
+	__u32	base_s;
+	__u32	base_ns;
+	__u32	cgce_n;
+	__u32	hlbs_q;
+	__u32	hlbf_sz[8];
+	__u32	btre_n;
+	__u32	btre_max_n;
+	__u32	btrl;
+};
+
+/**
+ * struct ethtool_fpe_info - configuring IEEE802.1 Qbu Frame Preemption
+ * (FPE).
+ * @cmd: Command number - %ETHTOOL_{G,S}FPEINFO.
+ * @sts_map: On entry, bitmap of FPE status for each priority.
+ *           Value of each bit:- 0: Express & 1: Preemptable.
+ *           Least significant bit of sts_map field is for priority-0.
+ *           For example: sts_map = 0x65 (0110_0101b) means frames from
+ *           following priority list (0, 2, 5 & 6) are sent through pMAC.
+ *           On successful return, FPE status bitmap value actually read/
+ *           written.
+ *           In case of error for write operation, a bit with value '0'
+ *           indicates that frames from the associated priority is always
+ *           sent through Express MAC (eMAC). Bit value '1' means the
+ *           associated priority may be configured to be preemptable.
+ *           User is expected to reconfigure the bitmap again.
+ *           In case of error for read operation, the value of this field
+ *           should not be trusted.
+ * @hold_adv_ns: On entry, the value of hold advance in nano-seconds read/
+ *               written to/from hardware.
+ *               On successful return, hold advance value actually read/
+ *               written.
+ *               In case of error for write operation, the value indicates
+ *               the maximum value allowable for hold advance.
+ *               In case of error for read operation, the value should not
+ *               be trusted.
+ * @rels_adv_ns: On entry, the value of release advance in nano-seconds
+ *               read/written to/from hardware.
+ *               On successful return, release advance value actually read/
+ *               written.
+ *               In case of error for write operation, the value indicates
+ *               the maximum value allowable for release advance.
+ *               In case of error for read operation, the value should not
+ *               be trusted.
+ * @hold_req: Current state of pMAC [Read Only]:
+ *             0: release.
+ *             1: hold.
+ *            The value is ignored for write operation. In case of error
+ *            for read operation, the value should not be trusted.
+ * @lp_fpe: Frame preemption support in link partner [Read Only]:
+ *           0: no.
+ *           1: yes.
+ *          The value is ignored for write operation. In case of error for
+ *          read operation, the value should not be trusted.
+ */
+struct ethtool_fpe_info {
+	__u32	cmd;
+	__u32	sts_map;
+	__u32	hold_adv_ns;
+	__u32	rels_adv_ns;
+	__u32	hold_req;
+	__u32	lp_fpe;
+};
+
 /* CMDs currently supported */
 #define ETHTOOL_GSET		0x00000001 /* DEPRECATED, Get settings.
 					    * Please use ETHTOOL_GLINKSETTINGS
@@ -1374,6 +1576,15 @@ enum ethtool_fec_config_bits {
 #define ETHTOOL_PHY_STUNABLE	0x0000004f /* Set PHY tunable configuration */
 #define ETHTOOL_GFECPARAM	0x00000050 /* Get FEC settings */
 #define ETHTOOL_SFECPARAM	0x00000051 /* Set FEC settings */
+#define ETHTOOL_GLGCL		0x00000052 /* Get Length of EST GCL */
+#define ETHTOOL_GGCL		0x00000053 /* Get EST Gate Control List */
+#define ETHTOOL_SGCL		0x00000054 /* Set EST Gate Control List */
+#define ETHTOOL_GGCE		0x00000055 /* Get EST Gate Control Entry */
+#define ETHTOOL_SGCE		0x00000056 /* Set EST Gate Control Entry */
+#define ETHTOOL_GESTINFO	0x00000057 /* Get EST Info */
+#define ETHTOOL_SESTINFO	0x00000058 /* Set EST Info */
+#define ETHTOOL_GFPEINFO	0x00000059 /* Get FPE Info */
+#define ETHTOOL_SFPEINFO	0x0000005a /* Set FPE Info */
 
 /* compatibility with older code */
 #define SPARC_ETH_GSET		ETHTOOL_GSET

@@ -163,3 +163,19 @@ This requests that the NIC receive all possible frames, including errored
 frames (such as bad FCS, etc).  This can be helpful when sniffing a link with
 bad packets on it.  Some NICs may receive more packets if also put into normal
 PROMISC mode.
+
+* Time-Sensitive Networking
+
+NETIF_F_HW_EST is meant to be used by drivers that support IEEE802.1 Qbv
+Enhancements for Scheduled Traffics. NETIF_F_HW_FPE is for IEEE802.1 Qbu
+Frame Preemption. These two hardware capabilities in network device are
+part of the many protocols covered under IEEE802.1 Time-Sensitive
+Networking (TSN) Task Group.
+
+* Fetch, launch & expiry time setting for Tx frame
+
+NETIF_F_HW_TBS is meant for network controller whereby the time for launching
+an Ethernet frame can be predefined. The controller may support setting
+pre-fetching and expiry time of a frame for better transmission timeliness.
+Since this capability is not defined in any of IEEE802.1 specs, certain
+vendor names it as Time-Based Scheduling (TBS).
