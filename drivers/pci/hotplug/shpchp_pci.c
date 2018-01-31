@@ -61,10 +61,8 @@ int shpchp_configure_device(struct slot *p_slot)
 		goto out;
 	}
 
-	list_for_each_entry(dev, &parent->devices, bus_list) {
-		if (PCI_SLOT(dev->devfn) != p_slot->device)
-			continue;
-		if (pci_is_bridge(dev))
+	for_each_pci_bridge(dev, parent) {
+		if (PCI_SLOT(dev->devfn) == p_slot->device)
 			pci_hp_add_bridge(dev);
 	}
 
@@ -80,7 +78,6 @@ int shpchp_configure_device(struct slot *p_slot)
 int shpchp_unconfigure_device(struct slot *p_slot)
 {
 	int rc = 0;
-	u8 bctl = 0;
 	struct pci_bus *parent = p_slot->ctrl->pci_dev->subordinate;
 	struct pci_dev *dev, *temp;
 	struct controller *ctrl = p_slot->ctrl;
@@ -95,17 +92,6 @@ int shpchp_unconfigure_device(struct slot *p_slot)
 			continue;
 
 		pci_dev_get(dev);
-		if (dev->hdr_type == PCI_HEADER_TYPE_BRIDGE) {
-			pci_read_config_byte(dev, PCI_BRIDGE_CONTROL, &bctl);
-			if (bctl & PCI_BRIDGE_CTL_VGA) {
-				ctrl_err(ctrl,
-					 "Cannot remove display device %s\n",
-					 pci_name(dev));
-				pci_dev_put(dev);
-				rc = -EINVAL;
-				break;
-			}
-		}
 		pci_stop_and_remove_bus_device(dev);
 		pci_dev_put(dev);
 	}

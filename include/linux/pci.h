@@ -332,6 +332,7 @@ struct pci_dev {
 	u8		pm_cap;		/* PM capability offset */
 	unsigned int	pme_support:5;	/* Bitmask of states from which PME#
 					   can be generated */
+	unsigned int	immediate:1;	/* Supports Immediate Readiness */
 	unsigned int	pme_poll:1;	/* Poll device's PME status bit */
 	unsigned int	d1_support:1;	/* Low power state D1 is supported */
 	unsigned int	d2_support:1;	/* Low power state D2 is supported */
@@ -596,6 +597,10 @@ static inline bool pci_is_bridge(struct pci_dev *dev)
 	return dev->hdr_type == PCI_HEADER_TYPE_BRIDGE ||
 		dev->hdr_type == PCI_HEADER_TYPE_CARDBUS;
 }
+
+#define for_each_pci_bridge(dev, bus)				\
+	list_for_each_entry(dev, &bus->devices, bus_list)	\
+		if (!pci_is_bridge(dev)) {} else
 
 static inline struct pci_dev *pci_upstream_bridge(struct pci_dev *dev)
 {

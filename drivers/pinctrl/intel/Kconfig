@@ -65,6 +65,14 @@ config PINCTRL_CANNONLAKE
 	  This pinctrl driver provides an interface that allows configuring
 	  of Intel Cannon Lake PCH pins and using them as GPIOs.
 
+config PINCTRL_CEDARFORK
+	tristate "Intel Cedar Fork pinctrl and GPIO driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  This pinctrl driver provides an interface that allows configuring
+	  of Intel Cedar Fork PCH pins and using them as GPIOs.
+
 config PINCTRL_DENVERTON
 	tristate "Intel Denverton pinctrl and GPIO driver"
 	depends on ACPI
@@ -80,6 +88,22 @@ config PINCTRL_GEMINILAKE
 	help
 	  This pinctrl driver provides an interface that allows configuring
 	  of Intel Gemini Lake SoC pins and using them as GPIOs.
+
+config PINCTRL_GLENVIEW
+	tristate "Intel Glenview SoC pinctrl and GPIO driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  This pinctrl driver provides an interface that allows configuring
+	  of Intel Glenview SoC pins and using them as GPIOs.
+
+config PINCTRL_ICELAKE
+	tristate "Intel Ice Lake PCH pinctrl and GPIO driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  This pinctrl driver provides an interface that allows configuring
+	  of Intel Ice Lake PCH pins and using them as GPIOs.
 
 config PINCTRL_LEWISBURG
 	tristate "Intel Lewisburg pinctrl and GPIO driver"
