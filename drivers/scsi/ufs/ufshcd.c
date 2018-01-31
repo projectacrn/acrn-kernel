@@ -6560,6 +6560,13 @@ static int ufshcd_probe_hba(struct ufs_hba *hba)
 	int ret;
 	ktime_t start = ktime_get();
 
+	ret = ufshcd_vops_phy_initialization(hba);
+	if (ret) {
+		dev_err(hba->dev, "%s: Failed to initialize phy, err: %d\n",
+				__func__, ret);
+		goto out;
+	}
+
 	ret = ufshcd_link_startup(hba);
 	if (ret)
 		goto out;
@@ -6737,6 +6744,106 @@ static enum blk_eh_timer_return ufshcd_eh_timed_out(struct scsi_cmnd *scmd)
 	return found ? BLK_EH_NOT_HANDLED : BLK_EH_RESET_TIMER;
 }
 
+static void ufshcd_ahit_write(struct ufs_hba *hba)
+{
+	ufshcd_writel(hba, hba->ahit, REG_AUTO_HIBERNATE_IDLE_TIMER);
+}
+
+static void ufshcd_auto_hibern8_enable(struct ufs_hba *hba)
+{
+	unsigned long flags;
+
+	if (!(hba->capabilities & MASK_AUTO_HIBERN8_SUPPORT) || !hba->ahit)
+		return;
+
+	spin_lock_irqsave(hba->host->host_lock, flags);
+	ufshcd_ahit_write(hba);
+	spin_unlock_irqrestore(hba->host->host_lock, flags);
+}
+
+static void ufshcd_auto_hibern8_update(struct ufs_hba *hba, u32 ahit)
+{
+	unsigned long flags;
+
+	if (!(hba->capabilities & MASK_AUTO_HIBERN8_SUPPORT))
+		return;
+
+	spin_lock_irqsave(hba->host->host_lock, flags);
+	if (hba->ahit != ahit) {
+		hba->ahit = ahit;
+		ufshcd_ahit_write(hba);
+	}
+	spin_unlock_irqrestore(hba->host->host_lock, flags);
+}
+
+/* Convert Auto-Hibernate Idle Timer register value to microseconds */
+static int ufshcd_ahit_to_us(u32 ahit)
+{
+	int timer, scale;
+
+	timer = ahit & UFSHCI_AHIBERN8_TIMER_MASK;
+	scale =	(ahit & UFSHCI_AHIBERN8_SCALE_MASK) >>
+		UFSHCI_AHIBERN8_SCALE_SHIFT;
+
+	for (; scale > 0; --scale)
+		timer *= UFSHCI_AHIBERN8_SCALE_FACTOR;
+
+	return timer;
+}
+
+/* Convert microseconds to Auto-Hibernate Idle Timer register value */
+static u32 ufshcd_us_to_ahit(unsigned int timer)
+{
+	unsigned int scale;
+
+	for (scale = 0; timer > UFSHCI_AHIBERN8_TIMER_MASK; ++scale)
+		timer /= UFSHCI_AHIBERN8_SCALE_FACTOR;
+
+	return (scale << UFSHCI_AHIBERN8_SCALE_SHIFT) | timer;
+}
+
+static ssize_t auto_hibern8_show(struct device *dev,
+				 struct device_attribute *attr, char *buf)
+{
+	struct Scsi_Host *host = class_to_shost(dev);
+	struct ufs_hba *hba = shost_priv(host);
+	int timer = -1;
+
+	if (hba->capabilities & MASK_AUTO_HIBERN8_SUPPORT)
+		timer = ufshcd_ahit_to_us(hba->ahit);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", timer);
+}
+
+static ssize_t auto_hibern8_store(struct device *dev,
+				  struct device_attribute *attr,
+				  const char *buf, size_t count)
+{
+	struct Scsi_Host *host = class_to_shost(dev);
+	struct ufs_hba *hba = shost_priv(host);
+	unsigned int timer;
+
+	if (!(hba->capabilities & MASK_AUTO_HIBERN8_SUPPORT))
+		return -EOPNOTSUPP;
+
+	if (kstrtouint(buf, 0, &timer))
+		return -EINVAL;
+
+	if (timer > UFSHCI_AHIBERN8_MAX)
+		return -EINVAL;
+
+	ufshcd_auto_hibern8_update(hba, ufshcd_us_to_ahit(timer));
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(auto_hibern8);
+
+static struct device_attribute *ufshcd_host_attrs[] = {
+	&dev_attr_auto_hibern8,
+	NULL,
+};
+
 static struct scsi_host_template ufshcd_driver_template = {
 	.module			= THIS_MODULE,
 	.name			= UFSHCD,
@@ -6756,6 +6863,7 @@ static struct scsi_host_template ufshcd_driver_template = {
 	.can_queue		= UFSHCD_CAN_QUEUE,
 	.max_host_blocked	= 1,
 	.track_queue_depth	= 1,
+	.shost_attrs		= ufshcd_host_attrs,
 };
 
 static int ufshcd_config_vreg_load(struct device *dev, struct ufs_vreg *vreg,
@@ -7653,6 +7761,10 @@ static int ufshcd_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 
 	/* Schedule clock gating in case of no access to UFS device yet */
 	ufshcd_release(hba);
+
+	/* Enable Auto-Hibernate if configured */
+	ufshcd_auto_hibern8_enable(hba);
+
 	goto out;
 
 set_old_link_state:

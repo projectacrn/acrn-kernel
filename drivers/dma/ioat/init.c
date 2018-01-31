@@ -119,6 +119,9 @@ static const struct pci_device_id ioat_pci_tbl[] = {
 	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_IOAT_BDXDE2) },
 	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_IOAT_BDXDE3) },
 
+	/* I/OAT v3.4 platforms */
+	{ PCI_VDEVICE(INTEL, PCI_DEVICE_ID_INTEL_IOAT_ICX) },
+
 	{ 0, }
 };
 MODULE_DEVICE_TABLE(pci, ioat_pci_tbl);
@@ -135,10 +138,10 @@ static int ioat3_dma_self_test(struct ioatdma_device *ioat_dma);
 static int ioat_dca_enabled = 1;
 module_param(ioat_dca_enabled, int, 0644);
 MODULE_PARM_DESC(ioat_dca_enabled, "control support of dca service (default: 1)");
-int ioat_pending_level = 4;
+int ioat_pending_level = 7;
 module_param(ioat_pending_level, int, 0644);
 MODULE_PARM_DESC(ioat_pending_level,
-		 "high-water mark for pushing ioat descriptors (default: 4)");
+		 "high-water mark for pushing ioat descriptors (default: 7)");
 static char ioat_interrupt_style[32] = "msix";
 module_param_string(ioat_interrupt_style, ioat_interrupt_style,
 		    sizeof(ioat_interrupt_style), 0644);
@@ -250,10 +253,16 @@ static inline bool is_skx_ioat(struct pci_dev *pdev)
 	return (pdev->device == PCI_DEVICE_ID_INTEL_IOAT_SKX) ? true : false;
 }
 
+static inline bool is_icx_ioat(struct pci_dev *pdev)
+{
+	return (pdev->device == PCI_DEVICE_ID_INTEL_IOAT_ICX) ? true : false;
+}
+
 static bool is_xeon_cb32(struct pci_dev *pdev)
 {
 	return is_jf_ioat(pdev) || is_snb_ioat(pdev) || is_ivb_ioat(pdev) ||
-		is_hsw_ioat(pdev) || is_bdx_ioat(pdev) || is_skx_ioat(pdev);
+		is_hsw_ioat(pdev) || is_bdx_ioat(pdev) || is_skx_ioat(pdev) ||
+		is_icx_ioat(pdev);
 }
 
 bool is_bwd_ioat(struct pci_dev *pdev)
@@ -609,6 +618,29 @@ static int ioat_enumerate_channels(struct ioatdma_device *ioat_dma)
 			i = 0;
 			break;
 		}
+
+		/* setting up LTR values for 3.4 or later */
+		if (ioat_dma->version >= IOAT_VER_3_4) {
+			u32 lat_val;
+
+			lat_val = IOAT_CHAN_LTR_ACTIVE_SNVAL |
+				  IOAT_CHAN_LTR_ACTIVE_SNLATSCALE |
+				  IOAT_CHAN_LTR_ACTIVE_SNREQMNT;
+			writel(lat_val, ioat_chan->reg_base +
+					IOAT_CHAN_LTR_ACTIVE_OFFSET);
+
+			lat_val = IOAT_CHAN_LTR_IDLE_SNVAL |
+				  IOAT_CHAN_LTR_IDLE_SNLATSCALE |
+				  IOAT_CHAN_LTR_IDLE_SNREQMNT;
+			writel(lat_val, ioat_chan->reg_base +
+					IOAT_CHAN_LTR_IDLE_OFFSET);
+
+			writeb(IOAT_CHAN_LTR_SWSEL_ACTIVE,
+			       ioat_chan->reg_base +
+			       IOAT_CHAN_LTR_SWSEL_OFFSET);
+		}
+
+
 	}
 	dma->chancnt = i;
 	return i;
@@ -1156,6 +1188,11 @@ static int ioat3_dma_probe(struct ioatdma_device *ioat_dma, int dca)
 	if (!(ioat_dma->cap & (IOAT_CAP_XOR | IOAT_CAP_PQ)))
 		dma_cap_set(DMA_PRIVATE, dma->cap_mask);
 
+	if (ioat_dma->cap & IOAT_CAP_PGCMPS) {
+		dma_cap_set(DMA_PGCMP, dma->cap_mask);
+		dma->device_prep_dma_pgcmp = ioat_dma_prep_pgcmp_lock;
+	}
+
 	err = ioat_probe(ioat_dma);
 	if (err)
 		return err;
@@ -1185,6 +1222,11 @@ static int ioat3_dma_probe(struct ioatdma_device *ioat_dma, int dca)
 	err = pcie_capability_write_word(pdev, IOAT_DEVCTRL_OFFSET, val16);
 	if (err)
 		return err;
+
+	if (ioat_dma->cap & IOAT_CAP_DPS) {
+		writeb(ioat_pending_level + 1,
+		       ioat_dma->reg_base + IOAT_PREFETCH_LIMIT_OFFSET);
+	}
 
 	return 0;
 }
@@ -1351,6 +1393,8 @@ static int ioat_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	pci_set_drvdata(pdev, device);
 
 	device->version = readb(device->reg_base + IOAT_VER_OFFSET);
+	if (device->version >= IOAT_VER_3_4)
+		ioat_dca_enabled = 0;
 	if (device->version >= IOAT_VER_3_0) {
 		if (is_skx_ioat(pdev))
 			device->version = IOAT_VER_3_2;
