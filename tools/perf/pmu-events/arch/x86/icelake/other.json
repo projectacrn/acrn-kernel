@@ -1,0 +1,164 @@
+[
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0x00",
+        "Counter": "Fixed counter 3",
+        "UMask": "0x4",
+        "PEBScounters": "35",
+        "EventName": "TOPDOWN.ISSUE_SLOTS",
+        "SampleAfterValue": "10000003",
+        "BriefDescription": "Issue Slots devoted for this thread (SMT-aware)."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0x28",
+        "Counter": "\"0,1,2,3\"",
+        "UMask": "0x7",
+        "PEBScounters": "\"0,1,2,3\"",
+        "EventName": "CORE_POWER.LVL0_TURBO_LICENSE",
+        "SampleAfterValue": "200003"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0x28",
+        "Counter": "\"0,1,2,3\"",
+        "UMask": "0x18",
+        "PEBScounters": "\"0,1,2,3\"",
+        "EventName": "CORE_POWER.LVL1_TURBO_LICENSE",
+        "SampleAfterValue": "200003"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "PublicDescription": "Core cycles where the core was running with power-delivery for license level 2 (introduced in Skylake Server michroarchtecture).  This includes high current AVX 512-bit instructions.",
+        "EventCode": "0x28",
+        "Counter": "0,1,2,3",
+        "UMask": "0x20",
+        "EventName": "CORE_POWER.LVL2_TURBO_LICENSE",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Core cycles where the core was running in a manner where Turbo may be clipped to the AVX512 turbo schedule."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "PublicDescription": "Number of PREFETCHNTA instructions executed.",
+        "EventCode": "0x32",
+        "Counter": "\"0,1,2,3\"",
+        "UMask": "0x1",
+        "PEBScounters": "\"0,1,2,3\"",
+        "EventName": "SW_PREFETCH_ACCESS.NTA",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "SSE (Streaming SIMD Extensions) Prefetch NTA instructions executed in DCU (exclude rejects)"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "PublicDescription": "Number of PREFETCHT0 instructions executed.",
+        "EventCode": "0x32",
+        "Counter": "\"0,1,2,3\"",
+        "UMask": "0x2",
+        "PEBScounters": "\"0,1,2,3\"",
+        "EventName": "SW_PREFETCH_ACCESS.T0",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "PrefetchT0 instructions executed in DCU (exclude rejects)"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "PublicDescription": "Number of PREFETCHT1 or PREFETCHT2 instructions executed.",
+        "EventCode": "0x32",
+        "Counter": "\"0,1,2,3\"",
+        "UMask": "0x4",
+        "PEBScounters": "\"0,1,2,3\"",
+        "EventName": "SW_PREFETCH_ACCESS.T1_T2",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "PrefetchT1 or PrefetchT2 instructions executed in DCU (exclude rejects)"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "PublicDescription": "Number of PREFETCHW instructions executed.",
+        "EventCode": "0x32",
+        "Counter": "\"0,1,2,3\"",
+        "UMask": "0x8",
+        "PEBScounters": "\"0,1,2,3\"",
+        "EventName": "SW_PREFETCH_ACCESS.PREFETCHW",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Number of PrefetchW instructions executed in DCU (exclude rejects)"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xA4",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x1",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "TOPDOWN.ISSUE_SLOTS_P",
+        "SampleAfterValue": "10000003",
+        "BriefDescription": "Issue Slots devoted for this thread (SMT-aware)."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xA4",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x2",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "TOPDOWN.BACKEND_BOUND_SLOTS",
+        "SampleAfterValue": "10000003",
+        "BriefDescription": "Issue Slots where the Back-end was the dominant limiter for no uops being issued. This event counts a derivative of INT_MISC.RAT_STALL in an SMT-aware manner (RAT_STALL while issue is not blocked due to recovery nor memory-drain nor instant reclamation - converted to slots) plus uop dropping due to RAT_stall."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xA4",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x4",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "TOPDOWN.BAD_SPEC_SLOTS",
+        "SampleAfterValue": "10000003",
+        "BriefDescription": "Issue Slots wasted due to incorrect speculation. That is slots RAT stopped allocation due to recovery or Instant Reclamation (for either thread) or memory drain (for all active threads) plus slots of negative reclamation, following a clear or nuke. This event is SMT-aware: ping-pongs when recovery/memdrain apply to both threads. SNC will also count dropped uops (issue but never allocate)."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xA4",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x8",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "TOPDOWN.BR_MISPREDICT_SLOTS",
+        "SampleAfterValue": "10000003",
+        "BriefDescription": "Issue Slots wasted due to incorrect speculation by branch clears. This event counts subset of SubEv 2."
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC1",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x1",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "ASSISTS.PAGE_A_D",
+        "SampleAfterValue": "100003",
+        "BriefDescription": "Page A/D (Access/Dirty) assists"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC1",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x2",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "ASSISTS.FP",
+        "SampleAfterValue": "100003",
+        "BriefDescription": "Any FP assist. Account for x87 or SSE*/AVX*, input or output assists. Input includes Numeric Overflow, Numeric Underflow, Inexact Result. Output includes Invalid Operation, Denormal Operand, SNaN Operand.",
+        "CounterMask": "1"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xC1",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x7",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "ASSISTS.ANY",
+        "SampleAfterValue": "100003"
+    },
+    {
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xCB",
+        "Counter": "\"0,1,2,3,4,5,6,7\"",
+        "UMask": "0x1",
+        "PEBScounters": "\"0,1,2,3,4,5,6,7\"",
+        "EventName": "HW_INTERRUPTS.RECEIVED",
+        "SampleAfterValue": "203",
+        "BriefDescription": "Number of hardware interrupts received by the processor. Does not count SW interrupts (nor exceptions)."
+    }
+]

@@ -331,6 +331,24 @@ static void dsfree_pages(const void *buffer, size_t size)
 		free_pages((unsigned long)buffer, get_order(size));
 }
 
+/*
+ * Make sure the remaining maximum is always a multiple of the record size.
+ * PMU must be disabled.
+ */
+static void update_pebs_max(struct cpu_hw_events *cpuc)
+{
+	struct debug_store *ds = cpuc->ds;
+	u32 left = ds->pebs_buffer_base + x86_pmu.pebs_buffer_size - ds->pebs_index;
+	u32 rem;
+
+	/* Avoid slow modulo for common case. Add more cases? */
+	if (cpuc->pebs_record_size == sizeof(struct pebs_basic))
+		rem = left % sizeof(struct pebs_basic);
+	else
+		rem = left % cpuc->pebs_record_size;
+	ds->pebs_absolute_maximum = ds->pebs_index + left - rem;
+}
+
 static int alloc_pebs_buffer(int cpu)
 {
 	struct cpu_hw_events *hwev = per_cpu_ptr(&cpu_hw_events, cpu);
@@ -850,6 +868,26 @@ struct event_constraint intel_skl_pebs_event_constraints[] = {
 	EVENT_CONSTRAINT_END
 };
 
+struct event_constraint intel_icl_pebs_event_constraints[] = {
+	INTEL_FLAGS_UEVENT_CONSTRAINT(0x1c0, 0x100000000ULL),	/* INST_RETIRED.PREC_DIST */
+	INTEL_FLAGS_UEVENT_CONSTRAINT(0xff05, 0x400000000ULL),	/* SLOTS */
+
+	INTEL_FLAGS_UEVENT_CONSTRAINT_DATALA_LD(0x1cd, 0xff), /* MEM_TRANS_RETIRED.LOAD_LATENCY */
+	INTEL_FLAGS_UEVENT_CONSTRAINT_DATALA_LD(0x1d0, 0xf),  /* MEM_INST_RETIRED.LOAD */
+	INTEL_FLAGS_UEVENT_CONSTRAINT_DATALA_ST(0x2d0, 0xf),  /* MEM_INST_RETIRED.STORE */
+
+	INTEL_FLAGS_EVENT_CONSTRAINT_DATALA_LD_RANGE(0xd1, 0xd4, 0xf), /* MEM_LOAD_*_RETIRED.* */
+
+	INTEL_FLAGS_EVENT_CONSTRAINT(0xd0, 0xf), 	     /* MEM_INST_RETIRED.* */
+
+	/*
+	 * Everything else is handled by PMU_FL_PEBS_ALL, because we
+	 * need the full constraints from the main table.
+	 */
+
+	EVENT_CONSTRAINT_END
+};
+
 struct event_constraint *intel_pebs_constraints(struct perf_event *event)
 {
 	struct event_constraint *c;
@@ -859,12 +897,15 @@ struct event_constraint *intel_pebs_constraints(struct perf_event *event)
 
 	if (x86_pmu.pebs_constraints) {
 		for_each_event_constraint(c, x86_pmu.pebs_constraints) {
-			if ((event->hw.config & c->cmask) == c->code) {
+			if (constraint_match(c, event->hw.config)) {
 				event->hw.flags |= c->flags;
 				return c;
 			}
 		}
 	}
+
+	if (x86_pmu.flags & PMU_FL_PEBS_ALL)
+		return NULL;
 
 	return &emptyconstraint;
 }
@@ -894,9 +935,9 @@ static inline void pebs_update_threshold(struct cpu_hw_events *cpuc)
 
 	if (cpuc->n_pebs == cpuc->n_large_pebs) {
 		threshold = ds->pebs_absolute_maximum -
-			x86_pmu.max_pebs_events * x86_pmu.pebs_record_size;
+			x86_pmu.max_pebs_events * cpuc->pebs_record_size;
 	} else {
-		threshold = ds->pebs_buffer_base + x86_pmu.pebs_record_size;
+		threshold = ds->pebs_buffer_base + cpuc->pebs_record_size;
 	}
 
 	ds->pebs_interrupt_threshold = threshold;
@@ -938,11 +979,124 @@ void intel_pmu_pebs_add(struct perf_event *event)
 	pebs_update_state(needed_cb, cpuc, event->ctx->pmu);
 }
 
+static int adaptive_pebs_record_size(void)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+	u64 d = cpuc->pebs_data_cfg;
+	int sz = sizeof(struct pebs_basic);
+
+	if (d & PEBS_DATACFG_MEMINFO)
+		sz += sizeof(struct pebs_meminfo);
+	if (d & PEBS_DATACFG_GPRS)
+		sz += sizeof(struct pebs_gprs);
+	if (d & PEBS_DATACFG_XMMS)
+		sz += sizeof(struct pebs_xmm);
+	if (d & PEBS_DATACFG_LBRS)
+		sz += x86_pmu.lbr_nr * sizeof(struct pebs_lbr_entry);
+	return sz;
+}
+
+static void intel_pmu_pebs_adaptive_enable(struct perf_event *event)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+	u64 sample_type = event->attr.sample_type;
+	struct hw_perf_event *hwc = &event->hw;
+
+	if ((sample_type & ~(PERF_SAMPLE_IP|PERF_SAMPLE_TIME)) ||
+		event->attr.precise_ip < 2) {
+		hwc->config |= ICL_EVENTSEL_ADAPTIVE;
+
+		if (sample_type & (PERF_SAMPLE_ADDR|PERF_SAMPLE_DATA_SRC|
+				   PERF_SAMPLE_WEIGHT|
+				   PERF_SAMPLE_TRANSACTION)) {
+			__set_bit(hwc->idx, cpuc->pebs_data_mem);
+			cpuc->pebs_data_cfg |= PEBS_DATACFG_MEMINFO;
+		}
+
+		/*
+		 * Cases we need the registers:
+		 * + user requested registers
+		 * + precise_ip < 2 for the non event IP
+		 * + For RTM TSX weight we need GPRs too for the abort
+		 * code. But we don't want to force GPRs for all other
+		 * weights.  So add it only for the RTM abort event.
+		 */
+		if (((sample_type & PERF_SAMPLE_REGS_INTR) &&
+			(event->attr.sample_regs_intr & 0xffffffff)) ||
+		    (event->attr.precise_ip < 2) ||
+		    ((sample_type & PERF_SAMPLE_WEIGHT) &&
+		     ((event->attr.config & 0xffff) == x86_pmu.force_gpr_event))) {
+			__set_bit(hwc->idx, cpuc->pebs_data_gpr);
+			cpuc->pebs_data_cfg |= PEBS_DATACFG_GPRS;
+		}
+		if ((sample_type & PERF_SAMPLE_REGS_INTR) &&
+			(event->attr.sample_regs_intr >> 32)) {
+			__set_bit(hwc->idx, cpuc->pebs_data_userfp);
+			cpuc->pebs_data_cfg |= PEBS_DATACFG_XMMS;
+		}
+		if (sample_type & PERF_SAMPLE_BRANCH_STACK) {
+			__set_bit(hwc->idx, cpuc->pebs_data_lbr);
+			/*
+			 * For now always log all LBRs. Could configure this
+			 * later.
+			 */
+			cpuc->pebs_data_cfg |= PEBS_DATACFG_LBRS |
+				((x86_pmu.lbr_nr-1) << PEBS_DATACFG_LBR_SHIFT);
+		}
+	}
+	if (cpuc->pebs_data_cfg != cpuc->active_pebs_data_cfg) {
+		cpuc->pebs_record_size = adaptive_pebs_record_size();
+		wrmsrl(MSR_PEBS_DATA_CFG, cpuc->pebs_data_cfg);
+		cpuc->active_pebs_data_cfg = cpuc->pebs_data_cfg;
+	}
+}
+
+static void intel_pmu_pebs_adaptive_disable(struct perf_event *event)
+{
+	struct hw_perf_event *hwc = &event->hw;
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+	u64 sample_type = event->attr.sample_type;
+
+	if (sample_type & ~(PERF_SAMPLE_IP|PERF_SAMPLE_TIME) ||
+		event->attr.precise_ip < 2) {
+		if (sample_type & (PERF_SAMPLE_ADDR|PERF_SAMPLE_DATA_SRC|
+				   PERF_SAMPLE_WEIGHT|
+				   PERF_SAMPLE_TRANSACTION)) {
+			__clear_bit(hwc->idx, cpuc->pebs_data_mem);
+			if (bitmap_empty(cpuc->pebs_data_mem, X86_PMC_IDX_MAX))
+				cpuc->pebs_data_cfg &= ~PEBS_DATACFG_MEMINFO;
+		}
+		if ((sample_type & PERF_SAMPLE_REGS_INTR) ||
+		    (event->attr.precise_ip < 2) ||
+		    ((sample_type & PERF_SAMPLE_WEIGHT) &&
+		     ((event->attr.config & 0xffff) == x86_pmu.force_gpr_event))) {
+			__clear_bit(hwc->idx, cpuc->pebs_data_gpr);
+			if (bitmap_empty(cpuc->pebs_data_gpr, X86_PMC_IDX_MAX))
+				cpuc->pebs_data_cfg &= ~PEBS_DATACFG_GPRS;
+			if (event->attr.sample_regs_intr >> 32) {
+				__clear_bit(hwc->idx, cpuc->pebs_data_userfp);
+				if (bitmap_empty(cpuc->pebs_data_userfp, X86_PMC_IDX_MAX))
+					cpuc->pebs_data_cfg &= ~PEBS_DATACFG_XMMS;
+			}
+		}
+		if (sample_type & PERF_SAMPLE_BRANCH_STACK) {
+			__clear_bit(hwc->idx, cpuc->pebs_data_lbr);
+			if (bitmap_empty(cpuc->pebs_data_lbr, X86_PMC_IDX_MAX))
+				cpuc->pebs_data_cfg &= ~(PEBS_DATACFG_LBRS |
+					 (x86_pmu.lbr_nr << PEBS_DATACFG_LBR_SHIFT));
+		}
+		if (cpuc->pebs_data_cfg == 0)
+			hwc->config &= ~ICL_EVENTSEL_ADAPTIVE;
+		/* Delay reprograming DATA_CFG to next enable */
+	}
+}
+
 void intel_pmu_pebs_enable(struct perf_event *event)
 {
 	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	struct hw_perf_event *hwc = &event->hw;
 	struct debug_store *ds = cpuc->ds;
+	int old_record_size;
 
 	hwc->config &= ~ARCH_PERFMON_EVENTSEL_INT;
 
@@ -953,16 +1107,27 @@ void intel_pmu_pebs_enable(struct perf_event *event)
 	else if (event->hw.flags & PERF_X86_EVENT_PEBS_ST)
 		cpuc->pebs_enabled |= 1ULL << 63;
 
+	old_record_size = cpuc->pebs_record_size;
+	if (x86_pmu.intel_cap.adaptive_pebs)
+		intel_pmu_pebs_adaptive_enable(event);
+
 	/*
 	 * Use auto-reload if possible to save a MSR write in the PMI.
 	 * This must be done in pmu::start(), because PERF_EVENT_IOC_PERIOD.
 	 */
 	if (hwc->flags & PERF_X86_EVENT_AUTO_RELOAD) {
-		ds->pebs_event_reset[hwc->idx] =
+		unsigned idx = hwc->idx;
+		if (hwc->idx >= 32)
+			idx = MAX_PEBS_EVENTS + (hwc->idx - 32);
+		ds->pebs_event_reset[idx] =
 			(u64)(-hwc->sample_period) & x86_pmu.cntval_mask;
 	} else {
 		ds->pebs_event_reset[hwc->idx] = 0;
 	}
+
+	if (!ds->pebs_absolute_maximum ||
+	    old_record_size != cpuc->pebs_record_size)
+		update_pebs_max(cpuc);
 }
 
 void intel_pmu_pebs_del(struct perf_event *event)
@@ -976,6 +1141,7 @@ void intel_pmu_pebs_del(struct perf_event *event)
 		cpuc->n_large_pebs--;
 
 	pebs_update_state(needed_cb, cpuc, event->ctx->pmu);
+	// update_pebs_max?
 }
 
 void intel_pmu_pebs_disable(struct perf_event *event)
@@ -988,6 +1154,9 @@ void intel_pmu_pebs_disable(struct perf_event *event)
 
 	cpuc->pebs_enabled &= ~(1ULL << hwc->idx);
 
+	if (x86_pmu.intel_cap.adaptive_pebs)
+		intel_pmu_pebs_adaptive_disable(event);
+
 	if (event->hw.flags & PERF_X86_EVENT_PEBS_LDLAT)
 		cpuc->pebs_enabled &= ~(1ULL << (hwc->idx + 32));
 	else if (event->hw.flags & PERF_X86_EVENT_PEBS_ST)
@@ -997,6 +1166,7 @@ void intel_pmu_pebs_disable(struct perf_event *event)
 		wrmsrl(MSR_IA32_PEBS_ENABLE, cpuc->pebs_enabled);
 
 	hwc->config |= ARCH_PERFMON_EVENTSEL_INT;
+	hwc->config &= ~ICL_EVENTSEL_ADAPTIVE;
 }
 
 void intel_pmu_pebs_enable_all(void)
@@ -1109,34 +1279,67 @@ static int intel_pmu_pebs_fixup_ip(struct pt_regs *regs)
 	return 0;
 }
 
-static inline u64 intel_hsw_weight(struct pebs_record_skl *pebs)
+static inline u64 intel_hsw_weight(u64 tsx_tuning)
 {
-	if (pebs->tsx_tuning) {
-		union hsw_tsx_tuning tsx = { .value = pebs->tsx_tuning };
+	if (tsx_tuning) {
+		union hsw_tsx_tuning tsx = { .value = tsx_tuning };
 		return tsx.cycles_last_block;
 	}
 	return 0;
 }
 
-static inline u64 intel_hsw_transaction(struct pebs_record_skl *pebs)
+static u64 intel_hsw_transaction(u64 tsx_tuning, u64 ax)
 {
-	u64 txn = (pebs->tsx_tuning & PEBS_HSW_TSX_FLAGS) >> 32;
+	u64 txn = (tsx_tuning & PEBS_HSW_TSX_FLAGS) >> 32;
 
 	/* For RTM XABORTs also log the abort code from AX */
-	if ((txn & PERF_TXN_TRANSACTION) && (pebs->ax & 1))
-		txn |= ((pebs->ax >> 24) & 0xff) << PERF_TXN_ABORT_SHIFT;
+	if ((txn & PERF_TXN_TRANSACTION) && (ax & 1))
+		txn |= ((ax >> 24) & 0xff) << PERF_TXN_ABORT_SHIFT;
 	return txn;
 }
 
-static void setup_pebs_sample_data(struct perf_event *event,
-				   struct pt_regs *iregs, void *__pebs,
-				   struct perf_sample_data *data,
-				   struct pt_regs *regs)
+static inline void *next_pebs_record(void *p)
 {
+	unsigned size;
+	if (x86_pmu.intel_cap.pebs_format < 4)
+		size = x86_pmu.pebs_record_size;
+	else
+		size = ((struct pebs_basic *)p)->format_size >> 48;
+	return p + size;
+}
+
+static inline u64 get_pebs_status(struct pebs_record_nhm *n)
+{
+	if (x86_pmu.intel_cap.pebs_format < 4)
+		return n->status;
+	return ((struct pebs_basic *)n)->applicable_counters;
+}
+
 #define PERF_X86_EVENT_PEBS_HSW_PREC \
 		(PERF_X86_EVENT_PEBS_ST_HSW | \
 		 PERF_X86_EVENT_PEBS_LD_HSW | \
 		 PERF_X86_EVENT_PEBS_NA_HSW)
+
+static u64 get_data_src(struct perf_event *event, u64 aux)
+{
+	u64 val = PERF_MEM_NA;
+	int fl = event->hw.flags;
+	bool fst = fl & (PERF_X86_EVENT_PEBS_ST_HSW | PERF_X86_EVENT_PEBS_HSW_PREC);
+
+	if (fl & PERF_X86_EVENT_PEBS_LDLAT)
+		val = load_latency_data(aux);
+	else if (fst && (fl & PERF_X86_EVENT_PEBS_HSW_PREC))
+		val = precise_datala_hsw(event, aux);
+	else if (fst)
+		val = precise_store_data(aux);
+	return val;
+}
+
+static void setup_pebs_fixed_sample_data(struct perf_event *event,
+				   struct pt_regs *iregs, void *__pebs,
+				   struct perf_sample_data *data,
+				   struct pt_regs *regs)
+{
 	/*
 	 * We cast to the biggest pebs_record but are careful not to
 	 * unconditionally access the 'extra' entries.
@@ -1144,17 +1347,13 @@ static void setup_pebs_sample_data(struct perf_event *event,
 	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
 	struct pebs_record_skl *pebs = __pebs;
 	u64 sample_type;
-	int fll, fst, dsrc;
-	int fl = event->hw.flags;
+	int fll;
 
 	if (pebs == NULL)
 		return;
 
 	sample_type = event->attr.sample_type;
-	dsrc = sample_type & PERF_SAMPLE_DATA_SRC;
-
-	fll = fl & PERF_X86_EVENT_PEBS_LDLAT;
-	fst = fl & (PERF_X86_EVENT_PEBS_ST | PERF_X86_EVENT_PEBS_HSW_PREC);
+	fll = event->hw.flags & PERF_X86_EVENT_PEBS_LDLAT;
 
 	perf_sample_data_init(data, 0, event->hw.last_period);
 
@@ -1169,16 +1368,8 @@ static void setup_pebs_sample_data(struct perf_event *event,
 	/*
 	 * data.data_src encodes the data source
 	 */
-	if (dsrc) {
-		u64 val = PERF_MEM_NA;
-		if (fll)
-			val = load_latency_data(pebs->dse);
-		else if (fst && (fl & PERF_X86_EVENT_PEBS_HSW_PREC))
-			val = precise_datala_hsw(event, pebs->dse);
-		else if (fst)
-			val = precise_store_data(pebs->dse);
-		data->data_src.val = val;
-	}
+	if (sample_type & PERF_SAMPLE_DATA_SRC)
+		data->data_src.val = get_data_src(event, pebs->dse);
 
 	/*
 	 * We use the interrupt regs as a base because the PEBS record does not
@@ -1245,10 +1436,11 @@ static void setup_pebs_sample_data(struct perf_event *event,
 	if (x86_pmu.intel_cap.pebs_format >= 2) {
 		/* Only set the TSX weight when no memory weight. */
 		if ((sample_type & PERF_SAMPLE_WEIGHT) && !fll)
-			data->weight = intel_hsw_weight(pebs);
+			data->weight = intel_hsw_weight(pebs->tsx_tuning);
 
 		if (sample_type & PERF_SAMPLE_TRANSACTION)
-			data->txn = intel_hsw_transaction(pebs);
+			data->txn = intel_hsw_transaction(pebs->tsx_tuning,
+				pebs->ax);
 	}
 
 	/*
@@ -1263,6 +1455,122 @@ static void setup_pebs_sample_data(struct perf_event *event,
 
 	if (has_branch_stack(event))
 		data->br_stack = &cpuc->lbr_stack;
+}
+
+static void adaptive_pebs_save_regs(struct pt_regs *regs,
+				    struct pebs_gprs *gprs)
+{
+	regs->ax = gprs->ax;
+	regs->bx = gprs->bx;
+	regs->cx = gprs->cx;
+	regs->dx = gprs->dx;
+	regs->si = gprs->si;
+	regs->di = gprs->di;
+#ifndef CONFIG_X86_32
+	regs->r8 = gprs->r8;
+	regs->r9 = gprs->r9;
+	regs->r10 = gprs->r10;
+	regs->r11 = gprs->r11;
+	regs->r12 = gprs->r12;
+	regs->r13 = gprs->r13;
+	regs->r14 = gprs->r14;
+	regs->r15 = gprs->r15;
+#endif
+}
+
+/*
+ * With adaptive PEBS the layout depends on what fields are configured.
+ */
+
+static void setup_pebs_adaptive_sample_data(struct perf_event *event,
+					    struct pt_regs *iregs, void *__pebs,
+					    struct perf_sample_data *data,
+					    struct pt_regs *regs)
+{
+	struct cpu_hw_events *cpuc = this_cpu_ptr(&cpu_hw_events);
+	struct pebs_basic *basic = __pebs;
+	void *next_record = basic + 1;
+	u64 sample_type;
+	u64 format_size;
+	struct pebs_gprs *gprs = NULL;
+
+	if (basic == NULL)
+		return;
+
+	sample_type = event->attr.sample_type;
+	format_size = basic->format_size;
+	perf_sample_data_init(data, 0, event->hw.last_period);
+	data->period = event->hw.last_period;
+
+	if (event->attr.use_clockid == 0)
+		data->time = native_sched_clock_from_tsc(basic->tsc);
+
+	*regs = *iregs;
+	set_linear_ip(regs, basic->ip);
+	regs->flags |= PERF_EFLAGS_EXACT;
+
+	if (format_size & PEBS_DATACFG_GPRS) {
+		gprs = next_record;
+		next_record = gprs + 1;
+
+		/* See comments in setup_pebs_fixed_sample_data */
+		regs->flags = gprs->flags | (regs->flags & PERF_EFLAGS_VM);
+		if (!(sample_type & PERF_SAMPLE_CALLCHAIN)) {
+			regs->bp = gprs->bp;
+			regs->sp = gprs->sp;
+		}
+
+		if (event->attr.precise_ip < 2) {
+			set_linear_ip(regs, gprs->ip);
+			regs->flags &= ~PERF_EFLAGS_EXACT;
+		}
+
+		if (sample_type & PERF_SAMPLE_REGS_INTR)
+			adaptive_pebs_save_regs(regs, gprs);
+	}
+
+	if (format_size & PEBS_DATACFG_MEMINFO) {
+		struct pebs_meminfo *meminfo = next_record;
+		next_record = meminfo + 1;
+
+		if (sample_type & PERF_SAMPLE_WEIGHT)
+			data->weight = meminfo->latency ?:
+				intel_hsw_weight(meminfo->tsx_tuning);
+
+		if (sample_type & PERF_SAMPLE_DATA_SRC)
+			data->data_src.val = get_data_src(event, meminfo->aux);
+
+		if (sample_type & PERF_SAMPLE_ADDR)
+			data->addr = meminfo->address;
+
+		if (sample_type & PERF_SAMPLE_TRANSACTION)
+			data->txn = intel_hsw_transaction(meminfo->tsx_tuning,
+							  gprs ? gprs->ax : 0);
+	}
+
+	if (format_size & PEBS_DATACFG_LBRS) {
+		struct pebs_lbr *lbr = next_record;
+		int num_lbr = ((format_size >> PEBS_DATACFG_LBR_SHIFT)
+					& 0xff) + 1;
+		next_record = next_record + num_lbr*sizeof(struct pebs_lbr_entry);
+
+		if (has_branch_stack(event)) {
+			intel_pmu_store_pebs_lbrs(lbr);
+			data->br_stack = &cpuc->lbr_stack;
+		}
+	}
+
+	if (format_size & PEBS_DATACFG_XMMS) {
+		struct pebs_xmm *xmm = next_record;
+		next_record = xmm + 1;
+		data->extra_regs = xmm->xmm;
+	}
+
+	WARN_ONCE(next_record != __pebs + (format_size >> 48),
+			"PEBS record size %llu, expected %llu, config %llx\n",
+			format_size >> 48,
+			(u64)(next_record - __pebs),
+			basic->format_size);
 }
 
 static inline void *
@@ -1282,19 +1590,20 @@ get_next_pebs_record_by_bit(void *base, void *top, int bit)
 	if (base == NULL)
 		return NULL;
 
-	for (at = base; at < top; at += x86_pmu.pebs_record_size) {
+	for (at = base; at < top; at = next_pebs_record(at)) {
 		struct pebs_record_nhm *p = at;
+		unsigned long status = get_pebs_status(p);
 
-		if (test_bit(bit, (unsigned long *)&p->status)) {
+		if (test_bit(bit, (unsigned long *)&status)) {
 			/* PEBS v3 has accurate status bits */
 			if (x86_pmu.intel_cap.pebs_format >= 3)
 				return at;
 
-			if (p->status == (1 << bit))
+			if (status == (1 << bit))
 				return at;
 
 			/* clear non-PEBS bit and re-check */
-			pebs_status = p->status & cpuc->pebs_enabled;
+			pebs_status = status & cpuc->pebs_enabled;
 			pebs_status &= PEBS_COUNTER_MASK;
 			if (pebs_status == (1 << bit))
 				return at;
@@ -1317,14 +1626,14 @@ static void __intel_pmu_pebs_event(struct perf_event *event,
 		return;
 
 	while (count > 1) {
-		setup_pebs_sample_data(event, iregs, at, &data, &regs);
+		x86_pmu.setup_pebs_sample_data(event, iregs, at, &data, &regs);
 		perf_event_output(event, &data, &regs);
-		at += x86_pmu.pebs_record_size;
+		at = next_pebs_record(at);
 		at = get_next_pebs_record_by_bit(at, top, bit);
 		count--;
 	}
 
-	setup_pebs_sample_data(event, iregs, at, &data, &regs);
+	x86_pmu.setup_pebs_sample_data(event, iregs, at, &data, &regs);
 
 	/*
 	 * All but the last records are processed.
@@ -1392,11 +1701,11 @@ static void intel_pmu_drain_pebs_nhm(struct pt_regs *iregs)
 	if (unlikely(base >= top))
 		return;
 
-	for (at = base; at < top; at += x86_pmu.pebs_record_size) {
+	for (at = base; at < top; at = next_pebs_record(at)) {
 		struct pebs_record_nhm *p = at;
 		u64 pebs_status;
 
-		pebs_status = p->status & cpuc->pebs_enabled;
+		pebs_status = get_pebs_status(p) & cpuc->pebs_enabled;
 		pebs_status &= (1ULL << x86_pmu.max_pebs_events) - 1;
 
 		/* PEBS v3 has more accurate status bits */
@@ -1493,8 +1802,10 @@ void __init intel_ds_init(void)
 	x86_pmu.pebs_buffer_size = PEBS_BUFFER_SIZE;
 	if (x86_pmu.pebs) {
 		char pebs_type = x86_pmu.intel_cap.pebs_trap ?  '+' : '-';
+		char *pebs_qual = "";
 		int format = x86_pmu.intel_cap.pebs_format;
 
+		x86_pmu.setup_pebs_sample_data = setup_pebs_fixed_sample_data;
 		switch (format) {
 		case 0:
 			pr_cont("PEBS fmt0%c, ", pebs_type);
@@ -1530,10 +1841,34 @@ void __init intel_ds_init(void)
 			x86_pmu.free_running_flags |= PERF_SAMPLE_TIME;
 			break;
 
+		case 4:
+			x86_pmu.drain_pebs = intel_pmu_drain_pebs_nhm;
+			x86_pmu.setup_pebs_sample_data = setup_pebs_adaptive_sample_data;
+			x86_pmu.pebs_record_size = sizeof(struct pebs_basic);
+			if (x86_pmu.intel_cap.adaptive_pebs) {
+				x86_pmu.free_running_flags |=
+					PERF_SAMPLE_BRANCH_STACK |
+					PERF_SAMPLE_TIME;
+				pebs_qual = "-adaptive";
+			} else {
+				/* Only basic record supported */
+				x86_pmu.free_running_flags &=
+					~(PERF_SAMPLE_ADDR |
+					  PERF_SAMPLE_TIME |
+					  PERF_SAMPLE_DATA_SRC |
+					  PERF_SAMPLE_TRANSACTION |
+					  PERF_SAMPLE_REGS_USER |
+					  PERF_SAMPLE_REGS_INTR);
+			}
+			pr_cont("PEBS fmt4%c%s, ", pebs_type, pebs_qual);
+			break;
+
 		default:
 			pr_cont("no PEBS fmt%d%c, ", format, pebs_type);
 			x86_pmu.pebs = 0;
 		}
+		if (format != 4)
+			x86_pmu.intel_cap.adaptive_pebs = 0;
 	}
 }
 

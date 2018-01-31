@@ -10,14 +10,14 @@
 #include <asm/ptrace.h>
 
 #ifdef CONFIG_X86_32
-#define PERF_REG_X86_MAX PERF_REG_X86_32_MAX
+#define PERF_REG_GPR_X86_MAX PERF_REG_GPR_X86_32_MAX
 #else
-#define PERF_REG_X86_MAX PERF_REG_X86_64_MAX
+#define PERF_REG_GPR_X86_MAX PERF_REG_GPR_X86_64_MAX
 #endif
 
 #define PT_REGS_OFFSET(id, r) [id] = offsetof(struct pt_regs, r)
 
-static unsigned int pt_regs_offset[PERF_REG_X86_MAX] = {
+static unsigned int pt_regs_offset[PERF_REG_GPR_X86_MAX] = {
 	PT_REGS_OFFSET(PERF_REG_X86_AX, ax),
 	PT_REGS_OFFSET(PERF_REG_X86_BX, bx),
 	PT_REGS_OFFSET(PERF_REG_X86_CX, cx),
@@ -57,15 +57,22 @@ static unsigned int pt_regs_offset[PERF_REG_X86_MAX] = {
 #endif
 };
 
-u64 perf_reg_value(struct pt_regs *regs, int idx)
+u64 perf_reg_value(struct pt_regs *regs, u64 *extra_regs, int idx)
 {
+	if (idx >= 32 && idx < 64) {
+		if (!extra_regs)
+			return 0;
+		return extra_regs[idx - 32];
+	}
+
 	if (WARN_ON_ONCE(idx >= ARRAY_SIZE(pt_regs_offset)))
 		return 0;
 
 	return regs_get_register(regs, pt_regs_offset[idx]);
 }
 
-#define REG_RESERVED (~((1ULL << PERF_REG_X86_MAX) - 1ULL))
+#define REG_RESERVED \
+	(PERF_REG_X86_MAX == 64 ? 0 : ~((1ULL << PERF_REG_X86_MAX)) - 1ULL)
 
 #ifdef CONFIG_X86_32
 int perf_reg_validate(u64 mask)

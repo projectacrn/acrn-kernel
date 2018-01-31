@@ -45,6 +45,10 @@ static struct stats runtime_topdown_slots_issued[NUM_CTX][MAX_NR_CPUS];
 static struct stats runtime_topdown_slots_retired[NUM_CTX][MAX_NR_CPUS];
 static struct stats runtime_topdown_fetch_bubbles[NUM_CTX][MAX_NR_CPUS];
 static struct stats runtime_topdown_recovery_bubbles[NUM_CTX][MAX_NR_CPUS];
+static struct stats runtime_topdown_retiring[NUM_CTX][MAX_NR_CPUS];
+static struct stats runtime_topdown_bad_spec[NUM_CTX][MAX_NR_CPUS];
+static struct stats runtime_topdown_fe_bound[NUM_CTX][MAX_NR_CPUS];
+static struct stats runtime_topdown_be_bound[NUM_CTX][MAX_NR_CPUS];
 static struct stats runtime_smi_num_stats[NUM_CTX][MAX_NR_CPUS];
 static struct stats runtime_aperf_stats[NUM_CTX][MAX_NR_CPUS];
 static struct rblist runtime_saved_values;
@@ -164,6 +168,10 @@ void perf_stat__reset_shadow_stats(void)
 	memset(runtime_topdown_slots_issued, 0, sizeof(runtime_topdown_slots_issued));
 	memset(runtime_topdown_fetch_bubbles, 0, sizeof(runtime_topdown_fetch_bubbles));
 	memset(runtime_topdown_recovery_bubbles, 0, sizeof(runtime_topdown_recovery_bubbles));
+	memset(runtime_topdown_retiring, 0, sizeof(runtime_topdown_retiring));
+	memset(runtime_topdown_bad_spec, 0, sizeof(runtime_topdown_bad_spec));
+	memset(runtime_topdown_fe_bound, 0, sizeof(runtime_topdown_fe_bound));
+	memset(runtime_topdown_be_bound, 0, sizeof(runtime_topdown_be_bound));
 	memset(runtime_smi_num_stats, 0, sizeof(runtime_smi_num_stats));
 	memset(runtime_aperf_stats, 0, sizeof(runtime_aperf_stats));
 
@@ -208,6 +216,14 @@ void perf_stat__update_shadow_stats(struct perf_evsel *counter, u64 *count,
 		update_stats(&runtime_topdown_fetch_bubbles[ctx][cpu],count[0]);
 	else if (perf_stat_evsel__is(counter, TOPDOWN_RECOVERY_BUBBLES))
 		update_stats(&runtime_topdown_recovery_bubbles[ctx][cpu], count[0]);
+	else if (perf_stat_evsel__is(counter, TOPDOWN_RETIRING))
+		update_stats(&runtime_topdown_retiring[ctx][cpu], count[0]);
+	else if (perf_stat_evsel__is(counter, TOPDOWN_BAD_SPEC))
+		update_stats(&runtime_topdown_bad_spec[ctx][cpu], count[0]);
+	else if (perf_stat_evsel__is(counter, TOPDOWN_FE_BOUND))
+		update_stats(&runtime_topdown_fe_bound[ctx][cpu], count[0]);
+	else if (perf_stat_evsel__is(counter, TOPDOWN_BE_BOUND))
+		update_stats(&runtime_topdown_be_bound[ctx][cpu], count[0]);
 	else if (perf_evsel__match(counter, HARDWARE, HW_STALLED_CYCLES_FRONTEND))
 		update_stats(&runtime_stalled_cycles_front_stats[ctx][cpu], count[0]);
 	else if (perf_evsel__match(counter, HARDWARE, HW_STALLED_CYCLES_BACKEND))
@@ -605,6 +621,44 @@ static double td_be_bound(int ctx, int cpu)
 	return sanitize_val(1.0 - sum);
 }
 
+/*
+ * Kernel reports metrics multiplied with slots. To get back
+ * the ratios we need to recreate the sum.
+ */
+
+static double td_metric_ratio(int ctx, int cpu, struct stats *s)
+{
+	double sum = avg_stats(&runtime_topdown_retiring[ctx][cpu]) +
+		avg_stats(&runtime_topdown_fe_bound[ctx][cpu]) +
+		avg_stats(&runtime_topdown_be_bound[ctx][cpu]) +
+		avg_stats(&runtime_topdown_bad_spec[ctx][cpu]);
+	double d = avg_stats(s);
+
+	if (sum)
+		return d / sum;
+	return 0;
+}
+
+/*
+ * ... but only if most of the values are actually available.
+ * We allow two missing.
+ */
+
+static bool full_td(int ctx, int cpu)
+{
+	int c = 0;
+
+	if (avg_stats(&runtime_topdown_retiring[ctx][cpu]) > 0)
+		c++;
+	if (avg_stats(&runtime_topdown_be_bound[ctx][cpu]) > 0)
+		c++;
+	if (avg_stats(&runtime_topdown_fe_bound[ctx][cpu]) > 0)
+		c++;
+	if (avg_stats(&runtime_topdown_bad_spec[ctx][cpu]) > 0)
+		c++;
+	return c >= 2;
+}
+
 static void print_smi_cost(int cpu, struct perf_evsel *evsel,
 			   struct perf_stat_output_ctx *out)
 {
@@ -819,6 +873,42 @@ void perf_stat__print_shadow_stats(struct perf_evsel *evsel,
 					be_bound * 100.);
 		else
 			print_metric(ctxp, NULL, NULL, name, 0);
+	} else if (perf_stat_evsel__is(evsel, TOPDOWN_RETIRING) &&
+			full_td(ctx, cpu)) {
+		double retiring = td_metric_ratio(ctx, cpu,
+						  &runtime_topdown_retiring[ctx][cpu]);
+
+		if (retiring > 0.7)
+			color = PERF_COLOR_GREEN;
+		print_metric(ctxp, color, "%8.1f%%", "retiring",
+				retiring * 100.);
+	} else if (perf_stat_evsel__is(evsel, TOPDOWN_FE_BOUND) &&
+			full_td(ctx, cpu)) {
+		double fe_bound = td_metric_ratio(ctx, cpu,
+						  &runtime_topdown_fe_bound[ctx][cpu]);
+
+		if (fe_bound > 0.2)
+			color = PERF_COLOR_RED;
+		print_metric(ctxp, color, "%8.1f%%", "frontend bound",
+				fe_bound * 100.);
+	} else if (perf_stat_evsel__is(evsel, TOPDOWN_BE_BOUND) &&
+			full_td(ctx, cpu)) {
+		double be_bound = td_metric_ratio(ctx, cpu,
+						  &runtime_topdown_be_bound[ctx][cpu]);
+
+		if (be_bound > 0.2)
+			color = PERF_COLOR_RED;
+		print_metric(ctxp, color, "%8.1f%%", "backend bound",
+				be_bound * 100.);
+	} else if (perf_stat_evsel__is(evsel, TOPDOWN_BAD_SPEC) &&
+			full_td(ctx, cpu)) {
+		double bad_spec = td_metric_ratio(ctx, cpu,
+						  &runtime_topdown_bad_spec[ctx][cpu]);
+
+		if (bad_spec > 0.1)
+			color = PERF_COLOR_RED;
+		print_metric(ctxp, color, "%8.1f%%", "bad speculation",
+				bad_spec * 100.);
 	} else if (evsel->metric_expr) {
 		struct parse_ctx pctx;
 		int i;
