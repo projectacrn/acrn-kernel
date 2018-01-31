@@ -25,23 +25,48 @@
 #ifndef __INTEL_UNCORE_H__
 #define __INTEL_UNCORE_H__
 
+#include <linux/spinlock.h>
+#include <linux/notifier.h>
+#include <linux/hrtimer.h>
+
+#include "i915_reg.h"
+
 struct drm_i915_private;
 
 enum forcewake_domain_id {
 	FW_DOMAIN_ID_RENDER = 0,
 	FW_DOMAIN_ID_BLITTER,
 	FW_DOMAIN_ID_MEDIA,
+	FW_DOMAIN_ID_MEDIA_VDBOX0,
+	FW_DOMAIN_ID_MEDIA_VDBOX1,
+	FW_DOMAIN_ID_MEDIA_VDBOX2,
+	FW_DOMAIN_ID_MEDIA_VDBOX3,
+	FW_DOMAIN_ID_MEDIA_VEBOX0,
+	FW_DOMAIN_ID_MEDIA_VEBOX1,
 
 	FW_DOMAIN_ID_COUNT
 };
 
 enum forcewake_domains {
-	FORCEWAKE_RENDER = BIT(FW_DOMAIN_ID_RENDER),
-	FORCEWAKE_BLITTER = BIT(FW_DOMAIN_ID_BLITTER),
-	FORCEWAKE_MEDIA	= BIT(FW_DOMAIN_ID_MEDIA),
+	FORCEWAKE_RENDER	= BIT(FW_DOMAIN_ID_RENDER),
+	FORCEWAKE_BLITTER	= BIT(FW_DOMAIN_ID_BLITTER),
+	FORCEWAKE_MEDIA		= BIT(FW_DOMAIN_ID_MEDIA),
+	FORCEWAKE_MEDIA_VDBOX0	= BIT(FW_DOMAIN_ID_MEDIA_VDBOX0),
+	FORCEWAKE_MEDIA_VDBOX1	= BIT(FW_DOMAIN_ID_MEDIA_VDBOX1),
+	FORCEWAKE_MEDIA_VDBOX2	= BIT(FW_DOMAIN_ID_MEDIA_VDBOX2),
+	FORCEWAKE_MEDIA_VDBOX3	= BIT(FW_DOMAIN_ID_MEDIA_VDBOX3),
+	FORCEWAKE_MEDIA_VEBOX0	= BIT(FW_DOMAIN_ID_MEDIA_VEBOX0),
+	FORCEWAKE_MEDIA_VEBOX1	= BIT(FW_DOMAIN_ID_MEDIA_VEBOX1),
+
 	FORCEWAKE_ALL = (FORCEWAKE_RENDER |
 			 FORCEWAKE_BLITTER |
-			 FORCEWAKE_MEDIA)
+			 FORCEWAKE_MEDIA |
+			 FORCEWAKE_MEDIA_VDBOX0 |
+			 FORCEWAKE_MEDIA_VDBOX1 |
+			 FORCEWAKE_MEDIA_VDBOX2 |
+			 FORCEWAKE_MEDIA_VDBOX3 |
+			 FORCEWAKE_MEDIA_VEBOX0 |
+			 FORCEWAKE_MEDIA_VEBOX1)
 };
 
 struct intel_uncore_funcs {
@@ -102,6 +127,13 @@ struct intel_uncore {
 		i915_reg_t reg_ack;
 	} fw_domain[FW_DOMAIN_ID_COUNT];
 
+	struct {
+		unsigned int count;
+
+		int saved_mmio_check;
+		int saved_mmio_debug;
+	} user_forcewake;
+
 	int unclaimed_mmio_check;
 };
 
@@ -125,6 +157,8 @@ void intel_uncore_runtime_resume(struct drm_i915_private *dev_priv);
 
 u64 intel_uncore_edram_size(struct drm_i915_private *dev_priv);
 void assert_forcewakes_inactive(struct drm_i915_private *dev_priv);
+void assert_forcewakes_active(struct drm_i915_private *dev_priv,
+			      enum forcewake_domains fw_domains);
 const char *intel_uncore_forcewake_domain_to_str(const enum forcewake_domain_id id);
 
 enum forcewake_domains
@@ -144,6 +178,9 @@ void intel_uncore_forcewake_get__locked(struct drm_i915_private *dev_priv,
 					enum forcewake_domains domains);
 void intel_uncore_forcewake_put__locked(struct drm_i915_private *dev_priv,
 					enum forcewake_domains domains);
+
+void intel_uncore_forcewake_user_get(struct drm_i915_private *dev_priv);
+void intel_uncore_forcewake_user_put(struct drm_i915_private *dev_priv);
 
 int intel_wait_for_register(struct drm_i915_private *dev_priv,
 			    i915_reg_t reg,

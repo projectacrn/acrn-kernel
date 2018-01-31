@@ -113,11 +113,13 @@ static enum dsi_color dsi_color_from_mipi(enum mipi_dsi_pixel_format fmt)
 
 static int dsi_pll_get_clkout_khz(int clkin_khz, int idf, int ndiv, int odf)
 {
-	/* prevent from division by 0 */
-	if (idf * odf)
-		return DIV_ROUND_CLOSEST(clkin_khz * ndiv, idf * odf);
+	int divisor = idf * odf;
 
-	return 0;
+	/* prevent from division by 0 */
+	if (!divisor)
+		return 0;
+
+	return DIV_ROUND_CLOSEST(clkin_khz * ndiv, divisor);
 }
 
 static int dsi_pll_get_params(int clkin_khz, int clkout_khz,
@@ -127,7 +129,7 @@ static int dsi_pll_get_params(int clkin_khz, int clkout_khz,
 	int fvco_min, fvco_max, delta, best_delta; /* all in khz */
 
 	/* Early checks preventing division by 0 & odd results */
-	if ((clkin_khz <= 0) || (clkout_khz <= 0))
+	if (clkin_khz <= 0 || clkout_khz <= 0)
 		return -EINVAL;
 
 	fvco_min = LANE_MIN_KBPS * 2 * ODF_MAX;
@@ -153,7 +155,7 @@ static int dsi_pll_get_params(int clkin_khz, int clkout_khz,
 		for (o = ODF_MIN; o <= ODF_MAX; o *= 2) {
 			n = DIV_ROUND_CLOSEST(i * o * clkout_khz, clkin_khz);
 			/* Check ndiv according to vco range */
-			if ((n < n_min) || (n > n_max))
+			if (n < n_min || n > n_max)
 				continue;
 			/* Check if new delta is better & saves parameters */
 			delta = dsi_pll_get_clkout_khz(clkin_khz, i, n, o) -
@@ -340,7 +342,7 @@ static struct platform_driver dw_mipi_dsi_stm_driver = {
 	.remove		= dw_mipi_dsi_stm_remove,
 	.driver		= {
 		.of_match_table = dw_mipi_dsi_stm_dt_ids,
-		.name	= "dw_mipi_dsi-stm",
+		.name	= "stm32-display-dsi",
 	},
 };
 

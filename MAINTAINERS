@@ -527,11 +527,6 @@ W:	http://ez.analog.com/community/linux-device-drivers
 S:	Supported
 F:	drivers/input/misc/adxl34x.c
 
-AEDSP16 DRIVER
-M:	Riccardo Facchetti <fizban@tin.it>
-S:	Maintained
-F:	sound/oss/aedsp16.c
-
 AF9013 MEDIA DRIVER
 M:	Antti Palosaari <crope@iki.fi>
 L:	linux-media@vger.kernel.org
@@ -759,8 +754,6 @@ F:	drivers/gpu/drm/amd/amdkfd/
 F:	drivers/gpu/drm/amd/include/cik_structs.h
 F:	drivers/gpu/drm/amd/include/kgd_kfd_interface.h
 F:	drivers/gpu/drm/amd/include/vi_structs.h
-F:	drivers/gpu/drm/radeon/radeon_kfd.c
-F:	drivers/gpu/drm/radeon/radeon_kfd.h
 F:	include/uapi/linux/kfd_ioctl.h
 
 AMD SEATTLE DEVICE TREE SUPPORT
@@ -4366,6 +4359,12 @@ T:	git git://anongit.freedesktop.org/drm/drm-misc
 S:	Maintained
 F:	drivers/gpu/drm/bochs/
 
+DRM DRIVER FOR FARADAY TVE200 TV ENCODER
+M:	Linus Walleij <linus.walleij@linaro.org>
+T:	git git://anongit.freedesktop.org/drm/drm-misc
+S:	Maintained
+F:	drivers/gpu/drm/tve200/
+
 DRM DRIVER FOR INTEL I810 VIDEO CARDS
 S:	Orphan / Obsolete
 F:	drivers/gpu/drm/i810/
@@ -4492,6 +4491,7 @@ F:	include/linux/vga*
 DRM DRIVERS AND MISC GPU PATCHES
 M:	Daniel Vetter <daniel.vetter@intel.com>
 M:	Jani Nikula <jani.nikula@linux.intel.com>
+M:	Gustavo Padovan <gustavo@padovan.org>
 M:	Sean Paul <seanpaul@chromium.org>
 W:	https://01.org/linuxgraphics/gfx-docs/maintainer-tools/drm-misc.html
 S:	Maintained
@@ -4509,7 +4509,7 @@ L:	dri-devel@lists.freedesktop.org
 S:	Supported
 F:	drivers/gpu/drm/sun4i/
 F:	Documentation/devicetree/bindings/display/sunxi/sun4i-drm.txt
-T:	git git://git.kernel.org/pub/scm/linux/kernel/git/mripard/linux.git
+T:	git git://anongit.freedesktop.org/drm/drm-misc
 
 DRM DRIVERS FOR AMLOGIC SOCS
 M:	Neil Armstrong <narmstrong@baylibre.com>
@@ -4693,7 +4693,7 @@ T:	git git://anongit.freedesktop.org/drm/drm-misc
 DRM PANEL DRIVERS
 M:	Thierry Reding <thierry.reding@gmail.com>
 L:	dri-devel@lists.freedesktop.org
-T:	git git://anongit.freedesktop.org/tegra/linux.git
+T:	git git://anongit.freedesktop.org/drm/drm-misc
 S:	Maintained
 F:	drivers/gpu/drm/drm_panel.c
 F:	drivers/gpu/drm/panel/
@@ -5456,6 +5456,7 @@ F:	drivers/net/wan/sdla.c
 
 FRAMEBUFFER LAYER
 M:	Bartlomiej Zolnierkiewicz <b.zolnierkie@samsung.com>
+L:	dri-devel@lists.freedesktop.org
 L:	linux-fbdev@vger.kernel.org
 T:	git git://github.com/bzolnier/linux.git
 Q:	http://patchwork.kernel.org/project/linux-fbdev/list/
@@ -6923,7 +6924,7 @@ M:	Zhi Wang <zhi.a.wang@intel.com>
 L:	intel-gvt-dev@lists.freedesktop.org
 L:	intel-gfx@lists.freedesktop.org
 W:	https://01.org/igvt-g
-T:	git https://github.com/01org/gvt-linux.git
+T:	git https://github.com/intel/gvt-linux.git
 S:	Supported
 F:	drivers/gpu/drm/i915/gvt/
 
@@ -9203,12 +9204,6 @@ F:	Documentation/devicetree/bindings/mux/
 F:	include/linux/dt-bindings/mux/
 F:	include/linux/mux/
 F:	drivers/mux/
-
-MULTISOUND SOUND DRIVER
-M:	Andrew Veliath <andrewtv@usa.net>
-S:	Maintained
-F:	Documentation/sound/oss/MultiSound
-F:	sound/oss/msnd*
 
 MULTITECH MULTIPORT CARD (ISICOM)
 S:	Orphan
@@ -14601,6 +14596,7 @@ F:	Documentation/devicetree/bindings/extcon/extcon-arizona.txt
 F:	Documentation/devicetree/bindings/regulator/arizona-regulator.txt
 F:	Documentation/devicetree/bindings/mfd/arizona.txt
 F:	Documentation/devicetree/bindings/mfd/wm831x.txt
+F:	Documentation/devicetree/bindings/sound/wlf,arizona.txt
 F:	arch/arm/mach-s3c64xx/mach-crag6410*
 F:	drivers/clk/clk-wm83*.c
 F:	drivers/extcon/extcon-arizona.c

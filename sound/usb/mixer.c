@@ -1480,9 +1480,9 @@ static int parse_audio_feature_unit(struct mixer_build *state, int unitid,
 			return -EINVAL;
 		}
 		csize = hdr->bControlSize;
-		if (!csize) {
+		if (csize <= 1) {
 			usb_audio_dbg(state->chip,
-				      "unit %u: invalid bControlSize == 0\n",
+				      "unit %u: invalid bControlSize <= 1\n",
 				      unitid);
 			return -EINVAL;
 		}
@@ -2353,9 +2353,14 @@ void snd_usb_mixer_notify_id(struct usb_mixer_interface *mixer, int unitid)
 {
 	struct usb_mixer_elem_list *list;
 
-	for (list = mixer->id_elems[unitid]; list; list = list->next_id_elem)
+	for (list = mixer->id_elems[unitid]; list; list = list->next_id_elem) {
+		struct usb_mixer_elem_info *info =
+			(struct usb_mixer_elem_info *)list;
+		/* invalidate cache, so the value is read from the device */
+		info->cached = 0;
 		snd_ctl_notify(mixer->chip->card, SNDRV_CTL_EVENT_MASK_VALUE,
 			       &list->kctl->id);
+	}
 }
 
 static void snd_usb_mixer_dump_cval(struct snd_info_buffer *buffer,

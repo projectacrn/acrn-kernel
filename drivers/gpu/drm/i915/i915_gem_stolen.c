@@ -98,7 +98,16 @@ static dma_addr_t i915_stolen_to_dma(struct drm_i915_private *dev_priv)
 	 *
 	 */
 	base = 0;
-	if (INTEL_GEN(dev_priv) >= 3) {
+	if (INTEL_GEN(dev_priv) >= 11) {
+		u32 lsb, msb;
+
+		pci_read_config_dword(pdev, INTEL_GEN11_BSM_DW0, &lsb);
+		pci_read_config_dword(pdev, INTEL_GEN11_BSM_DW1, &msb);
+
+		WARN_ON(sizeof(base) < sizeof(u64));
+
+		base = (dma_addr_t)(((u64)msb << 32) | (lsb & INTEL_BSM_MASK));
+	} else if (INTEL_GEN(dev_priv) >= 3) {
 		u32 bsm;
 
 		pci_read_config_dword(pdev, INTEL_BSM, &bsm);
@@ -294,6 +303,18 @@ static void g4x_get_stolen_reserved(struct drm_i915_private *dev_priv,
 				     ELK_STOLEN_RESERVED);
 	dma_addr_t stolen_top = dev_priv->mm.stolen_base + ggtt->stolen_size;
 
+	if ((reg_val & G4X_STOLEN_RESERVED_ENABLE) == 0) {
+		*base = 0;
+		*size = 0;
+		return;
+	}
+
+	/*
+	 * Whether ILK really reuses the ELK register for this is unclear.
+	 * Let's see if we catch anyone with this supposedly enabled on ILK.
+	 */
+	WARN(IS_GEN5(dev_priv), "ILK stolen reserved found? 0x%08x\n", reg_val);
+
 	*base = (reg_val & G4X_STOLEN_RESERVED_ADDR2_MASK) << 16;
 
 	WARN_ON((reg_val & G4X_STOLEN_RESERVED_ADDR1_MASK) < *base);
@@ -312,6 +333,12 @@ static void gen6_get_stolen_reserved(struct drm_i915_private *dev_priv,
 				     dma_addr_t *base, u32 *size)
 {
 	uint32_t reg_val = I915_READ(GEN6_STOLEN_RESERVED);
+
+	if ((reg_val & GEN6_STOLEN_RESERVED_ENABLE) == 0) {
+		*base = 0;
+		*size = 0;
+		return;
+	}
 
 	*base = reg_val & GEN6_STOLEN_RESERVED_ADDR_MASK;
 
@@ -339,6 +366,12 @@ static void gen7_get_stolen_reserved(struct drm_i915_private *dev_priv,
 {
 	uint32_t reg_val = I915_READ(GEN6_STOLEN_RESERVED);
 
+	if ((reg_val & GEN6_STOLEN_RESERVED_ENABLE) == 0) {
+		*base = 0;
+		*size = 0;
+		return;
+	}
+
 	*base = reg_val & GEN7_STOLEN_RESERVED_ADDR_MASK;
 
 	switch (reg_val & GEN7_STOLEN_RESERVED_SIZE_MASK) {
@@ -358,6 +391,12 @@ static void chv_get_stolen_reserved(struct drm_i915_private *dev_priv,
 				    dma_addr_t *base, u32 *size)
 {
 	uint32_t reg_val = I915_READ(GEN6_STOLEN_RESERVED);
+
+	if ((reg_val & GEN6_STOLEN_RESERVED_ENABLE) == 0) {
+		*base = 0;
+		*size = 0;
+		return;
+	}
 
 	*base = reg_val & GEN6_STOLEN_RESERVED_ADDR_MASK;
 
@@ -387,6 +426,12 @@ static void bdw_get_stolen_reserved(struct drm_i915_private *dev_priv,
 	uint32_t reg_val = I915_READ(GEN6_STOLEN_RESERVED);
 	dma_addr_t stolen_top;
 
+	if ((reg_val & GEN6_STOLEN_RESERVED_ENABLE) == 0) {
+		*base = 0;
+		*size = 0;
+		return;
+	}
+
 	stolen_top = dev_priv->mm.stolen_base + ggtt->stolen_size;
 
 	*base = reg_val & GEN6_STOLEN_RESERVED_ADDR_MASK;
@@ -399,6 +444,32 @@ static void bdw_get_stolen_reserved(struct drm_i915_private *dev_priv,
 		*size = 0;
 	else
 		*size = stolen_top - *base;
+}
+
+static void icl_get_stolen_reserved(struct drm_i915_private *dev_priv,
+				    dma_addr_t *base, u32 *size)
+{
+	uint64_t reg_val = I915_READ64(GEN6_STOLEN_RESERVED);
+
+	*base = reg_val & GEN11_STOLEN_RESERVED_ADDR_MASK;
+
+	switch (reg_val & GEN8_STOLEN_RESERVED_SIZE_MASK) {
+	case GEN8_STOLEN_RESERVED_1M:
+		*size = 1024 * 1024;
+		break;
+	case GEN8_STOLEN_RESERVED_2M:
+		*size = 2 * 1024 * 1024;
+		break;
+	case GEN8_STOLEN_RESERVED_4M:
+		*size = 4 * 1024 * 1024;
+		break;
+	case GEN8_STOLEN_RESERVED_8M:
+		*size = 8 * 1024 * 1024;
+		break;
+	default:
+		*size = 8 * 1024 * 1024;
+		MISSING_CASE(reg_val & GEN8_STOLEN_RESERVED_SIZE_MASK);
+	}
 }
 
 int i915_gem_init_stolen(struct drm_i915_private *dev_priv)
@@ -436,14 +507,12 @@ int i915_gem_init_stolen(struct drm_i915_private *dev_priv)
 	case 3:
 		break;
 	case 4:
-		if (IS_G4X(dev_priv))
-			g4x_get_stolen_reserved(dev_priv,
-						&reserved_base, &reserved_size);
-		break;
+		if (!IS_G4X(dev_priv))
+			break;
+		/* fall through */
 	case 5:
-		/* Assume the gen6 maximum for the older platforms. */
-		reserved_size = 1024 * 1024;
-		reserved_base = stolen_top - reserved_size;
+		g4x_get_stolen_reserved(dev_priv,
+					&reserved_base, &reserved_size);
 		break;
 	case 6:
 		gen6_get_stolen_reserved(dev_priv,
@@ -453,13 +522,20 @@ int i915_gem_init_stolen(struct drm_i915_private *dev_priv)
 		gen7_get_stolen_reserved(dev_priv,
 					 &reserved_base, &reserved_size);
 		break;
-	default:
+	case 8:
+	case 9:
+	case 10:
 		if (IS_LP(dev_priv))
 			chv_get_stolen_reserved(dev_priv,
 						&reserved_base, &reserved_size);
 		else
 			bdw_get_stolen_reserved(dev_priv,
 						&reserved_base, &reserved_size);
+		break;
+	case 11:
+	default:
+		icl_get_stolen_reserved(dev_priv, &reserved_base,
+					&reserved_size);
 		break;
 	}
 
@@ -473,9 +549,9 @@ int i915_gem_init_stolen(struct drm_i915_private *dev_priv)
 	if (reserved_base < dev_priv->mm.stolen_base ||
 	    reserved_base + reserved_size > stolen_top) {
 		dma_addr_t reserved_top = reserved_base + reserved_size;
-		DRM_DEBUG_KMS("Stolen reserved area [%pad - %pad] outside stolen memory [%pad - %pad]\n",
-			      &reserved_base, &reserved_top,
-			      &dev_priv->mm.stolen_base, &stolen_top);
+		DRM_ERROR("Stolen reserved area [%pad - %pad] outside stolen memory [%pad - %pad]\n",
+			  &reserved_base, &reserved_top,
+			  &dev_priv->mm.stolen_base, &stolen_top);
 		return 0;
 	}
 
@@ -539,12 +615,18 @@ i915_pages_create_for_stolen(struct drm_device *dev,
 	return st;
 }
 
-static struct sg_table *
-i915_gem_object_get_pages_stolen(struct drm_i915_gem_object *obj)
+static int i915_gem_object_get_pages_stolen(struct drm_i915_gem_object *obj)
 {
-	return i915_pages_create_for_stolen(obj->base.dev,
-					    obj->stolen->start,
-					    obj->stolen->size);
+	struct sg_table *pages =
+		i915_pages_create_for_stolen(obj->base.dev,
+					     obj->stolen->start,
+					     obj->stolen->size);
+	if (IS_ERR(pages))
+		return PTR_ERR(pages);
+
+	__i915_gem_object_set_pages(obj, pages, obj->stolen->size);
+
+	return 0;
 }
 
 static void i915_gem_object_put_pages_stolen(struct drm_i915_gem_object *obj,
@@ -718,8 +800,11 @@ i915_gem_object_create_stolen_for_preallocated(struct drm_i915_private *dev_priv
 	vma->flags |= I915_VMA_GLOBAL_BIND;
 	__i915_vma_set_map_and_fenceable(vma);
 	list_move_tail(&vma->vm_link, &ggtt->base.inactive_list);
-	list_move_tail(&obj->global_link, &dev_priv->mm.bound_list);
+
+	spin_lock(&dev_priv->mm.obj_lock);
+	list_move_tail(&obj->mm.link, &dev_priv->mm.bound_list);
 	obj->bind_count++;
+	spin_unlock(&dev_priv->mm.obj_lock);
 
 	return obj;
 

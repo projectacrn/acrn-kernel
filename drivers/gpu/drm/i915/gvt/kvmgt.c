@@ -248,120 +248,6 @@ static void gvt_cache_destroy(struct intel_vgpu *vgpu)
 	}
 }
 
-static struct intel_vgpu_type *intel_gvt_find_vgpu_type(struct intel_gvt *gvt,
-		const char *name)
-{
-	int i;
-	struct intel_vgpu_type *t;
-	const char *driver_name = dev_driver_string(
-			&gvt->dev_priv->drm.pdev->dev);
-
-	for (i = 0; i < gvt->num_types; i++) {
-		t = &gvt->types[i];
-		if (!strncmp(t->name, name + strlen(driver_name) + 1,
-			sizeof(t->name)))
-			return t;
-	}
-
-	return NULL;
-}
-
-static ssize_t available_instances_show(struct kobject *kobj,
-					struct device *dev, char *buf)
-{
-	struct intel_vgpu_type *type;
-	unsigned int num = 0;
-	void *gvt = kdev_to_i915(dev)->gvt;
-
-	type = intel_gvt_find_vgpu_type(gvt, kobject_name(kobj));
-	if (!type)
-		num = 0;
-	else
-		num = type->avail_instance;
-
-	return sprintf(buf, "%u\n", num);
-}
-
-static ssize_t device_api_show(struct kobject *kobj, struct device *dev,
-		char *buf)
-{
-	return sprintf(buf, "%s\n", VFIO_DEVICE_API_PCI_STRING);
-}
-
-static ssize_t description_show(struct kobject *kobj, struct device *dev,
-		char *buf)
-{
-	struct intel_vgpu_type *type;
-	void *gvt = kdev_to_i915(dev)->gvt;
-
-	type = intel_gvt_find_vgpu_type(gvt, kobject_name(kobj));
-	if (!type)
-		return 0;
-
-	return sprintf(buf, "low_gm_size: %dMB\nhigh_gm_size: %dMB\n"
-		       "fence: %d\nresolution: %s\n"
-		       "weight: %d\n",
-		       BYTES_TO_MB(type->low_gm_size),
-		       BYTES_TO_MB(type->high_gm_size),
-		       type->fence, vgpu_edid_str(type->resolution),
-		       type->weight);
-}
-
-static MDEV_TYPE_ATTR_RO(available_instances);
-static MDEV_TYPE_ATTR_RO(device_api);
-static MDEV_TYPE_ATTR_RO(description);
-
-static struct attribute *type_attrs[] = {
-	&mdev_type_attr_available_instances.attr,
-	&mdev_type_attr_device_api.attr,
-	&mdev_type_attr_description.attr,
-	NULL,
-};
-
-static struct attribute_group *intel_vgpu_type_groups[] = {
-	[0 ... NR_MAX_INTEL_VGPU_TYPES - 1] = NULL,
-};
-
-static bool intel_gvt_init_vgpu_type_groups(struct intel_gvt *gvt)
-{
-	int i, j;
-	struct intel_vgpu_type *type;
-	struct attribute_group *group;
-
-	for (i = 0; i < gvt->num_types; i++) {
-		type = &gvt->types[i];
-
-		group = kzalloc(sizeof(struct attribute_group), GFP_KERNEL);
-		if (WARN_ON(!group))
-			goto unwind;
-
-		group->name = type->name;
-		group->attrs = type_attrs;
-		intel_vgpu_type_groups[i] = group;
-	}
-
-	return true;
-
-unwind:
-	for (j = 0; j < i; j++) {
-		group = intel_vgpu_type_groups[j];
-		kfree(group);
-	}
-
-	return false;
-}
-
-static void intel_gvt_cleanup_vgpu_type_groups(struct intel_gvt *gvt)
-{
-	int i;
-	struct attribute_group *group;
-
-	for (i = 0; i < gvt->num_types; i++) {
-		group = intel_vgpu_type_groups[i];
-		kfree(group);
-	}
-}
-
 static void kvmgt_protect_table_init(struct kvmgt_guest_info *info)
 {
 	hash_init(info->ptable);
@@ -441,7 +327,7 @@ static int intel_vgpu_create(struct kobject *kobj, struct mdev_device *mdev)
 	pdev = mdev_parent_dev(mdev);
 	gvt = kdev_to_i915(pdev)->gvt;
 
-	type = intel_gvt_find_vgpu_type(gvt, kobject_name(kobj));
+	type = intel_gvt_ops->gvt_find_vgpu_type(gvt, kobject_name(kobj));
 	if (!type) {
 		gvt_vgpu_err("failed to find type %s to create\n",
 						kobject_name(kobj));
@@ -609,21 +495,20 @@ static void intel_vgpu_release_work(struct work_struct *work)
 	__intel_vgpu_release(vgpu);
 }
 
-static uint64_t intel_vgpu_get_bar0_addr(struct intel_vgpu *vgpu)
+static uint64_t intel_vgpu_get_bar_addr(struct intel_vgpu *vgpu, int bar)
 {
 	u32 start_lo, start_hi;
 	u32 mem_type;
-	int pos = PCI_BASE_ADDRESS_0;
 
-	start_lo = (*(u32 *)(vgpu->cfg_space.virtual_cfg_space + pos)) &
+	start_lo = (*(u32 *)(vgpu->cfg_space.virtual_cfg_space + bar)) &
 			PCI_BASE_ADDRESS_MEM_MASK;
-	mem_type = (*(u32 *)(vgpu->cfg_space.virtual_cfg_space + pos)) &
+	mem_type = (*(u32 *)(vgpu->cfg_space.virtual_cfg_space + bar)) &
 			PCI_BASE_ADDRESS_MEM_TYPE_MASK;
 
 	switch (mem_type) {
 	case PCI_BASE_ADDRESS_MEM_TYPE_64:
 		start_hi = (*(u32 *)(vgpu->cfg_space.virtual_cfg_space
-						+ pos + 4));
+						+ bar + 4));
 		break;
 	case PCI_BASE_ADDRESS_MEM_TYPE_32:
 	case PCI_BASE_ADDRESS_MEM_TYPE_1M:
@@ -635,6 +520,21 @@ static uint64_t intel_vgpu_get_bar0_addr(struct intel_vgpu *vgpu)
 	}
 
 	return ((u64)start_hi << 32) | start_lo;
+}
+
+static int intel_vgpu_bar_rw(struct intel_vgpu *vgpu, int bar, uint64_t off,
+			     void *buf, unsigned int count, bool is_write)
+{
+	uint64_t bar_start = intel_vgpu_get_bar_addr(vgpu, bar);
+	int ret;
+
+	if (is_write)
+		ret = intel_gvt_ops->emulate_mmio_write(vgpu,
+					bar_start + off, buf, count);
+	else
+		ret = intel_gvt_ops->emulate_mmio_read(vgpu,
+					bar_start + off, buf, count);
+	return ret;
 }
 
 static ssize_t intel_vgpu_rw(struct mdev_device *mdev, char *buf,
@@ -661,20 +561,14 @@ static ssize_t intel_vgpu_rw(struct mdev_device *mdev, char *buf,
 						buf, count);
 		break;
 	case VFIO_PCI_BAR0_REGION_INDEX:
-	case VFIO_PCI_BAR1_REGION_INDEX:
-		if (is_write) {
-			uint64_t bar0_start = intel_vgpu_get_bar0_addr(vgpu);
-
-			ret = intel_gvt_ops->emulate_mmio_write(vgpu,
-						bar0_start + pos, buf, count);
-		} else {
-			uint64_t bar0_start = intel_vgpu_get_bar0_addr(vgpu);
-
-			ret = intel_gvt_ops->emulate_mmio_read(vgpu,
-						bar0_start + pos, buf, count);
-		}
+		ret = intel_vgpu_bar_rw(vgpu, PCI_BASE_ADDRESS_0, pos,
+					buf, count, is_write);
 		break;
 	case VFIO_PCI_BAR2_REGION_INDEX:
+		ret = intel_vgpu_bar_rw(vgpu, PCI_BASE_ADDRESS_2, pos,
+					buf, count, is_write);
+		break;
+	case VFIO_PCI_BAR1_REGION_INDEX:
 	case VFIO_PCI_BAR3_REGION_INDEX:
 	case VFIO_PCI_BAR4_REGION_INDEX:
 	case VFIO_PCI_BAR5_REGION_INDEX:
@@ -970,7 +864,7 @@ static long intel_vgpu_ioctl(struct mdev_device *mdev, unsigned int cmd,
 		switch (info.index) {
 		case VFIO_PCI_CONFIG_REGION_INDEX:
 			info.offset = VFIO_PCI_INDEX_TO_OFFSET(info.index);
-			info.size = INTEL_GVT_MAX_CFG_SPACE_SZ;
+			info.size = vgpu->gvt->device_info.cfg_space_size;
 			info.flags = VFIO_REGION_INFO_FLAG_READ |
 				     VFIO_REGION_INFO_FLAG_WRITE;
 			break;
@@ -1180,7 +1074,7 @@ hw_id_show(struct device *dev, struct device_attribute *attr,
 		struct intel_vgpu *vgpu = (struct intel_vgpu *)
 			mdev_get_drvdata(mdev);
 		return sprintf(buf, "%u\n",
-			       vgpu->shadow_ctx->hw_id);
+			       vgpu->submission.shadow_ctx->hw_id);
 	}
 	return sprintf(buf, "\n");
 }
@@ -1204,8 +1098,7 @@ static const struct attribute_group *intel_vgpu_groups[] = {
 	NULL,
 };
 
-static const struct mdev_parent_ops intel_vgpu_ops = {
-	.supported_type_groups	= intel_vgpu_type_groups,
+static struct mdev_parent_ops intel_vgpu_ops = {
 	.mdev_attr_groups       = intel_vgpu_groups,
 	.create			= intel_vgpu_create,
 	.remove			= intel_vgpu_remove,
@@ -1221,17 +1114,20 @@ static const struct mdev_parent_ops intel_vgpu_ops = {
 
 static int kvmgt_host_init(struct device *dev, void *gvt, const void *ops)
 {
-	if (!intel_gvt_init_vgpu_type_groups(gvt))
-		return -EFAULT;
+	struct attribute **kvm_type_attrs;
+	struct attribute_group **kvm_vgpu_type_groups;
 
 	intel_gvt_ops = ops;
+	if (!intel_gvt_ops->get_gvt_attrs(&kvm_type_attrs,
+			&kvm_vgpu_type_groups))
+		return -EFAULT;
+	intel_vgpu_ops.supported_type_groups = kvm_vgpu_type_groups;
 
 	return mdev_register_device(dev, &intel_vgpu_ops);
 }
 
 static void kvmgt_host_exit(struct device *dev, void *gvt)
 {
-	intel_gvt_cleanup_vgpu_type_groups(gvt);
 	mdev_unregister_device(dev);
 }
 

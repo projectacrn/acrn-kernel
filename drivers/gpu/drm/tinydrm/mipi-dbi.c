@@ -9,6 +9,7 @@
  * (at your option) any later version.
  */
 
+#include <drm/drm_gem_framebuffer_helper.h>
 #include <drm/tinydrm/mipi-dbi.h>
 #include <drm/tinydrm/tinydrm-helpers.h>
 #include <linux/debugfs.h>
@@ -253,8 +254,8 @@ out_unlock:
 }
 
 static const struct drm_framebuffer_funcs mipi_dbi_fb_funcs = {
-	.destroy	= drm_fb_cma_destroy,
-	.create_handle	= drm_fb_cma_create_handle,
+	.destroy	= drm_gem_fb_destroy,
+	.create_handle	= drm_gem_fb_create_handle,
 	.dirty		= mipi_dbi_fb_dirty,
 };
 
@@ -842,6 +843,8 @@ int mipi_dbi_spi_init(struct spi_device *spi, struct mipi_dbi *mipi,
 			return -ENOMEM;
 	}
 
+	DRM_DEBUG_DRIVER("SPI speed: %uMHz\n", spi->max_speed_hz / 1000000);
+
 	return 0;
 }
 EXPORT_SYMBOL(mipi_dbi_spi_init);
@@ -958,10 +961,6 @@ static const struct file_operations mipi_dbi_debugfs_command_fops = {
 	.write = mipi_dbi_debugfs_command_write,
 };
 
-static const struct drm_info_list mipi_dbi_debugfs_list[] = {
-	{ "fb",   drm_fb_cma_debugfs_show, 0 },
-};
-
 /**
  * mipi_dbi_debugfs_init - Create debugfs entries
  * @minor: DRM minor
@@ -984,9 +983,7 @@ int mipi_dbi_debugfs_init(struct drm_minor *minor)
 	debugfs_create_file("command", mode, minor->debugfs_root, mipi,
 			    &mipi_dbi_debugfs_command_fops);
 
-	return drm_debugfs_create_files(mipi_dbi_debugfs_list,
-					ARRAY_SIZE(mipi_dbi_debugfs_list),
-					minor->debugfs_root, minor);
+	return 0;
 }
 EXPORT_SYMBOL(mipi_dbi_debugfs_init);
 

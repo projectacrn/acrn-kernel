@@ -340,6 +340,18 @@ static phys_addr_t __init gen3_stolen_base(int num, int slot, int func,
 	return (phys_addr_t)bsm & INTEL_BSM_MASK;
 }
 
+static phys_addr_t __init gen11_stolen_base(int num, int slot, int func,
+					    size_t stolen_size)
+{
+	u64 bsm;
+
+	bsm = read_pci_config(num, slot, func, INTEL_GEN11_BSM_DW0);
+	bsm &= INTEL_BSM_MASK;
+	bsm |= (u64)read_pci_config(num, slot, func, INTEL_GEN11_BSM_DW1) << 32;
+
+	return (phys_addr_t)bsm;
+}
+
 static size_t __init i830_stolen_size(int num, int slot, int func)
 {
 	u16 gmch_ctrl;
@@ -499,6 +511,11 @@ static const struct intel_early_ops chv_early_ops __initconst = {
 	.stolen_size = chv_stolen_size,
 };
 
+static const struct intel_early_ops gen11_early_ops __initconst = {
+	.stolen_base = gen11_stolen_base,
+	.stolen_size = gen9_stolen_size,
+};
+
 static const struct pci_device_id intel_early_ids[] __initconst = {
 	INTEL_I830_IDS(&i830_early_ops),
 	INTEL_I845G_IDS(&i845_early_ops),
@@ -529,6 +546,8 @@ static const struct pci_device_id intel_early_ids[] __initconst = {
 	INTEL_KBL_IDS(&gen9_early_ops),
 	INTEL_GLK_IDS(&gen9_early_ops),
 	INTEL_CNL_IDS(&gen9_early_ops),
+	INTEL_ICL_11_IDS(&gen11_early_ops),
+	INTEL_ICL_11_5_IDS(&gen11_early_ops),
 };
 
 static void __init

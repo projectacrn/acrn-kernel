@@ -76,19 +76,27 @@ struct intel_dsi {
 	u8 clock_stop;
 
 	u8 escape_clk_div;
+	u8 escape_clk_nsec;
 	u8 dual_link;
 
 	u16 dcs_backlight_ports;
 	u16 dcs_cabc_ports;
 
+	/* RGB or BGR */
+	unsigned int bgr_enabled;
+
 	u8 pixel_overlap;
 	u32 port_bits;
 	u32 bw_timer;
 	u32 dphy_reg;
+
+	/* data lanes dphy timing */
+	u32 dphy_data_lane_reg;
 	u32 video_frmt_cfg_bits;
 	u16 lp_byte_clk;
 
 	/* timeouts in byte clocks */
+	u16 hs_tx_timeout;
 	u16 lp_rx_timeout;
 	u16 turn_arnd_val;
 	u16 rst_timer_val;
@@ -98,6 +106,7 @@ struct intel_dsi {
 
 	u16 init_count;
 	u32 pclk;
+	u32 bitrate_khz;
 	u16 burst_mode_ratio;
 
 	/* all delays in ms */
@@ -129,9 +138,37 @@ static inline struct intel_dsi *enc_to_intel_dsi(struct drm_encoder *encoder)
 	return container_of(encoder, struct intel_dsi, base.base);
 }
 
+static inline bool is_vid_mode(struct intel_dsi *intel_dsi)
+{
+	return intel_dsi->operation_mode == INTEL_DSI_VIDEO_MODE;
+}
+
+static inline bool is_cmd_mode(struct intel_dsi *intel_dsi)
+{
+	return intel_dsi->operation_mode == INTEL_DSI_COMMAND_MODE;
+}
+
+static inline void intel_dsi_msleep(struct intel_dsi *intel_dsi, int msec)
+{
+	struct drm_i915_private *dev_priv = to_i915(intel_dsi->base.base.dev);
+
+	/* For v3 VBTs in vid-mode the delays are part of the VBT sequences */
+	if (is_vid_mode(intel_dsi) && dev_priv->vbt.dsi.seq_version >= 3)
+		return;
+
+	msleep(msec);
+}
+
 /* intel_dsi.c */
 void wait_for_dsi_fifo_empty(struct intel_dsi *intel_dsi, enum port port);
 enum mipi_dsi_pixel_format pixel_format_from_register_bits(u32 fmt);
+struct intel_dsi_host *intel_dsi_host_init(struct intel_dsi *intel_dsi,
+					const struct mipi_dsi_host_ops *funcs,
+					enum port port);
+void intel_dsi_connector_destroy(struct drm_connector *connector);
+int intel_dsi_get_modes(struct drm_connector *connector);
+enum drm_mode_status intel_dsi_mode_valid(struct drm_connector *connector,
+					  struct drm_display_mode *mode);
 
 /* intel_dsi_pll.c */
 bool intel_dsi_pll_is_enabled(struct drm_i915_private *dev_priv);
