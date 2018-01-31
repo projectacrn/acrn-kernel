@@ -25,12 +25,14 @@
  */
 static struct ufs_hba_variant_ops tc_dwc_g210_20bit_pltfm_hba_vops = {
 	.name                   = "tc-dwc-g210-pltfm",
+	.hce_enable_notify	= ufshcd_dwc_hce_enable_notify,
 	.link_startup_notify	= ufshcd_dwc_link_startup_notify,
 	.phy_initialization = tc_dwc_g210_config_20_bit,
 };
 
 static struct ufs_hba_variant_ops tc_dwc_g210_40bit_pltfm_hba_vops = {
 	.name                   = "tc-dwc-g210-pltfm",
+	.hce_enable_notify	= ufshcd_dwc_hce_enable_notify,
 	.link_startup_notify	= ufshcd_dwc_link_startup_notify,
 	.phy_initialization = tc_dwc_g210_config_40_bit,
 };

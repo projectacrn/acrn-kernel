@@ -120,18 +120,10 @@ int ufshcd_dwc_link_startup_notify(struct ufs_hba *hba,
 {
 	int err = 0;
 
-	if (status == PRE_CHANGE) {
-		ufshcd_dwc_program_clk_div(hba, DWC_UFS_REG_HCLKDIV_DIV_125);
-
-		if (hba->vops->phy_initialization) {
-			err = hba->vops->phy_initialization(hba);
-			if (err) {
-				dev_err(hba->dev, "Phy setup failed (%d)\n",
-									err);
-				goto out;
-			}
-		}
-	} else { /* POST_CHANGE */
+	switch (status) {
+	case PRE_CHANGE:
+		break;
+	case POST_CHANGE:
 		err = ufshcd_dwc_link_is_up(hba);
 		if (err) {
 			dev_err(hba->dev, "Link is not up\n");
@@ -142,12 +134,32 @@ int ufshcd_dwc_link_startup_notify(struct ufs_hba *hba,
 		if (err)
 			dev_err(hba->dev, "Connection setup failed (%d)\n",
 									err);
+		break;
+	default:
+		break;
 	}
 
 out:
 	return err;
 }
 EXPORT_SYMBOL(ufshcd_dwc_link_startup_notify);
+
+int ufshcd_dwc_hce_enable_notify(struct ufs_hba *hba,
+					enum ufs_notify_change_status status)
+{
+	switch (status) {
+	case PRE_CHANGE:
+		ufshcd_dwc_program_clk_div(hba, DWC_UFS_REG_HCLKDIV_DIV_125);
+		break;
+	case POST_CHANGE:
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(ufshcd_dwc_hce_enable_notify);
 
 MODULE_AUTHOR("Joao Pinto <Joao.Pinto@synopsys.com>");
 MODULE_DESCRIPTION("UFS Host driver for Synopsys Designware Core");

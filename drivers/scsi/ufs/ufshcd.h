@@ -530,6 +530,9 @@ struct ufs_hba {
 	struct device_attribute spm_lvl_attr;
 	int pm_op_in_progress;
 
+	/* Auto-Hibernate Idle Timer register value */
+	u32 ahit;
+
 	struct ufshcd_lrb *lrb;
 	unsigned long lrb_in_use;
 
@@ -987,5 +990,13 @@ static inline void ufshcd_vops_dbg_register_dump(struct ufs_hba *hba)
 
 int ufshcd_dump_regs(struct ufs_hba *hba, size_t offset, size_t len,
 		     const char *prefix);
+
+static inline int ufshcd_vops_phy_initialization(struct ufs_hba *hba)
+{
+	if (hba->vops && hba->vops->phy_initialization)
+		return hba->vops->phy_initialization(hba);
+
+	return 0;
+}
 
 #endif /* End of Header */

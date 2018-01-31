@@ -372,6 +372,7 @@ struct ioat_ring_ent **
 ioat_alloc_ring(struct dma_chan *c, int order, gfp_t flags)
 {
 	struct ioatdma_chan *ioat_chan = to_ioat_chan(c);
+	struct ioatdma_device *ioat_dma = ioat_chan->ioat_dma;
 	struct ioat_ring_ent **ring;
 	int total_descs = 1 << order;
 	int i, chunks;
@@ -436,6 +437,17 @@ ioat_alloc_ring(struct dma_chan *c, int order, gfp_t flags)
 		hw->next = next->txd.phys;
 	}
 	ring[i]->hw->next = ring[0]->txd.phys;
+
+	/* setup descriptor pre-fetching for v3.4 */
+	if (ioat_dma->cap & IOAT_CAP_DPS) {
+		u16 drsctl = IOAT_CHAN_DRSZ_2MB | IOAT_CHAN_DRS_EN;
+
+		if (chunks == 1)
+			drsctl |= IOAT_CHAN_DRS_AUTOWRAP;
+
+		writew(drsctl, ioat_chan->reg_base + IOAT_CHAN_DRSCTL_OFFSET);
+
+	}
 
 	return ring;
 }
@@ -560,6 +572,18 @@ desc_get_errstat(struct ioatdma_chan *ioat_chan, struct ioat_ring_ent *desc)
 
 		if (pq->dwbes_f.q_val_err)
 			*desc->result |= SUM_CHECK_Q_RESULT;
+
+		return;
+	}
+	case IOAT_OP_PGCMP:
+	{
+		struct ioat_pgcmp_descriptor *pgcmp = desc->pgcmp;
+
+		if (!pgcmp->dwbes_f.wbes)
+			return;
+
+		if (pgcmp->dwbes_f.pgcmp_err)
+			*desc->result |= SUM_CHECK_P_RESULT;
 
 		return;
 	}
@@ -794,6 +818,12 @@ static void ioat_eh(struct ioatdma_chan *ioat_chan)
 		if (chanerr & IOAT_CHANERR_XOR_Q_ERR) {
 			*desc->result |= SUM_CHECK_Q_RESULT;
 			err_handled |= IOAT_CHANERR_XOR_Q_ERR;
+		}
+		break;
+	case IOAT_OP_PGCMP:
+		if (chanerr & IOAT_CHANERR_XOR_P_OR_CRC_ERR) {
+			*desc->result |= SUM_CHECK_P_RESULT;
+			err_handled |= IOAT_CHANERR_XOR_P_OR_CRC_ERR;
 		}
 		break;
 	}
