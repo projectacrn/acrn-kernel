@@ -38,6 +38,7 @@
 #define	DWMAC_CORE_3_40	0x34
 #define	DWMAC_CORE_3_50	0x35
 #define	DWMAC_CORE_4_00	0x40
+#define	DWMAC_CORE_5_00	0x50
 #define STMMAC_CHAN0	0	/* Always supported and default for all chips */
 
 /* These need to be power of two, and >= 4 */
@@ -47,6 +48,12 @@
 
 #undef FRAME_FILTER_DEBUG
 /* #define FRAME_FILTER_DEBUG */
+
+#define STMMAC_FLAG_VLAN_PROMISC	BIT(0)
+
+/* tsn capability,  meant for mac_device_info->tsn_cap */
+#define TSN_CAP_FPE			BIT(1)
+#define TSN_CAP_EST			BIT(0)
 
 /* Extra statistic and debug information exposed by ethtool */
 struct stmmac_extra_stats {
@@ -94,6 +101,14 @@ struct stmmac_extra_stats {
 	unsigned long threshold;
 	unsigned long tx_pkt_n;
 	unsigned long rx_pkt_n;
+	unsigned long q0_rx_pkt_n;
+	unsigned long q1_rx_pkt_n;
+	unsigned long q2_rx_pkt_n;
+	unsigned long q3_rx_pkt_n;
+	unsigned long q4_rx_pkt_n;
+	unsigned long q5_rx_pkt_n;
+	unsigned long q6_rx_pkt_n;
+	unsigned long q7_rx_pkt_n;
 	unsigned long normal_irq_n;
 	unsigned long rx_normal_irq_n;
 	unsigned long napi_poll;
@@ -101,6 +116,22 @@ struct stmmac_extra_stats {
 	unsigned long tx_clean;
 	unsigned long tx_set_ic_bit;
 	unsigned long irq_receive_pmt_irq_n;
+	unsigned long q0_rx_irq_n;
+	unsigned long q1_rx_irq_n;
+	unsigned long q2_rx_irq_n;
+	unsigned long q3_rx_irq_n;
+	unsigned long q4_rx_irq_n;
+	unsigned long q5_rx_irq_n;
+	unsigned long q6_rx_irq_n;
+	unsigned long q7_rx_irq_n;
+	unsigned long q0_tx_irq_n;
+	unsigned long q1_tx_irq_n;
+	unsigned long q2_tx_irq_n;
+	unsigned long q3_tx_irq_n;
+	unsigned long q4_tx_irq_n;
+	unsigned long q5_tx_irq_n;
+	unsigned long q6_tx_irq_n;
+	unsigned long q7_tx_irq_n;
 	/* MMC info */
 	unsigned long mmc_tx_irq_n;
 	unsigned long mmc_rx_irq_n;
@@ -359,8 +390,84 @@ struct dma_features {
 
 #define STMMAC_CHAIN_MODE	0x1
 #define STMMAC_RING_MODE	0x2
+#define STMMAC_ENHANCED_TX_MODE	0x3
 
 #define JUMBO_LEN		9000
+
+/* TSN HW Capabilities */
+struct tsn_hw_cap {
+	bool est_support;		/* 1: supported */
+	bool fpe_support;		/* 1: supported */
+	u32 txqcnt;			/* Number of TxQ (control gate) */
+	u32 rxqcnt;			/* Number of RxQ (for FPRQ) */
+	u32 gcl_depth;			/* GCL depth. */
+	u32 ti_wid;			/* time interval width */
+	u32 tils_max;			/* Max of time interval left shift */
+	u32 ext_max;			/* Max of time extension */
+};
+
+/* TSN HW tunable */
+struct tsn_hw_tunable {
+	u32 tils;			/* time interval left-shift */
+	u32 ptov;			/* PTP time offset */
+	u32 ctov;			/* Current time offset */
+	u32 afsz;			/* Additional Frag Size */
+	u32 hadv;			/* Hold Advance */
+	u32 radv;			/* Release Advance */
+	u32 est_mode;			/* tbs absolute / est mode */
+	u32 ftos_ns;			/* fetch time offset (nsec) */
+	u32 fgos;			/* fetch GSN offset (slot number) */
+	u32 leos_ns;			/* Launch expiry offset (ns) */
+	u32 legos;			/* Launch expiry GSN offset */
+};
+
+/* EST Gate Control Entry */
+struct est_gc_entry {
+	u32 gates;		/* gate control: 0: closed, 1: open. */
+	u32 ti_nsec;		/* time interval in nsec */
+};
+
+/* EST GCL Related Registers */
+struct est_gcrr {
+	u32 base_nsec;			/* base time denominator (nsec) */
+	u32 base_sec;			/* base time numerator (sec) */
+	u32 cycle_nsec;			/* cycle time denominator (nsec) */
+	u32 cycle_sec;			/* cycle time numerator sec)*/
+	u32 ter_nsec;			/* time extension (nsec) */
+	u32 llr;			/* GC list length */
+};
+
+/* EST Gate Control bank */
+struct est_gc_bank {
+	struct est_gc_entry *gcl;	/* Gate Control List */
+	struct est_gcrr gcrr;		/* GCL Related Registers */
+};
+
+#define EST_GCL_BANK_MAX (2)
+
+/* EST Gate Control Configuration */
+struct est_gc_config {
+	struct est_gc_bank gcb[EST_GCL_BANK_MAX];
+	bool enable;			/* 1: enabled */
+};
+
+/* TSN Error Status */
+struct tsn_err_stat {
+	u32 cgce_n;			/* Constant gate error count */
+	u32 hlbs_q;			/* Queue with HLB due to Scheduling */
+	u32 hlbf_sz[MTL_MAX_TX_QUEUES];	/* Frame size that causes HLB */
+	u32 btre_n;			/* BTR error with BTR renewal count */
+	u32 btre_max_n;			/* BTR error with BTR renewal fail */
+					/* count */
+	u32 btrl;			/* BTR error loop count */
+};
+
+/* FPE Configuration */
+struct fpe_config {
+	u32 txqpec;			/* TxQ Preemption Classification */
+	bool enable;			/* 1: enabled */
+	bool lp_fpe_support;		/* 1: link partner fpe supported */
+};
 
 /* Descriptors helpers */
 struct stmmac_desc_ops {
@@ -388,6 +495,10 @@ struct stmmac_desc_ops {
 	void (*set_tx_ic)(struct dma_desc *p);
 	/* Last tx segment reports the transmit status */
 	int (*get_tx_ls) (struct dma_desc *p);
+	/* RX VLAN TCI */
+	int (*get_rx_vlan_tci)(struct dma_desc *p);
+	/* RX VLAN valid */
+	bool (*get_rx_vlan_valid)(struct dma_desc *p);
 	/* Return the transmit status looking at the TDES1 */
 	int (*tx_status) (void *data, struct stmmac_extra_stats *x,
 			  struct dma_desc *p, void __iomem *ioaddr);
@@ -409,7 +520,7 @@ struct stmmac_desc_ops {
 	/* get timestamp value */
 	 u64(*get_timestamp) (void *desc, u32 ats);
 	/* get rx timestamp status */
-	int (*get_rx_timestamp_status) (void *desc, u32 ats);
+	int (*get_rx_timestamp_status)(void *desc, void *next_desc, u32 ats);
 	/* Display ring */
 	void (*display_ring)(void *head, unsigned int size, bool rx);
 	/* set MSS via context descriptor */
@@ -442,8 +553,9 @@ struct stmmac_dma_ops {
 	void (*dma_mode)(void __iomem *ioaddr, int txmode, int rxmode,
 			 int rxfifosz);
 	void (*dma_rx_mode)(void __iomem *ioaddr, int mode, u32 channel,
-			    int fifosz);
-	void (*dma_tx_mode)(void __iomem *ioaddr, int mode, u32 channel);
+			    int fifosz, u8 qmode);
+	void (*dma_tx_mode)(void __iomem *ioaddr, int mode, u32 channel,
+			    int fifosz, u8 qmode);
 	/* To track extra statistic (if supported) */
 	void (*dma_diagnostic_fr) (void *data, struct stmmac_extra_stats *x,
 				   void __iomem *ioaddr);
@@ -531,6 +643,56 @@ struct stmmac_ops {
 			     bool loopback);
 	void (*pcs_rane)(void __iomem *ioaddr, bool restart);
 	void (*pcs_get_adv_lp)(void __iomem *ioaddr, struct rgmii_adv *adv);
+	/* xPCS calls */
+	void (*xpcs_init)(struct net_device *ndev, int pcs_mode);
+	void (*xpcs_ctrl_ane)(struct net_device *ndev, bool ane, bool loopback);
+	void (*xpcs_rane)(struct net_device *ndev, bool restart);
+	void (*xpcs_get_adv_lp)(struct net_device *ndev, struct rgmii_adv *adv);
+	int (*xpcs_irq_status)(struct net_device *ndev,
+			       struct stmmac_extra_stats *x);
+	/* VLAN calls */
+	void (*rx_vlan)(struct net_device *dev, struct mac_device_info *hw,
+			struct dma_desc *rx_desc, struct sk_buff *skb);
+	void (*set_vlan_mode)(void __iomem *ioaddr, netdev_features_t features);
+	int (*vlan_rx_add_vid)(struct net_device *dev, __be16 proto, u16 vid,
+			       struct mac_device_info *hw);
+	int (*vlan_rx_kill_vid)(struct net_device *dev, __be16 proto, u16 vid,
+				struct mac_device_info *hw);
+	void (*restore_vlan)(struct net_device *dev,
+			     struct mac_device_info *hw);
+	/* self-test */
+	void (*set_loopback_mode)(struct mac_device_info *hw, bool mode);
+	/* TSN calls */
+	int (*set_tsn_hwtunable)(struct net_device *ndev, u32 id,
+				 const void *data);
+	int (*get_tsn_hwtunable)(struct net_device *ndev, u32 id,
+				 void *data);
+	int (*get_est_bank)(struct net_device *ndev, u32 own);
+	int (*set_est_gce)(struct net_device *ndev,
+			   struct est_gc_entry *gce, u32 row,
+			   u32 dbgb, u32 dbgm);
+	int (*get_est_gcrr_llr)(struct net_device *ndev, u32 *gcl_len,
+				u32 dbgb, u32 dbgm);
+	int (*set_est_gcrr_llr)(struct net_device *ndev, u32 gcl_len,
+				u32 dbgb, u32 dbgm);
+	int (*set_est_gcrr_times)(struct net_device *ndev,
+				  struct est_gcrr *gcrr,
+				  u32 dbgb, u32 dbgm);
+	int (*set_est_enable)(struct net_device *ndev, bool enable);
+	int (*get_est_gcc)(struct net_device *ndev,
+			   struct est_gc_config **gcc, bool frmdrv);
+	int (*est_irq_status)(struct net_device *ndev);
+	int (*get_est_err_stat)(struct net_device *ndev,
+				struct tsn_err_stat **err_stat);
+	int (*clr_est_err_stat)(struct net_device *ndev);
+	int (*set_fpe_config)(struct net_device *ndev,
+			      struct fpe_config *fpec);
+	int (*set_fpe_enable)(struct net_device *ndev, bool enable);
+	int (*get_fpe_config)(struct net_device *ndev,
+			      struct fpe_config **fpec, bool frmdrv);
+	int (*get_fpe_pmac_sts)(struct net_device *ndev, u32 *hrs);
+	int (*fpe_irq_status)(struct net_device *ndev);
+	int (*reconfigure_cbs)(struct net_device *ndev);
 };
 
 /* PTP and HW Timer helpers */
@@ -595,6 +757,14 @@ struct mac_device_info {
 	unsigned int pcs;
 	unsigned int pmt;
 	unsigned int ps;
+	unsigned int num_vlan;
+	u32 vlan_filter[32];
+	u32 flags;
+	u32 tsn_cap;
+	bool vlan_fail_q_en;
+	u8 vlan_fail_q;
+	bool mdio_intr_en;
+	wait_queue_head_t mdio_busy_wait;
 };
 
 struct stmmac_rx_routing {
@@ -607,7 +777,8 @@ struct mac_device_info *dwmac1000_setup(void __iomem *ioaddr, int mcbins,
 					int *synopsys_id);
 struct mac_device_info *dwmac100_setup(void __iomem *ioaddr, int *synopsys_id);
 struct mac_device_info *dwmac4_setup(void __iomem *ioaddr, int mcbins,
-				     int perfect_uc_entries, int *synopsys_id);
+				     int perfect_uc_entries, int *synopsys_id,
+				     int xpcs, int tbs);
 
 void stmmac_set_mac_addr(void __iomem *ioaddr, u8 addr[6],
 			 unsigned int high, unsigned int low);
@@ -623,9 +794,16 @@ void stmmac_dwmac4_set_mac(void __iomem *ioaddr, bool enable);
 
 void dwmac_dma_flush_tx_fifo(void __iomem *ioaddr);
 
+int dwmac_tsn_init(struct net_device *ndev);
+void dwmac_tsn_setup(struct net_device *ndev);
+
+int dwmac_set_tbs_launchtime_gsn(struct net_device *ndev, struct dma_desc *desc,
+				 struct sk_buff *skb);
+
 extern const struct stmmac_mode_ops ring_mode_ops;
 extern const struct stmmac_mode_ops chain_mode_ops;
 extern const struct stmmac_desc_ops dwmac4_desc_ops;
+extern const struct stmmac_desc_ops dwmac5_desc_ops;
 
 /**
  * stmmac_get_synopsys_id - return the SYINID.

@@ -35,6 +35,7 @@ struct stmmac_resources {
 	const char *mac;
 	int wol_irq;
 	int lpi_irq;
+	int xpcs_irq;
 	int irq;
 };
 
@@ -51,6 +52,7 @@ struct stmmac_tx_queue {
 	u32 queue_index;
 	struct stmmac_priv *priv_data;
 	struct dma_extended_desc *dma_etx ____cacheline_aligned_in_smp;
+	struct dma_enhanced_tx_desc *dma_enhtx ____cacheline_aligned_in_smp;
 	struct dma_desc *dma_tx;
 	struct sk_buff **tx_skbuff;
 	struct stmmac_tx_info *tx_skbuff_dma;
@@ -86,6 +88,8 @@ struct stmmac_priv {
 	bool tx_path_in_lpi_mode;
 	struct timer_list txtimer;
 	bool tso;
+	bool tsn_est;
+	bool tsn_fpe;
 
 	unsigned int dma_buf_sz;
 	unsigned int rx_copybreak;
@@ -115,6 +119,7 @@ struct stmmac_priv {
 	struct stmmac_extra_stats xstats ____cacheline_aligned_in_smp;
 	struct plat_stmmacenet_data *plat;
 	struct dma_features dma_cap;
+	struct tsn_hw_cap tsn_hwcap;
 	struct stmmac_counters mmc;
 	int hw_cap_support;
 	int synopsys_id;
@@ -124,11 +129,13 @@ struct stmmac_priv {
 	int clk_csr;
 	struct timer_list eee_ctrl_timer;
 	int lpi_irq;
+	int xpcs_irq;
 	int eee_enabled;
 	int eee_active;
 	int tx_lpi_timer;
 	unsigned int mode;
 	int extend_desc;
+	bool enhanced_tx_desc;
 	struct ptp_clock *ptp_clock;
 	struct ptp_clock_info ptp_clock_ops;
 	unsigned int default_addend;

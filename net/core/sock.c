@@ -1059,6 +1059,13 @@ set_rcvbuf:
 			sock_valbool_flag(sk, SOCK_ZEROCOPY, valbool);
 		break;
 
+	case SO_TXTIME:
+		if (ns_capable(sock_net(sk)->user_ns, CAP_NET_ADMIN))
+			sock_valbool_flag(sk, SOCK_TXTIME, valbool);
+		else
+			ret = -EPERM;
+		break;
+
 	default:
 		ret = -ENOPROTOOPT;
 		break;
@@ -2102,6 +2109,7 @@ int __sock_cmsg_send(struct sock *sk, struct msghdr *msg, struct cmsghdr *cmsg,
 		     struct sockcm_cookie *sockc)
 {
 	u32 tsflags;
+	struct tbs_info *tbs_cmsg;
 
 	switch (cmsg->cmsg_type) {
 	case SO_MARK:
@@ -2121,6 +2129,13 @@ int __sock_cmsg_send(struct sock *sk, struct msghdr *msg, struct cmsghdr *cmsg,
 
 		sockc->tsflags &= ~SOF_TIMESTAMPING_TX_RECORD_MASK;
 		sockc->tsflags |= tsflags;
+		break;
+	case SO_TXTIME:
+		if (!sock_flag(sk, SOCK_TXTIME))
+			return -EINVAL;
+		tbs_cmsg = (struct tbs_info *)CMSG_DATA(cmsg);
+		sockc->transmit_time = tbs_cmsg->launchtime;
+		sockc->transmit_gsn = tbs_cmsg->gsn;
 		break;
 	/* SCM_RIGHTS and SCM_CREDENTIALS are semantically in SOL_UNIX. */
 	case SCM_RIGHTS:

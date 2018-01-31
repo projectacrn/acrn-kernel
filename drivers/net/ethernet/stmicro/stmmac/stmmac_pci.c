@@ -19,10 +19,12 @@
   Author: Giuseppe Cavallaro <peppe.cavallaro@st.com>
 *******************************************************************************/
 
+#include <linux/clk-provider.h>
 #include <linux/pci.h>
 #include <linux/dmi.h>
 
 #include "stmmac.h"
+#include "dw_xpcs.h"
 
 /*
  * This struct is used to associate PCI Function of MAC controller on a board,
@@ -220,6 +222,132 @@ static const struct stmmac_pci_info quark_pci_info = {
 	.setup = quark_default_data,
 };
 
+static int synp_haps_default_data(struct pci_dev *pdev,
+				  struct plat_stmmacenet_data *plat)
+{
+	plat->bus_id = 1;
+	plat->phy_addr = 0;
+	plat->interface = PHY_INTERFACE_MODE_SGMII;
+	plat->clk_csr = 5;
+	plat->has_gmac = 0;
+	plat->has_gmac4 = 1;
+	plat->has_tbs = 1;
+	plat->has_xpcs = 1;
+	plat->xpcs_phy_addr = 0x16;
+	plat->pcs_mode = AN_CTRL_PCS_MD_C37_SGMII;
+	plat->force_sf_dma_mode = 0;
+	plat->tso_en = 1;
+	plat->tsn_est_en = 1;
+	plat->tsn_fpe_en = 1;
+
+	plat->rx_queues_to_use = 6;
+	plat->tx_queues_to_use = 4;
+
+	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
+
+	plat->rx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[3].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[4].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[5].mode_to_use = MTL_QUEUE_DCB;
+
+	plat->tx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[3].mode_to_use = MTL_QUEUE_DCB;
+
+	plat->tx_queues_cfg[1].send_slope = 0xCCC;
+	plat->tx_queues_cfg[1].idle_slope = 0x1333;
+	plat->tx_queues_cfg[1].high_credit = 0x4B0000;
+	plat->tx_queues_cfg[1].low_credit = 0xFFB50000;
+
+	plat->rx_queues_cfg[0].chan = 0;
+	plat->rx_queues_cfg[1].chan = 1;
+	plat->rx_queues_cfg[2].chan = 2;
+	plat->rx_queues_cfg[3].chan = 3;
+	plat->rx_queues_cfg[4].chan = 4;
+	plat->rx_queues_cfg[5].chan = 5;
+
+
+	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
+	plat->tx_queues_cfg[0].weight = 0x10;
+	plat->tx_queues_cfg[1].weight = 0x11;
+	plat->tx_queues_cfg[2].weight = 0x12;
+	plat->tx_queues_cfg[3].weight = 0x13;
+
+	/* Disable Priority config by default */
+	plat->tx_queues_cfg[0].use_prio = false;
+	plat->rx_queues_cfg[0].use_prio = false;
+
+	/* Disable RX queues routing by default */
+	plat->rx_queues_cfg[0].pkt_route = 0x0;
+	plat->rx_queues_cfg[1].pkt_route = 0x0;
+	plat->rx_queues_cfg[2].pkt_route = 0x0;
+	plat->rx_queues_cfg[3].pkt_route = 0x0;
+	plat->rx_queues_cfg[4].pkt_route = 0x0;
+	plat->rx_queues_cfg[5].pkt_route = 0x0;
+
+	plat->mdio_bus_data->phy_reset = NULL;
+	plat->mdio_bus_data->phy_mask = 0;
+
+	plat->dma_cfg->pbl = 32;
+	plat->dma_cfg->pblx8 = true;
+	plat->dma_cfg->fixed_burst = 0;
+	plat->dma_cfg->mixed_burst = 0;
+	plat->dma_cfg->aal = 0;
+	plat->dma_cfg->osf = true;
+
+	plat->axi = devm_kzalloc(&pdev->dev, sizeof(*plat->axi),
+				 GFP_KERNEL);
+	if (!plat->axi)
+		return -ENOMEM;
+	plat->axi->axi_lpi_en = 0;
+	plat->axi->axi_xit_frm = 0;
+	plat->axi->axi_wr_osr_lmt = 0;
+	plat->axi->axi_rd_osr_lmt = 2;
+	plat->axi->axi_blen[0] = 4;
+	plat->axi->axi_blen[1] = 8;
+	plat->axi->axi_blen[2] = 16;
+
+	plat->vlan_fail_q_en = 1;
+	plat->vlan_fail_q = 1;
+
+	/* Set system clock for HAPS is 62.5MHz */
+	plat->stmmac_clk = clk_register_fixed_rate(&pdev->dev,
+						   "stmmac-clk", NULL, 0,
+						   62500000);
+
+	if (IS_ERR(plat->stmmac_clk)) {
+		dev_warn(&pdev->dev, "Fail to register stmmac-clk\n");
+		plat->stmmac_clk = NULL;
+	}
+	clk_prepare_enable(plat->stmmac_clk);
+
+	/* Set PTP clock rate for HAPS as 62.5MHz */
+	plat->clk_ptp_rate = 62500000;
+
+	/* Set default value for multicast hash bins */
+	plat->multicast_filter_bins = HASH_TABLE_SIZE;
+
+	/* Set default value for unicast filter entries */
+	plat->unicast_filter_entries = 1;
+
+	/* Set the maxmtu to a default of JUMBO_LEN */
+	plat->maxmtu = JUMBO_LEN;
+
+	/* Synopsys Ethernet IPK FPGA image does not support MSI
+	 * even the HAPS PCI Config Space do expose MSI capability
+	 */
+	plat->no_msi = 1;
+
+	return 0;
+}
+
+static struct stmmac_pci_info synp_haps_pci_info = {
+	.setup = synp_haps_default_data,
+};
+
 /**
  * stmmac_pci_probe
  *
@@ -280,12 +408,14 @@ static int stmmac_pci_probe(struct pci_dev *pdev,
 	if (ret)
 		return ret;
 
-	pci_enable_msi(pdev);
+	if (!plat->no_msi)
+		pci_enable_msi(pdev);
 
 	memset(&res, 0, sizeof(res));
 	res.addr = pcim_iomap_table(pdev)[i];
 	res.wol_irq = pdev->irq;
 	res.irq = pdev->irq;
+	res.xpcs_irq = pdev->irq;
 
 	return stmmac_dvr_probe(&pdev->dev, plat, &res);
 }
@@ -299,7 +429,11 @@ static int stmmac_pci_probe(struct pci_dev *pdev,
  */
 static void stmmac_pci_remove(struct pci_dev *pdev)
 {
+	struct net_device *ndev = dev_get_drvdata(&pdev->dev);
+	struct stmmac_priv *priv = netdev_priv(ndev);
+
 	stmmac_dvr_remove(&pdev->dev);
+	clk_unregister_fixed_rate(priv->plat->stmmac_clk);
 }
 
 static SIMPLE_DEV_PM_OPS(stmmac_pm_ops, stmmac_suspend, stmmac_resume);
@@ -309,6 +443,9 @@ static SIMPLE_DEV_PM_OPS(stmmac_pm_ops, stmmac_suspend, stmmac_resume);
 
 #define STMMAC_QUARK_ID  0x0937
 #define STMMAC_DEVICE_ID 0x1108
+#define STMMAC_ICP_LP_ID 0x34ac
+#define DEVICE_ID_HAPS_DX 0x7102
+#define DEVICE_ID_HAPS_6X 0x7101
 
 #define STMMAC_DEVICE(vendor_id, dev_id, info)	{	\
 	PCI_VDEVICE(vendor_id, dev_id),			\
@@ -319,6 +456,9 @@ static const struct pci_device_id stmmac_id_table[] = {
 	STMMAC_DEVICE(STMMAC, STMMAC_DEVICE_ID, stmmac_pci_info),
 	STMMAC_DEVICE(STMICRO, PCI_DEVICE_ID_STMICRO_MAC, stmmac_pci_info),
 	STMMAC_DEVICE(INTEL, STMMAC_QUARK_ID, quark_pci_info),
+	STMMAC_DEVICE(INTEL, STMMAC_ICP_LP_ID, synp_haps_pci_info),
+	STMMAC_DEVICE(SYNOPSYS, DEVICE_ID_HAPS_DX, synp_haps_pci_info),
+	STMMAC_DEVICE(SYNOPSYS, DEVICE_ID_HAPS_6X, synp_haps_pci_info),
 	{}
 };
 
