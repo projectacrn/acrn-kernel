@@ -822,7 +822,7 @@ static void __pci_start_power_transition(struct pci_dev *dev, pci_power_t state)
 		 * because have already delayed for the bridge.
 		 */
 		if (dev->runtime_d3cold) {
-			if (dev->d3cold_delay)
+			if (dev->d3cold_delay && !dev->immediate)
 				msleep(dev->d3cold_delay);
 			/*
 			 * When powering on a bridge from D3cold, the
@@ -2406,6 +2406,7 @@ EXPORT_SYMBOL_GPL(pci_d3cold_disable);
 void pci_pm_init(struct pci_dev *dev)
 {
 	int pm;
+	u16 status;
 	u16 pmc;
 
 	pm_runtime_forbid(&dev->dev);
@@ -2469,6 +2470,9 @@ void pci_pm_init(struct pci_dev *dev)
 		/* Disable the PME# generation functionality */
 		pci_pme_active(dev, false);
 	}
+
+	pci_read_config_word(dev, PCI_STATUS, &status);
+	dev->immediate = status & PCI_STATUS_IMMEDIATE;
 }
 
 static unsigned long pci_ea_flags(struct pci_dev *dev, u8 prop)
@@ -3824,6 +3828,9 @@ static void pci_flr_wait(struct pci_dev *dev)
 {
 	int delay = 1, timeout = 60000;
 	u32 id;
+
+	if (dev->immediate)
+		return;
 
 	/*
 	 * Per PCIe r3.1, sec 6.6.2, a device must complete an FLR within
