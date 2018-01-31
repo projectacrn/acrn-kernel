@@ -1100,7 +1100,6 @@ static int tda998x_connector_get_modes(struct drm_connector *connector)
 
 	drm_mode_connector_update_edid_property(connector, edid);
 	n = drm_add_edid_modes(connector, edid);
-	drm_edid_to_eld(connector, edid);
 
 	kfree(edid);
 
@@ -1746,7 +1745,7 @@ static const struct of_device_id tda998x_dt_ids[] = {
 MODULE_DEVICE_TABLE(of, tda998x_dt_ids);
 #endif
 
-static struct i2c_device_id tda998x_ids[] = {
+static const struct i2c_device_id tda998x_ids[] = {
 	{ "tda998x", 0 },
 	{ }
 };

@@ -269,7 +269,7 @@ i915_gem_object_set_tiling(struct drm_i915_gem_object *obj,
 	 * due to the change in swizzling.
 	 */
 	mutex_lock(&obj->mm.lock);
-	if (obj->mm.pages &&
+	if (i915_gem_object_has_pages(obj) &&
 	    obj->mm.madv == I915_MADV_WILLNEED &&
 	    i915->quirks & QUIRK_PIN_SWIZZLED_PAGES) {
 		if (tiling == I915_TILING_NONE) {
@@ -344,6 +344,15 @@ i915_gem_set_tiling_ioctl(struct drm_device *dev, void *data,
 	obj = i915_gem_object_lookup(file, args->handle);
 	if (!obj)
 		return -ENOENT;
+
+	/*
+	 * The tiling mode of proxy objects is handled by its generator, and
+	 * not allowed to be changed by userspace.
+	 */
+	if (i915_gem_object_is_proxy(obj)) {
+		err = -ENXIO;
+		goto err;
+	}
 
 	if (!i915_tiling_ok(obj, args->tiling_mode, args->stride)) {
 		err = -EINVAL;

@@ -270,6 +270,11 @@ struct drm_display_info {
 	bool dvi_dual;
 
 	/**
+	 * @has_hdmi_infoframe: Does the sink support the HDMI infoframe?
+	 */
+	bool has_hdmi_infoframe;
+
+	/**
 	 * @edid_hdmi_dc_modes: Mask of supported hdmi deep color modes. Even
 	 * more stuff redundant with @bus_formats.
 	 */
@@ -284,6 +289,11 @@ struct drm_display_info {
 	 * @hdmi: advance features of a HDMI sink.
 	 */
 	struct drm_hdmi_info hdmi;
+
+	/**
+	 * @non_desktop: Non desktop display (HMD).
+	 */
+	bool non_desktop;
 };
 
 int drm_display_info_set_bus_formats(struct drm_display_info *info,
@@ -346,6 +356,13 @@ struct drm_connector_state {
 	enum drm_link_status link_status;
 
 	struct drm_atomic_state *state;
+
+	/**
+	 * @commit: Tracks the pending commit to prevent use-after-free conditions.
+	 *
+	 * Is only set when @crtc is NULL.
+	 */
+	struct drm_crtc_commit *commit;
 
 	struct drm_tv_connector_state tv;
 
@@ -692,7 +709,6 @@ struct drm_cmdline_mode {
  * @force: a DRM_FORCE_<foo> state for forced mode sets
  * @override_edid: has the EDID been overwritten through debugfs for testing?
  * @encoder_ids: valid encoders for this connector
- * @encoder: encoder driving this connector, if any
  * @eld: EDID-like data, if present
  * @latency_present: AV delay info from ELD, if found
  * @video_latency: video latency info from ELD, if found
@@ -862,7 +878,13 @@ struct drm_connector {
 
 #define DRM_CONNECTOR_MAX_ENCODER 3
 	uint32_t encoder_ids[DRM_CONNECTOR_MAX_ENCODER];
-	struct drm_encoder *encoder; /* currently active encoder */
+	/**
+	 * @encoder: Currently bound encoder driving this connector, if any.
+	 * Only really meaningful for non-atomic drivers. Atomic drivers should
+	 * instead look at &drm_connector_state.best_encoder, and in case they
+	 * need the CRTC driving this output, &drm_connector_state.crtc.
+	 */
+	struct drm_encoder *encoder;
 
 #define MAX_ELD_BYTES	128
 	/* EDID bits */
@@ -888,8 +910,7 @@ struct drm_connector {
 	 * This is protected by @drm_mode_config.connection_mutex. Note that
 	 * nonblocking atomic commits access the current connector state without
 	 * taking locks. Either by going through the &struct drm_atomic_state
-	 * pointers, see for_each_connector_in_state(),
-	 * for_each_oldnew_connector_in_state(),
+	 * pointers, see for_each_oldnew_connector_in_state(),
 	 * for_each_old_connector_in_state() and
 	 * for_each_new_connector_in_state(). Or through careful ordering of
 	 * atomic commit operations as implemented in the atomic helpers, see
@@ -927,16 +948,18 @@ static inline unsigned drm_connector_index(struct drm_connector *connector)
 /**
  * drm_connector_lookup - lookup connector object
  * @dev: DRM device
+ * @file_priv: drm file to check for lease against.
  * @id: connector object id
  *
  * This function looks up the connector object specified by id
  * add takes a reference to it.
  */
 static inline struct drm_connector *drm_connector_lookup(struct drm_device *dev,
+		struct drm_file *file_priv,
 		uint32_t id)
 {
 	struct drm_mode_object *mo;
-	mo = drm_mode_object_find(dev, id, DRM_MODE_OBJECT_CONNECTOR);
+	mo = drm_mode_object_find(dev, file_priv, id, DRM_MODE_OBJECT_CONNECTOR);
 	return mo ? obj_to_connector(mo) : NULL;
 }
 
