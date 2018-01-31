@@ -51,6 +51,17 @@ config SCSI_UFSHCD
 	  However, do not compile this as a module if your root file system
 	  (the one containing the directory /) is located on a UFS device.
 
+config SCSI_UFS_INTEL_ICL_BRIDGE
+	tristate "PCI bridge driver for ICL FPGA controller"
+	depends on PCI
+	---help---
+	This driver enables Intel ICL FPGA Bridge to be ready for UFS PCI
+	based controller.
+
+	  If you intend to use such bridge, say Y or M here.
+
+	  If unsure, say N.
+
 config SCSI_UFSHCD_PCI
 	tristate "PCI bus based UFS Controller support"
 	depends on SCSI_UFSHCD && PCI
