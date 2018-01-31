@@ -14,7 +14,7 @@
  */
 
 #include <linux/io.h>
-#include "dwmac4.h"
+#include "dwmac5.h"
 #include "dwmac4_dma.h"
 
 static void dwmac4_dma_axi(void __iomem *ioaddr, struct stmmac_axi *axi)
@@ -94,8 +94,11 @@ static void dwmac4_dma_init_tx_chan(void __iomem *ioaddr,
 
 	value = readl(ioaddr + DMA_CHAN_TX_CONTROL(chan));
 	value = value | (txpbl << DMA_BUS_MODE_PBL_SHIFT);
-	writel(value, ioaddr + DMA_CHAN_TX_CONTROL(chan));
 
+	if (dma_cfg->osf)
+		value |= DMA_CONTROL_OSP;
+
+	writel(value, ioaddr + DMA_CHAN_TX_CONTROL(chan));
 	writel(dma_tx_phy, ioaddr + DMA_CHAN_TX_BASE_ADDR(chan));
 }
 
@@ -191,7 +194,7 @@ static void dwmac4_rx_watchdog(void __iomem *ioaddr, u32 riwt, u32 number_chan)
 }
 
 static void dwmac4_dma_rx_chan_op_mode(void __iomem *ioaddr, int mode,
-				       u32 channel, int fifosz)
+				       u32 channel, int fifosz, u8 qmode)
 {
 	unsigned int rqs = fifosz / 256 - 1;
 	u32 mtl_rx_op, mtl_rx_int;
@@ -218,8 +221,10 @@ static void dwmac4_dma_rx_chan_op_mode(void __iomem *ioaddr, int mode,
 	mtl_rx_op &= ~MTL_OP_MODE_RQS_MASK;
 	mtl_rx_op |= rqs << MTL_OP_MODE_RQS_SHIFT;
 
-	/* enable flow control only if each channel gets 4 KiB or more FIFO */
-	if (fifosz >= 4096) {
+	/* Enable flow control only if each channel gets 4 KiB or more FIFO and
+	 * only if channel is not an AVB channel.
+	 */
+	if ((fifosz >= 4096) && (qmode != MTL_QUEUE_AVB)) {
 		unsigned int rfd, rfa;
 
 		mtl_rx_op |= MTL_OP_MODE_EHFC;
@@ -271,9 +276,10 @@ static void dwmac4_dma_rx_chan_op_mode(void __iomem *ioaddr, int mode,
 }
 
 static void dwmac4_dma_tx_chan_op_mode(void __iomem *ioaddr, int mode,
-				       u32 channel)
+				       u32 channel, int fifosz, u8 qmode)
 {
 	u32 mtl_tx_op = readl(ioaddr + MTL_CHAN_TX_OP_MODE(channel));
+	unsigned int tqs = fifosz / 256 - 1;
 
 	if (mode == SF_DMA_MODE) {
 		pr_debug("GMAC: enable TX store and forward mode\n");
@@ -306,12 +312,18 @@ static void dwmac4_dma_tx_chan_op_mode(void __iomem *ioaddr, int mode,
 	 * For an IP with DWC_EQOS_NUM_TXQ > 1, the fields TXQEN and TQS are R/W
 	 * with reset values: TXQEN off, TQS 256 bytes.
 	 *
-	 * Write the bits in both cases, since it will have no effect when RO.
-	 * For DWC_EQOS_NUM_TXQ > 1, the top bits in MTL_OP_MODE_TQS_MASK might
-	 * be RO, however, writing the whole TQS field will result in a value
-	 * equal to DWC_EQOS_TXFIFO_SIZE, just like for DWC_EQOS_NUM_TXQ == 1.
+	 * TXQEN must be written for multi-channel operation and TQS must
+	 * reflect the available fifo size per queue (total fifo size / number
+	 * of enabled queues).
 	 */
-	mtl_tx_op |= MTL_OP_MODE_TXQEN | MTL_OP_MODE_TQS_MASK;
+	mtl_tx_op &= ~MTL_OP_MODE_TXQEN_MASK;
+	if (qmode != MTL_QUEUE_AVB)
+		mtl_tx_op |= MTL_OP_MODE_TXQEN;
+	else
+		mtl_tx_op |= MTL_OP_MODE_TXQEN_AV;
+	mtl_tx_op &= ~MTL_OP_MODE_TQS_MASK;
+	mtl_tx_op |= tqs << MTL_OP_MODE_TQS_SHIFT;
+
 	writel(mtl_tx_op, ioaddr +  MTL_CHAN_TX_OP_MODE(channel));
 }
 
@@ -416,6 +428,49 @@ const struct stmmac_dma_ops dwmac410_dma_ops = {
 	.init_chan = dwmac4_dma_init_channel,
 	.init_rx_chan = dwmac4_dma_init_rx_chan,
 	.init_tx_chan = dwmac4_dma_init_tx_chan,
+	.axi = dwmac4_dma_axi,
+	.dump_regs = dwmac4_dump_dma_regs,
+	.dma_rx_mode = dwmac4_dma_rx_chan_op_mode,
+	.dma_tx_mode = dwmac4_dma_tx_chan_op_mode,
+	.enable_dma_irq = dwmac410_enable_dma_irq,
+	.disable_dma_irq = dwmac4_disable_dma_irq,
+	.start_tx = dwmac4_dma_start_tx,
+	.stop_tx = dwmac4_dma_stop_tx,
+	.start_rx = dwmac4_dma_start_rx,
+	.stop_rx = dwmac4_dma_stop_rx,
+	.dma_interrupt = dwmac4_dma_interrupt,
+	.get_hw_feature = dwmac4_get_hw_feature,
+	.rx_watchdog = dwmac4_rx_watchdog,
+	.set_rx_ring_len = dwmac4_set_rx_ring_len,
+	.set_tx_ring_len = dwmac4_set_tx_ring_len,
+	.set_rx_tail_ptr = dwmac4_set_rx_tail_ptr,
+	.set_tx_tail_ptr = dwmac4_set_tx_tail_ptr,
+	.enable_tso = dwmac4_enable_tso,
+};
+
+static void dwmac5_dma_init_tx_chan(void __iomem *ioaddr,
+				    struct stmmac_dma_cfg *dma_cfg,
+				    u32 dma_tx_phy, u32 chan)
+{
+	u32 value;
+	u32 txpbl = dma_cfg->txpbl ?: dma_cfg->pbl;
+
+	value = readl(ioaddr + DMA_CHAN_TX_CONTROL(chan));
+	value = value | (txpbl << DMA_BUS_MODE_PBL_SHIFT) | DMA_CONTROL_EDSE;
+
+	if (dma_cfg->osf)
+		value |= DMA_CONTROL_OSP;
+
+	writel(value, ioaddr + DMA_CHAN_TX_CONTROL(chan));
+	writel(dma_tx_phy, ioaddr + DMA_CHAN_TX_BASE_ADDR(chan));
+}
+
+const struct stmmac_dma_ops dwmac5_dma_ops = {
+	.reset = dwmac4_dma_reset,
+	.init = dwmac4_dma_init,
+	.init_chan = dwmac4_dma_init_channel,
+	.init_rx_chan = dwmac4_dma_init_rx_chan,
+	.init_tx_chan = dwmac5_dma_init_tx_chan,
 	.axi = dwmac4_dma_axi,
 	.dump_regs = dwmac4_dump_dma_regs,
 	.dma_rx_mode = dwmac4_dma_rx_chan_op_mode,

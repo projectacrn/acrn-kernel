@@ -106,6 +106,9 @@ static const char netdev_features_strings[NETDEV_FEATURE_COUNT][ETH_GSTRING_LEN]
 	[NETIF_F_HW_ESP_BIT] =		 "esp-hw-offload",
 	[NETIF_F_HW_ESP_TX_CSUM_BIT] =	 "esp-tx-csum-hw-offload",
 	[NETIF_F_RX_UDP_TUNNEL_PORT_BIT] =	 "rx-udp_tunnel-port-offload",
+	[NETIF_F_HW_EST_BIT] =		 "tx-est",
+	[NETIF_F_HW_FPE_BIT] =		 "tx-fpe",
+	[NETIF_F_HW_TBS_BIT] =		 "tx-tbs",
 };
 
 static const char
@@ -120,6 +123,17 @@ tunable_strings[__ETHTOOL_TUNABLE_COUNT][ETH_GSTRING_LEN] = {
 	[ETHTOOL_ID_UNSPEC]     = "Unspec",
 	[ETHTOOL_RX_COPYBREAK]	= "rx-copybreak",
 	[ETHTOOL_TX_COPYBREAK]	= "tx-copybreak",
+	[ETHTOOL_TX_EST_TILS]	= "tx-est-tils",
+	[ETHTOOL_TX_EST_PTOV]	= "tx-est-ptov",
+	[ETHTOOL_TX_EST_CTOV]	= "tx-est-ctov",
+	[ETHTOOL_TX_FPE_AFSZ]	= "tx-fpe-afsz",
+	[ETHTOOL_TX_FPE_HADV]	= "tx-fpe-hadv",
+	[ETHTOOL_TX_FPE_RADV]	= "tx-fpe-radv",
+	[ETHTOOL_TX_TBS_ESTM]	= "tx-tbs-estm",
+	[ETHTOOL_TX_TBS_FTOS]	= "tx-tbs-ftos",
+	[ETHTOOL_TX_TBS_FGOS]	= "tx-tbs-fgos",
+	[ETHTOOL_TX_TBS_LEOS]	= "tx-tbs-leos",
+	[ETHTOOL_TX_TBS_LEGOS]	= "tx-tbs-legos",
 };
 
 static const char
@@ -894,6 +908,8 @@ static noinline_for_stack int ethtool_get_drvinfo(struct net_device *dev,
 		info.regdump_len = ops->get_regs_len(dev);
 	if (ops->get_eeprom_len)
 		info.eedump_len = ops->get_eeprom_len(dev);
+	if (ops->get_est_gcl_depth)
+		info.gcl_depth = ops->get_est_gcl_depth(dev);
 
 	if (copy_to_user(useraddr, &info, sizeof(info)))
 		return -EFAULT;
@@ -2253,6 +2269,17 @@ static int ethtool_tunable_valid(const struct ethtool_tunable *tuna)
 	switch (tuna->id) {
 	case ETHTOOL_RX_COPYBREAK:
 	case ETHTOOL_TX_COPYBREAK:
+	case ETHTOOL_TX_EST_TILS:
+	case ETHTOOL_TX_EST_PTOV:
+	case ETHTOOL_TX_EST_CTOV:
+	case ETHTOOL_TX_FPE_AFSZ:
+	case ETHTOOL_TX_FPE_HADV:
+	case ETHTOOL_TX_FPE_RADV:
+	case ETHTOOL_TX_TBS_ESTM:
+	case ETHTOOL_TX_TBS_FTOS:
+	case ETHTOOL_TX_TBS_FGOS:
+	case ETHTOOL_TX_TBS_LEOS:
+	case ETHTOOL_TX_TBS_LEGOS:
 		if (tuna->len != sizeof(u32) ||
 		    tuna->type_id != ETHTOOL_TUNABLE_U32)
 			return -EINVAL;
@@ -2309,6 +2336,8 @@ static int ethtool_set_tunable(struct net_device *dev, void __user *useraddr)
 	ret = ethtool_tunable_valid(&tuna);
 	if (ret)
 		return ret;
+	if (tuna.len > ETHTOOL_TUNABLE_STRING_MAX)
+		return -EINVAL;
 	useraddr += sizeof(tuna);
 	data = memdup_user(useraddr, tuna.len);
 	if (IS_ERR(data))
@@ -2491,6 +2520,8 @@ static int set_phy_tunable(struct net_device *dev, void __user *useraddr)
 	if (ret)
 		return ret;
 	useraddr += sizeof(tuna);
+	if (tuna.len > ETHTOOL_TUNABLE_STRING_MAX)
+		return -EINVAL;
 	data = memdup_user(useraddr, tuna.len);
 	if (IS_ERR(data))
 		return PTR_ERR(data);
@@ -2527,6 +2558,234 @@ static int ethtool_set_fecparam(struct net_device *dev, void __user *useraddr)
 		return -EFAULT;
 
 	return dev->ethtool_ops->set_fecparam(dev, &fecparam);
+}
+
+static int ethtool_get_lgcl(struct net_device *dev, void __user *useraddr)
+{
+	struct ethtool_lgcl lgcl;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->get_est_gcl_length)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&lgcl, useraddr, sizeof(lgcl)))
+		return -EFAULT;
+
+	lgcl.len = ops->get_est_gcl_length(dev, lgcl.own);
+
+	if (!lgcl.len)
+		return -EINVAL;
+
+	if (copy_to_user(useraddr, &lgcl, sizeof(lgcl)))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int ethtool_get_gcl(struct net_device *dev, void __user *useraddr)
+{
+	int ret;
+	void *gclbuf;
+	struct ethtool_gcl gcl;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->get_est_gcl || !ops->get_est_gcl_length)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&gcl, useraddr, sizeof(gcl)))
+		return -EFAULT;
+
+	gcl.len = ops->get_est_gcl_length(dev, gcl.own);
+
+	if (!gcl.len)
+		return -EINVAL;
+
+	gclbuf = vzalloc(gcl.len * sizeof(struct ethtool_gc_entry));
+	if (!gclbuf)
+		return -ENOMEM;
+
+	ret = ops->get_est_gcl(dev, &gcl, gclbuf);
+	if (ret)
+		goto out;
+
+	ret = -EFAULT;
+	if (copy_to_user(useraddr, &gcl, sizeof(gcl)))
+		goto out;
+
+	useraddr += offsetof(struct ethtool_gcl, gcl);
+
+	if (gclbuf && copy_to_user(useraddr, gclbuf,
+				   (gcl.len * sizeof(struct ethtool_gc_entry))))
+		goto out;
+
+	ret = 0;
+
+out:
+	vfree(gclbuf);
+	return ret;
+}
+
+static int ethtool_set_gcl(struct net_device *dev, void __user *useraddr)
+{
+	int ret;
+	u32 depth;
+	void *gclbuf;
+	struct ethtool_gcl gcl;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->set_est_gcl || !ops->get_est_gcl_depth)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&gcl, useraddr, sizeof(gcl)))
+		return -EFAULT;
+
+	depth = ops->get_est_gcl_depth(dev);
+
+	if (!gcl.len || gcl.len > depth) {
+		pr_warn("GCL: length exceeds depth(%u) ", depth);
+		return -EINVAL;
+	}
+
+	gclbuf = vzalloc(gcl.len * sizeof(struct ethtool_gc_entry));
+	if (!gclbuf)
+		return -ENOMEM;
+
+	useraddr += offsetof(struct ethtool_gcl, gcl);
+	ret = -EFAULT;
+
+	if (copy_from_user(gclbuf, useraddr,
+			   (gcl.len * sizeof(struct ethtool_gc_entry))))
+		goto out;
+
+	ret = ops->set_est_gcl(dev, &gcl, gclbuf);
+
+out:
+	vfree(gclbuf);
+	return ret;
+}
+
+static int ethtool_get_gce(struct net_device *dev, void __user *useraddr)
+{
+	int ret;
+	int length;
+	struct ethtool_gce gce;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->get_est_gce || !ops->get_est_gcl_length)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&gce, useraddr, sizeof(gce)))
+		return -EFAULT;
+
+	length = ops->get_est_gcl_length(dev, gce.own);
+
+	if (!length || gce.row >= length) {
+		pr_warn("GCE: row exceeds length(%u) ", length);
+		return -EINVAL;
+	}
+
+	ret = ops->get_est_gce(dev, &gce);
+	if (ret)
+		return -EFAULT;
+
+	if (copy_to_user(useraddr, &gce, sizeof(gce)))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int ethtool_set_gce(struct net_device *dev, void __user *useraddr)
+{
+	int depth;
+	struct ethtool_gce gce;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->set_est_gce || !ops->get_est_gcl_depth)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&gce, useraddr, sizeof(gce)))
+		return -EFAULT;
+
+	depth = ops->get_est_gcl_depth(dev);
+
+	if (gce.row >= depth) {
+		pr_warn("GCE: row exceeds depth(%u) ", depth);
+		return -EINVAL;
+	}
+
+	return ops->set_est_gce(dev, &gce);
+}
+
+static int ethtool_get_est_info(struct net_device *dev, void __user *useraddr)
+{
+	int ret;
+	struct ethtool_est_info est_info;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->get_est_info)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&est_info, useraddr, sizeof(est_info)))
+		return -EFAULT;
+
+	ret = ops->get_est_info(dev, &est_info);
+	if (ret)
+		return ret;
+
+	if (copy_to_user(useraddr, &est_info, sizeof(est_info)))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int ethtool_set_est_info(struct net_device *dev, void __user *useraddr)
+{
+	struct ethtool_est_info est_info;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->set_est_info)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&est_info, useraddr, sizeof(est_info)))
+		return -EFAULT;
+
+	return ops->set_est_info(dev, &est_info);
+}
+
+static int ethtool_get_fpe_info(struct net_device *dev, void __user *useraddr)
+{
+	int ret;
+	struct ethtool_fpe_info fpe_info;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->get_fpe_info)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&fpe_info, useraddr, sizeof(fpe_info)))
+		return -EFAULT;
+
+	ret = ops->get_fpe_info(dev, &fpe_info);
+	if (ret)
+		return ret;
+
+	if (copy_to_user(useraddr, &fpe_info, sizeof(fpe_info)))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int ethtool_set_fpe_info(struct net_device *dev, void __user *useraddr)
+{
+	struct ethtool_fpe_info fpe_info;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->set_fpe_info)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&fpe_info, useraddr, sizeof(fpe_info)))
+		return -EFAULT;
+
+	return ops->set_fpe_info(dev, &fpe_info);
 }
 
 /* The main entry point in this file.  Called from net/core/dev_ioctl.c */
@@ -2588,6 +2847,11 @@ int dev_ethtool(struct net *net, struct ifreq *ifr)
 	case ETHTOOL_PHY_GTUNABLE:
 	case ETHTOOL_GLINKSETTINGS:
 	case ETHTOOL_GFECPARAM:
+	case ETHTOOL_GLGCL:
+	case ETHTOOL_GGCL:
+	case ETHTOOL_GGCE:
+	case ETHTOOL_GESTINFO:
+	case ETHTOOL_GFPEINFO:
 		break;
 	default:
 		if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
@@ -2802,6 +3066,33 @@ int dev_ethtool(struct net *net, struct ifreq *ifr)
 		break;
 	case ETHTOOL_SFECPARAM:
 		rc = ethtool_set_fecparam(dev, useraddr);
+		break;
+	case ETHTOOL_GLGCL:
+		rc = ethtool_get_lgcl(dev, useraddr);
+		break;
+	case ETHTOOL_GGCL:
+		rc = ethtool_get_gcl(dev, useraddr);
+		break;
+	case ETHTOOL_SGCL:
+		rc = ethtool_set_gcl(dev, useraddr);
+		break;
+	case ETHTOOL_GGCE:
+		rc = ethtool_get_gce(dev, useraddr);
+		break;
+	case ETHTOOL_SGCE:
+		rc = ethtool_set_gce(dev, useraddr);
+		break;
+	case ETHTOOL_GESTINFO:
+		rc = ethtool_get_est_info(dev, useraddr);
+		break;
+	case ETHTOOL_SESTINFO:
+		rc = ethtool_set_est_info(dev, useraddr);
+		break;
+	case ETHTOOL_GFPEINFO:
+		rc = ethtool_get_fpe_info(dev, useraddr);
+		break;
+	case ETHTOOL_SFPEINFO:
+		rc = ethtool_set_fpe_info(dev, useraddr);
 		break;
 	default:
 		rc = -EOPNOTSUPP;
