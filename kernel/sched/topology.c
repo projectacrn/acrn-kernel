@@ -398,6 +398,7 @@ DEFINE_PER_CPU(int, sd_llc_id);
 DEFINE_PER_CPU(struct sched_domain_shared *, sd_llc_shared);
 DEFINE_PER_CPU(struct sched_domain *, sd_numa);
 DEFINE_PER_CPU(struct sched_domain *, sd_asym);
+DEFINE_STATIC_KEY_FALSE(sched_asym_cpucapacity);
 
 static void update_top_cache_domain(int cpu)
 {
@@ -423,6 +424,12 @@ static void update_top_cache_domain(int cpu)
 
 	sd = highest_flag_domain(cpu, SD_ASYM_PACKING);
 	rcu_assign_pointer(per_cpu(sd_asym, cpu), sd);
+}
+
+static void update_asym_cpucapacity(int cpu)
+{
+	if (lowest_flag_domain(cpu, SD_ASYM_CPUCAPACITY))
+		static_branch_enable(&sched_asym_cpucapacity);
 }
 
 /*
@@ -1705,6 +1712,8 @@ build_sched_domains(const struct cpumask *cpu_map, struct sched_domain_attr *att
 
 		cpu_attach_domain(sd, d.rd, i);
 	}
+
+	update_asym_cpucapacity(cpumask_first(cpu_map));
 	rcu_read_unlock();
 
 	if (rq && sched_debug_enabled) {
