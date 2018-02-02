@@ -8749,6 +8749,10 @@ enum skl_power_gate {
 #define   CNL_AUX_ANAOVRD1_ENABLE	(1<<16)
 #define   CNL_AUX_ANAOVRD1_LDO_BYPASS	(1<<23)
 
+#define ICL_AUX_ANAOVRD1_B		_MMIO(0x6C398)
+#define   ICL_AUX_ANAOVRD1_LDO_BYPASS	(1 << 7)
+#define   ICL_AUX_ANAOVRD1_ENABLE	(1 << 0)
+
 /* HDCP Key Registers */
 #define HDCP_KEY_CONF			_MMIO(0x66c00)
 #define  HDCP_AKSV_SEND_TRIGGER		BIT(31)
