@@ -1346,6 +1346,7 @@ static const struct x86_cpu_id intel_uncore_match[] __initconst = {
 	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_CANNONLAKE_MOBILE, cnl_uncore_init),
 	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_ICELAKE_DESKTOP, cnl_uncore_init),
 	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_ICELAKE_MOBILE, cnl_uncore_init),
+	X86_UNCORE_MODEL_MATCH(INTEL_FAM6_TIGERLAKE, cnl_uncore_init),
 	{},
 };
 
