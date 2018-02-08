@@ -81,23 +81,6 @@ static void gen11_guc_policies_init(struct gen11_guc_policies *policies)
 	policies->is_valid = 1;
 }
 
-static u8 guc_class_to_intel_class(u8 guc_class)
-{
-	switch (guc_class) {
-	default:
-		MISSING_CASE(guc_class);
-		/* fall through */
-	case GUC_RENDER_CLASS:
-		return RENDER_CLASS;
-	case GUC_VIDEO_CLASS:
-		return VIDEO_DECODE_CLASS;
-	case GUC_VIDEOENHANCE_CLASS:
-		return VIDEO_ENHANCEMENT_CLASS;
-	case GUC_BLITTER_CLASS:
-		return COPY_ENGINE_CLASS;
-	}
-}
-
 /*
  * The first 80 dwords of the register state context, containing the
  * execlists and ppgtt registers.
@@ -125,7 +108,6 @@ int gen11_guc_ads_create(struct intel_guc *guc)
 		u8 reg_state_buffer[GUC_S3_SAVE_SPACE_PAGES * PAGE_SIZE];
 	} __packed *blob;
 	const u32 skipped_offset = LRC_HEADER_PAGES * PAGE_SIZE;
-	const u32 skipped_size = LRC_PPHWSP_SZ * PAGE_SIZE + LR_HW_CONTEXT_SIZE;
 	u32 media_fuse;
 	u32 base;
 	u32 class;
@@ -174,10 +156,18 @@ int gen11_guc_ads_create(struct intel_guc *guc)
 	/*
 	 * We only care about the golden context for the render class, really
 	 * (but skipping the execlist part of the context)
+	 *
+	 * FIXME: the golden context should be used only in case of reset
+	 * handled internally by GuC without kmd request or intervention (e.g.
+	 * watchdog reset). However, due to a bug in GuC firmware, the golden
+	 * context is being used to overwrite the guilty context in
+	 * kmd-initiated engine reset, which leads to issues. Since we don't
+	 * currently use any feature that requires GuC to handle resets
+	 * internally, we can workaround the bug by temporarily setting the
+	 * golden context size to zero to make GuC engine reset work while we
+	 * wait for the fix to land in GuC firmware.
 	 */
-	blob->ads.eng_state_size[GUC_RENDER_CLASS] =
-		intel_class_context_size(dev_priv,
-					 guc_class_to_intel_class(GUC_RENDER_CLASS)) - skipped_size;
+	blob->ads.eng_state_size[GUC_RENDER_CLASS] = 0;
 
 	blob->system_info.slice_enabled = hweight8(INTEL_INFO(dev_priv)->sseu.slice_mask);
 	blob->system_info.rcs_enabled = 1;
