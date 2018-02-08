@@ -2786,12 +2786,12 @@ void intel_init_cdclk_hooks(struct drm_i915_private *dev_priv)
 		dev_priv->display.set_cdclk = cnl_set_cdclk;
 		dev_priv->display.modeset_calc_cdclk =
 			cnl_modeset_calc_cdclk;
-	} else if (IS_ICELAKE(dev_priv)) {
+	} else if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		dev_priv->display.set_cdclk = icl_set_cdclk;
 		dev_priv->display.modeset_calc_cdclk = icl_modeset_calc_cdclk;
 	}
 
-	if (IS_ICELAKE(dev_priv))
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv))
 		dev_priv->display.get_cdclk = icl_get_cdclk;
 	else if (IS_CANNONLAKE(dev_priv))
 		dev_priv->display.get_cdclk = cnl_get_cdclk;
