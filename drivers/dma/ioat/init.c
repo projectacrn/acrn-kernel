@@ -1180,6 +1180,11 @@ static int ioat3_dma_probe(struct ioatdma_device *ioat_dma, int dca)
 	if (!(ioat_dma->cap & (IOAT_CAP_XOR | IOAT_CAP_PQ)))
 		dma_cap_set(DMA_PRIVATE, dma->cap_mask);
 
+	if (ioat_dma->cap & IOAT_CAP_PGCMPS) {
+		dma_cap_set(DMA_PGCMP, dma->cap_mask);
+		dma->device_prep_dma_pgcmp = ioat_dma_prep_pgcmp_lock;
+	}
+
 	err = ioat_probe(ioat_dma);
 	if (err)
 		return err;
