@@ -30,12 +30,13 @@ static ssize_t cap_show(struct dma_chan *c, char *page)
 {
 	struct dma_device *dma = c->device;
 
-	return sprintf(page, "copy%s%s%s%s%s\n",
+	return sprintf(page, "copy%s%s%s%s%s%s\n",
 		       dma_has_cap(DMA_PQ, dma->cap_mask) ? " pq" : "",
 		       dma_has_cap(DMA_PQ_VAL, dma->cap_mask) ? " pq_val" : "",
 		       dma_has_cap(DMA_XOR, dma->cap_mask) ? " xor" : "",
 		       dma_has_cap(DMA_XOR_VAL, dma->cap_mask) ? " xor_val" : "",
-		       dma_has_cap(DMA_INTERRUPT, dma->cap_mask) ? " intr" : "");
+		       dma_has_cap(DMA_INTERRUPT, dma->cap_mask) ? " intr" : "",
+		       dma_has_cap(DMA_PGCMP, dma->cap_mask) ? " pgcmp" : "");
 
 }
 struct ioat_sysfs_entry ioat_cap_attr = __ATTR_RO(cap);

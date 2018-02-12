@@ -575,6 +575,18 @@ desc_get_errstat(struct ioatdma_chan *ioat_chan, struct ioat_ring_ent *desc)
 
 		return;
 	}
+	case IOAT_OP_PGCMP:
+	{
+		struct ioat_pgcmp_descriptor *pgcmp = desc->pgcmp;
+
+		if (!pgcmp->dwbes_f.wbes)
+			return;
+
+		if (pgcmp->dwbes_f.pgcmp_err)
+			*desc->result |= SUM_CHECK_P_RESULT;
+
+		return;
+	}
 	default:
 		return;
 	}
@@ -810,6 +822,12 @@ static void ioat_eh(struct ioatdma_chan *ioat_chan)
 		if (chanerr & IOAT_CHANERR_XOR_Q_ERR) {
 			*desc->result |= SUM_CHECK_Q_RESULT;
 			err_handled |= IOAT_CHANERR_XOR_Q_ERR;
+		}
+		break;
+	case IOAT_OP_PGCMP:
+		if (chanerr & IOAT_CHANERR_XOR_P_OR_CRC_ERR) {
+			*desc->result |= SUM_CHECK_P_RESULT;
+			err_handled |= IOAT_CHANERR_XOR_P_OR_CRC_ERR;
 		}
 		break;
 	}
