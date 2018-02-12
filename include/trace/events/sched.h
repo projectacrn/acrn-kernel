@@ -675,6 +675,12 @@ extern unsigned int sysctl_sched_use_walt_cpu_util;
 extern unsigned int sysctl_sched_use_walt_task_util;
 extern unsigned int walt_ravg_window;
 extern bool walt_disabled;
+
+#define walt_util(util_var, demand_sum) {\
+	u64 sum = demand_sum << SCHED_CAPACITY_SHIFT;\
+	do_div(sum, walt_ravg_window);\
+	util_var = (typeof(util_var))sum;\
+	}
 #endif
 
 /*
@@ -751,12 +757,12 @@ TRACE_EVENT(sched_load_se,
         __entry->util_pelt  = __entry->util;
         __entry->util_walt  = 0;
 #ifdef CONFIG_SCHED_WALT
-        if (!se->my_q) {
-            struct task_struct *p = container_of(se, struct task_struct, se);
-            walt_util(__entry->util_walt, p->ravg.demand);
-            if (!walt_disabled && sysctl_sched_use_walt_task_util)
-                __entry->util = __entry->util_walt;
-        }
+		if (!se->my_q) {
+			struct task_struct *p = container_of(se, struct task_struct, se);
+			walt_util(__entry->util_walt, p->ravg.demand);
+			if (!walt_disabled && sysctl_sched_use_walt_task_util)
+				__entry->util = __entry->util_walt;
+		}
 #endif
 	),
 
@@ -1155,7 +1161,7 @@ TRACE_EVENT(walt_update_history,
 		__entry->samples        = samples;
 		__entry->evt            = evt;
 		__entry->demand         = p->ravg.demand;
-		__entry->walt_avg = (__entry->demand << 10) / walt_ravg_window,
+		walt_util(__entry->walt_avg,__entry->demand);
 		__entry->pelt_avg	= p->se.avg.util_avg;
 		memcpy(__entry->hist, p->ravg.sum_history,
 					RAVG_HIST_SIZE_MAX * sizeof(u32));

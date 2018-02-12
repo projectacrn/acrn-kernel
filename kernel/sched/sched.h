@@ -1837,6 +1837,13 @@ extern unsigned int sysctl_sched_use_walt_cpu_util;
 extern unsigned int walt_ravg_window;
 extern bool walt_disabled;
 
+#ifdef CONFIG_SCHED_WALT
+#define walt_util(util_var, demand_sum) {\
+	u64 sum = demand_sum << SCHED_CAPACITY_SHIFT;\
+	do_div(sum, walt_ravg_window);\
+	util_var = (typeof(util_var))sum;\
+	}
+#endif
 /*
  * cpu_util returns the amount of capacity of a CPU that is used by CFS
  * tasks. The unit of the return value must be the one of capacity so we can
