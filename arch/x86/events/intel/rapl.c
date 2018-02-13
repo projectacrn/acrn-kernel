@@ -780,6 +780,12 @@ static const struct x86_cpu_id rapl_cpu_match[] __initconst = {
 	X86_RAPL_MODEL_MATCH(INTEL_FAM6_ATOM_DENVERTON, hsw_rapl_init),
 
 	X86_RAPL_MODEL_MATCH(INTEL_FAM6_ATOM_GEMINI_LAKE, hsw_rapl_init),
+
+	// XXX double check
+	X86_RAPL_MODEL_MATCH(INTEL_FAM6_ICELAKE_MOBILE,  skl_rapl_init),
+	X86_RAPL_MODEL_MATCH(INTEL_FAM6_ICELAKE_DESKTOP, skl_rapl_init),
+	X86_RAPL_MODEL_MATCH(INTEL_FAM6_ICELAKE_X,	 hsx_rapl_init),
+
 	{},
 };
 
