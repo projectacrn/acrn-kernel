@@ -1,0 +1,9 @@
+- Linux perf support for Tigerlake
+This implements Linux perf PMU support for Tigerlake Client.
+Include both core and uncore support.
+
+Open issues:
+- The event list is not ready
+- Kernel driver event list is not final
+
+Owner: Kan Liang
