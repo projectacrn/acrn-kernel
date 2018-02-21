@@ -1135,9 +1135,10 @@ static int sof_link_ssp_load(struct snd_soc_component *scomp, int index,
 	}
 
 	dev_dbg(sdev->dev, "tplg: config SSP%d fmt 0x%x mclk %d bclk %d fclk %d width (%d)%d slots %d\n",
-		config->id, config->format, config->mclk, config->bclk,
-		config->fclk, config->sample_valid_bits,
-		config->sample_container_bits, config->num_slots);
+		config->id, config->format,
+		config->mclk_rate, config->bclk_rate,
+		config->fsync_rate, config->sample_valid_bits,
+		config->tdm_slot_width, config->tdm_slots);
 
 	/* send message to DSP */
 	ret = sof_ipc_tx_message(sdev->ipc,
@@ -1186,8 +1187,9 @@ static int sof_link_dmic_load(struct snd_soc_component *scomp, int index,
 	}
 
 	dev_dbg(sdev->dev, "tplg: config DMIC%d fmt 0x%x mclk %d bclk %d fclk %d width %d slots %d\n",
-		config->id, config->format, config->mclk, config->bclk,
-		config->fclk, config->sample_container_bits, config->num_slots);
+		config->id, config->format,
+		config->mclk_rate, config->bclk_rate,
+		config->fsync_rate, config->tdm_slot_width, config->tdm_slots);
 
 	/* send message to DSP */
 	ret = sof_ipc_tx_message(sdev->ipc,
@@ -1236,8 +1238,9 @@ static int sof_link_hda_load(struct snd_soc_component *scomp, int index,
 	}
 
 	dev_dbg(sdev->dev, "tplg: config HDA%d fmt 0x%x mclk %d bclk %d fclk %d width %d slots %d\n",
-		config->id, config->format, config->mclk, config->bclk,
-		config->fclk, config->sample_container_bits, config->num_slots);
+		config->id, config->format,
+		config->mclk_rate, config->bclk_rate,
+		config->fsync_rate, config->tdm_slot_width, config->tdm_slots);
 
 	/* send message to DSP */
 	ret = sof_ipc_tx_message(sdev->ipc,
@@ -1302,14 +1305,14 @@ static int sof_link_load(struct snd_soc_component *scomp, int index,
 	config.hdr.cmd = SOF_IPC_GLB_DAI_MSG | SOF_IPC_DAI_CONFIG;
 	config.id = hw_config->id;
 	config.format = hw_config->fmt;
-	config.mclk = hw_config->mclk_rate;
-	config.bclk = hw_config->bclk_rate;
-	config.fclk = hw_config->fsync_rate;
-	config.num_slots = hw_config->tdm_slots;
-	config.sample_container_bits = hw_config->tdm_slot_width;
-	config.mclk_master = hw_config->mclk_direction;
-	config.rx_slot_mask = hw_config->rx_slots;
-	config.tx_slot_mask = hw_config->tx_slots;
+	config.mclk_rate = hw_config->mclk_rate;
+	config.bclk_rate = hw_config->bclk_rate;
+	config.fsync_rate = hw_config->fsync_rate;
+	config.tdm_slots = hw_config->tdm_slots;
+	config.tdm_slot_width = hw_config->tdm_slot_width;
+	config.mclk_direction = hw_config->mclk_direction;
+	config.rx_slots = hw_config->rx_slots;
+	config.tx_slots = hw_config->tx_slots;
 
 	/* clock directions wrt codec */
 	if (hw_config->bclk_master) {

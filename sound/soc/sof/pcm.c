@@ -533,10 +533,10 @@ static int sof_pcm_dai_link_fixup(struct snd_soc_pcm_runtime *rtd,
 	}
 
 	/* read rate and channels from topology */
-	rate->min = dai->dai_config.fclk;
-	rate->max = dai->dai_config.fclk;
-	channels->min = dai->dai_config.num_slots;
-	channels->max = dai->dai_config.num_slots;
+	rate->min = dai->dai_config.fsync_rate;
+	rate->max = dai->dai_config.fsync_rate;
+	channels->min = dai->dai_config.tdm_slots;
+	channels->max = dai->dai_config.tdm_slots;
 
 	dev_dbg(sdev->dev,
 		"rate_min: %d rate_max: %d\n", rate->min, rate->max);
