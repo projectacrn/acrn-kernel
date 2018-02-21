@@ -5559,6 +5559,9 @@ static void haswell_crtc_enable(struct intel_crtc_state *pipe_config,
 	if (intel_crtc->config->shared_dpll)
 		intel_enable_shared_dpll(intel_crtc);
 
+	if (INTEL_GEN(dev_priv) >= 11)
+		icl_map_plls_to_ports(crtc, pipe_config, old_state);
+
 	if (intel_crtc_has_dp_encoder(intel_crtc->config))
 		intel_dp_set_m_n(intel_crtc, M1_N1);
 
@@ -5756,6 +5759,10 @@ static void haswell_crtc_disable(struct intel_crtc_state *old_crtc_state,
 		intel_ddi_disable_pipe_clock(intel_crtc->config);
 
 	intel_encoders_post_disable(crtc, old_crtc_state, old_state);
+
+	if (INTEL_GEN(dev_priv) >= 11)
+		icl_unmap_plls_to_ports(crtc, old_crtc_state, old_state);
+
 }
 
 static void i9xx_pfit_enable(struct intel_crtc *crtc)
@@ -12469,7 +12476,12 @@ static void intel_atomic_commit_tail(struct drm_atomic_state *state)
 			dev_priv->display.crtc_disable(to_intel_crtc_state(old_crtc_state), state);
 			intel_crtc->active = false;
 			intel_fbc_disable(intel_crtc);
-			intel_disable_shared_dpll(intel_crtc);
+			/*
+			 * For ICL+, we have to immediately disable DPLLs after
+			 * unmapping, which is called in crtc_disable
+			 */
+			if (!(INTEL_GEN(dev_priv) >= 11))
+				intel_disable_shared_dpll(intel_crtc);
 
 			/*
 			 * Underruns don't always raise

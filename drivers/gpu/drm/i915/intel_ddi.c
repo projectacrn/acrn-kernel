@@ -2588,6 +2588,75 @@ uint32_t ddi_signal_levels(struct intel_dp *intel_dp)
 	return DDI_BUF_TRANS_SELECT(level);
 }
 
+void icl_map_plls_to_ports(struct drm_crtc *crtc,
+			   struct intel_crtc_state *crtc_state,
+			   struct drm_atomic_state *old_state)
+{
+	struct intel_shared_dpll *pll = crtc_state->shared_dpll;
+	struct drm_i915_private *dev_priv = to_i915(crtc->dev);
+	struct drm_connector_state *conn_state;
+	struct drm_connector *conn;
+	int i;
+	uint32_t val;
+
+	if (WARN_ON(INTEL_GEN(dev_priv) < 11))
+		return;
+
+	for_each_new_connector_in_state(old_state, conn, conn_state, i) {
+		struct intel_encoder *encoder =
+			to_intel_encoder(conn_state->best_encoder);
+		enum port port = encoder->port;
+
+		if (conn_state->crtc != crtc)
+			continue;
+
+		mutex_lock(&dev_priv->dpll_lock);
+
+		val = I915_READ(DPCLKA_CFGCR0_ICL);
+		WARN_ON((val & DPCLKA_CFGCR0_DDI_CLK_OFF(port)) == 0);
+
+		if (port == PORT_A || port == PORT_B) {
+			val &= ~DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(port);
+			val |= DPCLKA_CFGCR0_DDI_CLK_SEL(pll->info->id, port);
+			I915_WRITE(DPCLKA_CFGCR0_ICL, val);
+			POSTING_READ(DPCLKA_CFGCR0_ICL);
+		}
+
+		val &= ~DPCLKA_CFGCR0_DDI_CLK_OFF(port);
+		I915_WRITE(DPCLKA_CFGCR0_ICL, val);
+
+		mutex_unlock(&dev_priv->dpll_lock);
+	}
+}
+
+void icl_unmap_plls_to_ports(struct drm_crtc *crtc,
+			     struct intel_crtc_state *crtc_state,
+			     struct drm_atomic_state *old_state)
+{
+	struct drm_i915_private *dev_priv = to_i915(crtc->dev);
+	struct drm_connector_state *conn_state;
+	struct drm_connector *conn;
+	int i;
+
+	for_each_new_connector_in_state(old_state, conn, conn_state, i) {
+		struct intel_encoder *encoder =
+			to_intel_encoder(conn_state->best_encoder);
+		enum port port;
+
+		if ((!encoder) || (conn_state->crtc != crtc))
+			continue;
+
+		port = encoder->port;
+		mutex_lock(&dev_priv->dpll_lock);
+		I915_WRITE(DPCLKA_CFGCR0_ICL,
+			   I915_READ(DPCLKA_CFGCR0_ICL) |
+			   DPCLKA_CFGCR0_DDI_CLK_OFF(port));
+		mutex_unlock(&dev_priv->dpll_lock);
+	}
+	/* BSpec says to disable DPLLs immediately after unmapping */
+	intel_disable_shared_dpll(to_intel_crtc(crtc));
+}
+
 static void intel_ddi_clk_select(struct intel_encoder *encoder,
 				 const struct intel_shared_dpll *pll)
 {
@@ -2604,19 +2673,6 @@ static void intel_ddi_clk_select(struct intel_encoder *encoder,
 		if (port >= PORT_C)
 			I915_WRITE(DDI_CLK_SEL(port),
 				   icl_pll_to_ddi_pll_sel(encoder, pll));
-
-		val = I915_READ(DPCLKA_CFGCR0_ICL);
-		WARN_ON((val & DPCLKA_CFGCR0_DDI_CLK_OFF(port)) == 0);
-
-		if (port == PORT_A || port == PORT_B) {
-			val &= ~DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(port);
-			val |= DPCLKA_CFGCR0_DDI_CLK_SEL(pll->info->id, port);
-			I915_WRITE(DPCLKA_CFGCR0_ICL, val);
-			POSTING_READ(DPCLKA_CFGCR0_ICL);
-		}
-
-		val &= ~DPCLKA_CFGCR0_DDI_CLK_OFF(port);
-		I915_WRITE(DPCLKA_CFGCR0_ICL, val);
 
 	} else if (IS_CANNONLAKE(dev_priv)) {
 		/* Configure DPCLKA_CFGCR0 to map the DPLL to the DDI. */
@@ -2659,12 +2715,6 @@ static void intel_ddi_clk_disable(struct intel_encoder *encoder)
 	if (IS_ICELAKE(dev_priv)) {
 		if (port >= PORT_C)
 			I915_WRITE(DDI_CLK_SEL(port), DDI_CLK_SEL_NONE);
-
-		mutex_lock(&dev_priv->dpll_lock);
-		I915_WRITE(DPCLKA_CFGCR0_ICL,
-			   I915_READ(DPCLKA_CFGCR0_ICL) |
-			   DPCLKA_CFGCR0_DDI_CLK_OFF(port));
-		mutex_unlock(&dev_priv->dpll_lock);
 	} else if (IS_CANNONLAKE(dev_priv)) {
 		I915_WRITE(DPCLKA_CFGCR0, I915_READ(DPCLKA_CFGCR0) |
 			   DPCLKA_CFGCR0_DDI_CLK_OFF(port));

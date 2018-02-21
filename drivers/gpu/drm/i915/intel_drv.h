@@ -1413,6 +1413,12 @@ int intel_ddi_toggle_hdcp_signalling(struct intel_encoder *intel_encoder,
 
 unsigned int intel_fb_align_height(const struct drm_framebuffer *fb,
 				   int plane, unsigned int height);
+void icl_map_plls_to_ports(struct drm_crtc *crtc,
+			   struct intel_crtc_state *crtc_state,
+			   struct drm_atomic_state *old_state);
+void icl_unmap_plls_to_ports(struct drm_crtc *crtc,
+			     struct intel_crtc_state *crtc_state,
+			     struct drm_atomic_state *old_state);
 
 /* intel_audio.c */
 void intel_init_audio_hooks(struct drm_i915_private *dev_priv);
