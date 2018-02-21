@@ -29,12 +29,12 @@
 /* Global Message - Generic */
 #define SOF_GLB_TYPE_SHIFT			28
 #define SOF_GLB_TYPE_MASK			(0xf << SOF_GLB_TYPE_SHIFT)
-#define SOF_GLB_TYPE(x)				(x << SOF_GLB_TYPE_SHIFT)
+#define SOF_GLB_TYPE(x)				((x) << SOF_GLB_TYPE_SHIFT)
 
 /* Command Message - Generic */
 #define SOF_CMD_TYPE_SHIFT			16
 #define SOF_CMD_TYPE_MASK			(0xfff << SOF_CMD_TYPE_SHIFT)
-#define SOF_CMD_TYPE(x)				(x << SOF_CMD_TYPE_SHIFT)
+#define SOF_CMD_TYPE(x)				((x) << SOF_CMD_TYPE_SHIFT)
 
 /* Global Message Types */
 #define SOF_IPC_GLB_REPLY			SOF_GLB_TYPE(0x1U)
@@ -101,7 +101,7 @@
 /* Get message component id */
 #define SOF_IPC_MESSAGE_ID(x)			(x & 0xffff)
 
-/* maximum message size for mailbox Tx/Tx */
+/* maximum message size for mailbox Tx/Rx */
 #define SOF_IPC_MSG_MAX_SIZE			128
 
 /*
