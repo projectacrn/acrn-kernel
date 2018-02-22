@@ -745,7 +745,7 @@ static struct tty_driver *ish_tty_driver;
  */
 static int ishtp_cl_tty_init(struct ishtp_cl_device *cl_device)
 {
-	struct ishtp_cl_info *cl_info = ishtp_get_drvdata(cl_device);
+	struct ishtp_cl_info *cl_info;
 	static struct ktermios termios;
 	struct ishtp_cl_tty cl_tty;
 	struct device *dev;
@@ -754,6 +754,10 @@ static int ishtp_cl_tty_init(struct ishtp_cl_device *cl_device)
 	ret = ishtp_cl_tty_connect(cl_device);
 	if (ret)
 		return ret;
+
+	cl_info = ishtp_get_drvdata(cl_device);
+	if (!cl_info)
+		goto disconnect_tty_driver;
 
 	termios.c_cflag = CS8 | HUPCL | CLOCAL;
 	ish_tty_get_bootup_termios(cl_info, &cl_tty);
