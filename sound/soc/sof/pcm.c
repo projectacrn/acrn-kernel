@@ -533,16 +533,29 @@ static int sof_pcm_dai_link_fixup(struct snd_soc_pcm_runtime *rtd,
 	}
 
 	/* read rate and channels from topology */
-	rate->min = dai->dai_config.fsync_rate;
-	rate->max = dai->dai_config.fsync_rate;
-	channels->min = dai->dai_config.tdm_slots;
-	channels->max = dai->dai_config.tdm_slots;
+	switch (dai->dai_config.type) {
+	case SOF_DAI_INTEL_SSP:
+		rate->min = dai->dai_config.ssp.fsync_rate;
+		rate->max = dai->dai_config.ssp.fsync_rate;
+		channels->min = dai->dai_config.ssp.tdm_slots;
+		channels->max = dai->dai_config.ssp.tdm_slots;
 
-	dev_dbg(sdev->dev,
-		"rate_min: %d rate_max: %d\n", rate->min, rate->max);
-	dev_dbg(sdev->dev,
-		"channels_min: %d channels_max: %d\n",
-		channels->min, channels->max);
+		dev_dbg(sdev->dev,
+			"rate_min: %d rate_max: %d\n", rate->min, rate->max);
+		dev_dbg(sdev->dev,
+			"channels_min: %d channels_max: %d\n",
+			channels->min, channels->max);
+
+		break;
+	case SOF_DAI_INTEL_DMIC:
+		/* fallthrough */
+	case SOF_DAI_INTEL_HDA:
+		/* fallthrough */
+	default:
+		dev_err(sdev->dev, "error: invalid DAI type %d\n",
+			dai->dai_config.type);
+		break;
+	}
 
 	return 0;
 }
