@@ -1105,23 +1105,16 @@ static int sof_link_ssp_load(struct snd_soc_component *scomp, int index,
 			     struct snd_soc_dai_link *link,
 			     struct snd_soc_tplg_link_config *cfg,
 			     struct snd_soc_tplg_hw_config *hw_config,
-			     struct sof_ipc_dai_config *config_template)
+			     struct sof_ipc_dai_config *config)
 {
 	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
 	struct snd_soc_tplg_private *private = &cfg->priv;
-	struct sof_ipc_dai_config *config;
 	struct sof_ipc_reply reply;
-	u32 size = sizeof(*config) +
-		sizeof(struct sof_ipc_dai_ssp_params);
+	u32 size = sizeof(*config);
 	int ret;
 
-	config = kzalloc(size, GFP_KERNEL);
-	if (!config)
-		return -ENOMEM;
-
 	/* init IPC */
-	*config = *config_template;
-	memset(&config->ssp[0], 0, sizeof(struct sof_ipc_dai_ssp_params));
+	memset(&config->ssp, 0, sizeof(struct sof_ipc_dai_ssp_params));
 	config->hdr.size = size;
 
 	/* get any bespoke DAI tokens */
@@ -1149,7 +1142,6 @@ static int sof_link_ssp_load(struct snd_soc_component *scomp, int index,
 		dev_err(sdev->dev, "error: failed to set DAI config for SSP%d\n",
 			config->id);
 
-	kfree(config);
 	return ret;
 }
 
@@ -1157,23 +1149,16 @@ static int sof_link_dmic_load(struct snd_soc_component *scomp, int index,
 			      struct snd_soc_dai_link *link,
 			      struct snd_soc_tplg_link_config *cfg,
 			      struct snd_soc_tplg_hw_config *hw_config,
-			      struct sof_ipc_dai_config *config_template)
+			      struct sof_ipc_dai_config *config)
 {
 	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
 	struct snd_soc_tplg_private *private = &cfg->priv;
-	struct sof_ipc_dai_config *config;
 	struct sof_ipc_reply reply;
-	u32 size = sizeof(*config) +
-		sizeof(struct sof_ipc_dai_dmic_params);
+	u32 size = sizeof(*config);
 	int ret;
 
-	config = kzalloc(size, GFP_KERNEL);
-	if (!config)
-		return -ENOMEM;
-
 	/* init IPC */
-	*config = *config_template;
-	memset(&config->dmic[0], 0, sizeof(struct sof_ipc_dai_dmic_params));
+	memset(&config->dmic, 0, sizeof(struct sof_ipc_dai_dmic_params));
 	config->hdr.size = size;
 
 	/* get any bespoke DAI tokens */
@@ -1200,7 +1185,6 @@ static int sof_link_dmic_load(struct snd_soc_component *scomp, int index,
 		dev_err(sdev->dev, "error: failed to set DAI config for DMIC%d\n",
 			config->id);
 
-	kfree(config);
 	return ret;
 }
 
@@ -1208,23 +1192,16 @@ static int sof_link_hda_load(struct snd_soc_component *scomp, int index,
 			     struct snd_soc_dai_link *link,
 			     struct snd_soc_tplg_link_config *cfg,
 			     struct snd_soc_tplg_hw_config *hw_config,
-			     struct sof_ipc_dai_config *config_template)
+			     struct sof_ipc_dai_config *config)
 {
 	struct snd_sof_dev *sdev = snd_soc_component_get_drvdata(scomp);
 	struct snd_soc_tplg_private *private = &cfg->priv;
-	struct sof_ipc_dai_config *config;
 	struct sof_ipc_reply reply;
-	u32 size = sizeof(*config) +
-		sizeof(struct sof_ipc_dai_hda_params);
+	u32 size = sizeof(*config);
 	int ret;
 
-	config = kzalloc(size, GFP_KERNEL);
-	if (!config)
-		return -ENOMEM;
-
 	/* init IPC */
-	*config = *config_template;
-	memset(&config->hda[0], 0, sizeof(struct sof_ipc_dai_hda_params));
+	memset(&config->hda, 0, sizeof(struct sof_ipc_dai_hda_params));
 	config->hdr.size = size;
 
 	/* get any bespoke DAI tokens */
@@ -1251,7 +1228,6 @@ static int sof_link_hda_load(struct snd_soc_component *scomp, int index,
 		dev_err(sdev->dev, "error: failed to set DAI config for HDA%d\n",
 			config->id);
 
-	kfree(config);
 	return ret;
 }
 
