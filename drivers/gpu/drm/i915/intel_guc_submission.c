@@ -532,6 +532,71 @@ static void guc_proxy_stage_fini(struct intel_guc *guc,
 	memset(desc, 0, sizeof(*desc));
 }
 
+static u32 get_wq_offset(struct guc_process_desc *desc)
+{
+	const size_t wqi_size = sizeof(struct guc_wq_item);
+	u32 wq_off;
+
+	/*
+	 * Free space is guaranteed, either by normal port submission or
+	 * because we waited for the wq_resume to be processed.
+	 */
+	wq_off = READ_ONCE(desc->tail);
+	GEM_BUG_ON(CIRC_SPACE(wq_off, READ_ONCE(desc->head),
+			      GUC_WQ_SIZE) < wqi_size);
+	GEM_BUG_ON(wq_off & (wqi_size - 1));
+
+	return wq_off;
+}
+
+static void write_wqi(struct guc_process_desc *desc, u32 wq_off)
+{
+	const size_t wqi_size = sizeof(struct guc_wq_item);
+
+	WRITE_ONCE(desc->tail, (wq_off + wqi_size) & (GUC_WQ_SIZE - 1));
+}
+
+#define GUC_WQI_NOOP(target_engine) \
+	(WQ_TYPE_NOOP |\
+	 (0 << WQ_LEN_SHIFT) |\
+	 ((target_engine) << GEN11_WQ_TARGET_SHIFT))
+#define GUC_WAIT_FOR_ENGINE_ERROR_CLEANED_MS 10
+static void guc_wq_resume_parsing_item_append(struct intel_guc_client *client,
+					      struct intel_engine_cs *engine)
+{
+	struct drm_i915_private *i915 = guc_to_i915(client->guc);
+	struct guc_process_desc *desc = __get_process_desc(client);
+	struct guc_wq_item *wqi;
+	const u32 wqi_len = 0; /* workqueue item length must be 0 */
+	const u32 target_engine = engine->guc_id;
+	const u32 target_engine_class = engine->guc_class;
+	const u32 wqi_noop = GUC_WQI_NOOP(target_engine);
+	u32 wq_off;
+
+	lockdep_assert_held(&client->wq_lock);
+	GEM_BUG_ON(INTEL_GEN(i915) < 11);
+
+	wq_off = get_wq_offset(desc);
+	wqi = client->vaddr + wq_off + GUC_DB_SIZE;
+
+	/*
+	 * Submit 4 wq_items (1 RESUME_WQ_PARSING followed by 3 NOOPs) in
+	 * order to keep it the same size as a 'normal' wq_item.
+	 */
+	wqi->header = WQ_TYPE_RESUME_WQ_PARSING |
+		      (wqi_len << WQ_LEN_SHIFT) |
+		      (target_engine << GEN11_WQ_TARGET_SHIFT);
+	wqi->context_desc = wqi_noop;
+	wqi->submit_element_info = wqi_noop;
+	wqi->fence_id = wqi_noop;
+	write_wqi(desc, wq_off);
+
+	/* must wait for the flag to be cleared */
+	WARN_ON(wait_for_atomic(!(desc->queue_engine_error &
+				  BIT(target_engine_class)),
+				GUC_WAIT_FOR_ENGINE_ERROR_CLEANED_MS));
+}
+
 /* Construct a Work Item and append it to the GuC's Work Queue */
 static void guc_wq_item_append(struct intel_guc_client *client,
 			       struct intel_context *ce,
@@ -557,11 +622,7 @@ static void guc_wq_item_append(struct intel_guc_client *client,
 	 */
 	BUILD_BUG_ON(wqi_size != 16);
 
-	/* Free space is guaranteed. */
-	wq_off = READ_ONCE(desc->tail);
-	GEM_BUG_ON(CIRC_SPACE(wq_off, READ_ONCE(desc->head),
-			      GUC_WQ_SIZE) < wqi_size);
-	GEM_BUG_ON(wq_off & (wqi_size - 1));
+	wq_off = get_wq_offset(desc);
 
 	/* WQ starts from the page after doorbell / process_desc */
 	wqi = client->vaddr + wq_off + GUC_DB_SIZE;
@@ -592,7 +653,7 @@ static void guc_wq_item_append(struct intel_guc_client *client,
 	}
 
 	/* Make the update visible to GuC */
-	WRITE_ONCE(desc->tail, (wq_off + wqi_size) & (GUC_WQ_SIZE - 1));
+	write_wqi(desc, wq_off);
 }
 
 static void guc_reset_wq(struct intel_guc_client *client)
@@ -624,6 +685,22 @@ static void guc_ring_doorbell(struct intel_guc_client *client)
 	GEM_BUG_ON(db->db_status != GUC_DOORBELL_ENABLED);
 }
 
+static bool guc_needs_wq_resume_parsing_item(struct intel_guc_client *client,
+					     u32 target_engine_class)
+{
+	struct guc_process_desc *desc;
+
+	if (INTEL_GEN(guc_to_i915(client->guc)) < 11)
+		return false;
+
+	desc = __get_process_desc(client);
+
+	if (!(desc->queue_engine_error & BIT(target_engine_class)))
+		return false;
+
+	return true;
+}
+
 static void guc_add_request(struct intel_guc *guc, struct i915_request *rq)
 {
 	struct intel_guc_client *client = guc->execbuf_client;
@@ -635,6 +712,9 @@ static void guc_add_request(struct intel_guc *guc, struct i915_request *rq)
 
 
 	spin_lock(&client->wq_lock);
+
+	if (guc_needs_wq_resume_parsing_item(client, engine->guc_class))
+		guc_wq_resume_parsing_item_append(client, engine);
 
 	guc_wq_item_append(client, ce, engine->guc_id, ctx_desc,
 			   ring_tail, rq->global_seqno);
