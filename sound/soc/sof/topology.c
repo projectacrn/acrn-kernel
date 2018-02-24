@@ -1101,6 +1101,38 @@ static int sof_dai_unload(struct snd_soc_component *scomp,
 	return 0;
 }
 
+static void sof_dai_set_format(struct snd_soc_tplg_hw_config *hw_config,
+			       struct sof_ipc_dai_config *config)
+{
+	/* clock directions wrt codec */
+	if (hw_config->bclk_master) {
+		/* codec is bclk master */
+		if (hw_config->fsync_master)
+			config->format |= SOF_DAI_FMT_CBM_CFM;
+		else
+			config->format |= SOF_DAI_FMT_CBM_CFS;
+	} else {
+		/* codec is bclk slave */
+		if (hw_config->fsync_master)
+			config->format |= SOF_DAI_FMT_CBS_CFM;
+		else
+			config->format |= SOF_DAI_FMT_CBS_CFS;
+	}
+
+	/* inverted clocks ? */
+	if (hw_config->invert_bclk) {
+		if (hw_config->invert_fsync)
+			config->format |= SOF_DAI_FMT_IB_IF;
+		else
+			config->format |= SOF_DAI_FMT_IB_NF;
+	} else {
+		if (hw_config->invert_fsync)
+			config->format |= SOF_DAI_FMT_NB_IF;
+		else
+			config->format |= SOF_DAI_FMT_NB_NF;
+	}
+}
+
 static int sof_link_ssp_load(struct snd_soc_component *scomp, int index,
 			     struct snd_soc_dai_link *link,
 			     struct snd_soc_tplg_link_config *cfg,
@@ -1112,6 +1144,9 @@ static int sof_link_ssp_load(struct snd_soc_component *scomp, int index,
 	struct sof_ipc_reply reply;
 	u32 size = sizeof(*config);
 	int ret;
+
+	/* handle master/slave and inverted clocks */
+	sof_dai_set_format(hw_config, config);
 
 	/* init IPC */
 	memset(&config->ssp, 0, sizeof(struct sof_ipc_dai_ssp_params));
@@ -1286,34 +1321,6 @@ static int sof_link_load(struct snd_soc_component *scomp, int index,
 	config.hdr.cmd = SOF_IPC_GLB_DAI_MSG | SOF_IPC_DAI_CONFIG;
 	config.id = hw_config->id;
 	config.format = hw_config->fmt;
-
-	/* clock directions wrt codec */
-	if (hw_config->bclk_master) {
-		/* codec is bclk master */
-		if (hw_config->fsync_master)
-			config.format |= SOF_DAI_FMT_CBM_CFM;
-		else
-			config.format |= SOF_DAI_FMT_CBM_CFS;
-	} else {
-		/* codec is bclk slave */
-		if (hw_config->fsync_master)
-			config.format |= SOF_DAI_FMT_CBS_CFM;
-		else
-			config.format |= SOF_DAI_FMT_CBS_CFS;
-	}
-
-	/* inverted clocks ? */
-	if (hw_config->invert_bclk) {
-		if (hw_config->invert_fsync)
-			config.format |= SOF_DAI_FMT_IB_IF;
-		else
-			config.format |= SOF_DAI_FMT_IB_NF;
-	} else {
-		if (hw_config->invert_fsync)
-			config.format |= SOF_DAI_FMT_NB_IF;
-		else
-			config.format |= SOF_DAI_FMT_NB_NF;
-	}
 
 	/* now load DAI specific data and send IPC - type comes from token */
 	switch (config.type) {
