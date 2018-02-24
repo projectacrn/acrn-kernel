@@ -174,8 +174,11 @@ static const struct sof_topology_token dai_tokens[] = {
 static const struct sof_topology_token dai_link_tokens[] = {
 	{SOF_TKN_DAI_TYPE, SND_SOC_TPLG_TUPLE_TYPE_STRING, get_token_dai_type,
 		offsetof(struct sof_ipc_dai_config, type), 0},
+};
+
+static const struct sof_topology_token dai_ssp_link_tokens[] = {
 	{SOF_TKN_DAI_SAMPLE_BITS, SND_SOC_TPLG_TUPLE_TYPE_WORD, get_token_u32,
-		offsetof(struct sof_ipc_dai_config, sample_valid_bits), 0},
+		offsetof(struct sof_ipc_dai_ssp_params, sample_valid_bits), 0},
 };
 
 /* scheduling */
@@ -243,6 +246,15 @@ static const struct sof_topology_token comp_tokens[] = {
 
 /* SSP */
 static const struct sof_topology_token ssp_tokens[] = {
+	{SOF_TKN_INTEL_SSP_MCLK_KEEP_ACTIVE,
+		SND_SOC_TPLG_TUPLE_TYPE_BOOL, get_token_u32,
+		offsetof(struct sof_ipc_dai_ssp_params, mclk_keep_active), 0},
+	{SOF_TKN_INTEL_SSP_BCLK_KEEP_ACTIVE,
+		SND_SOC_TPLG_TUPLE_TYPE_BOOL, get_token_u32,
+		offsetof(struct sof_ipc_dai_ssp_params, bclk_keep_active), 0},
+	{SOF_TKN_INTEL_SSP_FS_KEEP_ACTIVE,
+		SND_SOC_TPLG_TUPLE_TYPE_BOOL, get_token_u32,
+		offsetof(struct sof_ipc_dai_ssp_params, fs_keep_active), 0},
 };
 
 /* DMIC */
@@ -1153,6 +1165,15 @@ static int sof_link_ssp_load(struct snd_soc_component *scomp, int index,
 	config->hdr.size = size;
 
 	/* get any bespoke DAI tokens */
+	ret = sof_parse_tokens(scomp, &config->ssp, dai_ssp_link_tokens,
+			       ARRAY_SIZE(dai_ssp_link_tokens),
+			       private->array, private->size);
+	if (ret != 0) {
+		dev_err(sdev->dev, "error: parse ssp link tokens failed %d\n",
+			private->size);
+		return ret;
+	}
+	
 	ret = sof_parse_tokens(scomp, config, ssp_tokens,
 			       ARRAY_SIZE(ssp_tokens), private->array,
 			       private->size);
@@ -1174,7 +1195,7 @@ static int sof_link_ssp_load(struct snd_soc_component *scomp, int index,
 	dev_dbg(sdev->dev, "tplg: config SSP%d fmt 0x%x mclk %d bclk %d fclk %d width (%d)%d slots %d\n",
 		config->id, config->format,
 		config->ssp.mclk_rate, config->ssp.bclk_rate,
-		config->ssp.fsync_rate, config->sample_valid_bits,
+		config->ssp.fsync_rate, config->ssp.sample_valid_bits,
 		config->ssp.tdm_slot_width, config->ssp.tdm_slots);
 
 	/* send message to DSP */
