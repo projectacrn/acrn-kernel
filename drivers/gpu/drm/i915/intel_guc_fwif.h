@@ -61,6 +61,8 @@
 #define   WQ_TYPE_BATCH_BUF		(0x1 << WQ_TYPE_SHIFT)
 #define   WQ_TYPE_PSEUDO		(0x2 << WQ_TYPE_SHIFT)
 #define   WQ_TYPE_INORDER		(0x3 << WQ_TYPE_SHIFT)
+#define   WQ_TYPE_NOOP			(0x4 << WQ_TYPE_SHIFT)
+#define   WQ_TYPE_RESUME_WQ_PARSING	(0x5 << WQ_TYPE_SHIFT)
 #define WQ_TARGET_SHIFT			10
 #define GEN11_WQ_TARGET_SHIFT		8
 #define WQ_LEN_SHIFT			16
@@ -293,7 +295,10 @@ struct guc_process_desc {
 	u32 wq_status;
 	u32 engine_presence;
 	u32 priority;
-	u32 reserved[30];
+	u32 reserved0;
+	u8 queue_engine_error;
+	u8 reserved1[3];
+	u32 reserved[28];
 } __packed;
 
 /* engine id and context id is packed into guc_execlist_context.context_id*/
@@ -361,8 +366,11 @@ struct gen11_guc_stage_desc {
 
 	u8 reserved0[4];
 
-	u32 reserved1;
-	u64 reserved2[10];
+	u32 reserved4;
+	u8 queue_engine_error;
+	u8 reserved1[3];
+	u32 reserved2;
+	u64 reserved3[9];
 } __packed;
 
 struct gen11_guc_pooled_stage_desc {
