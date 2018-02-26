@@ -1,0 +1,5 @@
+This branch contains enabling code for the following platforms:
+  * Cannonlake desktop (Halo) and mobile
+
+Please consult the kernel documentation for proper use of the Powercap
+interface and the intel_rapl driver.
