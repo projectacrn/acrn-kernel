@@ -823,6 +823,10 @@ static void tgl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 	/* WaPipelineFlushCoherentLines:tgl */
 	I915_WRITE(GEN12_L3SQCREG2, (I915_READ(GEN12_L3SQCREG2) |
 				     GEN12_LQSC_FLUSH_COHERENT_LINES));
+
+	/* WaDisableRenderComputeDataSharing:tgl (pre-prod?) */
+	I915_WRITE(GEN12_RCU_CHICKEN,
+		   _MASKED_BIT_ENABLE(GEN12_RCU_CHICKEN_FORCE_AID_NEQ));
 }
 
 void intel_gt_workarounds_apply(struct drm_i915_private *dev_priv)

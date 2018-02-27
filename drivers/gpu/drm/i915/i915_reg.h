@@ -9861,6 +9861,9 @@ enum skl_power_gate {
 						    _ICL_DSI_IO_MODECTL_1)
 #define  COMBO_PHY_MODE_DSI				(1 << 0)
 
+#define GEN12_RCU_CHICKEN			_MMIO(0x149B0)
+#define   GEN12_RCU_CHICKEN_FORCE_AID_NEQ	(1<<2)
+
 #define BXT_P_DSI_REGULATOR_CFG			_MMIO(0x160020)
 #define  STAP_SELECT					(1 << 0)
 
