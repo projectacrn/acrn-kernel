@@ -887,7 +887,8 @@ enum intel_guc_response_status {
 /* This action will be programmed in C1BC - SOFT_SCRATCH_15_REG */
 enum intel_guc_recv_message {
 	INTEL_GUC_RECV_MSG_CRASH_DUMP_POSTED = BIT(1),
-	INTEL_GUC_RECV_MSG_FLUSH_LOG_BUFFER = BIT(3)
+	INTEL_GUC_RECV_MSG_FLUSH_LOG_BUFFER = BIT(3),
+	INTEL_GUC_RECV_MSG_ENGINE_RESET_COMPLETE = BIT(25),
 };
 
 #endif

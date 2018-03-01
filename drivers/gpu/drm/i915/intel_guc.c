@@ -429,17 +429,7 @@ void intel_guc_to_host_event_handler_mmio(struct intel_guc *guc)
 	I915_WRITE(SOFT_SCRATCH(15), val & ~msg);
 	spin_unlock(&guc->irq_lock);
 
-	intel_guc_to_host_process_recv_msg(guc, msg);
-}
-
-void intel_guc_to_host_process_recv_msg(struct intel_guc *guc, u32 msg)
-{
-	/* Make sure to handle only enabled messages */
-	msg &= guc->msg_enabled_mask;
-
-	if (msg & (INTEL_GUC_RECV_MSG_FLUSH_LOG_BUFFER |
-		   INTEL_GUC_RECV_MSG_CRASH_DUMP_POSTED))
-		intel_guc_log_handle_flush_event(&guc->log);
+	intel_guc_to_host_process_recv_msg(guc, &msg, 1);
 }
 
 int intel_guc_sample_forcewake(struct intel_guc *guc)
@@ -500,6 +490,8 @@ guc_set_class_under_reset(struct intel_guc *guc,
 {
 	GEM_BUG_ON(guc_class >= GUC_MAX_ENGINE_CLASSES);
 	__set_bit(guc_class, (unsigned long *)&guc->engine_class_under_reset);
+	intel_guc_enable_msg(guc,
+			     INTEL_GUC_RECV_MSG_ENGINE_RESET_COMPLETE);
 }
 
 static inline void
@@ -508,6 +500,8 @@ guc_clear_class_under_reset(struct intel_guc *guc,
 {
 	GEM_BUG_ON(guc_class >= GUC_MAX_ENGINE_CLASSES);
 	__clear_bit(guc_class, (unsigned long *)&guc->engine_class_under_reset);
+	intel_guc_disable_msg(guc,
+			      INTEL_GUC_RECV_MSG_ENGINE_RESET_COMPLETE);
 }
 
 static inline bool
@@ -518,7 +512,7 @@ guc_is_class_under_reset(struct intel_guc *guc,
 			(unsigned long *)&guc->engine_class_under_reset);
 }
 
-#define GUC_ENGINE_RESET_COMPLETE_WAIT_MS 25
+#define GUC_ENGINE_RESET_COMPLETE_WAIT_MS 100
 
 /**
  * intel_guc_reset_engine() - ask GuC to reset an engine
@@ -581,6 +575,28 @@ out:
 		guc_clear_class_under_reset(guc, engine->guc_class);
 
 	return ret;
+}
+
+/**
+ * intel_guc_reset_engine_completed() - GuC notifies host that reset
+ * engine has completed, this message should only be received after
+ * a request-reset h2g, so check that and clear the engine_class_under_reset
+ * flag.
+ *
+ * @guc:		intel_guc structure
+ * @engine_class:	Engine class in the Guc2Host message received
+ */
+static void intel_guc_reset_engine_completed(struct intel_guc *guc,
+					     const u32 engine_class)
+{
+	GEM_BUG_ON(INTEL_GEN(guc_to_i915(guc)) < 11);
+	GEM_BUG_ON(engine_class >= GUC_MAX_ENGINE_CLASSES);
+
+	if (!guc_is_class_under_reset(guc, engine_class))
+		DRM_WARN("Unexpected reset-complete for engine class: %d",
+			 engine_class);
+	else
+		guc_clear_class_under_reset(guc, engine_class);
 }
 
 /**
@@ -691,4 +707,24 @@ struct i915_vma *intel_guc_allocate_vma(struct intel_guc *guc, u32 size)
 err:
 	i915_gem_object_put(obj);
 	return vma;
+}
+
+void intel_guc_to_host_process_recv_msg(struct intel_guc *guc,
+					const u32 *payload, u32 len)
+{
+	u32 msg;
+
+	GEM_BUG_ON(!len);
+
+	/* Make sure to handle only enabled messages */
+	msg = payload[0] & guc->msg_enabled_mask;
+
+	if (msg & (INTEL_GUC_RECV_MSG_CRASH_DUMP_POSTED |
+		   INTEL_GUC_RECV_MSG_FLUSH_LOG_BUFFER))
+		intel_guc_log_handle_flush_event(&guc->log);
+
+	if (msg & INTEL_GUC_RECV_MSG_ENGINE_RESET_COMPLETE) {
+		GEM_BUG_ON(len != 3);
+		intel_guc_reset_engine_completed(guc, payload[1]);
+	}
 }
