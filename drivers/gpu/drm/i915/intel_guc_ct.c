@@ -720,7 +720,7 @@ static void ct_process_request(struct intel_guc_ct *ct,
 	case INTEL_GUC_ACTION_DEFAULT:
 		if (unlikely(len < 1))
 			goto fail_unexpected;
-		intel_guc_to_host_process_recv_msg(guc, *payload);
+		intel_guc_to_host_process_recv_msg(guc, payload, len);
 		break;
 
 	default:
