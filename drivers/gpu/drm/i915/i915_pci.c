@@ -620,6 +620,15 @@ static const struct intel_device_info intel_icelake_11_5_info = {
 		     BSD_RING | BSD2_RING | BSD3_RING | BSD4_RING,
 };
 
+static const struct intel_device_info intel_jasperlake_info = {
+	GEN11_FEATURES,
+	PLATFORM(INTEL_ICELAKE),
+	.num_pipes = 3,
+	.is_alpha_support = 1,
+	.has_resource_streamer = 0,
+	.ring_mask = RENDER_RING | BLT_RING | BSD_RING,
+};
+
 #define GEN12_FEATURES \
 	GEN11_FEATURES, \
 	GEN(12), \
@@ -700,6 +709,7 @@ static const struct pci_device_id pciidlist[] = {
 	INTEL_ICL_11_IDS(&intel_icelake_11_info),
 	INTEL_ICL_11_5_IDS(&intel_icelake_11_5_info),
 	INTEL_TGL_12_IDS(&intel_tigerlake_12_info),
+	INTEL_JSL_IDS(&intel_jasperlake_info),
 	{0, 0, 0}
 };
 MODULE_DEVICE_TABLE(pci, pciidlist);
