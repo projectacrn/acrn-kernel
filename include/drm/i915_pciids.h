@@ -465,4 +465,8 @@
 	INTEL_VGA_DEVICE(0x9A19, info), \
 	INTEL_VGA_DEVICE(0x9A39, info)
 
+/* JSL */
+#define INTEL_JSL_IDS(info) \
+	INTEL_VGA_DEVICE(0x4500, info)
+
 #endif /* _I915_PCIIDS_H */
