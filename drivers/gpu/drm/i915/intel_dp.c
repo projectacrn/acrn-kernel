@@ -427,6 +427,20 @@ static int cnl_max_source_rate(struct intel_dp *intel_dp)
 	return 810000;
 }
 
+static int icl_max_source_rate(struct intel_dp *intel_dp)
+{
+	struct intel_digital_port *dig_port = dp_to_dig_port(intel_dp);
+	enum port port = dig_port->base.port;
+
+	/* On Combo PHY port A max speed is HBR3 for all Vccio voltages
+	 * and on Combo PHY Port B the maximum supported is HBR2.
+	 */
+	if (port == PORT_B)
+		return 540000;
+
+	return 810000;
+}
+
 static void
 intel_dp_set_source_rates(struct intel_dp *intel_dp)
 {
@@ -456,10 +470,13 @@ intel_dp_set_source_rates(struct intel_dp *intel_dp)
 	/* This should only be done once */
 	WARN_ON(intel_dp->source_rates || intel_dp->num_source_rates);
 
-	if (IS_CANNONLAKE(dev_priv)) {
+	if (INTEL_GEN(dev_priv) >= 10) {
 		source_rates = cnl_rates;
 		size = ARRAY_SIZE(cnl_rates);
-		max_rate = cnl_max_source_rate(intel_dp);
+		if (IS_ICELAKE(dev_priv))
+			max_rate = icl_max_source_rate(intel_dp);
+		else
+			max_rate = cnl_max_source_rate(intel_dp);
 	} else if (IS_GEN9_LP(dev_priv)) {
 		source_rates = bxt_rates;
 		size = ARRAY_SIZE(bxt_rates);
