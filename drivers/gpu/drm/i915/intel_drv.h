@@ -1412,6 +1412,7 @@ void icl_map_plls_to_ports(struct drm_crtc *crtc,
 void icl_unmap_plls_to_ports(struct drm_crtc *crtc,
 			     struct intel_crtc_state *crtc_state,
 			     struct drm_atomic_state *old_state);
+bool intel_is_port_combophy(struct drm_i915_private *dev_priv, enum port port);
 
 unsigned int intel_fb_align_height(const struct drm_framebuffer *fb,
 				   int plane, unsigned int height);
