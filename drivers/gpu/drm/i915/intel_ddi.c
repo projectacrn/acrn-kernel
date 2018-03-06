@@ -916,6 +916,17 @@ icl_get_combo_buf_trans_edp(struct drm_i915_private *dev_priv,
 	}
 }
 
+enum tc_port intel_port_to_tc(struct drm_i915_private *dev_priv, enum port port)
+{
+	if (!intel_is_port_tc(dev_priv, port))
+		return PORT_TC_NONE;
+
+	if (IS_ICELAKE(dev_priv))
+		return port - PORT_C;
+
+	return PORT_TC_NONE;
+}
+
 bool intel_is_port_combophy(struct drm_i915_private *dev_priv, enum port port)
 {
 	if (port == PORT_NONE)
@@ -923,6 +934,14 @@ bool intel_is_port_combophy(struct drm_i915_private *dev_priv, enum port port)
 
 	if (IS_ICELAKE(dev_priv))
 		return (port <= PORT_B);
+
+	return false;
+}
+
+bool intel_is_port_tc(struct drm_i915_private *dev_priv, enum port port)
+{
+	if (IS_ICELAKE(dev_priv))
+		return port >= PORT_C && port <= PORT_F;
 
 	return false;
 }
