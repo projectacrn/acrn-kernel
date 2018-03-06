@@ -183,11 +183,11 @@ static int intel_dp_get_fia_supported_lane_count(struct intel_dp *intel_dp)
 	enum tc_port tc_port;
 	u32 lane_info;
 
-	if (INTEL_GEN(dev_priv) < 11 || dig_port->base.port < PORT_C ||
+	if (!intel_is_port_tc(dev_priv, dig_port->base.port) ||
 	    dig_port->tc_type != TC_PORT_TYPEC)
 		return 4;
 
-	tc_port = gen11_port_to_tc(dig_port->base.port);
+	tc_port = intel_port_to_tc(dev_priv, dig_port->base.port);
 
 	lane_info = (I915_READ(PORT_TX_DFLEXDPSP) &
 		     DP_LANE_ASSIGNMENT_MASK(tc_port)) >>
@@ -243,7 +243,7 @@ void icl_program_mg_dp_mode(struct intel_dp *intel_dp)
 	if (INTEL_GEN(dev_priv) < 11 || port < PORT_C)
 		return;
 
-	tc_port = gen11_port_to_tc(port);
+	tc_port = intel_port_to_tc(dev_priv, port);
 
 	if (intel_dig_port->tc_type == TC_PORT_TBT)
 		return;
@@ -311,7 +311,7 @@ void icl_enable_phy_clock_gating(struct intel_digital_port *dig_port)
 	if (INTEL_GEN(dev_priv) < 11 || port < PORT_C)
 		return;
 
-	tc_port = gen11_port_to_tc(port);
+	tc_port = intel_port_to_tc(dev_priv, port);
 
 	for (i = 0; i < ARRAY_SIZE(mg_regs); i++) {
 		val = I915_READ(mg_regs[i]);
@@ -346,7 +346,7 @@ void icl_disable_phy_clock_gating(struct intel_digital_port *dig_port)
 	if (INTEL_GEN(dev_priv) < 11 || port < PORT_C)
 		return;
 
-	tc_port = gen11_port_to_tc(port);
+	tc_port = intel_port_to_tc(dev_priv, port);
 
 	for (i = 0; i < ARRAY_SIZE(mg_regs); i++) {
 		val = I915_READ(mg_regs[i]);
@@ -4954,7 +4954,8 @@ static void icl_update_tc_port_type(struct drm_i915_private *dev_priv,
 static bool icl_tc_phy_mode_status_connect(struct drm_i915_private *dev_priv,
 					   struct intel_digital_port *intel_dig_port)
 {
-	enum tc_port tc_port = gen11_port_to_tc(intel_dig_port->base.port);
+	enum tc_port tc_port = intel_port_to_tc(dev_priv,
+						intel_dig_port->base.port);
 	u32 val;
 
 	if (intel_dig_port->tc_type != TC_PORT_LEGACY &&
@@ -4983,7 +4984,8 @@ static bool icl_tc_phy_mode_status_connect(struct drm_i915_private *dev_priv,
 static void icl_tc_phy_mode_status_disconnect(struct drm_i915_private *dev_priv,
 					      struct intel_digital_port *intel_dig_port)
 {
-	enum tc_port tc_port = gen11_port_to_tc(intel_dig_port->base.port);
+	enum tc_port tc_port = intel_port_to_tc(dev_priv,
+						intel_dig_port->base.port);
 	u32 val;
 
 	if (intel_dig_port->tc_type != TC_PORT_LEGACY &&
@@ -5005,7 +5007,7 @@ static bool icl_tc_port_connected(struct drm_i915_private *dev_priv,
 				  struct intel_digital_port *intel_dig_port)
 {
 	enum port port = intel_dig_port->base.port;
-	enum tc_port tc_port = gen11_port_to_tc(port);
+	enum tc_port tc_port = intel_port_to_tc(dev_priv, port);
 	u32 legacy_bit = ICP_TC_HOTPLUG(tc_port);
 	u32 typec_bit = GEN11_TC_HOTPLUG(tc_port);
 	u32 tbt_bit = GEN11_TBT_HOTPLUG(tc_port);
