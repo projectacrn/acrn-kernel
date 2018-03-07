@@ -91,6 +91,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <asm/unaligned.h>
 #include <linux/capability.h>
 #include <linux/errno.h>
 #include <linux/errqueue.h>
@@ -1063,6 +1064,15 @@ set_rcvbuf:
 		}
 		break;
 
+	case SO_TXTIME:
+		if (!ns_capable(sock_net(sk)->user_ns, CAP_NET_ADMIN))
+			ret = -EPERM;
+		else if (val < 0 || val > 1)
+			ret = -EINVAL;
+		else
+			sock_valbool_flag(sk, SOCK_TXTIME, valbool);
+		break;
+
 	default:
 		ret = -ENOPROTOOPT;
 		break;
@@ -1394,6 +1404,10 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 
 	case SO_ZEROCOPY:
 		v.val = sock_flag(sk, SOCK_ZEROCOPY);
+		break;
+
+	case SO_TXTIME:
+		v.val = sock_flag(sk, SOCK_TXTIME);
 		break;
 
 	default:
@@ -2129,6 +2143,13 @@ int __sock_cmsg_send(struct sock *sk, struct msghdr *msg, struct cmsghdr *cmsg,
 
 		sockc->tsflags &= ~SOF_TIMESTAMPING_TX_RECORD_MASK;
 		sockc->tsflags |= tsflags;
+		break;
+	case SO_TXTIME:
+		if (!sock_flag(sk, SOCK_TXTIME))
+			return -EINVAL;
+		if (cmsg->cmsg_len != CMSG_LEN(sizeof(u64)))
+			return -EINVAL;
+		sockc->transmit_time = get_unaligned((u64 *)CMSG_DATA(cmsg));
 		break;
 	/* SCM_RIGHTS and SCM_CREDENTIALS are semantically in SOL_UNIX. */
 	case SCM_RIGHTS:
