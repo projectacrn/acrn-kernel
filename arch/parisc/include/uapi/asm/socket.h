@@ -106,5 +106,7 @@
 
 #define SO_TXTIME		0x4036
 #define SCM_TXTIME		SO_TXTIME
+#define SCM_DROP_IF_LATE	0x4037
+#define SCM_CLOCKID		0x4038
 
 #endif /* _UAPI_ASM_SOCKET_H */

@@ -103,6 +103,8 @@
 
 #define SO_TXTIME		0x003f
 #define SCM_TXTIME		SO_TXTIME
+#define SCM_DROP_IF_LATE	0x0040
+#define SCM_CLOCKID		0x0041
 
 /* Security levels - as per NRL IPv6 - don't actually do anything */
 #define SO_SECURITY_AUTHENTICATION		0x5001

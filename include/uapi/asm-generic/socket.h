@@ -109,5 +109,7 @@
 
 #define SO_TXTIME		61
 #define SCM_TXTIME		SO_TXTIME
+#define SCM_DROP_IF_LATE	62
+#define SCM_CLOCKID		63
 
 #endif /* __ASM_GENERIC_SOCKET_H */
