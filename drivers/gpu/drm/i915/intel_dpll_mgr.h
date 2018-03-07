@@ -133,8 +133,49 @@ enum intel_dpll_id {
 	 * @DPLL_ID_ICL_MGPLL4: ICL MG PLL 1 port 4 (F)
 	 */
 	DPLL_ID_ICL_MGPLL4 = 6,
+
+	/**
+	 * @DPLL_ID_ICL_11_5_DPLL0: ICL 11.5 combo PHY DPLL0
+	 */
+	DPLL_ID_ICL_11_5_DPLL0 = 0,
+	/**
+	 * @DPLL_ID_ICL_11_5_DPLL1: ICL 11.5 combo PHY DPLL1
+	 */
+	DPLL_ID_ICL_11_5_DPLL1 = 1,
+	/**
+	 * @DPLL_ID_ICL_11_5_DPLL4: ICL 11.5 combo PHY DPLL4
+	 */
+	DPLL_ID_ICL_11_5_DPLL4 = 2,
+	/**
+	 * @DPLL_ID_ICL_11_5_TBTPLL: ICL 11.5 TBT PLL
+	 */
+	DPLL_ID_ICL_11_5_TBTPLL = 3,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL1: ICL 11.5 MG PLL 1 port 1 (TC1)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL1 = 4,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL2: ICL 11.5 MG PLL 2 port 2 (TC2)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL2 = 5,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL3: ICL 11.5 MG PLL 3 port 3 (TC3)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL3 = 6,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL4: ICL 11.5 MG PLL 4 port 4 (TC4)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL4 = 7,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL5: ICL 11.5 MG PLL 5 port 5 (TC5)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL5 = 8,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL6: ICL 11.5 MG PLL 6 port 6 (TC6)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL6 = 9,
 };
-#define I915_NUM_PLLS 7
+#define I915_NUM_PLLS 10
 
 struct intel_dpll_hw_state {
 	/* i9xx, pch plls */
