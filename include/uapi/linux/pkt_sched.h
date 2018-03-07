@@ -934,4 +934,21 @@ enum {
 
 #define TCA_CBS_MAX (__TCA_CBS_MAX - 1)
 
+
+/* TBS */
+struct tc_tbs_qopt {
+	__s32 delta;
+	__s32 clockid;
+	__u32 flags;
+#define TC_TBS_SORTING_ON BIT(0)
+};
+
+enum {
+	TCA_TBS_UNSPEC,
+	TCA_TBS_PARMS,
+	__TCA_TBS_MAX,
+};
+
+#define TCA_TBS_MAX (__TCA_TBS_MAX - 1)
+
 #endif
