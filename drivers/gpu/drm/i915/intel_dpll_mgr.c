@@ -2585,7 +2585,7 @@ static bool icl_calc_dpll_state(struct intel_crtc_state *crtc_state,
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	uint32_t cfgcr0, cfgcr1;
 	struct skl_wrpll_params pll_params = { 0 };
-	bool is_tbt = encoder->port >= PORT_C;
+	bool is_tbt = intel_is_port_tc(dev_priv, encoder->port);
 	bool ret;
 
 	if (is_tbt)
