@@ -941,6 +941,7 @@ struct tc_tbs_qopt {
 	__s32 clockid;
 	__u32 flags;
 #define TC_TBS_SORTING_ON BIT(0)
+#define TC_TBS_OFFLOAD_ON BIT(1)
 };
 
 enum {
