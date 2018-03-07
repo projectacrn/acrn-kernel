@@ -115,6 +115,7 @@
 #include "udp_impl.h"
 #include <net/sock_reuseport.h>
 #include <net/addrconf.h>
+#include <linux/posix-timers.h>
 
 struct udp_table udp_table __read_mostly;
 EXPORT_SYMBOL(udp_table);
@@ -921,6 +922,8 @@ int udp_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 
 	ipc.sockc.tsflags = sk->sk_tsflags;
 	ipc.sockc.transmit_time = 0;
+	ipc.sockc.drop_if_late = 0;
+	ipc.sockc.clockid = CLOCKID_INVALID;
 	ipc.addr = inet->inet_saddr;
 	ipc.oif = sk->sk_bound_dev_if;
 
@@ -1037,6 +1040,8 @@ back_from_confirm:
 		err = PTR_ERR(skb);
 		if (!IS_ERR_OR_NULL(skb)) {
 			skb->tstamp = ipc.sockc.transmit_time;
+			skb->txtime_clockid = ipc.sockc.clockid;
+			skb->tc_drop_if_late = ipc.sockc.drop_if_late;
 			err = udp_send_skb(skb, fl4);
 		}
 		goto out;
