@@ -79,6 +79,7 @@
 #include <linux/netfilter_ipv4.h>
 #include <linux/compat.h>
 #include <linux/uio.h>
+#include <linux/posix-timers.h>
 
 struct raw_frag_vec {
 	struct msghdr *msg;
@@ -382,6 +383,8 @@ static int raw_send_hdrinc(struct sock *sk, struct flowi4 *fl4,
 	skb->priority = sk->sk_priority;
 	skb->mark = sk->sk_mark;
 	skb->tstamp = sockc->transmit_time;
+	skb->txtime_clockid = sockc->clockid;
+	skb->tc_drop_if_late = sockc->drop_if_late;
 	skb_dst_set(skb, &rt->dst);
 	*rtp = NULL;
 
@@ -564,6 +567,8 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 
 	ipc.sockc.tsflags = sk->sk_tsflags;
 	ipc.sockc.transmit_time = 0;
+	ipc.sockc.drop_if_late = 0;
+	ipc.sockc.clockid = CLOCKID_INVALID;
 	ipc.addr = inet->inet_saddr;
 	ipc.opt = NULL;
 	ipc.tx_flags = 0;
