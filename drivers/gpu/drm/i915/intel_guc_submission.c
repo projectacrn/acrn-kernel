@@ -1145,7 +1145,11 @@ static void guc_fill_preempt_context(struct intel_guc *guc)
 		 * We rely on this context image *not* being saved after
 		 * preemption. This ensures that the RING_HEAD / RING_TAIL
 		 * remain pointing at initial values forever.
+		 *
+		 * Not only CTX_SAVE_INHIBIT doesn't exist in Gen11+, but also
+		 * GuC does not support preempt-to-idle via a preempt_client.
 		 */
+		GEM_BUG_ON(INTEL_GEN(dev_priv) >= 11);
 		GEM_BUG_ON(!ctx_save_restore_disabled(ce));
 
 		cs = ce->ring->vaddr;
@@ -1201,7 +1205,9 @@ static int guc_clients_create(struct intel_guc *guc)
 		}
 		guc->preempt_client = client;
 
-		guc_fill_preempt_context(guc);
+		/* GEN11+ should rely on direct preempt-to-idle */
+		if (INTEL_GEN(dev_priv) < 11)
+			guc_fill_preempt_context(guc);
 	}
 
 	return 0;
