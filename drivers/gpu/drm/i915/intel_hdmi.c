@@ -2260,6 +2260,18 @@ static u8 icl_port_to_ddc_pin(struct drm_i915_private *dev_priv, enum port port)
 	return ddc_pin;
 }
 
+static u8 icph_port_to_ddc_pin(struct drm_i915_private *dev_priv,
+			       enum port port)
+{
+	if (intel_is_port_combophy(dev_priv, port))
+		return GMBUS_PIN_1_BXT + port;
+	else if (intel_is_port_tc(dev_priv, port))
+		return GMBUS_PIN_9_TC1_ICP + intel_port_to_tc(dev_priv, port);
+
+	WARN(1, "Unknown port:%c\n", port_name(port));
+	return GMBUS_PIN_2_BXT;
+}
+
 static u8 g4x_port_to_ddc_pin(struct drm_i915_private *dev_priv,
 			      enum port port)
 {
@@ -2302,6 +2314,8 @@ static u8 intel_hdmi_ddc_pin(struct drm_i915_private *dev_priv,
 		ddc_pin = bxt_port_to_ddc_pin(dev_priv, port);
 	else if (HAS_PCH_CNP(dev_priv))
 		ddc_pin = cnp_port_to_ddc_pin(dev_priv, port);
+	else if (HAS_PCH_ICP_H(dev_priv))
+		ddc_pin = icph_port_to_ddc_pin(dev_priv, port);
 	else if (HAS_PCH_ICP(dev_priv))
 		ddc_pin = icl_port_to_ddc_pin(dev_priv, port);
 	else
