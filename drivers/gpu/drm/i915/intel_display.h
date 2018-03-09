@@ -126,6 +126,9 @@ enum port {
 	PORT_D,
 	PORT_E,
 	PORT_F,
+	PORT_G,
+	PORT_H,
+	PORT_I,
 
 	I915_MAX_PORTS
 };
@@ -149,6 +152,8 @@ enum tc_port {
 	PORT_TC2,
 	PORT_TC3,
 	PORT_TC4,
+	PORT_TC5,
+	PORT_TC6,
 	I915_MAX_TC_PORTS
 };
 
