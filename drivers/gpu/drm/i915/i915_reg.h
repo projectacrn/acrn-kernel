@@ -3140,6 +3140,8 @@ enum i915_power_well_id {
 #define GPIOK			_MMIO(0x5038)
 #define GPIOL			_MMIO(0x503C)
 #define GPIOM			_MMIO(0x5040)
+#define GPION			_MMIO(0x5044)
+#define GPIOO			_MMIO(0x5048)
 # define GPIO_CLOCK_DIR_MASK		(1 << 0)
 # define GPIO_CLOCK_DIR_IN		(0 << 1)
 # define GPIO_CLOCK_DIR_OUT		(1 << 1)
@@ -3179,8 +3181,10 @@ enum i915_power_well_id {
 #define   GMBUS_PIN_10_TC2_ICP	10
 #define   GMBUS_PIN_11_TC3_ICP	11
 #define   GMBUS_PIN_12_TC4_ICP	12
+#define   GMBUS_PIN_13_TC5_ICP	13
+#define   GMBUS_PIN_14_TC6_ICP	14
 
-#define   GMBUS_NUM_PINS	13 /* including 0 */
+#define   GMBUS_NUM_PINS	15 /* including 0 */
 #define GMBUS1			_MMIO(dev_priv->gpio_mmio_base + 0x5104) /* command/status */
 #define   GMBUS_SW_CLR_INT	(1<<31)
 #define   GMBUS_SW_RDY		(1<<30)
