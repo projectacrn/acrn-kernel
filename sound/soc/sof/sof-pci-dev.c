@@ -24,8 +24,8 @@ static struct snd_soc_acpi_mach sof_bxt_machines[] = {
 	{
 		.id = "DLGS7219",
 		.drv_name = "bxt_da7219_max98357a_i2s",
-		.sof_fw_filename = "intel/reef-apl.ri",
-		.sof_tplg_filename = "intel/reef-apl.tplg",
+		.sof_fw_filename = "intel/sof-apl.ri",
+		.sof_tplg_filename = "intel/sof-apl.tplg",
 		.asoc_plat_name = "0000:00:0e.0",
 	},
 };
@@ -37,8 +37,8 @@ static struct sof_dev_desc bxt_desc = {
 	.resindex_imr_base	= -1,
 	.irqindex_host_ipc	= -1,
 	.resindex_dma_base	= -1,
-	.nocodec_fw_filename = "intel/reef-apl.ri",
-	.nocodec_tplg_filename = "intel/reef-apl-nocodec.tplg"
+	.nocodec_fw_filename = "intel/sof-apl.ri",
+	.nocodec_tplg_filename = "intel/sof-apl-nocodec.tplg"
 };
 #endif
 
@@ -47,8 +47,8 @@ static struct snd_soc_acpi_mach sof_byt_machines[] = {
 	{
 		.id = "INT343A",
 		.drv_name = "edison",
-		.sof_fw_filename = "intel/reef-byt.ri",
-		.sof_tplg_filename = "intel/reef-byt.tplg",
+		.sof_fw_filename = "intel/sof-byt.ri",
+		.sof_tplg_filename = "intel/sof-byt.tplg",
 		.asoc_plat_name = "baytrail-pcm-audio",
 	},
 	{}
@@ -61,8 +61,8 @@ static const struct sof_dev_desc byt_desc = {
 	.resindex_imr_base	= 0,
 	.irqindex_host_ipc	= -1,
 	.resindex_dma_base	= -1,
-	.nocodec_fw_filename = "intel/reef-byt.ri",
-	.nocodec_tplg_filename = "intel/reef-byt.tplg"
+	.nocodec_fw_filename = "intel/sof-byt.ri",
+	.nocodec_tplg_filename = "intel/sof-byt.tplg"
 };
 #endif
 
@@ -71,8 +71,8 @@ static struct snd_soc_acpi_mach sof_cnl_machines[] = {
 	{
 		.id = "INT34C2",
 		.drv_name = "cnl_alc700_i2s",
-		.sof_fw_filename = "intel/reef-cnl.ri",
-		.sof_tplg_filename = "intel/reef-cnl.tplg",
+		.sof_fw_filename = "intel/sof-cnl.ri",
+		.sof_tplg_filename = "intel/sof-cnl.tplg",
 		.asoc_plat_name = "0000:00:0e.0",
 	},
 	{}
@@ -85,8 +85,8 @@ static const struct sof_dev_desc cnl_desc = {
 	.resindex_imr_base	= -1,
 	.irqindex_host_ipc	= -1,
 	.resindex_dma_base	= -1,
-	.nocodec_fw_filename = "intel/reef-cnl.ri",
-	.nocodec_tplg_filename = "intel/reef-cnl.tplg"
+	.nocodec_fw_filename = "intel/sof-cnl.ri",
+	.nocodec_tplg_filename = "intel/sof-cnl.tplg"
 };
 #endif
 
