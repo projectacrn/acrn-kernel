@@ -30,8 +30,8 @@ static struct sof_dev_desc sof_acpi_haswell_desc = {
 	.resindex_pcicfg_base = 1,
 	.resindex_imr_base = -1,
 	.irqindex_host_ipc = 0,
-	.nocodec_fw_filename = "intel/reef-hsw.ri",
-	.nocodec_tplg_filename = "intel/reef-hsw-nocodec.tplg"
+	.nocodec_fw_filename = "intel/sof-hsw.ri",
+	.nocodec_tplg_filename = "intel/sof-hsw-nocodec.tplg"
 };
 #endif
 
@@ -42,8 +42,8 @@ static struct sof_dev_desc sof_acpi_broadwell_desc = {
 	.resindex_pcicfg_base = 1,
 	.resindex_imr_base = -1,
 	.irqindex_host_ipc = 0,
-	.nocodec_fw_filename = "intel/reef-bdw.ri",
-	.nocodec_tplg_filename = "intel/reef-bdw-nocodec.tplg"
+	.nocodec_fw_filename = "intel/sof-bdw.ri",
+	.nocodec_tplg_filename = "intel/sof-bdw-nocodec.tplg"
 };
 #endif
 
@@ -56,8 +56,8 @@ static struct sof_dev_desc sof_acpi_baytrailcr_desc = {
 	.resindex_pcicfg_base = 1,
 	.resindex_imr_base = 2,
 	.irqindex_host_ipc = 0,
-	.nocodec_fw_filename = "intel/reef-byt.ri",
-	.nocodec_tplg_filename = "intel/reef-byt-nocodec.tplg"
+	.nocodec_fw_filename = "intel/sof-byt.ri",
+	.nocodec_tplg_filename = "intel/sof-byt-nocodec.tplg"
 };
 
 static struct sof_dev_desc sof_acpi_baytrail_desc = {
@@ -66,8 +66,8 @@ static struct sof_dev_desc sof_acpi_baytrail_desc = {
 	.resindex_pcicfg_base = 1,
 	.resindex_imr_base = 2,
 	.irqindex_host_ipc = 5,
-	.nocodec_fw_filename = "intel/reef-byt.ri",
-	.nocodec_tplg_filename = "intel/reef-byt-nocodec.tplg"
+	.nocodec_fw_filename = "intel/sof-byt.ri",
+	.nocodec_tplg_filename = "intel/sof-byt-nocodec.tplg"
 };
 
 static int is_byt_cr(struct device *dev)
@@ -108,8 +108,8 @@ static struct sof_dev_desc sof_acpi_cherrytrail_desc = {
 	.resindex_pcicfg_base = 1,
 	.resindex_imr_base = 2,
 	.irqindex_host_ipc = 5,
-	.nocodec_fw_filename = "intel/reef-cht.ri",
-	.nocodec_tplg_filename = "intel/reef-cht-nocodec.tplg"
+	.nocodec_fw_filename = "intel/sof-cht.ri",
+	.nocodec_tplg_filename = "intel/sof-cht-nocodec.tplg"
 };
 #endif
 
