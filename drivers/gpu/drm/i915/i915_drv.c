@@ -329,6 +329,24 @@ static const struct vga_switcheroo_client_ops i915_switcheroo_ops = {
 	.can_switch = i915_switcheroo_can_switch,
 };
 
+static inline int get_max_avail_pipes(struct drm_i915_private *dev_priv)
+{
+	enum pipe pipe;
+	int index = 0;
+
+	if (!intel_vgpu_active(dev_priv) ||
+	    !i915_modparams.avail_planes_per_pipe)
+		return INTEL_INFO(dev_priv)->num_pipes;
+
+	for_each_pipe(dev_priv, pipe) {
+		if (AVAIL_PLANE_PER_PIPE(dev_priv, i915_modparams.avail_planes_per_pipe,
+					pipe))
+			index++;
+	}
+
+	return index;
+}
+
 static int i915_driver_modeset_probe(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = to_i915(dev);
@@ -339,10 +357,13 @@ static int i915_driver_modeset_probe(struct drm_device *dev)
 		return -ENODEV;
 
 	if (HAS_DISPLAY(dev_priv)) {
-		ret = drm_vblank_init(&dev_priv->drm,
-				      INTEL_INFO(dev_priv)->num_pipes);
-		if (ret)
-			goto out;
+		int num_crtcs = get_max_avail_pipes(dev_priv);
+
+		if (num_crtcs) {
+			ret = drm_vblank_init(&dev_priv->drm, num_crtcs);
+			if (ret)
+				goto out;
+		}
 	}
 
 	intel_bios_init(dev_priv);

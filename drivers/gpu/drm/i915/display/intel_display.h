@@ -309,6 +309,12 @@ enum phy_fia {
 	     (__s) < RUNTIME_INFO(__dev_priv)->num_sprites[(__p)];	\
 	     (__s)++)
 
+#define BITS_PER_PIPE 8
+#define AVAIL_PLANE_PER_PIPE(dev_priv, mask, pipe)  \
+	(((mask) >> (pipe) * BITS_PER_PIPE) & \
+	   ((1 << ((RUNTIME_INFO(dev_priv)->num_sprites[pipe]) + 1)) - 1))
+
+
 #define for_each_port_masked(__port, __ports_mask) \
 	for ((__port) = PORT_A; (__port) < I915_MAX_PORTS; (__port)++)	\
 		for_each_if((__ports_mask) & BIT(__port))

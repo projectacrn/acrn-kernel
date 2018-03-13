@@ -15126,6 +15126,79 @@ static const struct drm_crtc_funcs i8xx_crtc_funcs = {
 	.disable_vblank = i8xx_disable_vblank,
 };
 
+static int intel_crtc_init_restrict_planes(struct drm_i915_private *dev_priv,
+					   enum pipe pipe, int planes_mask)
+{
+	const struct drm_crtc_funcs *funcs;
+	struct intel_crtc *intel_crtc;
+	struct intel_crtc_state *crtc_state = NULL;
+	struct intel_plane *primary = NULL;
+	struct intel_plane *intel_plane = NULL;
+	int plane, ret;
+
+	intel_crtc = kzalloc(sizeof(*intel_crtc), GFP_KERNEL);
+	if (!intel_crtc)
+		return -ENOMEM;
+
+	crtc_state = kzalloc(sizeof(*crtc_state), GFP_KERNEL);
+	if (!crtc_state) {
+		ret = -ENOMEM;
+		goto fail;
+	}
+	__drm_atomic_helper_crtc_reset(&intel_crtc->base, &crtc_state->base);
+	intel_crtc->config = crtc_state;
+
+	for_each_universal_plane(dev_priv, pipe, plane) {
+		if (planes_mask & BIT(plane)) {
+			intel_plane = skl_universal_plane_create(dev_priv,
+					pipe, plane);
+			if (IS_ERR(intel_plane)) {
+				DRM_DEBUG_KMS(" plane %d failed for pipe %d\n", plane, pipe);
+				ret = PTR_ERR(intel_plane);
+				goto fail;
+			}
+			if (!primary) {
+				primary = intel_plane;
+			}
+			DRM_DEBUG_KMS(" plane %d created for pipe %d\n", plane, pipe);
+			intel_crtc->plane_ids_mask |= BIT(intel_plane->id);
+		}
+	}
+
+	funcs = &bdw_crtc_funcs;
+
+	ret = drm_crtc_init_with_planes(&dev_priv->drm, &intel_crtc->base,
+					&primary->base, NULL,
+					funcs, "pipe %c", pipe_name(pipe));
+	if (ret)
+		goto fail;
+
+	intel_crtc->pipe = pipe;
+
+	/* initialize shared scalers */
+	intel_crtc_init_scalers(intel_crtc, crtc_state);
+
+	BUG_ON(pipe >= ARRAY_SIZE(dev_priv->pipe_to_crtc_mapping) ||
+	       dev_priv->pipe_to_crtc_mapping[pipe] != NULL);
+	dev_priv->pipe_to_crtc_mapping[pipe] = intel_crtc;
+
+	drm_crtc_helper_add(&intel_crtc->base, &intel_helper_funcs);
+
+	intel_color_init(intel_crtc);
+
+	return 0;
+
+fail:
+	/*
+	 * drm_mode_config_cleanup() will free up any
+	 * crtcs/planes already initialized.
+	 */
+	kfree(crtc_state);
+	kfree(intel_crtc);
+
+	return ret;
+}
+
 static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 {
 	const struct drm_crtc_funcs *funcs;
@@ -16173,12 +16246,25 @@ out:
 	return ret;
 }
 
+static int intel_sanitize_plane_restriction(struct drm_i915_private *dev_priv)
+{
+	/*plane restriction feature is only for APL for now*/
+	if (!IS_BROXTON(dev_priv)) {
+		i915_modparams.avail_planes_per_pipe = 0;
+		DRM_INFO("Turning off Plane Restrictions feature\n");
+	}
+
+	return i915_modparams.avail_planes_per_pipe;
+}
+
 int intel_modeset_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	enum pipe pipe;
 	struct intel_crtc *crtc;
 	int ret;
+	unsigned int  planes_mask[I915_MAX_PIPES];
+	unsigned int avail_plane_per_pipe_mask = 0;
 
 	dev_priv->modeset_wq = alloc_ordered_workqueue("i915_modeset", 0);
 
@@ -16259,8 +16345,27 @@ int intel_modeset_init(struct drm_device *dev)
 		      INTEL_INFO(dev_priv)->num_pipes,
 		      INTEL_INFO(dev_priv)->num_pipes > 1 ? "s" : "");
 
+	avail_plane_per_pipe_mask = intel_sanitize_plane_restriction(dev_priv);
+	DRM_DEBUG_KMS("avail_planes_per_pipe = 0x%x \n", i915_modparams.avail_planes_per_pipe);
+	DRM_DEBUG_KMS("domain_plane_owners = 0x%llx \n", i915_modparams.domain_plane_owners);
+
 	for_each_pipe(dev_priv, pipe) {
-		ret = intel_crtc_init(dev_priv, pipe);
+		planes_mask[pipe] = AVAIL_PLANE_PER_PIPE(dev_priv,
+							 avail_plane_per_pipe_mask, pipe);
+		DRM_DEBUG_KMS("for pipe %d plane_mask = %d \n", pipe, planes_mask[pipe]);
+	}
+
+	for_each_pipe(dev_priv, pipe) {
+		if (!i915_modparams.avail_planes_per_pipe) {
+			ret = intel_crtc_init(dev_priv, pipe);
+		} else {
+			if (!intel_vgpu_active(dev_priv) || (intel_vgpu_active(dev_priv)
+							 && planes_mask[pipe])) {
+				ret = intel_crtc_init_restrict_planes(dev_priv,
+								      pipe,
+								      planes_mask[pipe]);
+			}
+		}
 		if (ret) {
 			drm_mode_config_cleanup(dev);
 			return ret;
@@ -16777,10 +16882,14 @@ static void intel_modeset_readout_hw_state(struct drm_device *dev)
 			struct intel_crtc_state *crtc_state;
 
 			crtc = intel_get_crtc_for_pipe(dev_priv, pipe);
-			crtc_state = to_intel_crtc_state(crtc->base.state);
+			if (!crtc) {
+				encoder->base.crtc = NULL;
+			} else {
+				crtc_state = to_intel_crtc_state(crtc->base.state);
 
-			encoder->base.crtc = &crtc->base;
-			encoder->get_config(encoder, crtc_state);
+				encoder->base.crtc = &crtc->base;
+				encoder->get_config(encoder, crtc_state);
+			}
 		} else {
 			encoder->base.crtc = NULL;
 		}
