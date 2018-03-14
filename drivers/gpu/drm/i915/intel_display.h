@@ -178,7 +178,7 @@ enum aux_ch {
 	AUX_CH_B,
 	AUX_CH_C,
 	AUX_CH_D,
-	_AUX_CH_E, /* does not exist */
+	AUX_CH_E, /* ICL+ */
 	AUX_CH_F,
 };
 
