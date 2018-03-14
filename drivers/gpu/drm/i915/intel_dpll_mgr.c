@@ -3195,7 +3195,7 @@ void intel_shared_dpll_init(struct drm_device *dev)
 	const struct dpll_info *dpll_info;
 	int i;
 
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 		dpll_mgr = &icl_11_5_pll_mgr;
 	else if (IS_ICELAKE(dev_priv))
 		dpll_mgr = &icl_pll_mgr;
