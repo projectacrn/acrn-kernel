@@ -96,6 +96,26 @@ static int ish_init(struct ishtp_device *dev)
 	return 0;
 }
 
+
+static bool ish_invalid_firmware(void)
+{
+	struct pci_dev *pdev;
+
+	pdev = pci_get_device(PCI_VENDOR_ID_INTEL, 0xA309, NULL);
+	if (pdev) {
+		pci_dev_put(pdev);
+		return true;
+	}
+
+	pdev = pci_get_device(PCI_VENDOR_ID_INTEL, 0xA30A, NULL);
+	if (pdev) {
+		pci_dev_put(pdev);
+		return true;
+	}
+
+	return false;
+}
+
 /**
  * ish_probe() - PCI driver probe callback
  * @pdev:	pci device
@@ -110,6 +130,9 @@ static int ish_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	struct ishtp_device *dev;
 	struct ish_hw *hw;
 	int	ret;
+
+	if (ish_invalid_firmware())
+		return -ENODEV;
 
 	/* enable pci dev */
 	ret = pci_enable_device(pdev);
