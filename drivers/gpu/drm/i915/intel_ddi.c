@@ -1093,16 +1093,10 @@ static uint32_t icl_pll_to_ddi_pll_sel(struct intel_encoder *encoder,
 				       const struct intel_shared_dpll *pll)
 {
 	struct intel_crtc *crtc = to_intel_crtc(encoder->base.crtc);
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	int clock = crtc->config->port_clock;
-	const enum intel_dpll_id id = pll->info->id;
 
-	switch (id) {
-	default:
-		MISSING_CASE(id);
-	case DPLL_ID_ICL_DPLL0:
-	case DPLL_ID_ICL_DPLL1:
-		return DDI_CLK_SEL_NONE;
-	case DPLL_ID_ICL_TBTPLL:
+	if (pll->info->id == intel_get_tbtpll_id(dev_priv))
 		switch (clock) {
 		case 162000:
 			return DDI_CLK_SEL_TBT_162;
@@ -1114,14 +1108,13 @@ static uint32_t icl_pll_to_ddi_pll_sel(struct intel_encoder *encoder,
 			return DDI_CLK_SEL_TBT_810;
 		default:
 			MISSING_CASE(clock);
+			return DDI_CLK_SEL_NONE;
 			break;
 		}
-	case DPLL_ID_ICL_MGPLL1:
-	case DPLL_ID_ICL_MGPLL2:
-	case DPLL_ID_ICL_MGPLL3:
-	case DPLL_ID_ICL_MGPLL4:
+	else if (intel_is_dpll_combophy(dev_priv, pll->info->id))
+		return DDI_CLK_SEL_NONE;
+	else
 		return DDI_CLK_SEL_MG;
-	}
 }
 
 /* Starting with Haswell, different DDI ports can work in FDI mode for
