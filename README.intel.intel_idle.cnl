@@ -1,0 +1,14 @@
+intel_idle and turbostat enabling for Cannon Lake
+
+This covers both Cannon Lake mobile and desktop SKUs. The mobile CPUID is in
+mainline in v4.16, but desktop CPUID is not. C-state information, in particular
+exit latencies and target residenices, remain embargoed (last I heard), so
+unable to push upstream.
+
+Exit latencies are taken from the Cannon Lake Core and Uncore BIOS
+Specification (Intel Confidential). Target residencies are best guesses. All
+values are subject to change, pending documentation revisions or additional
+data/guidance from hardware architects.
+
+Also, make turbostat aware of both Cannon Lake mobile and desktop SKUs for
+purposes of debug and analysis.
