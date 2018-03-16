@@ -3682,7 +3682,7 @@ static void icl_display_core_init(struct drm_i915_private *dev_priv,
 	val |= RESET_PCH_HANDSHAKE_ENABLE;
 	I915_WRITE(HSW_NDE_RSTWRN_OPT, val);
 
-	for (port = PORT_A; port <= PORT_B; port++) {
+	for (port = PORT_A; intel_is_port_combophy(dev_priv, port); port++) {
 		/* 2. Enable DDI combo PHY comp. */
 		val = I915_READ(ICL_PHY_MISC(port));
 		val &= ~ICL_PHY_MISC_DE_IO_COMP_PWR_DOWN;
