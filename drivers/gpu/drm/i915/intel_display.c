@@ -13978,7 +13978,12 @@ static void intel_setup_outputs(struct drm_i915_private *dev_priv)
 	if (intel_crt_present(dev_priv))
 		intel_crt_init(dev_priv);
 
-	if (IS_ICELAKE(dev_priv)) {
+	if (IS_ICL_11_5(dev_priv)) {
+		/* TODO: initialize TC ports as well */
+		intel_ddi_init(dev_priv, PORT_A);
+		intel_ddi_init(dev_priv, PORT_B);
+		intel_ddi_init(dev_priv, PORT_C);
+	} else if (IS_ICELAKE(dev_priv)) {
 		intel_ddi_init(dev_priv, PORT_A);
 		intel_ddi_init(dev_priv, PORT_B);
 		intel_ddi_init(dev_priv, PORT_C);
