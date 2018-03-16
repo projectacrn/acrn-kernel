@@ -2640,6 +2640,14 @@ bool intel_is_dpll_combophy(enum intel_dpll_id id)
 	return id == DPLL_ID_ICL_DPLL0 || id == DPLL_ID_ICL_DPLL1;
 }
 
+enum intel_dpll_id intel_get_tbtpll_id(struct drm_i915_private *dev_priv)
+{
+	if (IS_ICL_11_5(dev_priv))
+		return DPLL_ID_ICL_11_5_TBTPLL;
+	else
+		return DPLL_ID_ICL_TBTPLL;
+}
+
 static bool icl_mg_pll_find_divisors(int clock_khz, bool is_dp, bool use_ssc,
 				     uint32_t *target_dco_khz,
 				     struct intel_dpll_hw_state *state)
@@ -2895,7 +2903,7 @@ icl_get_dpll(struct intel_crtc *crtc, struct intel_crtc_state *crtc_state,
 					  &pll_state);
 	} else if (intel_port_is_tc(dev_priv, port)) {
 		if (0 /* TODO: TBT PLLs */) {
-			min = DPLL_ID_ICL_TBTPLL;
+			min = intel_get_tbtpll_id(dev_priv);
 			max = min;
 			ret = icl_calc_dpll_state(crtc_state, encoder, clock,
 						  &pll_state);
@@ -2933,7 +2941,7 @@ static i915_reg_t icl_pll_id_to_enable_reg(struct drm_i915_private *dev_priv,
 {
 	if (intel_is_dpll_combophy(id))
 		return CNL_DPLL_ENABLE(id);
-	else if (id == DPLL_ID_ICL_TBTPLL)
+	else if (id == intel_get_tbtpll_id(dev_priv))
 		return TBT_PLL_ENABLE;
 	else
 		/*
@@ -2960,7 +2968,7 @@ static bool icl_pll_get_hw_state(struct drm_i915_private *dev_priv,
 		goto out;
 
 	if (intel_is_dpll_combophy(id) ||
-	    (id == DPLL_ID_ICL_TBTPLL)) {
+	    (id == intel_get_tbtpll_id(dev_priv))) {
 		hw_state->cfgcr0 = I915_READ(ICL_11_5_DPLL_CFGCR0(id));
 		hw_state->cfgcr1 = I915_READ(ICL_11_5_DPLL_CFGCR1(id));
 	} else {
@@ -3089,7 +3097,8 @@ static void icl_pll_enable(struct drm_i915_private *dev_priv,
 				    PLL_POWER_STATE, 1))
 		DRM_ERROR("PLL %d Power not enabled\n", id);
 
-	if (intel_is_dpll_combophy(id) || (id == DPLL_ID_ICL_TBTPLL))
+	if (intel_is_dpll_combophy(id) ||
+	    (id == intel_get_tbtpll_id(dev_priv)))
 		icl_dpll_write(dev_priv, pll);
 	else
 		icl_mg_pll_write(dev_priv, pll);
