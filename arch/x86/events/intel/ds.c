@@ -728,12 +728,6 @@ struct event_constraint intel_glm_pebs_event_constraints[] = {
 	EVENT_CONSTRAINT_END
 };
 
-struct event_constraint intel_glp_pebs_event_constraints[] = {
-	/* Allow all events as PEBS with no flags */
-	INTEL_ALL_EVENT_CONSTRAINT(0, 0xf),
-	EVENT_CONSTRAINT_END
-};
-
 struct event_constraint intel_tnt_pebs_event_constraints[] = {
 	INTEL_FLAGS_UEVENT_CONSTRAINT(0x1c0, 0x100000000ULL),   /* INST_RETIRED.PREC_DIST */
 	/* Allow all events as PEBS with no flags */
