@@ -1133,7 +1133,8 @@ void intel_pmu_pebs_enable(struct perf_event *event)
 
 	cpuc->pebs_enabled |= 1ULL << hwc->idx;
 
-	if (event->hw.flags & PERF_X86_EVENT_PEBS_LDLAT)
+	if ((event->hw.flags & PERF_X86_EVENT_PEBS_LDLAT) &&
+	    (x86_pmu.flags & PMU_FL_HAS_LDLAT_EN))
 		cpuc->pebs_enabled |= 1ULL << (hwc->idx + 32);
 	else if (event->hw.flags & PERF_X86_EVENT_PEBS_ST)
 		cpuc->pebs_enabled |= 1ULL << 63;
@@ -1187,7 +1188,8 @@ void intel_pmu_pebs_disable(struct perf_event *event)
 	if (x86_pmu.intel_cap.adaptive_pebs)
 		intel_pmu_pebs_adaptive_disable(event);
 
-	if (event->hw.flags & PERF_X86_EVENT_PEBS_LDLAT)
+	if ((event->hw.flags & PERF_X86_EVENT_PEBS_LDLAT) &&
+	    (x86_pmu.flags & PMU_FL_HAS_LDLAT_EN))
 		cpuc->pebs_enabled &= ~(1ULL << (hwc->idx + 32));
 	else if (event->hw.flags & PERF_X86_EVENT_PEBS_ST)
 		cpuc->pebs_enabled &= ~(1ULL << 63);
