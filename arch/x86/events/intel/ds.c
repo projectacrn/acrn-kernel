@@ -963,10 +963,16 @@ static inline void pebs_update_threshold(struct cpu_hw_events *cpuc)
 {
 	struct debug_store *ds = cpuc->ds;
 	u64 threshold;
+	int reserved;
+
+	if (x86_pmu.flags & PMU_FL_PEBS_ALL)
+		reserved = x86_pmu.max_pebs_events + x86_pmu.num_counters_fixed;
+	else
+		reserved = x86_pmu.max_pebs_events;
 
 	if (cpuc->n_pebs == cpuc->n_large_pebs) {
 		threshold = ds->pebs_absolute_maximum -
-			x86_pmu.max_pebs_events * cpuc->pebs_record_size;
+			reserved * x86_pmu.pebs_record_size;
 	} else {
 		threshold = ds->pebs_buffer_base + cpuc->pebs_record_size;
 	}
@@ -1818,9 +1824,10 @@ static void intel_pmu_drain_pebs_nhm(struct pt_regs *iregs)
 	struct debug_store *ds = cpuc->ds;
 	struct perf_event *event;
 	void *base, *at, *top;
-	short counts[MAX_PEBS_EVENTS] = {};
-	short error[MAX_PEBS_EVENTS] = {};
-	int bit, i;
+	short counts[INTEL_PMC_IDX_FIXED + MAX_FIXED_PEBS_EVENTS] = {};
+	short error[INTEL_PMC_IDX_FIXED + MAX_FIXED_PEBS_EVENTS] = {};
+	int bit, i, size;
+	u64 mask;
 
 	if (!x86_pmu.pebs_active)
 		return;
@@ -1829,6 +1836,13 @@ static void intel_pmu_drain_pebs_nhm(struct pt_regs *iregs)
 	top = (struct pebs_record_nhm *)(unsigned long)ds->pebs_index;
 
 	ds->pebs_index = ds->pebs_buffer_base;
+
+	mask = (1ULL << x86_pmu.max_pebs_events) - 1;
+	size = x86_pmu.max_pebs_events;
+	if (x86_pmu.flags & PMU_FL_PEBS_ALL) {
+		mask |= ((1ULL << x86_pmu.num_counters_fixed) - 1) << INTEL_PMC_IDX_FIXED;
+		size = INTEL_PMC_IDX_FIXED + x86_pmu.num_counters_fixed;
+	}
 
 	if (unlikely(base >= top)) {
 		/*
@@ -1839,7 +1853,7 @@ static void intel_pmu_drain_pebs_nhm(struct pt_regs *iregs)
 		 * update the event->count for this case.
 		 */
 		for_each_set_bit(bit, (unsigned long *)&cpuc->pebs_enabled,
-				 x86_pmu.max_pebs_events) {
+				 size) {
 			event = cpuc->events[bit];
 			if (event->hw.flags & PERF_X86_EVENT_AUTO_RELOAD)
 				intel_pmu_save_and_restart_reload(event, 0);
@@ -1852,12 +1866,12 @@ static void intel_pmu_drain_pebs_nhm(struct pt_regs *iregs)
 		u64 pebs_status;
 
 		pebs_status = get_pebs_status(p) & cpuc->pebs_enabled;
-		pebs_status &= (1ULL << x86_pmu.max_pebs_events) - 1;
+		pebs_status &= mask;
 
 		/* PEBS v3 has more accurate status bits */
 		if (x86_pmu.intel_cap.pebs_format >= 3) {
 			for_each_set_bit(bit, (unsigned long *)&pebs_status,
-					 x86_pmu.max_pebs_events)
+					 size)
 				counts[bit]++;
 
 			continue;
@@ -1905,7 +1919,7 @@ static void intel_pmu_drain_pebs_nhm(struct pt_regs *iregs)
 		counts[bit]++;
 	}
 
-	for (bit = 0; bit < x86_pmu.max_pebs_events; bit++) {
+	for (bit = 0; bit < size; bit++) {
 		if ((counts[bit] == 0) && (error[bit] == 0))
 			continue;
 

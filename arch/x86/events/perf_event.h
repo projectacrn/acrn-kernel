@@ -89,6 +89,9 @@ struct amd_nb {
 };
 
 #define PEBS_COUNTER_MASK	((1ULL << MAX_PEBS_EVENTS) - 1)
+#define EXTENDED_PEBS_COUNTER_MASK	\
+	(PEBS_COUNTER_MASK |		\
+	(((1ULL << MAX_FIXED_PEBS_EVENTS) - 1) << INTEL_PMC_IDX_FIXED))
 
 /*
  * Flags PEBS can handle without an PMI.
