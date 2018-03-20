@@ -171,14 +171,21 @@ static void gen11_sseu_info_init(struct drm_i915_private *dev_priv)
 		sseu->max_slices = 4;
 		sseu->max_subslices = 4;
 		sseu->max_eus_per_subslice = 8;
-	} else {
+	} else if (IS_GEN11(dev_priv)) {
 		sseu->max_slices = 1;
 		sseu->max_subslices = 8;
+		sseu->max_eus_per_subslice = 8;
+	} else {
+		sseu->max_slices = 1;
+		sseu->max_subslices = 6;
 		sseu->max_eus_per_subslice = 8;
 	}
 
 	s_en = I915_READ(GEN11_GT_SLICE_ENABLE) & GEN11_GT_S_ENA_MASK;
-	ss_en = ~I915_READ(GEN11_GT_SUBSLICE_DISABLE);
+	if (IS_GEN11(dev_priv))
+		ss_en = ~I915_READ(GEN11_GT_SUBSLICE_DISABLE);
+	else
+		ss_en = I915_READ(GEN12_GT_DSS_ENABLE);
 	ss_en_mask = BIT(sseu->max_subslices) - 1;
 	eu_en = ~(I915_READ(GEN11_EU_DISABLE) & GEN11_EU_DIS_MASK);
 
@@ -198,10 +205,15 @@ static void gen11_sseu_info_init(struct drm_i915_private *dev_priv)
 	sseu->eu_per_subslice = hweight8(eu_en);
 	sseu->eu_total = compute_eu_total(sseu);
 
-	/* ICL has no power gating restrictions. */
+	/*
+	 * ICL has no power gating restrictions. TGL only supports slice-level
+	 * power gating
+	 */
 	sseu->has_slice_pg = 1;
-	sseu->has_subslice_pg = 1;
-	sseu->has_eu_pg = 1;
+	if (IS_GEN11(dev_priv)) {
+		sseu->has_subslice_pg = 1;
+		sseu->has_eu_pg = 1;
+	}
 }
 
 static void gen10_sseu_info_init(struct drm_i915_private *dev_priv)
