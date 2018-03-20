@@ -1744,21 +1744,21 @@ enum i915_power_well_id {
 /*
  * CNL/ICL Port/COMBO-PHY Registers
  */
-/* CNL/ICL Port CL_DW registers */
-#define CNL_PORT_CL1CM_DW5	_MMIO(0x162014)
+#define _ICL_COMBOPHY_A			0x162000
+#define _ICL_COMBOPHY_B			0x6C000
+#define _ICL_COMBOPHY(port)		_PICK(port, _ICL_COMBOPHY_A, \
+					      _ICL_COMBOPHY_B)
 
-#define _ICL_PORT_CL_DW5_A	0x162014
-#define _ICL_PORT_CL_DW5_B	0x6C014
-#define ICL_PORT_CL_DW5(port)	_MMIO_PORT(port, _ICL_PORT_CL_DW5_A, \
-						 _ICL_PORT_CL_DW5_B)
+/* CNL/ICL Port CL_DW registers */
+#define _ICL_PORT_CL_DW(port, dw)	(_ICL_COMBOPHY(port) + \
+					 4 * (dw))
+
+#define CNL_PORT_CL1CM_DW5		_MMIO(0x162014)
+#define ICL_PORT_CL_DW5(port)		_MMIO(_ICL_PORT_CL_DW(port, 5))
 #define   CL_POWER_DOWN_ENABLE		(1 << 4)
 #define   SUS_CLOCK_CONFIG		(3 << 0)
 
-#define _CNL_PORT_CL_DW10_A		0x162028
-#define _ICL_PORT_CL_DW10_B		0x6c028
-#define ICL_PORT_CL_DW10(port)		_MMIO_PORT(port,	\
-						   _CNL_PORT_CL_DW10_A, \
-						   _ICL_PORT_CL_DW10_B)
+#define ICL_PORT_CL_DW10(port)		_MMIO(_ICL_PORT_CL_DW(port, 10))
 #define  PG_SEQ_DELAY_OVRRIDE		(3 << 25)
 #define  PG_SEQ_DELAY_OVRRIDE_ENABLE	(1 << 24)
 #define  PWR_UP_ALL_LANES		0x0
@@ -1773,31 +1773,23 @@ enum i915_power_well_id {
 #define  PWR_DOWN_LN_MASK		0xf0
 #define  PWR_DOWN_LN_SHIFT		4
 
-#define _ICL_PORT_CL_DW12_A		0x162030
-#define _ICL_PORT_CL_DW12_B		0x6C030
+#define ICL_PORT_CL_DW12(port)		_MMIO(_ICL_PORT_CL_DW(port, 12))
 #define   ICL_LANE_ENABLE_AUX		(1 << 0)
-#define ICL_PORT_CL_DW12(port)		_MMIO(_PICK((port),		 \
-						    _ICL_PORT_CL_DW12_A, \
-						    _ICL_PORT_CL_DW12_B))
 
 /* CNL/ICL Port COMP_DW registers */
+#define _ICL_PORT_COMP			0x100
+#define _ICL_PORT_COMP_DW(port, dw)	(_ICL_COMBOPHY(port) + \
+					 _ICL_PORT_COMP + 4 * (dw))
+
 #define CNL_PORT_COMP_DW0		_MMIO(0x162100)
-#define _ICL_PORT_COMP_DW0_A		0x162100
-#define _ICL_PORT_COMP_DW0_B		0x6C100
-#define ICL_PORT_COMP_DW0(port)		_MMIO_PORT(port, _ICL_PORT_COMP_DW0_A, \
-							 _ICL_PORT_COMP_DW0_B)
+#define ICL_PORT_COMP_DW0(port)		_MMIO(_ICL_PORT_COMP_DW(port, 0))
 #define   COMP_INIT			(1 << 31)
 
 #define CNL_PORT_COMP_DW1		_MMIO(0x162104)
-#define _ICL_PORT_COMP_DW1_A		0x162104
-#define _ICL_PORT_COMP_DW1_B		0x6C104
-#define ICL_PORT_COMP_DW1(port)		_MMIO_PORT(port, _ICL_PORT_COMP_DW1_A, \
-							 _ICL_PORT_COMP_DW1_B)
+#define ICL_PORT_COMP_DW1(port)		_MMIO(_ICL_PORT_COMP_DW(port, 1))
+
 #define CNL_PORT_COMP_DW3		_MMIO(0x16210c)
-#define _ICL_PORT_COMP_DW3_A		0x16210C
-#define _ICL_PORT_COMP_DW3_B		0x6C10C
-#define ICL_PORT_COMP_DW3(port)		_MMIO_PORT(port, _ICL_PORT_COMP_DW3_A, \
-							 _ICL_PORT_COMP_DW3_B)
+#define ICL_PORT_COMP_DW3(port)		_MMIO(_ICL_PORT_COMP_DW(port, 3))
 #define   PROCESS_INFO_DOT_0		(0 << 26)
 #define   PROCESS_INFO_DOT_1		(1 << 26)
 #define   PROCESS_INFO_DOT_4		(2 << 26)
@@ -1810,17 +1802,10 @@ enum i915_power_well_id {
 #define   VOLTAGE_INFO_SHIFT		24
 
 #define CNL_PORT_COMP_DW9		_MMIO(0x162124)
-#define _ICL_PORT_COMP_DW9_A		0x162124
-#define _ICL_PORT_COMP_DW9_B		0x6C124
-#define ICL_PORT_COMP_DW9(port)		_MMIO_PORT(port, _ICL_PORT_COMP_DW9_A, \
-							 _ICL_PORT_COMP_DW9_B)
+#define ICL_PORT_COMP_DW9(port)		_MMIO(_ICL_PORT_COMP_DW((port), 9))
 
 #define CNL_PORT_COMP_DW10		_MMIO(0x162128)
-#define _ICL_PORT_COMP_DW10_A		0x162128
-#define _ICL_PORT_COMP_DW10_B		0x6C128
-#define ICL_PORT_COMP_DW10(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_COMP_DW10_A, \
-						   _ICL_PORT_COMP_DW10_B)
+#define ICL_PORT_COMP_DW10(port)	_MMIO(_ICL_PORT_COMP_DW((port), 10))
 
 /* CNL/ICL Port PCS registers */
 #define _CNL_PORT_PCS_DW1_GRP_AE	0x162304
@@ -1840,7 +1825,6 @@ enum i915_power_well_id {
 						    _CNL_PORT_PCS_DW1_GRP_D, \
 						    _CNL_PORT_PCS_DW1_GRP_AE, \
 						    _CNL_PORT_PCS_DW1_GRP_F))
-
 #define CNL_PORT_PCS_DW1_LN0(port)	_MMIO(_PICK(port, \
 						    _CNL_PORT_PCS_DW1_LN0_AE, \
 						    _CNL_PORT_PCS_DW1_LN0_B, \
@@ -1849,20 +1833,18 @@ enum i915_power_well_id {
 						    _CNL_PORT_PCS_DW1_LN0_AE, \
 						    _CNL_PORT_PCS_DW1_LN0_F))
 
-#define _ICL_PORT_PCS_DW1_GRP_A		0x162604
-#define _ICL_PORT_PCS_DW1_GRP_B		0x6C604
-#define _ICL_PORT_PCS_DW1_LN0_A		0x162804
-#define _ICL_PORT_PCS_DW1_LN0_B		0x6C804
-#define _ICL_PORT_PCS_DW1_AUX_B		0x6c304
-#define ICL_PORT_PCS_DW1_GRP(port)	_MMIO_PORT(port,\
-						   _ICL_PORT_PCS_DW1_GRP_A, \
-						   _ICL_PORT_PCS_DW1_GRP_B)
-#define ICL_PORT_PCS_DW1_LN0(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_PCS_DW1_LN0_A, \
-						   _ICL_PORT_PCS_DW1_LN0_B)
-#define ICL_PORT_PCS_DW1_AUX(port)	_MMIO_PORT(port, \
-						   _CNL_PORT_PCS_DW1_GRP_AE, \
-						   _ICL_PORT_PCS_DW1_AUX_B)
+#define _ICL_PORT_PCS_AUX		0x300
+#define _ICL_PORT_PCS_GRP		0x600
+#define _ICL_PORT_PCS_LN(ln)		(0x800 + ln * 0x100)
+#define _ICL_PORT_PCS_DW_AUX(port, dw)	(_ICL_COMBOPHY(port) + \
+					 _ICL_PORT_PCS_AUX + 4 * dw)
+#define _ICL_PORT_PCS_DW_GRP(port, dw)	(_ICL_COMBOPHY(port) + \
+					 _ICL_PORT_PCS_GRP + 4 * dw)
+#define _ICL_PORT_PCS_DW_LN(port, dw, ln) (_ICL_COMBOPHY(port) + \
+					  _ICL_PORT_PCS_LN(ln) + 4 * dw)
+#define ICL_PORT_PCS_DW1_AUX(port)	_MMIO(_ICL_PORT_PCS_DW_AUX(port, 1))
+#define ICL_PORT_PCS_DW1_GRP(port)	_MMIO(_ICL_PORT_PCS_DW_GRP(port, 1))
+#define ICL_PORT_PCS_DW1_LN0(port)	_MMIO(_ICL_PORT_PCS_DW_LN(port, 1, 0))
 #define   COMMON_KEEPER_EN		(1 << 26)
 
 /* CNL/ICL Port TX registers */
@@ -1893,23 +1875,22 @@ enum i915_power_well_id {
 					       _CNL_PORT_TX_F_LN0_OFFSET) + \
 					       4*(dw))
 
+#define _ICL_PORT_TX_AUX		0x380
+#define _ICL_PORT_TX_GRP		0x680
+#define _ICL_PORT_TX_LN(ln)		(0x880 + ln * 0x100)
+
+#define _ICL_PORT_TX_DW_AUX(port, dw)	(_ICL_COMBOPHY(port) + \
+					 _ICL_PORT_TX_AUX + 4 * dw)
+#define _ICL_PORT_TX_DW_GRP(port, dw)	(_ICL_COMBOPHY(port) + \
+					 _ICL_PORT_TX_GRP + 4 * dw)
+#define _ICL_PORT_TX_DW_LN(port, dw, ln) (_ICL_COMBOPHY(port) + \
+					  _ICL_PORT_TX_LN(ln) + 4 * dw)
+
 #define CNL_PORT_TX_DW2_GRP(port)	_MMIO(_CNL_PORT_TX_DW_GRP((port), 2))
 #define CNL_PORT_TX_DW2_LN0(port)	_MMIO(_CNL_PORT_TX_DW_LN0((port), 2))
-#define _ICL_PORT_TX_DW2_GRP_A		0x162688
-#define _ICL_PORT_TX_DW2_GRP_B		0x6C688
-#define _ICL_PORT_TX_DW2_LN0_A		0x162888
-#define _ICL_PORT_TX_DW2_LN0_B		0x6C888
-#define _ICL_PORT_TX_DW2_AUX_A		0x162388
-#define _ICL_PORT_TX_DW2_AUX_B		0x6c388
-#define ICL_PORT_TX_DW2_GRP(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_TX_DW2_GRP_A, \
-						   _ICL_PORT_TX_DW2_GRP_B)
-#define ICL_PORT_TX_DW2_LN0(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_TX_DW2_LN0_A, \
-						   _ICL_PORT_TX_DW2_LN0_B)
-#define ICL_PORT_TX_DW2_AUX(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_TX_DW2_AUX_A, \
-						   _ICL_PORT_TX_DW2_AUX_B)
+#define ICL_PORT_TX_DW2_AUX(port)	_MMIO(_ICL_PORT_TX_DW_AUX((port), 2))
+#define ICL_PORT_TX_DW2_GRP(port)	_MMIO(_ICL_PORT_TX_DW_GRP((port), 2))
+#define ICL_PORT_TX_DW2_LN0(port)	_MMIO(_ICL_PORT_TX_DW_LN((port), 2, 0))
 #define   SWING_SEL_UPPER(x)		(((x) >> 3) << 15)
 #define   SWING_SEL_UPPER_MASK		(1 << 15)
 #define   SWING_SEL_LOWER(x)		(((x) & 0x7) << 11)
@@ -1926,24 +1907,10 @@ enum i915_power_well_id {
 #define CNL_PORT_TX_DW4_LN(port, ln)   _MMIO(_CNL_PORT_TX_DW_LN0((port), 4) + \
 					     (ln * (_CNL_PORT_TX_DW4_LN1_AE - \
 						    _CNL_PORT_TX_DW4_LN0_AE)))
-#define _ICL_PORT_TX_DW4_GRP_A		0x162690
-#define _ICL_PORT_TX_DW4_GRP_B		0x6C690
-#define _ICL_PORT_TX_DW4_LN0_A		0x162890
-#define _ICL_PORT_TX_DW4_LN1_A		0x162990
-#define _ICL_PORT_TX_DW4_LN0_B		0x6C890
-#define _ICL_PORT_TX_DW4_AUX_A		0x162390
-#define _ICL_PORT_TX_DW4_AUX_B		0x6c390
-#define ICL_PORT_TX_DW4_GRP(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_TX_DW4_GRP_A, \
-						   _ICL_PORT_TX_DW4_GRP_B)
-#define ICL_PORT_TX_DW4_LN(port, ln)	_MMIO(_PORT(port, \
-						   _ICL_PORT_TX_DW4_LN0_A, \
-						   _ICL_PORT_TX_DW4_LN0_B) + \
-					      (ln * (_ICL_PORT_TX_DW4_LN1_A - \
-						     _ICL_PORT_TX_DW4_LN0_A)))
-#define ICL_PORT_TX_DW4_AUX(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_TX_DW4_AUX_A, \
-						   _ICL_PORT_TX_DW4_AUX_B)
+#define ICL_PORT_TX_DW4_AUX(port)	_MMIO(_ICL_PORT_TX_DW_AUX((port), 4))
+#define ICL_PORT_TX_DW4_GRP(port)	_MMIO(_ICL_PORT_TX_DW_GRP((port), 4))
+#define ICL_PORT_TX_DW4_LN0(port)	_MMIO(_ICL_PORT_TX_DW_LN((port), 4, 0))
+#define ICL_PORT_TX_DW4_LN(port, ln)	_MMIO(_ICL_PORT_TX_DW_LN((port), 4, ln))
 #define   LOADGEN_SELECT		(1 << 31)
 #define   POST_CURSOR_1(x)		((x) << 12)
 #define   POST_CURSOR_1_MASK		(0x3F << 12)
@@ -1954,21 +1921,9 @@ enum i915_power_well_id {
 
 #define CNL_PORT_TX_DW5_GRP(port)	_MMIO(_CNL_PORT_TX_DW_GRP((port), 5))
 #define CNL_PORT_TX_DW5_LN0(port)	_MMIO(_CNL_PORT_TX_DW_LN0((port), 5))
-#define _ICL_PORT_TX_DW5_GRP_A		0x162694
-#define _ICL_PORT_TX_DW5_GRP_B		0x6C694
-#define _ICL_PORT_TX_DW5_LN0_A		0x162894
-#define _ICL_PORT_TX_DW5_LN0_B		0x6C894
-#define _ICL_PORT_TX_DW5_AUX_A		0x162394
-#define _ICL_PORT_TX_DW5_AUX_B		0x6c394
-#define ICL_PORT_TX_DW5_GRP(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_TX_DW5_GRP_A, \
-						   _ICL_PORT_TX_DW5_GRP_B)
-#define ICL_PORT_TX_DW5_LN0(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_TX_DW5_LN0_A, \
-						   _ICL_PORT_TX_DW5_LN0_B)
-#define ICL_PORT_TX_DW5_AUX(port)	_MMIO_PORT(port, \
-						   _ICL_PORT_TX_DW5_AUX_A, \
-						   _ICL_PORT_TX_DW5_AUX_B)
+#define ICL_PORT_TX_DW5_AUX(port)	_MMIO(_ICL_PORT_TX_DW_AUX((port), 5))
+#define ICL_PORT_TX_DW5_GRP(port)	_MMIO(_ICL_PORT_TX_DW_GRP((port), 5))
+#define ICL_PORT_TX_DW5_LN0(port)	_MMIO(_ICL_PORT_TX_DW_LN((port), 5, 0))
 #define   TX_TRAINING_EN		(1 << 31)
 #define   TAP2_DISABLE			(1 << 30)
 #define   TAP3_DISABLE			(1 << 29)
