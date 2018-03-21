@@ -2340,21 +2340,21 @@ static void cnl_ddi_vswing_sequence(struct intel_encoder *encoder,
 }
 
 static void icl_ddi_combo_vswing_program(struct drm_i915_private *dev_priv,
-					 u32 level, enum port port, int type)
+					 u32 level, enum port port,
+					 enum intel_output_type type)
 {
 	const struct icl_combo_phy_ddi_buf_trans *ddi_translations = NULL;
 	u32 n_entries, val;
 	int ln;
 
-	if (type == INTEL_OUTPUT_HDMI || type == INTEL_OUTPUT_DP) {
-		ddi_translations = icl_get_combo_buf_trans_dp_hdmi(dev_priv,
-								   port,
-								   &n_entries);
-	} else if (type == INTEL_OUTPUT_EDP) {
+	if (type == INTEL_OUTPUT_EDP)
 		ddi_translations = icl_get_combo_buf_trans_edp(dev_priv,
 							       port,
 							       &n_entries);
-	}
+	else
+		ddi_translations = icl_get_combo_buf_trans_dp_hdmi(dev_priv,
+								   port,
+								   &n_entries);
 
 	if (WARN_ON(ddi_translations == NULL))
 		return;
@@ -2405,35 +2405,33 @@ static void icl_ddi_combo_vswing_program(struct drm_i915_private *dev_priv,
 	}
 }
 
-static void icl_combo_phy_ddi_vswing_sequence(struct intel_encoder *encoder, u32 level)
+static void icl_combo_phy_ddi_vswing_sequence(struct intel_encoder *encoder,
+					      u32 level,
+					      enum intel_output_type type)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	struct intel_dp *intel_dp = enc_to_intel_dp(&encoder->base);
 	enum port port = encoder->port;
-	int type = encoder->type;
 	int width = 0;
 	int rate = 0;
 	u32 val;
 	int ln = 0;
 
-	if (intel_dp && (type == INTEL_OUTPUT_EDP || type == INTEL_OUTPUT_DP)) {
+	val = I915_READ(ICL_PORT_PCS_DW1_LN0(port));
+	if (type == INTEL_OUTPUT_HDMI) {
+		/* Rate is always < than 6GHz for HDMI */
+		width = 4;
+		val &= ~COMMON_KEEPER_EN;
+	} else {
 		width = intel_dp->lane_count;
 		rate = intel_dp->link_rate;
-	} else {
-		width = 4;
-		/* Rate is always < than 6GHz for HDMI */
-	}
 
-	/*
-	 * 1. If port type is eDP or DP,
-	 * set PORT_PCS_DW1 cmnkeeper_enable to 1b,
-	 * else clear to 0b.
-	 */
-	val = I915_READ(ICL_PORT_PCS_DW1_LN0(port));
-	if (type == INTEL_OUTPUT_EDP || type == INTEL_OUTPUT_DP)
+		/*
+		 * 1. If port type is eDP or DP, set PORT_PCS_DW1
+		 * cmnkeeper_enable to 1b, else clear to 0b.
+		 */
 		val |= COMMON_KEEPER_EN;
-	else
-		val &= ~COMMON_KEEPER_EN;
+	}
 	I915_WRITE(ICL_PORT_PCS_DW1_GRP(port), val);
 
 	/* 2. Program loadgen select */
@@ -2554,12 +2552,13 @@ static void icl_mg_phy_ddi_vswing_sequence(struct intel_encoder *encoder, u32 le
 	}
 }
 
-static void icl_ddi_vswing_sequence(struct intel_encoder *encoder, u32 level)
+static void icl_ddi_vswing_sequence(struct intel_encoder *encoder, u32 level,
+				    enum intel_output_type type)
 {
 	enum port port = encoder->port;
 
 	if (intel_is_port_combophy(to_i915(encoder->base.dev), port))
-		icl_combo_phy_ddi_vswing_sequence(encoder, level);
+		icl_combo_phy_ddi_vswing_sequence(encoder, level, type);
 	else
 		icl_mg_phy_ddi_vswing_sequence(encoder, level);
 }
@@ -2596,7 +2595,7 @@ u32 bxt_signal_levels(struct intel_dp *intel_dp)
 	int level = intel_ddi_dp_level(intel_dp);
 
 	if (IS_ICELAKE(dev_priv))
-		icl_ddi_vswing_sequence(encoder, level);
+		icl_ddi_vswing_sequence(encoder, level, encoder->type);
 	else if (IS_CANNONLAKE(dev_priv))
 		cnl_ddi_vswing_sequence(encoder, level, encoder->type);
 	else
@@ -2797,7 +2796,7 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 	icl_disable_phy_clock_gating(dig_port);
 
 	if (IS_ICELAKE(dev_priv))
-		icl_ddi_vswing_sequence(encoder, level);
+		icl_ddi_vswing_sequence(encoder, level, encoder->type);
 	else if (IS_CANNONLAKE(dev_priv))
 		cnl_ddi_vswing_sequence(encoder, level, encoder->type);
 	else if (IS_GEN9_LP(dev_priv))
@@ -2832,7 +2831,7 @@ static void intel_ddi_pre_enable_hdmi(struct intel_encoder *encoder,
 	intel_display_power_get(dev_priv, dig_port->ddi_io_power_domain);
 
 	if (IS_ICELAKE(dev_priv))
-		icl_ddi_vswing_sequence(encoder, level);
+		icl_ddi_vswing_sequence(encoder, level, INTEL_OUTPUT_HDMI);
 	else if (IS_CANNONLAKE(dev_priv))
 		cnl_ddi_vswing_sequence(encoder, level, INTEL_OUTPUT_HDMI);
 	else if (IS_GEN9_LP(dev_priv))
