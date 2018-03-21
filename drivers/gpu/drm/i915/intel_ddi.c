@@ -3159,7 +3159,7 @@ static void icl_ddi_pre_pll_enable(struct intel_encoder *encoder,
 
 	/* Set lane count in FIA MLE register to max lanes for Legacy DP on Type-C Port */
 	if (!intel_is_port_combophy(to_i915(encoder->base.dev), port)) {
-		if (encoder->type == INTEL_OUTPUT_DP)
+		if (intel_crtc_has_dp_encoder(pipe_config))
 			/* FIXME Add check that it is not Type_C or TBT from VBT */
 			intel_dp_set_fia_lane_count(intel_dp);
 	}
