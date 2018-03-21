@@ -2368,13 +2368,8 @@ static void icl_ddi_combo_vswing_program(struct drm_i915_private *dev_priv,
 	/* Set DisableTap2 and DisableTap3 if MIPI DSI
 	 * Clear DisableTap2 and DisableTap3 for all other Ports
 	 */
-	if (type == INTEL_OUTPUT_DSI) {
-		val |= TAP2_DISABLE;
-		val |= TAP3_DISABLE;
-	} else {
-		val &= ~TAP2_DISABLE;
-		val &= ~TAP3_DISABLE;
-	}
+	val &= ~TAP2_DISABLE;
+	val &= ~TAP3_DISABLE;
 	I915_WRITE(ICL_PORT_TX_DW5_GRP(port), val);
 
 	/* Program PORT_TX_DW2 */
