@@ -2742,6 +2742,8 @@ int probe_nhm_msrs(unsigned int family, unsigned int model)
 	case INTEL_FAM6_KABYLAKE_DESKTOP:	/* KBL */
 	case INTEL_FAM6_CANNONLAKE_MOBILE:	/* CNL */
 	case INTEL_FAM6_CANNONLAKE_DESKTOP:	/* CNL */
+	case INTEL_FAM6_ICELAKE_MOBILE:		/* ICL */
+	case INTEL_FAM6_ICELAKE_DESKTOP:	/* ICL */
 		pkg_cstate_limits = hsw_pkg_cstate_limits;
 		has_misc_feature_control = 1;
 		break;
@@ -2949,6 +2951,8 @@ int has_config_tdp(unsigned int family, unsigned int model)
 	case INTEL_FAM6_KABYLAKE_DESKTOP:	/* KBL */
 	case INTEL_FAM6_CANNONLAKE_MOBILE:	/* CNL */
 	case INTEL_FAM6_CANNONLAKE_DESKTOP:	/* CNL */
+	case INTEL_FAM6_ICELAKE_MOBILE:		/* ICL */
+	case INTEL_FAM6_ICELAKE_DESKTOP:	/* ICL */
 	case INTEL_FAM6_SKYLAKE_X:	/* SKX */
 
 	case INTEL_FAM6_XEON_PHI_KNL:	/* Knights Landing */
@@ -3405,6 +3409,8 @@ void rapl_probe(unsigned int family, unsigned int model)
 	case INTEL_FAM6_KABYLAKE_DESKTOP:	/* KBL */
 	case INTEL_FAM6_CANNONLAKE_MOBILE:	/* CNL */
 	case INTEL_FAM6_CANNONLAKE_DESKTOP:	/* CNL */
+	case INTEL_FAM6_ICELAKE_MOBILE:		/* ICL */
+	case INTEL_FAM6_ICELAKE_DESKTOP:	/* ICL */
 		do_rapl = RAPL_PKG | RAPL_CORES | RAPL_CORE_POLICY | RAPL_DRAM | RAPL_DRAM_PERF_STATUS | RAPL_PKG_PERF_STATUS | RAPL_GFX | RAPL_PKG_POWER_INFO;
 		BIC_PRESENT(BIC_PKG__);
 		BIC_PRESENT(BIC_RAM__);
@@ -3736,6 +3742,8 @@ int has_snb_msrs(unsigned int family, unsigned int model)
 	case INTEL_FAM6_KABYLAKE_DESKTOP:	/* KBL */
 	case INTEL_FAM6_CANNONLAKE_MOBILE:	/* CNL */
 	case INTEL_FAM6_CANNONLAKE_DESKTOP:	/* CNL */
+	case INTEL_FAM6_ICELAKE_MOBILE:		/* ICL */
+	case INTEL_FAM6_ICELAKE_DESKTOP:	/* ICL */
 	case INTEL_FAM6_SKYLAKE_X:	/* SKX */
 	case INTEL_FAM6_ATOM_GOLDMONT:	/* BXT */
 	case INTEL_FAM6_ATOM_GEMINI_LAKE:
@@ -3771,6 +3779,8 @@ int has_hsw_msrs(unsigned int family, unsigned int model)
 	case INTEL_FAM6_KABYLAKE_DESKTOP:	/* KBL */
 	case INTEL_FAM6_CANNONLAKE_MOBILE:	/* CNL */
 	case INTEL_FAM6_CANNONLAKE_DESKTOP:	/* CNL */
+	case INTEL_FAM6_ICELAKE_MOBILE:		/* ICL */
+	case INTEL_FAM6_ICELAKE_DESKTOP:	/* ICL */
 	case INTEL_FAM6_ATOM_GOLDMONT:	/* BXT */
 	case INTEL_FAM6_ATOM_GEMINI_LAKE:
 		return 1;
@@ -3798,6 +3808,8 @@ int has_skl_msrs(unsigned int family, unsigned int model)
 	case INTEL_FAM6_KABYLAKE_DESKTOP:	/* KBL */
 	case INTEL_FAM6_CANNONLAKE_MOBILE:	/* CNL */
 	case INTEL_FAM6_CANNONLAKE_DESKTOP:	/* CNL */
+	case INTEL_FAM6_ICELAKE_MOBILE:		/* ICL */
+	case INTEL_FAM6_ICELAKE_DESKTOP:	/* ICL */
 		return 1;
 	}
 	return 0;
@@ -4164,6 +4176,8 @@ void process_cpuid()
 				case INTEL_FAM6_KABYLAKE_DESKTOP:	/* KBL */
 				case INTEL_FAM6_CANNONLAKE_MOBILE:	/* CNL */
 				case INTEL_FAM6_CANNONLAKE_DESKTOP:	/* CNL */
+				case INTEL_FAM6_ICELAKE_MOBILE:		/* ICL */
+				case INTEL_FAM6_ICELAKE_DESKTOP:	/* ICL */
 					crystal_hz = 24000000;	/* 24.0 MHz */
 					break;
 				case INTEL_FAM6_SKYLAKE_X:	/* SKX */
