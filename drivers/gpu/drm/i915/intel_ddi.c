@@ -1519,11 +1519,9 @@ static void icl_ddi_clock_get(struct intel_encoder *encoder,
 
 	pll_id = intel_get_shared_dpll_id(dev_priv, pipe_config->shared_dpll);
 	if (intel_is_port_combophy(dev_priv, port)) {
-		if (encoder->type == INTEL_OUTPUT_HDMI)
+		if (intel_crtc_has_type(pipe_config, INTEL_OUTPUT_HDMI))
 			link_clock = cnl_calc_wrpll_link(dev_priv, pll_id);
-		else if (encoder->type == INTEL_OUTPUT_DP ||
-		    encoder->type == INTEL_OUTPUT_DP_MST ||
-		    encoder->type == INTEL_OUTPUT_EDP)
+		else if (intel_crtc_has_dp_encoder(pipe_config))
 			link_clock = icl_calc_dp_combo_pll_link(dev_priv, pll_id);
 	} else {
 		/* FIXME - Add for MG PLL */
