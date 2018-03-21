@@ -1,0 +1,9 @@
+- Linux perf support for Cannonlake, Icelake, Tigerlake and Tremont
+
+For details, please refer to corresponding README file (README.intel.perf-*).
+
+Open issues:
+- Topdown on Icelake doesn't work well
+
+Owner: Kan Liang
+
