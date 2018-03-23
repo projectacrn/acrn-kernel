@@ -248,16 +248,6 @@ void i2c_acpi_register_devices(struct i2c_adapter *adap)
 		dev_warn(&adap->dev, "failed to enumerate I2C slaves\n");
 }
 
-const struct acpi_device_id *
-i2c_acpi_match_device(const struct acpi_device_id *matches,
-		      struct i2c_client *client)
-{
-	if (!(client && matches))
-		return NULL;
-
-	return acpi_match_device(matches, &client->dev);
-}
-
 static acpi_status i2c_acpi_lookup_speed(acpi_handle handle, u32 level,
 					   void *data, void **return_value)
 {
@@ -389,6 +379,16 @@ static int i2c_acpi_notify(struct notifier_block *nb, unsigned long value,
 struct notifier_block i2c_acpi_notifier = {
 	.notifier_call = i2c_acpi_notify,
 };
+
+const struct acpi_device_id *
+i2c_acpi_match_device(const struct acpi_device_id *matches,
+		      struct i2c_client *client)
+{
+	if (!(client && matches))
+		return NULL;
+
+	return acpi_match_device(matches, &client->dev);
+}
 
 /**
  * i2c_acpi_new_device - Create i2c-client for the Nth I2cSerialBus resource
