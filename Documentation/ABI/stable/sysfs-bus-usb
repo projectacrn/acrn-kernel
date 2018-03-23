@@ -135,6 +135,6 @@ What:		/sys/bus/usb/devices/.../speed
 KernelVersion:	since at least 2.6.18
 Description:
 		Speed the device is connected with to the usb-host in
-		Mbit / second. IE one of 1.5 / 12 / 480 / 5000.
+		Mbit / second. IE one of 1.5 / 12 / 480 / 5000 / 10000.
 Users:
 		libusb
