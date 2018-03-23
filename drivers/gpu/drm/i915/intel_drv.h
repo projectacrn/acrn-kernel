@@ -1937,7 +1937,8 @@ void bxt_display_core_init(struct drm_i915_private *dev_priv, bool resume);
 void bxt_display_core_uninit(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_enable(struct drm_i915_private *dev_priv);
 const char *
-intel_display_power_domain_str(enum intel_display_power_domain domain);
+intel_display_power_domain_str(struct drm_i915_private *dev_priv,
+			       enum intel_display_power_domain domain);
 
 bool intel_display_power_is_enabled(struct drm_i915_private *dev_priv,
 				    enum intel_display_power_domain domain);
