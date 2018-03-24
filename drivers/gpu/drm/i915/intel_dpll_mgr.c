@@ -2623,7 +2623,7 @@ static bool icl_calc_dpll_state(struct intel_crtc_state *crtc_state,
 static enum port icl_mg_pll_id_to_port(struct drm_i915_private *dev_priv,
 				       enum intel_dpll_id id)
 {
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 		return (id - DPLL_ID_ICL_11_5_MGPLL1 + PORT_D);
 	else
 		return (id - DPLL_ID_ICL_MGPLL1 + PORT_C);
@@ -2632,7 +2632,7 @@ static enum port icl_mg_pll_id_to_port(struct drm_i915_private *dev_priv,
 enum intel_dpll_id icl_port_to_mg_pll_id(struct drm_i915_private *dev_priv,
 					 enum port port)
 {
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 		return (port - PORT_D + DPLL_ID_ICL_11_5_MGPLL1);
 	else
 		return (port - PORT_C + DPLL_ID_ICL_MGPLL1);
@@ -2641,7 +2641,7 @@ enum intel_dpll_id icl_port_to_mg_pll_id(struct drm_i915_private *dev_priv,
 bool intel_is_dpll_combophy(struct drm_i915_private *dev_priv,
 			    enum intel_dpll_id id)
 {
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 		return id == DPLL_ID_ICL_11_5_DPLL0 ||
 			id == DPLL_ID_ICL_11_5_DPLL1 ||
 			id == DPLL_ID_ICL_11_5_DPLL4;
@@ -2652,7 +2652,7 @@ bool intel_is_dpll_combophy(struct drm_i915_private *dev_priv,
 
 enum intel_dpll_id intel_get_tbtpll_id(struct drm_i915_private *dev_priv)
 {
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 		return DPLL_ID_ICL_11_5_TBTPLL;
 	else
 		return DPLL_ID_ICL_TBTPLL;
