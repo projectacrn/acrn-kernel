@@ -412,6 +412,6 @@ static struct platform_driver sof_driver = {
 module_platform_driver(sof_driver);
 
 MODULE_AUTHOR("Liam Girdwood");
-MODULE_DESCRIPTION("Sound Open Firmware (Reef) Core");
+MODULE_DESCRIPTION("Sound Open Firmware (SOF) Core");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_ALIAS("platform:sof-audio");
