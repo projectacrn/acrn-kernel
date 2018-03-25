@@ -493,7 +493,8 @@ int bh_proxy_list_jta_packages(unsigned int conn_idx, unsigned int *count,
 
 	resp = (struct bh_resp_list_ta_packages *)resp_hdr->data;
 	if (!resp->count) {
-		ret = -EBADMSG;
+		/* return success, there are no ta packages loaded in DAL FW */
+		ret = 0;
 		goto out;
 	}
 
