@@ -5114,7 +5114,7 @@ bool intel_digital_port_connected(struct intel_encoder *encoder)
 		return bdw_digital_port_connected(encoder);
 	else if (IS_GEN9_LP(dev_priv))
 		return bxt_digital_port_connected(encoder);
-	else if (IS_ICELAKE(dev_priv))
+	else if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv))
 		return icl_digital_port_connected(encoder);
 	else
 		return spt_digital_port_connected(encoder);
