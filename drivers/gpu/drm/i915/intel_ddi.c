@@ -1793,7 +1793,7 @@ void intel_ddi_enable_transcoder_func(const struct intel_crtc_state *crtc_state)
 
 	/* Enable TRANS_DDI_FUNC_CTL for the pipe to work in HDMI mode */
 	temp = TRANS_DDI_FUNC_ENABLE;
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 		temp |= ICL_11_5_TRANS_DDI_SELECT_PORT(port);
 	else
 		temp |= TRANS_DDI_SELECT_PORT(port);
@@ -1878,7 +1878,7 @@ void intel_ddi_disable_transcoder_func(const struct intel_crtc_state *crtc_state
 	i915_reg_t reg = TRANS_DDI_FUNC_CTL(cpu_transcoder);
 	uint32_t val = I915_READ(reg);
 
-	if (IS_ICL_11_5(dev_priv)) {
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		val &= ~(TRANS_DDI_FUNC_ENABLE | ICL_11_5_TRANS_DDI_PORT_MASK |
 			 TRANS_DDI_DP_VC_PAYLOAD_ALLOC);
 	} else {
@@ -2033,7 +2033,7 @@ bool intel_ddi_get_hw_state(struct intel_encoder *encoder,
 
 		tmp = I915_READ(TRANS_DDI_FUNC_CTL(cpu_transcoder));
 
-		if (IS_ICL_11_5(dev_priv))
+		if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 			is_pipe_for_port =
 				(tmp & ICL_11_5_TRANS_DDI_PORT_MASK) ==
 				 ICL_11_5_TRANS_DDI_SELECT_PORT(port);
@@ -2089,7 +2089,7 @@ void intel_ddi_enable_pipe_clock(const struct intel_crtc_state *crtc_state)
 	enum transcoder cpu_transcoder = crtc_state->cpu_transcoder;
 
 	if (cpu_transcoder != TRANSCODER_EDP) {
-		if (IS_ICL_11_5(dev_priv))
+		if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 			I915_WRITE(TRANS_CLK_SEL(cpu_transcoder),
 				   ICL_11_5_TRANS_CLK_SEL_PORT(port));
 		else
@@ -2104,7 +2104,7 @@ void intel_ddi_disable_pipe_clock(const struct intel_crtc_state *crtc_state)
 	enum transcoder cpu_transcoder = crtc_state->cpu_transcoder;
 
 	if (cpu_transcoder != TRANSCODER_EDP) {
-		if (IS_ICL_11_5(dev_priv))
+		if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 			I915_WRITE(TRANS_CLK_SEL(cpu_transcoder),
 				   ICL_11_5_TRANS_CLK_SEL_DISABLED);
 		else
