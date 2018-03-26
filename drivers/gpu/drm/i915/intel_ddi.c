@@ -914,7 +914,7 @@ bool intel_is_port_combophy(struct drm_i915_private *dev_priv, enum port port)
 	if (port == PORT_NONE)
 		return false;
 
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 		return port <= PORT_C;
 
 	if (IS_ICELAKE(dev_priv))

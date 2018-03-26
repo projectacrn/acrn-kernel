@@ -5877,7 +5877,7 @@ static void i9xx_pfit_enable(struct intel_crtc *crtc)
 
 bool intel_port_is_tc(struct drm_i915_private *dev_priv, enum port port)
 {
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 		return port >= PORT_D && port <= PORT_I;
 
 	if (IS_ICELAKE(dev_priv))
@@ -5891,7 +5891,7 @@ enum tc_port intel_port_to_tc(struct drm_i915_private *dev_priv, enum port port)
 	if (!intel_port_is_tc(dev_priv, port))
 		return PORT_TC_NONE;
 
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
 		return port - PORT_D;
 
 	if (IS_ICELAKE(dev_priv))
