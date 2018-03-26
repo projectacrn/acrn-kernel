@@ -1727,7 +1727,7 @@ static void intel_ddi_clock_get(struct intel_encoder *encoder,
 		bxt_ddi_clock_get(encoder, pipe_config);
 	else if (IS_CANNONLAKE(dev_priv))
 		cnl_ddi_clock_get(encoder, pipe_config);
-	else if (IS_ICELAKE(dev_priv))
+	else if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv))
 		icl_ddi_clock_get(encoder, pipe_config);
 }
 
@@ -2204,7 +2204,7 @@ u8 intel_ddi_dp_voltage_max(struct intel_encoder *encoder)
 	enum port port = encoder->port;
 	int n_entries;
 
-	if (IS_ICELAKE(dev_priv)) {
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		if (intel_is_port_combophy(dev_priv, port))
 			icl_get_combo_buf_trans(dev_priv, port, encoder->type,
 						&n_entries);
@@ -2728,7 +2728,7 @@ static void intel_ddi_clk_select(struct intel_encoder *encoder,
 
 	mutex_lock(&dev_priv->dpll_lock);
 
-	if (IS_ICELAKE(dev_priv)) {
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		if (!intel_is_port_combophy(dev_priv, port))
 			I915_WRITE(DDI_CLK_SEL(port),
 				   icl_pll_to_ddi_pll_sel(encoder, pll));
@@ -2770,7 +2770,7 @@ static void intel_ddi_clk_disable(struct intel_encoder *encoder)
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	enum port port = encoder->port;
 
-	if (IS_ICELAKE(dev_priv)) {
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		if (!intel_is_port_combophy(dev_priv, port))
 			I915_WRITE(DDI_CLK_SEL(port), DDI_CLK_SEL_NONE);
 	} else if (IS_CANNONLAKE(dev_priv)) {
