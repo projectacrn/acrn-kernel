@@ -951,7 +951,7 @@ static int intel_ddi_hdmi_level(struct drm_i915_private *dev_priv, enum port por
 
 	level = dev_priv->vbt.ddi_port_info[port].hdmi_level_shift;
 
-	if (IS_ICELAKE(dev_priv)) {
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		if (intel_is_port_combophy(dev_priv, port))
 			icl_get_combo_buf_trans(dev_priv, port,
 						INTEL_OUTPUT_HDMI, &n_entries);
