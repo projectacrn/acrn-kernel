@@ -2613,7 +2613,7 @@ u32 bxt_signal_levels(struct intel_dp *intel_dp)
 	struct intel_encoder *encoder = &dport->base;
 	int level = intel_ddi_dp_level(intel_dp);
 
-	if (IS_ICELAKE(dev_priv))
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv))
 		icl_ddi_vswing_sequence(encoder, level, encoder->type);
 	else if (IS_CANNONLAKE(dev_priv))
 		cnl_ddi_vswing_sequence(encoder, level, encoder->type);
@@ -2809,7 +2809,7 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 	icl_program_mg_dp_mode(intel_dp);
 	icl_disable_phy_clock_gating(dig_port);
 
-	if (IS_ICELAKE(dev_priv))
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv))
 		icl_ddi_vswing_sequence(encoder, level, encoder->type);
 	else if (IS_CANNONLAKE(dev_priv))
 		cnl_ddi_vswing_sequence(encoder, level, encoder->type);
@@ -2844,7 +2844,7 @@ static void intel_ddi_pre_enable_hdmi(struct intel_encoder *encoder,
 
 	intel_display_power_get(dev_priv, dig_port->ddi_io_power_domain);
 
-	if (IS_ICELAKE(dev_priv))
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv))
 		icl_ddi_vswing_sequence(encoder, level, INTEL_OUTPUT_HDMI);
 	else if (IS_CANNONLAKE(dev_priv))
 		cnl_ddi_vswing_sequence(encoder, level, INTEL_OUTPUT_HDMI);
