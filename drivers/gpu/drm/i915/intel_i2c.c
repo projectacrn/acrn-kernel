@@ -101,7 +101,7 @@ static const struct gmbus_pin gmbus_pins_icph[] = {
 static const struct gmbus_pin *get_gmbus_pin(struct drm_i915_private *dev_priv,
 					     unsigned int pin)
 {
-	if (HAS_PCH_ICP_H(dev_priv))
+	if (HAS_PCH_ICP_H(dev_priv) || HAS_PCH_TGP(dev_priv))
 		return &gmbus_pins_icph[pin];
 	else if (HAS_PCH_ICP(dev_priv))
 		return &gmbus_pins_icp[pin];
@@ -122,7 +122,7 @@ bool intel_gmbus_is_valid_pin(struct drm_i915_private *dev_priv,
 {
 	unsigned int size;
 
-	if (HAS_PCH_ICP_H(dev_priv))
+	if (HAS_PCH_ICP_H(dev_priv) || HAS_PCH_TGP(dev_priv))
 		size = ARRAY_SIZE(gmbus_pins_icph);
 	else if (HAS_PCH_ICP(dev_priv))
 		size = ARRAY_SIZE(gmbus_pins_icp);
