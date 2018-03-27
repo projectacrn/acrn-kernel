@@ -2513,8 +2513,8 @@ int icl_calc_dp_combo_pll_link(struct drm_i915_private *dev_priv,
 	int index, n_entries, link_clock = 0;
 
 	/* Read back values from DPLL CFGCR registers */
-	cfgcr0 = I915_READ(ICL_DPLL_CFGCR0(pll_id));
-	cfgcr1 = I915_READ(ICL_DPLL_CFGCR1(pll_id));
+	cfgcr0 = I915_READ(ICL_11_5_DPLL_CFGCR0(pll_id));
+	cfgcr1 = I915_READ(ICL_11_5_DPLL_CFGCR1(pll_id));
 
 	dco_integer = cfgcr0 & DPLL_CFGCR0_DCO_INTEGER_MASK;
 	dco_fraction = (cfgcr0 & DPLL_CFGCR0_DCO_FRACTION_MASK) >>
@@ -2942,8 +2942,8 @@ static bool icl_pll_get_hw_state(struct drm_i915_private *dev_priv,
 
 	if (intel_is_dpll_combophy(id) ||
 	    (id == DPLL_ID_ICL_TBTPLL)) {
-		hw_state->cfgcr0 = I915_READ(ICL_DPLL_CFGCR0(id));
-		hw_state->cfgcr1 = I915_READ(ICL_DPLL_CFGCR1(id));
+		hw_state->cfgcr0 = I915_READ(ICL_11_5_DPLL_CFGCR0(id));
+		hw_state->cfgcr1 = I915_READ(ICL_11_5_DPLL_CFGCR1(id));
 	} else {
 		port = icl_mg_pll_id_to_port(id);
 		hw_state->mg_refclkin_ctl = I915_READ(MG_REFCLKIN_CTL(port));
@@ -2973,9 +2973,9 @@ static void icl_dpll_write(struct drm_i915_private *dev_priv,
 	struct intel_dpll_hw_state *hw_state = &pll->state.hw_state;
 	const enum intel_dpll_id id = pll->info->id;
 
-	I915_WRITE(ICL_DPLL_CFGCR0(id), hw_state->cfgcr0);
-	I915_WRITE(ICL_DPLL_CFGCR1(id), hw_state->cfgcr1);
-	POSTING_READ(ICL_DPLL_CFGCR1(id));
+	I915_WRITE(ICL_11_5_DPLL_CFGCR0(id), hw_state->cfgcr0);
+	I915_WRITE(ICL_11_5_DPLL_CFGCR1(id), hw_state->cfgcr1);
+	POSTING_READ(ICL_11_5_DPLL_CFGCR1(id));
 }
 
 static void icl_mg_pll_write(struct drm_i915_private *dev_priv,

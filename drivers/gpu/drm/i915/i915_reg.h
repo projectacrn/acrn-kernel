@@ -9276,6 +9276,7 @@ enum skl_power_gate {
 /* CNL PLL */
 #define DPLL0_ENABLE		0x46010
 #define DPLL1_ENABLE		0x46014
+#define DPLL4_ENABLE		0x46018
 #define  PLL_ENABLE		(1 << 31)
 #define  PLL_LOCK		(1 << 30)
 #define  PLL_POWER_ENABLE	(1 << 27)
@@ -9460,13 +9461,21 @@ enum skl_power_gate {
 
 #define _ICL_DPLL0_CFGCR0		0x164000
 #define _ICL_DPLL1_CFGCR0		0x164080
+#define _ICL_11_5_DPLL4_CFGCR0		0x164200
 #define ICL_DPLL_CFGCR0(pll)		_MMIO_PLL(pll, _ICL_DPLL0_CFGCR0, \
 						  _ICL_DPLL1_CFGCR0)
+#define ICL_11_5_DPLL_CFGCR0(pll)	(((pll) == DPLL_ID_ICL_11_5_DPLL4) ? \
+					 _MMIO(_ICL_11_5_DPLL4_CFGCR0) : \
+					 ICL_DPLL_CFGCR0(pll))
 
 #define _ICL_DPLL0_CFGCR1		0x164004
 #define _ICL_DPLL1_CFGCR1		0x164084
+#define _ICL_11_5_DPLL4_CFGCR1		0x164204
 #define ICL_DPLL_CFGCR1(pll)		_MMIO_PLL(pll, _ICL_DPLL0_CFGCR1, \
 						  _ICL_DPLL1_CFGCR1)
+#define ICL_11_5_DPLL_CFGCR1(pll)	(((pll) == DPLL_ID_ICL_11_5_DPLL4) ? \
+					 _MMIO(_ICL_11_5_DPLL4_CFGCR1) : \
+					 ICL_DPLL_CFGCR1(pll))
 
 /* BXT display engine PLL */
 #define BXT_DE_PLL_CTL			_MMIO(0x6d000)
