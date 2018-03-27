@@ -356,7 +356,16 @@ static int sof_parse_tokens(struct snd_soc_component *scomp,
 	while (priv_size > 0) {
 		asize = array->size;
 
-		if (asize < 0) {
+		/* validate asize */
+		if (asize < 0) { /* FIXME: A zero-size array makes no sense */
+			dev_err(sdev->dev, "error: invalid array size 0x%x\n",
+				asize);
+			return -EINVAL;
+		}
+
+		/* make sure there is enough data before parsing */
+		priv_size -= asize;
+		if (priv_size < 0) {
 			dev_err(sdev->dev, "error: invalid array size 0x%x\n",
 				asize);
 			return -EINVAL;
@@ -387,8 +396,6 @@ static int sof_parse_tokens(struct snd_soc_component *scomp,
 
 		/* next array */
 		array = (void *)array + asize;
-		/* update and validate remained size */
-		priv_size -= asize;
 	}
 	return 0;
 }
