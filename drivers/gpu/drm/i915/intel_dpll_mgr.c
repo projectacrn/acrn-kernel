@@ -2614,14 +2614,23 @@ static bool icl_calc_dpll_state(struct intel_crtc_state *crtc_state,
 	return true;
 }
 
-static enum port icl_mg_pll_id_to_port(enum intel_dpll_id id)
+/* TODO: change this function to return tc port */
+static enum port icl_mg_pll_id_to_port(struct drm_i915_private *dev_priv,
+				       enum intel_dpll_id id)
 {
-	return id - DPLL_ID_ICL_MGPLL1 + PORT_C;
+	if (IS_ICL_11_5(dev_priv))
+		return (id - DPLL_ID_ICL_11_5_MGPLL1 + PORT_D);
+	else
+		return (id - DPLL_ID_ICL_MGPLL1 + PORT_C);
 }
 
-enum intel_dpll_id icl_port_to_mg_pll_id(enum port port)
+enum intel_dpll_id icl_port_to_mg_pll_id(struct drm_i915_private *dev_priv,
+					 enum port port)
 {
-	return port - PORT_C + DPLL_ID_ICL_MGPLL1;
+	if (IS_ICL_11_5(dev_priv))
+		return (port - PORT_D + DPLL_ID_ICL_11_5_MGPLL1);
+	else
+		return (port - PORT_C + DPLL_ID_ICL_MGPLL1);
 }
 
 bool intel_is_dpll_combophy(enum intel_dpll_id id)
@@ -2882,7 +2891,7 @@ icl_get_dpll(struct intel_crtc *crtc, struct intel_crtc_state *crtc_state,
 			ret = icl_calc_dpll_state(crtc_state, encoder, clock,
 						  &pll_state);
 		} else {
-			min = icl_port_to_mg_pll_id(port);
+			min = icl_port_to_mg_pll_id(dev_priv, port);
 			max = min;
 			ret = icl_calc_mg_pll_state(crtc_state, encoder, clock,
 						    &pll_state);
@@ -2910,7 +2919,8 @@ icl_get_dpll(struct intel_crtc *crtc, struct intel_crtc_state *crtc_state,
 	return pll;
 }
 
-static i915_reg_t icl_pll_id_to_enable_reg(enum intel_dpll_id id)
+static i915_reg_t icl_pll_id_to_enable_reg(struct drm_i915_private *dev_priv,
+					   enum intel_dpll_id id)
 {
 	if (intel_is_dpll_combophy(id))
 		return CNL_DPLL_ENABLE(id);
@@ -2921,7 +2931,7 @@ static i915_reg_t icl_pll_id_to_enable_reg(enum intel_dpll_id id)
 		 * TODO: Make MG_PLL macros use
 		 * tc port id instead of port id
 		 */
-		return MG_PLL_ENABLE(icl_mg_pll_id_to_port(id));
+		return MG_PLL_ENABLE(icl_mg_pll_id_to_port(dev_priv, id));
 }
 
 static bool icl_pll_get_hw_state(struct drm_i915_private *dev_priv,
@@ -2936,7 +2946,7 @@ static bool icl_pll_get_hw_state(struct drm_i915_private *dev_priv,
 	if (!intel_display_power_get_if_enabled(dev_priv, POWER_DOMAIN_PLLS))
 		return false;
 
-	val = I915_READ(icl_pll_id_to_enable_reg(id));
+	val = I915_READ(icl_pll_id_to_enable_reg(dev_priv, id));
 	if (!(val & PLL_ENABLE))
 		goto out;
 
@@ -2945,7 +2955,7 @@ static bool icl_pll_get_hw_state(struct drm_i915_private *dev_priv,
 		hw_state->cfgcr0 = I915_READ(ICL_11_5_DPLL_CFGCR0(id));
 		hw_state->cfgcr1 = I915_READ(ICL_11_5_DPLL_CFGCR1(id));
 	} else {
-		port = icl_mg_pll_id_to_port(id);
+		port = icl_mg_pll_id_to_port(dev_priv, id);
 		hw_state->mg_refclkin_ctl = I915_READ(MG_REFCLKIN_CTL(port));
 		hw_state->mg_clktop2_coreclkctl1 =
 			I915_READ(MG_CLKTOP2_CORECLKCTL1(port));
@@ -2982,7 +2992,7 @@ static void icl_mg_pll_write(struct drm_i915_private *dev_priv,
 			     struct intel_shared_dpll *pll)
 {
 	struct intel_dpll_hw_state *hw_state = &pll->state.hw_state;
-	enum port port = icl_mg_pll_id_to_port(pll->info->id);
+	enum port port = icl_mg_pll_id_to_port(dev_priv, pll->info->id);
 
 	I915_WRITE(MG_REFCLKIN_CTL(port), hw_state->mg_refclkin_ctl);
 	I915_WRITE(MG_CLKTOP2_CORECLKCTL1(port),
@@ -3003,7 +3013,7 @@ static void icl_pll_enable(struct drm_i915_private *dev_priv,
 			   struct intel_shared_dpll *pll)
 {
 	const enum intel_dpll_id id = pll->info->id;
-	i915_reg_t enable_reg = icl_pll_id_to_enable_reg(id);
+	i915_reg_t enable_reg = icl_pll_id_to_enable_reg(dev_priv, id);
 	uint32_t val;
 
 	val = I915_READ(enable_reg);
@@ -3044,7 +3054,7 @@ static void icl_pll_disable(struct drm_i915_private *dev_priv,
 			    struct intel_shared_dpll *pll)
 {
 	const enum intel_dpll_id id = pll->info->id;
-	i915_reg_t enable_reg = icl_pll_id_to_enable_reg(id);
+	i915_reg_t enable_reg = icl_pll_id_to_enable_reg(dev_priv, id);
 	uint32_t val;
 
 	/* The first steps are done by intel_ddi_post_disable(). */
