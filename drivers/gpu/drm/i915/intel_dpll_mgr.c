@@ -2513,8 +2513,13 @@ int icl_calc_dp_combo_pll_link(struct drm_i915_private *dev_priv,
 	int index, n_entries, link_clock = 0;
 
 	/* Read back values from DPLL CFGCR registers */
-	cfgcr0 = I915_READ(ICL_11_5_DPLL_CFGCR0(pll_id));
-	cfgcr1 = I915_READ(ICL_11_5_DPLL_CFGCR1(pll_id));
+	if (IS_TIGERLAKE(dev_priv)) {
+		cfgcr0 = I915_READ(TGL_DPLL_CFGCR0(pll_id));
+		cfgcr1 = I915_READ(TGL_DPLL_CFGCR1(pll_id));
+	} else {
+		cfgcr0 = I915_READ(ICL_11_5_DPLL_CFGCR0(pll_id));
+		cfgcr1 = I915_READ(ICL_11_5_DPLL_CFGCR1(pll_id));
+	}
 
 	dco_integer = cfgcr0 & DPLL_CFGCR0_DCO_INTEGER_MASK;
 	dco_fraction = (cfgcr0 & DPLL_CFGCR0_DCO_FRACTION_MASK) >>
@@ -2967,8 +2972,13 @@ static bool icl_pll_get_hw_state(struct drm_i915_private *dev_priv,
 
 	if (intel_is_dpll_combophy(dev_priv, id) ||
 	    (id == intel_get_tbtpll_id(dev_priv))) {
-		hw_state->cfgcr0 = I915_READ(ICL_11_5_DPLL_CFGCR0(id));
-		hw_state->cfgcr1 = I915_READ(ICL_11_5_DPLL_CFGCR1(id));
+		if (IS_TIGERLAKE(dev_priv)) {
+			hw_state->cfgcr0 = I915_READ(TGL_DPLL_CFGCR0(id));
+			hw_state->cfgcr1 = I915_READ(TGL_DPLL_CFGCR1(id));
+		} else {
+			hw_state->cfgcr0 = I915_READ(ICL_11_5_DPLL_CFGCR0(id));
+			hw_state->cfgcr1 = I915_READ(ICL_11_5_DPLL_CFGCR1(id));
+		}
 	} else {
 		port = icl_mg_pll_id_to_port(dev_priv, id);
 		hw_state->mg_refclkin_ctl = I915_READ(MG_REFCLKIN_CTL(port));
@@ -2997,10 +3007,19 @@ static void icl_dpll_write(struct drm_i915_private *dev_priv,
 {
 	struct intel_dpll_hw_state *hw_state = &pll->state.hw_state;
 	const enum intel_dpll_id id = pll->info->id;
+	i915_reg_t cfgcr0_reg, cfgcr1_reg;
 
-	I915_WRITE(ICL_11_5_DPLL_CFGCR0(id), hw_state->cfgcr0);
-	I915_WRITE(ICL_11_5_DPLL_CFGCR1(id), hw_state->cfgcr1);
-	POSTING_READ(ICL_11_5_DPLL_CFGCR1(id));
+	if (IS_TIGERLAKE(dev_priv)) {
+		cfgcr0_reg = TGL_DPLL_CFGCR0(id);
+		cfgcr1_reg = TGL_DPLL_CFGCR1(id);
+	} else {
+		cfgcr0_reg = ICL_11_5_DPLL_CFGCR0(id);
+		cfgcr1_reg = ICL_11_5_DPLL_CFGCR1(id);
+	}
+
+	I915_WRITE(cfgcr0_reg, hw_state->cfgcr0);
+	I915_WRITE(cfgcr1_reg, hw_state->cfgcr1);
+	POSTING_READ(cfgcr1_reg);
 }
 
 static void icl_mg_pll_write(struct drm_i915_private *dev_priv,

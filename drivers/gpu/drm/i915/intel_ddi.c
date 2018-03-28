@@ -1426,7 +1426,10 @@ static int cnl_calc_wrpll_link(struct drm_i915_private *dev_priv,
 	uint32_t cfgcr0, cfgcr1;
 	uint32_t p0, p1, p2, dco_freq, ref_clock;
 
-	if (INTEL_GEN(dev_priv) >= 11) {
+	if (INTEL_GEN(dev_priv) >= 12) {
+		cfgcr0 = I915_READ(TGL_DPLL_CFGCR0(pll_id));
+		cfgcr1 = I915_READ(TGL_DPLL_CFGCR1(pll_id));
+	} else if (INTEL_GEN(dev_priv) >= 11) {
 		cfgcr0 = I915_READ(ICL_DPLL_CFGCR0(pll_id));
 		cfgcr1 = I915_READ(ICL_DPLL_CFGCR1(pll_id));
 	} else {
