@@ -37,6 +37,7 @@ struct drm_printer;
 	param(char *, vbt_firmware, NULL) \
 	param(int, modeset, -1) \
 	param(int, is_simulator, 0) \
+	param(int, force_pch, -1) \
 	param(int, panel_ignore_lid, 1) \
 	param(int, lvds_channel_mode, 0) \
 	param(int, panel_use_ssc, -1) \
