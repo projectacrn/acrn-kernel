@@ -267,7 +267,7 @@ static int pppopns_connect(struct socket *sock, struct sockaddr *useraddr,
 	if (sk_tcp->sk_protocol != IPPROTO_TCP)
 		goto out;
 	addrlen = sizeof(struct sockaddr_storage);
-	error = kernel_getpeername(sock_tcp, (struct sockaddr *)&ss, &addrlen);
+	error = kernel_getpeername(sock_tcp, (struct sockaddr *)&ss);
 	if (error)
 		goto out;
 	if (!sk_tcp->sk_bound_dev_if) {
