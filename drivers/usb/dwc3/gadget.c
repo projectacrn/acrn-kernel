@@ -2282,7 +2282,7 @@ static int dwc3_gadget_ep_reclaim_completed_trb(struct dwc3_ep *dep,
 	return 0;
 }
 
-static int dwc3_gadget_ep_cleanup_completed_requests(struct dwc3_ep *dep,
+static void dwc3_gadget_ep_cleanup_completed_requests(struct dwc3_ep *dep,
 		const struct dwc3_event_depevt *event, int status)
 {
 	struct dwc3_request	*req, *n;
@@ -2333,8 +2333,10 @@ static int dwc3_gadget_ep_cleanup_completed_requests(struct dwc3_ep *dep,
 
 		req->request.actual = length - req->remaining;
 
-		if ((req->request.actual < length) && req->num_pending_sgs)
-			return __dwc3_gadget_kick_transfer(dep);
+		if ((req->request.actual < length) && req->num_pending_sgs) {
+			__dwc3_gadget_kick_transfer(dep);
+			return;
+		}
 
 		dwc3_gadget_giveback(dep, req, status);
 
@@ -2352,7 +2354,7 @@ static int dwc3_gadget_ep_cleanup_completed_requests(struct dwc3_ep *dep,
 	 * early.
 	 */
 	if (!dep->endpoint.desc)
-		return 1;
+		return;
 
 	if (usb_endpoint_xfer_isoc(dep->endpoint.desc) &&
 			list_empty(&dep->started_list)) {
@@ -2368,13 +2370,7 @@ static int dwc3_gadget_ep_cleanup_completed_requests(struct dwc3_ep *dep,
 			dwc3_stop_active_transfer(dep, true);
 			dep->flags = DWC3_EP_ENABLED;
 		}
-		return 1;
 	}
-
-	if (usb_endpoint_xfer_isoc(dep->endpoint.desc) && ioc)
-		return 0;
-
-	return 1;
 }
 
 static void dwc3_gadget_endpoint_frame_from_event(struct dwc3_ep *dep,
