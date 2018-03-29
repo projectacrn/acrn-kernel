@@ -2317,27 +2317,13 @@ static void dwc3_gadget_ep_cleanup_completed_requests(struct dwc3_ep *dep,
 
 		if ((req->request.actual < length) && req->num_pending_sgs) {
 			__dwc3_gadget_kick_transfer(dep);
-			return;
+			break;
 		}
 
 		dwc3_gadget_giveback(dep, req, status);
 
 		if (ret)
 			break;
-	}
-
-	/*
-	 * Our endpoint might get disabled by another thread during
-	 * dwc3_gadget_giveback(). If that happens, we're just gonna return 1
-	 * early.
-	 */
-	if (!dep->endpoint.desc)
-		return;
-
-	if (usb_endpoint_xfer_isoc(dep->endpoint.desc) &&
-			list_empty(&dep->started_list) &&
-			list_empty(&dep->pending_list)) {
-		dep->flags = DWC3_EP_PENDING_REQUEST;
 	}
 }
 
