@@ -133,6 +133,11 @@ static bool i915_error_injected(struct drm_i915_private *dev_priv)
 static enum intel_pch
 intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 {
+	if (i915_modparams.force_pch >= 0) {
+		DRM_DEBUG_KMS("Forcing PCH type to %i\n",
+			      i915_modparams.force_pch);
+		return i915_modparams.force_pch;
+	}
 	switch (id) {
 	case INTEL_PCH_HAS3_DEVICE_ID_TYPE:
 		DRM_DEBUG_KMS("Found HAS PCH\n");

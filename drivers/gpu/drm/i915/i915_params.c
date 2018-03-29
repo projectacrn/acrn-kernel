@@ -48,6 +48,10 @@ i915_param_named_unsafe(is_simulator, int, 0400,
 	"Force is_simulator on boot (0=auto detected from PCH [default], "
 	"1=force is_simulator=1)");
 
+i915_param_named_unsafe(force_pch, int, 0400,
+	"Force PCH type on boot (-1=auto detected by PCI ID, "
+	"0=PCH_NONE, see enum intel_pch for additional values)");
+
 i915_param_named_unsafe(panel_ignore_lid, int, 0600,
 	"Override lid status (0=autodetect, 1=autodetect disabled [default], "
 	"-1=force lid closed, -2=force lid open)");
