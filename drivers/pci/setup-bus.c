@@ -1948,6 +1948,22 @@ static void pci_bus_distribute_available_resources(struct pci_bus *bus,
 	mmio_pref_start = mmio_pref_res->start;
 
 	/*
+	 * There is only one bridge on the bus so it gets all available
+	 * resources which it can then distribute to the possible
+	 * hotplug bridges below.
+	 */
+	if ((hotplug_bridges == 0 && normal_bridges == 1) ||
+	    (hotplug_bridges == 1 && normal_bridges == 0)) {
+		dev = list_first_entry(&bus->devices, struct pci_dev, bus_list);
+		if (dev->subordinate) {
+			pci_bus_distribute_available_resources(dev->subordinate,
+				add_list, available_io, available_mmio,
+				available_mmio_pref);
+		}
+		return;
+	}
+
+	/*
 	 * Go over devices on this bus and distribute the remaining
 	 * resource space between hotplug bridges.
 	 */
@@ -1959,17 +1975,7 @@ static void pci_bus_distribute_available_resources(struct pci_bus *bus,
 		if (!b)
 			continue;
 
-		if (!hotplug_bridges && normal_bridges == 1) {
-			/*
-			 * There is only one bridge on the bus (upstream
-			 * port) so it gets all available resources
-			 * which it can then distribute to the possible
-			 * hotplug bridges below.
-			 */
-			pci_bus_distribute_available_resources(b, add_list,
-				available_io, available_mmio,
-				available_mmio_pref);
-		} else if (dev->is_hotplug_bridge) {
+		if (dev->is_hotplug_bridge) {
 			resource_size_t io, mmio, mmio_pref;
 
 			/*
