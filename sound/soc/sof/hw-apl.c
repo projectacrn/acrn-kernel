@@ -2308,7 +2308,6 @@ int apl_run_firmware(struct snd_sof_dev *sdev)
 
 irq_err:
 	apl_dump(sdev, SOF_DBG_REGS | SOF_DBG_PCI | SOF_DBG_MBOX);
-	free_irq(sdev->ipc_irq, sdev);
 
 	/* disable DSP */
 	snd_sof_dsp_update_bits(sdev, APL_PP_BAR, SOF_HDA_REG_PP_PPCTL,
