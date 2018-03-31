@@ -2028,7 +2028,7 @@ static int apl_stream_init(struct snd_sof_dev *sdev)
 	return 0;
 }
 
-static int apl_stream_reset(struct snd_sof_dev *sdev)
+static void apl_stream_reset(struct snd_sof_dev *sdev)
 {
 	struct snd_sof_hda_dev *hdev = &sdev->hda;
 	struct snd_sof_hda_stream *stream;
@@ -2059,8 +2059,6 @@ static int apl_stream_reset(struct snd_sof_dev *sdev)
 			/* free bdl buffer */
 			snd_dma_free_pages(&stream->bdl);
 	}
-
-	return 0;
 }
 
 static const struct snd_sof_chip_info chip_info[] = {
@@ -2328,10 +2326,11 @@ irq_err:
 static int apl_probe(struct snd_sof_dev *sdev)
 {
 	struct pci_dev *pci = sdev->pci;
-	int ret = 0, i;
 	struct snd_sof_hda_dev *hdev = &sdev->hda;
 	struct snd_sof_hda_stream *stream;
 	const struct snd_sof_chip_info *chip;
+	int i;
+	int ret = 0;
 
 	chip = sof_get_chip_info(sdev->pci->device);
 	if (!chip) {
@@ -2345,6 +2344,12 @@ static int apl_probe(struct snd_sof_dev *sdev)
 	sdev->bar[APL_HDA_BAR] = pci_ioremap_bar(pci, APL_HDA_BAR);
 	if (!sdev->bar[APL_HDA_BAR]) {
 		dev_err(&pci->dev, "error: ioremap error\n");
+		/*
+		 * FIXME: why do we return directly,
+		 *  should we have a goto err here?
+		 *  or should all these gotos be replaced
+		 * by a return?
+		 */
 		return -ENXIO;
 	}
 
@@ -2384,7 +2389,11 @@ static int apl_probe(struct snd_sof_dev *sdev)
 	ret = apl_stream_init(sdev);
 	if (ret < 0) {
 		dev_err(&pci->dev, "error: failed to init streams\n");
-		goto err;
+		/*
+		 * not all errors are due to memory issues, but trying
+		 * to free everything does not harm
+		 */
+		goto stream_err;
 	}
 
 	/*
@@ -2412,7 +2421,7 @@ static int apl_probe(struct snd_sof_dev *sdev)
 	ret = apl_link_reset(sdev);
 	if (ret < 0) {
 		dev_err(&pci->dev, "error: failed to reset HDA controller\n");
-		goto err;
+		goto stream_err;
 	}
 
 	/* clear stream status */
@@ -2459,7 +2468,7 @@ static int apl_probe(struct snd_sof_dev *sdev)
 	if (ret < 0) {
 		dev_err(sdev->dev, "error: failed to register HDA IRQ %d\n",
 			sdev->ipc_irq);
-		goto err;
+		goto stream_err;
 	}
 	sdev->hda.irq = pci->irq;
 
@@ -2499,6 +2508,8 @@ static int apl_probe(struct snd_sof_dev *sdev)
 
 irq_err:
 	free_irq(sdev->pci->irq, sdev);
+stream_err:
+	apl_stream_reset(sdev);
 err:
 	/* disable DSP */
 	snd_sof_dsp_update_bits(sdev, APL_PP_BAR, SOF_HDA_REG_PP_PPCTL,
@@ -2530,7 +2541,8 @@ static int apl_remove(struct snd_sof_dev *sdev)
 	free_irq(sdev->ipc_irq, sdev);
 	free_irq(sdev->pci->irq, sdev);
 
-	return apl_stream_reset(sdev);
+	apl_stream_reset(sdev);
+	return 0;
 }
 
 /* appololake ops */
