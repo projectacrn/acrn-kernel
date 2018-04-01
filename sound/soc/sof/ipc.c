@@ -104,6 +104,10 @@ static int tx_wait_done(struct snd_sof_ipc *ipc, struct snd_sof_ipc_msg *msg,
 	list_move(&msg->list, &ipc->empty_list);
 
 	spin_unlock_irqrestore(&sdev->ipc_lock, flags);
+
+	/* continue to schedule any remaining messages... */
+	snd_sof_ipc_msgs_tx(sdev);
+
 	return ret;
 }
 
