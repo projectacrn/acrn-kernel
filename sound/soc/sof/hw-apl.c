@@ -1285,9 +1285,6 @@ static irqreturn_t apl_irq_thread(int irq, void *context)
 		/* reenable IPC interrupt */
 		snd_sof_dsp_update_bits(sdev, APL_DSP_BAR, APL_DSP_REG_ADSPIC,
 					APL_ADSPIC_IPC, APL_ADSPIC_IPC);
-
-		/* continue to send any remaining messages... */
-		snd_sof_ipc_msgs_tx(sdev);
 	}
 
 	if (sdev->code_loading)	{
@@ -1383,9 +1380,6 @@ static irqreturn_t cnl_irq_thread(int irq, void *context)
 		/* reenable IPC interrupt */
 		snd_sof_dsp_update_bits(sdev, APL_DSP_BAR, APL_DSP_REG_ADSPIC,
 					APL_ADSPIC_IPC, APL_ADSPIC_IPC);
-
-		/* continue to send any remaining messages... */
-		snd_sof_ipc_msgs_tx(sdev);
 	}
 
 	if (sdev->code_loading)	{
