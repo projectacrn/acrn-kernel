@@ -400,9 +400,6 @@ static irqreturn_t byt_irq_thread(int irq, void *context)
 		}
 	}
 
-	/* continue to send any remaining messages... */
-	snd_sof_ipc_msgs_tx(sdev);
-
 	return IRQ_HANDLED;
 }
 
