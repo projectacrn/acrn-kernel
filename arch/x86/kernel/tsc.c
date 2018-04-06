@@ -843,8 +843,15 @@ void recalibrate_cpu_khz(void)
 	tsc_khz = x86_platform.calibrate_tsc();
 	if (tsc_khz == 0)
 		tsc_khz = cpu_khz;
-	else if (abs(cpu_khz - tsc_khz) * 10 > tsc_khz)
-		cpu_khz = tsc_khz;
+	else if (abs(cpu_khz - tsc_khz) * 10 > tsc_khz) {
+#ifdef CONFIG_X86_PRESI_TGL_SIMICS
+		if (cpu_khz > tsc_khz)
+			tsc_khz = cpu_khz;
+		else
+#endif /* CONFIG_X86_PRESI_TGL_SIMICS */
+			cpu_khz = tsc_khz;
+	}
+
 	cpu_data(0).loops_per_jiffy = cpufreq_scale(cpu_data(0).loops_per_jiffy,
 						    cpu_khz_old, cpu_khz);
 #endif
@@ -1380,8 +1387,14 @@ void __init tsc_init(void)
 	 */
 	if (tsc_khz == 0)
 		tsc_khz = cpu_khz;
-	else if (abs(cpu_khz - tsc_khz) * 10 > tsc_khz)
-		cpu_khz = tsc_khz;
+	else if (abs(cpu_khz - tsc_khz) * 10 > tsc_khz) {
+#ifdef CONFIG_X86_PRESI_TGL_SIMICS
+		if (cpu_khz > tsc_khz)
+			tsc_khz = cpu_khz;
+		else
+#endif /* CONFIG_X86_PRESI_TGL_SIMICS */
+			cpu_khz = tsc_khz;
+	}
 
 	if (!tsc_khz) {
 		mark_tsc_unstable("could not calculate TSC khz");
