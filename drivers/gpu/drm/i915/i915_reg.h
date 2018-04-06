@@ -8490,6 +8490,8 @@ enum {
 #define TR_VA_TTL3_PTR_DW0		_MMIO(0x4DE0)
 #define TR_VA_TTL3_PTR_DW1		_MMIO(0x4DE4)
 
+#define GEN10_SAMPLER_MODE		_MMIO(0xE18C)
+
 /* IVYBRIDGE DPF */
 #define GEN7_L3CDERRST1(slice)		_MMIO(0xB008 + (slice) * 0x200) /* L3CD Error Status 1 */
 #define   GEN7_L3CDERRST1_ROW_MASK	(0x7ff<<14)

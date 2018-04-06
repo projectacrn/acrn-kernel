@@ -907,6 +907,9 @@ static void icl_whitelist_build(struct whitelist *w)
 	/* WaAllowUmdWriteTRTTRootTable:icl */
 	whitelist_reg(w, TR_VA_TTL3_PTR_DW0);
 	whitelist_reg(w, TR_VA_TTL3_PTR_DW1);
+
+	/* WaAllowUMDToModifySamplerMode:icl */
+	whitelist_reg(w, GEN10_SAMPLER_MODE);
 }
 
 static struct whitelist *whitelist_build(struct intel_engine_cs *engine,
