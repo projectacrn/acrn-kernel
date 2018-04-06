@@ -2278,6 +2278,11 @@ static int dwc3_gadget_ep_reclaim_trb_linear(struct dwc3_ep *dep,
 			event, status, false);
 }
 
+static bool dwc3_gadget_ep_request_completed(struct dwc3_request *req)
+{
+	return req->request.actual == req->request.length;
+}
+
 static void dwc3_gadget_ep_cleanup_completed_requests(struct dwc3_ep *dep,
 		const struct dwc3_event_depevt *event, int status)
 {
@@ -2304,7 +2309,8 @@ static void dwc3_gadget_ep_cleanup_completed_requests(struct dwc3_ep *dep,
 
 		req->request.actual = length - req->remaining;
 
-		if ((req->request.actual < length) && req->num_pending_sgs) {
+		if (!dwc3_gadget_ep_request_completed(req) &&
+				req->num_pending_sgs) {
 			__dwc3_gadget_kick_transfer(dep);
 			break;
 		}
