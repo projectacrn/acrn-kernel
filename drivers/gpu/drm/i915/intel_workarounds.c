@@ -768,6 +768,14 @@ static void icl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 		I915_WRITE(INF_UNIT_LEVEL_CLKGATE,
 			   (I915_READ(INF_UNIT_LEVEL_CLKGATE) |
 			    CGPSF_CLKGATE_DIS));
+
+	/* WaForwardProgressSoftReset:icl (pre-prod) */
+	if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_B0))
+		I915_WRITE(GEN10_SCRATCH_LNCF2,
+			   (I915_READ(GEN10_SCRATCH_LNCF2) |
+			    PMFLUSHDONE_LNICRSDROP |
+			    PMFLUSH_GAPL3UNBLOCK |
+			    PMFLUSHDONE_LNEBLK));
 }
 
 void intel_gt_workarounds_apply(struct drm_i915_private *dev_priv)
