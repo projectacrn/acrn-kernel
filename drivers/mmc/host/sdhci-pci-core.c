@@ -722,6 +722,13 @@ static int glk_emmc_probe_slot(struct sdhci_pci_slot *slot)
 			slot->host->mmc->caps2 |= MMC_CAP2_CQE_DCMD;
 	}
 
+	/* HACK: temporarily disable DDR, HS200 and HS400 for ICP */
+	if (slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_ICP_EMMC) {
+		slot->host->mmc->caps &= ~MMC_CAP_1_8V_DDR;
+		slot->host->quirks2 |= SDHCI_QUIRK2_BROKEN_HS200;
+		slot->host->quirks2 &= ~SDHCI_QUIRK2_CAPS_BIT63_FOR_HS400;
+	}
+
 	return ret;
 }
 
