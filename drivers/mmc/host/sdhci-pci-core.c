@@ -840,6 +840,19 @@ static int byt_sd_probe_slot(struct sdhci_pci_slot *slot)
 	    slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_GLK_SD)
 		slot->host->mmc_host_ops.get_cd = bxt_get_cd;
 
+	if (slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_CNP_SD ||
+	    slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_CNPH_SD ||
+	    slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_ICP_SD ||
+	    slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_ICPN_SD ||
+	    slot->chip->pdev->device == PCI_DEVICE_ID_INTEL_ICPH_SD) {
+		sdhci_read_caps(slot->host);
+		if (!(slot->host->caps & SDHCI_CAN_64BIT)) {
+			pr_err("%s: Missing 64-bit DMA capability!\n",
+			       mmc_hostname(slot->host->mmc));
+			slot->host->caps |= SDHCI_CAN_64BIT;
+		}
+	}
+
 	return 0;
 }
 
