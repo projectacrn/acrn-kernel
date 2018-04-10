@@ -89,12 +89,30 @@ struct tps6598x {
 	struct device *dev;
 	struct regmap *regmap;
 	struct mutex lock; /* device lock */
+	u8 i2c_protocol:1;
 
 	struct typec_port *port;
 	struct typec_partner *partner;
 	struct usb_pd_identity partner_identity;
 	struct typec_capability typec_cap;
 };
+
+static int
+tps6598x_block_read(struct tps6598x *tps, u8 reg, void *val, ssize_t len)
+{
+	u8 data[len + 1];
+	int ret;
+
+	if (!tps->i2c_protocol)
+		return regmap_raw_read(tps->regmap, reg, val, len);
+
+	ret = regmap_raw_read(tps->regmap, reg, data, sizeof(data));
+	if (ret)
+		return ret;
+
+	memcpy(val, &data[1], len);
+	return 0;
+}
 
 static inline int tps6598x_read16(struct tps6598x *tps, u8 reg, u16 *val)
 {
@@ -103,12 +121,12 @@ static inline int tps6598x_read16(struct tps6598x *tps, u8 reg, u16 *val)
 
 static inline int tps6598x_read32(struct tps6598x *tps, u8 reg, u32 *val)
 {
-	return regmap_raw_read(tps->regmap, reg, val, sizeof(u32));
+	return tps6598x_block_read(tps, reg, val, sizeof(u32));
 }
 
 static inline int tps6598x_read64(struct tps6598x *tps, u8 reg, u64 *val)
 {
-	return regmap_raw_read(tps->regmap, reg, val, sizeof(u64));
+	return tps6598x_block_read(tps, reg, val, sizeof(u64));
 }
 
 static inline int tps6598x_write16(struct tps6598x *tps, u8 reg, u16 val)
@@ -240,13 +258,13 @@ static int tps6598x_exec_cmd(struct tps6598x *tps, const char *cmd,
 	} while (val);
 
 	if (out_len) {
-		ret = regmap_raw_read(tps->regmap, TPS_REG_DATA1,
-				      out_data, out_len);
+		ret = tps6598x_block_read(tps, TPS_REG_DATA1,
+					  out_data, out_len);
 		if (ret)
 			return ret;
 		val = out_data[0];
 	} else {
-		ret = regmap_read(tps->regmap, TPS_REG_DATA1, &val);
+		ret = tps6598x_block_read(tps, TPS_REG_DATA1, &val, sizeof(u8));
 		if (ret)
 			return ret;
 	}
@@ -420,6 +438,16 @@ static int tps6598x_probe(struct i2c_client *client)
 	tps->regmap = devm_regmap_init_i2c(client, &tps6598x_regmap_config);
 	if (IS_ERR(tps->regmap))
 		return PTR_ERR(tps->regmap);
+
+	/*
+	 * Checking can the adapter handle SMBus protocol. If if can not, the
+	 * driver needs to take care of block reads separately.
+	 *
+	 * FIXME: Testing with I2C_FUNC_I2C. regmap-i2c uses I2C protocol
+	 * unconditionally if the adapter has I2C_FUNC_I2C set.
+	 */
+	if (i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
+		tps->i2c_protocol = true;
 
 	ret = tps6598x_read32(tps, TPS_REG_VID, &vid);
 	if (ret < 0 || !vid)
