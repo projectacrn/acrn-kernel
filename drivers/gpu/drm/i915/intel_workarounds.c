@@ -827,6 +827,9 @@ static void tgl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 	/* WaDisableRenderComputeDataSharing:tgl (pre-prod?) */
 	I915_WRITE(GEN12_RCU_CHICKEN,
 		   _MASKED_BIT_ENABLE(GEN12_RCU_CHICKEN_FORCE_AID_NEQ));
+
+	/* Wa_1406941453:tgl */
+	I915_WRITE(SAMPLER_MODE, _MASKED_BIT_ENABLE(SAMPLER_ENABLE_SMALL_PL));
 }
 
 void intel_gt_workarounds_apply(struct drm_i915_private *dev_priv)
