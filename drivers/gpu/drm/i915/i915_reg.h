@@ -398,6 +398,12 @@ static inline bool i915_mmio_reg_valid(i915_reg_t reg)
 #define   ECOBITS_PPGTT_CACHE64B	(3<<8)
 #define   ECOBITS_PPGTT_CACHE4B		(0<<8)
 
+#define GEN12_RCU_MODE			_MMIO(0x14800)
+#define   GEN12_RCU_MODE_CCS_ENABLE	(1<<0)
+
+#define GEN12_GAM_MULT_CTXT_CTL		_MMIO(0xce90)
+#define   GEN12_GAM_MULT_CTXT_ENABLE	(1<<0)
+
 #define GAB_CTL				_MMIO(0x24000)
 #define   GAB_CTL_CONT_AFTER_PAGEFAULT	(1<<8)
 
