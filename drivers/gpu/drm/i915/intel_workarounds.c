@@ -491,6 +491,14 @@ static int icl_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 
 static int tgl_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 {
+	u32 val;
+
+	/* Wa_1604555607:tgl */
+	val = I915_READ(FF_MODE2);
+	val &= ~FF_MODE2_TDS_TIMER_MASK;
+	val |= FF_MODE2_TDS_TIMER_128;
+	WA_REG(FF_MODE2, FF_MODE2_TDS_TIMER_MASK, val);
+
 	return 0;
 }
 

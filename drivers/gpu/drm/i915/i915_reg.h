@@ -7524,6 +7524,11 @@ enum {
 #define BDW_SCRATCH1					_MMIO(0xb11c)
 #define  GEN9_LBS_SLA_RETRY_TIMER_DECREMENT_ENABLE	(1<<2)
 
+#define FF_MODE2			_MMIO(0x6604)
+#define   FF_MODE2_TDS_TIMER_SHIFT	(16)
+#define   FF_MODE2_TDS_TIMER_128	(4 << FF_MODE2_TDS_TIMER_SHIFT)
+#define   FF_MODE2_TDS_TIMER_MASK	(0xff << FF_MODE2_TDS_TIMER_SHIFT)
+
 /* PCH */
 
 /* south display engine interrupt: IBX */
