@@ -7590,6 +7590,11 @@ enum {
 #define PIPE_CHICKEN(pipe)		_MMIO_PIPE(pipe, _PIPEA_CHICKEN,\
 						   _PIPEB_CHICKEN)
 
+#define FF_MODE2			_MMIO(0x6604)
+#define   FF_MODE2_TDS_TIMER_SHIFT	(16)
+#define   FF_MODE2_TDS_TIMER_128	(4 << FF_MODE2_TDS_TIMER_SHIFT)
+#define   FF_MODE2_TDS_TIMER_MASK	(0xff << FF_MODE2_TDS_TIMER_SHIFT)
+
 /* PCH */
 
 /* south display engine interrupt: IBX */
