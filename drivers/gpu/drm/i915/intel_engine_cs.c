@@ -219,6 +219,9 @@ __intel_engine_context_size(struct drm_i915_private *dev_priv, u8 class)
 	BUILD_BUG_ON(I915_GTT_PAGE_SIZE != PAGE_SIZE);
 
 	switch (class) {
+	case COMPUTE_CLASS: /* TODO: same as render, for now... */
+		GEM_BUG_ON(!HAS_CCS(dev_priv));
+		/* fall through */
 	case RENDER_CLASS:
 		switch (INTEL_GEN(dev_priv)) {
 		default:
@@ -336,6 +339,10 @@ intel_engine_setup(struct drm_i915_private *dev_priv,
 
 	engine->uabi_id = info->uabi_id;
 	engine->uabi_class = intel_engine_classes[info->class].uabi_class;
+
+	/* features common between engines sharing EUs */
+	if (engine->class == RENDER_CLASS || engine->class == COMPUTE_CLASS)
+		engine->flags |= I915_ENGINE_HAS_RCS_REG_STATE;
 
 	engine->context_size = __intel_engine_context_size(dev_priv,
 							   engine->class);

@@ -342,7 +342,7 @@ static inline bool i915_mmio_reg_valid(i915_reg_t reg)
 #define GEN8_RING_PDP_UDW(engine, n)	_MMIO((engine)->mmio_base+0x270 + (n) * 8 + 4)
 #define GEN8_RING_PDP_LDW(engine, n)	_MMIO((engine)->mmio_base+0x270 + (n) * 8)
 
-#define GEN8_R_PWR_CLK_STATE		_MMIO(0x20C8)
+#define GEN8_R_PWR_CLK_STATE(base)	_MMIO((base)+0xc8)
 #define   GEN8_RPCS_ENABLE		(1 << 31)
 #define   GEN8_RPCS_S_CNT_ENABLE	(1 << 18)
 #define   GEN8_RPCS_S_CNT_SHIFT		15
