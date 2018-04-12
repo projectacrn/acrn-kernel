@@ -1614,6 +1614,15 @@ static int gen8_ppgtt_init(struct i915_hw_ppgtt *ppgtt)
 		1ULL << 48 :
 		1ULL << 32;
 
+	/* Dual Context is supported by partitioning the address space
+	 * in two halves; RCS context occupies the address space of bit 47=0
+	 * while CCS context uses the the space of bit 47=1.
+	 */
+	if (HAS_CCS(dev_priv)) {
+		GEM_BUG_ON(!USES_FULL_48BIT_PPGTT(dev_priv));
+		ppgtt->base.total = 1ULL << 47;
+	}
+
 	/* There are only few exceptions for gen >=6. chv and bxt.
 	 * And we are not sure about the latter so play safe for now.
 	 */

@@ -1999,6 +1999,16 @@ static int gen9_init_render_ring(struct intel_engine_cs *engine)
 	if (ret)
 		return ret;
 
+	/* Dual Context extra programming */
+	if (engine->id == CCS) {
+		struct drm_i915_private *dev_priv = engine->i915;
+
+		I915_WRITE(GEN12_RCU_MODE,
+			   _MASKED_BIT_ENABLE(GEN12_RCU_MODE_CCS_ENABLE));
+		I915_WRITE(GEN12_GAM_MULT_CTXT_CTL,
+			   _MASKED_BIT_ENABLE(GEN12_GAM_MULT_CTXT_ENABLE));
+	}
+
 	intel_whitelist_workarounds_apply(engine);
 
 	return 0;
