@@ -1816,7 +1816,8 @@ static int intel_init_workaround_bb(struct intel_engine_cs *engine)
 	unsigned int i;
 	int ret;
 
-	if (GEM_WARN_ON(engine->id != RCS))
+	if (GEM_WARN_ON(engine->class != RENDER_CLASS &&
+			engine->class != COMPUTE_CLASS))
 		return -EINVAL;
 
 	switch (INTEL_GEN(engine->i915)) {
@@ -2660,7 +2661,7 @@ static void init_wa_bb_reg_state(u32 *regs,
 	u32 pos_indirect_ctx = pos_bb_per_ctx + 2;
 	u32 pos_indirect_ctx_offset = pos_indirect_ctx + 2;
 
-	GEM_BUG_ON(engine->id != RCS);
+	GEM_BUG_ON(!(engine->flags & I915_ENGINE_HAS_RCS_REG_STATE));
 	CTX_REG(regs, pos_indirect_ctx, RING_INDIRECT_CTX(base), 0);
 	CTX_REG(regs, pos_indirect_ctx_offset,
 		RING_INDIRECT_CTX_OFFSET(base), 0);
@@ -2735,7 +2736,7 @@ static void gen8_init_reg_state(u32 *regs,
 
 	if (rcs) {
 		regs[CTX_LRI_HEADER_2] = MI_LOAD_REGISTER_IMM(1);
-		CTX_REG(regs, CTX_R_PWR_CLK_STATE, GEN8_R_PWR_CLK_STATE,
+		CTX_REG(regs, CTX_R_PWR_CLK_STATE, GEN8_R_PWR_CLK_STATE(base),
 			make_rpcs(dev_priv));
 
 		i915_oa_init_reg_state(engine, ctx, regs);
@@ -2749,7 +2750,7 @@ static void gen12_init_reg_state(u32 *regs,
 {
 	struct drm_i915_private *dev_priv = engine->i915;
 	u32 base = engine->mmio_base;
-	bool rcs = engine->id == RCS;
+	bool rcs = engine->flags & I915_ENGINE_HAS_RCS_REG_STATE;
 
 	GEM_BUG_ON(!ctx->ppgtt); /* GEN12 should be using full ppgtt! */
 	GEM_DEBUG_EXEC(DRM_INFO_ONCE("Using GEN12 Register State Context\n"));
@@ -2770,7 +2771,8 @@ static void gen12_init_reg_state(u32 *regs,
 
 	if (rcs) {
 		regs[GEN12_CTX_LRI_HEADER_3] = MI_LOAD_REGISTER_IMM(1);
-		CTX_REG(regs, GEN12_CTX_R_PWR_CLK_STATE, GEN8_R_PWR_CLK_STATE,
+		CTX_REG(regs, GEN12_CTX_R_PWR_CLK_STATE,
+			GEN8_R_PWR_CLK_STATE(base),
 			make_rpcs(dev_priv));
 
 		/* TODO: oa_init_reg_state ? */
