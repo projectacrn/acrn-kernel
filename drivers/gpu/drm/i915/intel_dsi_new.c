@@ -691,7 +691,7 @@ static void gen11_dsi_setup_timeouts(struct intel_encoder *encoder)
 	struct intel_dsi *intel_dsi = enc_to_intel_dsi(&encoder->base);
 	enum port port;
 	enum transcoder dsi_trans;
-	u32 tmp, hs_tx_timeout, lp_rx_timeout, divisor, mul;
+	u32 tmp, hs_tx_timeout, lp_rx_timeout, ta_timeout, divisor, mul;
 
 	/*
 	 * escape clock count calculation:
@@ -706,6 +706,8 @@ static void gen11_dsi_setup_timeouts(struct intel_encoder *encoder)
 				     divisor);
 	lp_rx_timeout = DIV_ROUND_UP(intel_dsi->lp_rx_timeout * mul,
 				     divisor);
+	ta_timeout = DIV_ROUND_UP(intel_dsi->turn_arnd_val * mul,
+				  divisor);
 
 	for_each_dsi_port(port, intel_dsi->ports) {
 		dsi_trans = dsi_port_to_transcoder(port);
@@ -721,6 +723,12 @@ static void gen11_dsi_setup_timeouts(struct intel_encoder *encoder)
 		tmp &= ~LPRX_TIMEOUT_VALUE_MASK;
 		tmp |= LPRX_TIMEOUT_VALUE(lp_rx_timeout);
 		I915_WRITE(DSI_LPRX_HOST_TO(dsi_trans), tmp);
+
+		/* program turn around timeout */
+		tmp = I915_READ(DSI_TA_TO(dsi_trans));
+		tmp &= ~TA_TIMEOUT_VALUE_MASK;
+		tmp |= TA_TIMEOUT_VALUE(ta_timeout);
+		I915_WRITE(DSI_TA_TO(dsi_trans), tmp);
 	}
 }
 
