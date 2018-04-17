@@ -85,7 +85,7 @@ SOCPERF_UTILITY_Read_TSC (
     U64* pTsc
 )
 {
-    rdtscll(*(pTsc));
+    *(pTsc) = rdtsc_ordered();
 
     return;
 }
