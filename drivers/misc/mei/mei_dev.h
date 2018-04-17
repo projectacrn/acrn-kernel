@@ -1,7 +1,7 @@
 /*
  *
  * Intel Management Engine Interface (Intel MEI) Linux driver
- * Copyright (c) 2003-2012, Intel Corporation.
+ * Copyright (c) 2003-2018, Intel Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -119,6 +119,19 @@ enum mei_cl_io_mode {
 struct mei_msg_data {
 	size_t size;
 	unsigned char *data;
+};
+
+/**
+ * struct mei_dma_dscr - dma address descriptor
+ *
+ * @vaddr: dma buffer virtual address
+ * @daddr: dma buffer physical address
+ * @size : dma buffer size
+ */
+struct mei_dma_dscr {
+	void *vaddr;
+	dma_addr_t daddr;
+	size_t size;
 };
 
 /* Maximum number of processed FW status registers */
@@ -317,7 +330,7 @@ void mei_cl_bus_dev_fixup(struct mei_cl_device *dev);
 ssize_t __mei_cl_send(struct mei_cl *cl, u8 *buf, size_t length,
 		      unsigned int mode);
 ssize_t __mei_cl_recv(struct mei_cl *cl, u8 *buf, size_t length,
-		      unsigned int mode);
+		      unsigned int mode, unsigned long timeout);
 bool mei_cl_bus_rx_event(struct mei_cl *cl);
 bool mei_cl_bus_notify_event(struct mei_cl *cl);
 void mei_cl_bus_remove_devices(struct mei_device *bus);
@@ -353,6 +366,25 @@ enum mei_pg_state {
 };
 
 const char *mei_pg_state_str(enum mei_pg_state state);
+
+/**
+ * struct mei_fw_version - MEI FW version struct
+ *
+ * @platform: platform identifier
+ * @major: major version field
+ * @minor: minor version field
+ * @buildno: build number version field
+ * @hotfix: hotfix number version field
+ */
+struct mei_fw_version {
+	u8 platform;
+	u8 major;
+	u16 minor;
+	u16 buildno;
+	u16 hotfix;
+};
+
+#define MEI_MAX_FW_VER_BLOCKS 3
 
 /**
  * struct mei_device -  MEI private device struct
@@ -392,6 +424,7 @@ const char *mei_pg_state_str(enum mei_pg_state state);
  *
  * @hbuf_depth  : depth of hardware host/write buffer is slots
  * @hbuf_is_ready : query if the host host/write buffer is ready
+ * @dr_dscr: DMA ring descriptors: TX, RX, and CTRL
  *
  * @version     : HBM protocol version in use
  * @hbm_f_pg_supported  : hbm feature pgi protocol
@@ -401,6 +434,8 @@ const char *mei_pg_state_str(enum mei_pg_state state);
  * @hbm_f_fa_supported  : hbm feature fixed address client
  * @hbm_f_ie_supported  : hbm feature immediate reply to enum request
  * @hbm_f_os_supported  : hbm feature support OS ver message
+ * @hbm_f_dr_supported  : hbm feature dma ring supported
+ * @fw_ver : FW versions
  *
  * @me_clients_rwsem: rw lock over me_clients list
  * @me_clients  : list of FW clients
@@ -463,11 +498,13 @@ struct mei_device {
 #endif /* CONFIG_PM */
 
 	unsigned char rd_msg_buf[MEI_RD_MSG_BUF_SIZE];
-	u32 rd_msg_hdr;
+	u32 rd_msg_hdr[2];
 
 	/* write buffer */
 	u8 hbuf_depth;
 	bool hbuf_is_ready;
+
+	struct mei_dma_dscr dr_dscr[DMA_DSCR_NUM];
 
 	struct hbm_version version;
 	unsigned int hbm_f_pg_supported:1;
@@ -477,6 +514,8 @@ struct mei_device {
 	unsigned int hbm_f_fa_supported:1;
 	unsigned int hbm_f_ie_supported:1;
 	unsigned int hbm_f_os_supported:1;
+	unsigned int hbm_f_dr_supported:1;
+	struct mei_fw_version fw_ver[MEI_MAX_FW_VER_BLOCKS];
 
 	struct rw_semaphore me_clients_rwsem;
 	struct list_head me_clients;
@@ -543,6 +582,14 @@ int mei_start(struct mei_device *dev);
 int mei_restart(struct mei_device *dev);
 void mei_stop(struct mei_device *dev);
 void mei_cancel_work(struct mei_device *dev);
+
+int mei_dmam_ring_alloc(struct mei_device *dev);
+void mei_dmam_ring_free(struct mei_device *dev);
+bool mei_dma_ring_is_allocated(struct mei_device *dev);
+void mei_dma_ring_reset(struct mei_device *dev);
+void mei_dma_ring_read(struct mei_device *dev, unsigned char *buf, u32 len);
+void mei_dma_ring_write(struct mei_device *dev, unsigned char *buf, u32 len);
+u32 mei_dma_ring_empty_slots(struct mei_device *dev);
 
 /*
  *  MEI interrupt functions prototype
@@ -681,10 +728,10 @@ static inline void mei_dbgfs_deregister(struct mei_device *dev) {}
 int mei_register(struct mei_device *dev, struct device *parent);
 void mei_deregister(struct mei_device *dev);
 
-#define MEI_HDR_FMT "hdr:host=%02d me=%02d len=%d internal=%1d comp=%1d"
+#define MEI_HDR_FMT "hdr:host=%02d me=%02d len=%d dma=%1d internal=%1d comp=%1d"
 #define MEI_HDR_PRM(hdr)                  \
 	(hdr)->host_addr, (hdr)->me_addr, \
-	(hdr)->length, (hdr)->internal, (hdr)->msg_complete
+	(hdr)->length, (hdr)->dma_ring, (hdr)->internal, (hdr)->msg_complete
 
 ssize_t mei_fw_status2str(struct mei_fw_status *fw_sts, char *buf, size_t len);
 /**
