@@ -7491,6 +7491,9 @@ enum {
 #define  GEN8_LQSC_RO_PERF_DIS			(1 << 27)
 #define  GEN8_LQSC_FLUSH_COHERENT_LINES		(1 << 21)
 
+#define GEN12_L3SQCREG2				_MMIO(0xb104)
+#define  GEN12_LQSC_FLUSH_COHERENT_LINES	(1 << 24)
+
 /* GEN8 chicken */
 #define HDC_CHICKEN0				_MMIO(0x7300)
 #define CNL_HDC_CHICKEN0			_MMIO(0xE5F0)

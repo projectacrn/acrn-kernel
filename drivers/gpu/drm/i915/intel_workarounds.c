@@ -489,6 +489,11 @@ static int icl_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 	return 0;
 }
 
+static int tgl_ctx_workarounds_init(struct drm_i915_private *dev_priv)
+{
+	return 0;
+}
+
 int intel_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 {
 	int err = 0;
@@ -515,6 +520,8 @@ int intel_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 		err = cnl_ctx_workarounds_init(dev_priv);
 	else if (IS_ICELAKE(dev_priv))
 		err = icl_ctx_workarounds_init(dev_priv);
+	else if (IS_TIGERLAKE(dev_priv))
+		err = tgl_ctx_workarounds_init(dev_priv);
 	else
 		MISSING_CASE(INTEL_GEN(dev_priv));
 	if (err)
@@ -803,6 +810,13 @@ static void icl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 		   PMFLUSHDONE_LNEBLK);
 }
 
+static void tgl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
+{
+	/* WaPipelineFlushCoherentLines:tgl */
+	I915_WRITE(GEN12_L3SQCREG2, (I915_READ(GEN12_L3SQCREG2) |
+				     GEN12_LQSC_FLUSH_COHERENT_LINES));
+}
+
 void intel_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 {
 	if (INTEL_GEN(dev_priv) < 8)
@@ -825,6 +839,8 @@ void intel_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 		cnl_gt_workarounds_apply(dev_priv);
 	else if (IS_ICELAKE(dev_priv))
 		icl_gt_workarounds_apply(dev_priv);
+	else if (IS_TIGERLAKE(dev_priv))
+		tgl_gt_workarounds_apply(dev_priv);
 	else
 		MISSING_CASE(INTEL_GEN(dev_priv));
 }
@@ -922,6 +938,15 @@ static void icl_whitelist_build(struct whitelist *w)
 	whitelist_reg(w, GEN10_SAMPLER_MODE);
 }
 
+static void tgl_whitelist_build(struct whitelist *w)
+{
+	/* WaSendPushConstantsFromMMIO:tgl */
+	whitelist_reg(w, COMMON_SLICE_CHICKEN2);
+
+	/* WaAllowUMDToModifySamplerMode:tgl */
+	whitelist_reg(w, GEN10_SAMPLER_MODE);
+}
+
 static struct whitelist *whitelist_build(struct intel_engine_cs *engine,
 					 struct whitelist *w)
 {
@@ -952,6 +977,8 @@ static struct whitelist *whitelist_build(struct intel_engine_cs *engine,
 		cnl_whitelist_build(w);
 	else if (IS_ICELAKE(i915))
 		icl_whitelist_build(w);
+	else if (IS_TIGERLAKE(i915))
+		tgl_whitelist_build(w);
 	else
 		MISSING_CASE(INTEL_GEN(i915));
 

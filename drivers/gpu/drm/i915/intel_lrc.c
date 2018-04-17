@@ -1712,6 +1712,8 @@ static int intel_init_workaround_bb(struct intel_engine_cs *engine)
 		return -EINVAL;
 
 	switch (INTEL_GEN(engine->i915)) {
+	case 12:
+		return 0;
 	case 11:
 		return 0;
 	case 10:
