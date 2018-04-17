@@ -310,11 +310,11 @@
 #define X86_FEATURE_UMIP		(16*32+ 2) /* User Mode Instruction Protection */
 #define X86_FEATURE_PKU			(16*32+ 3) /* Protection Keys for Userspace */
 #define X86_FEATURE_OSPKE		(16*32+ 4) /* OS Protection Keys Enable */
-#define X86_FEATURE_AVX512_VBMI2	(16*32+ 6) /* Additional AVX512 Vector Bit Manipulation Instructions */
+#define X86_FEATURE_AVX512VBMI2	(16*32+ 6) /* Additional AVX512 Vector Bit Manipulation Instructions */
 #define X86_FEATURE_GFNI		(16*32+ 8) /* Galois Field New Instructions */
 #define X86_FEATURE_VAES		(16*32+ 9) /* Vector AES */
 #define X86_FEATURE_VPCLMULQDQ		(16*32+10) /* Carry-Less Multiplication Double Quadword */
-#define X86_FEATURE_AVX512_VNNI		(16*32+11) /* Vector Neural Network Instructions */
+#define X86_FEATURE_AVX512VNNI		(16*32+11) /* Vector Neural Network Instructions */
 #define X86_FEATURE_AVX512_BITALG	(16*32+12) /* Support for VPOPCNT[B,W] and VPSHUF-BITQMB instructions */
 #define X86_FEATURE_TME			(16*32+13) /* Intel Total Memory Encryption */
 #define X86_FEATURE_AVX512_VPOPCNTDQ	(16*32+14) /* POPCNT for vectors of DW/QW */
@@ -333,6 +333,111 @@
 #define X86_FEATURE_SPEC_CTRL		(18*32+26) /* "" Speculation Control (IBRS + IBPB) */
 #define X86_FEATURE_INTEL_STIBP		(18*32+27) /* "" Single Thread Indirect Branch Predictors */
 #define X86_FEATURE_ARCH_CAPABILITIES	(18*32+29) /* IA32_ARCH_CAPABILITIES MSR (Intel) */
+#if 0
+#define X86_FEATURE_TPR_SHADOW  ( 8*32+ 0) /* Intel TPR Shadow */
+#define X86_FEATURE_VNMI        ( 8*32+ 1) /* Intel Virtual NMI */
+#define X86_FEATURE_FLEXPRIORITY ( 8*32+ 2) /* Intel FlexPriority */
+#define X86_FEATURE_EPT         ( 8*32+ 3) /* Intel Extended Page Table */
+#define X86_FEATURE_VPID        ( 8*32+ 4) /* Intel Virtual Processor ID */
+
+#define X86_FEATURE_VMMCALL     ( 8*32+15) /* Prefer vmmcall to vmcall */
+#define X86_FEATURE_XENPV       ( 8*32+16) /* "" Xen paravirtual guest */
+
+
+/* Intel-defined CPU features, CPUID level 0x00000007:0 (ebx), word 9 */
+#define X86_FEATURE_FSGSBASE	( 9*32+ 0) /* {RD/WR}{FS/GS}BASE instructions*/
+#define X86_FEATURE_TSC_ADJUST	( 9*32+ 1) /* TSC adjustment MSR 0x3b */
+#define X86_FEATURE_BMI1	( 9*32+ 3) /* 1st group bit manipulation extensions */
+#define X86_FEATURE_HLE		( 9*32+ 4) /* Hardware Lock Elision */
+#define X86_FEATURE_AVX2	( 9*32+ 5) /* AVX2 instructions */
+#define X86_FEATURE_SMEP	( 9*32+ 7) /* Supervisor Mode Execution Protection */
+#define X86_FEATURE_BMI2	( 9*32+ 8) /* 2nd group bit manipulation extensions */
+#define X86_FEATURE_ERMS	( 9*32+ 9) /* Enhanced REP MOVSB/STOSB */
+#define X86_FEATURE_INVPCID	( 9*32+10) /* Invalidate Processor Context ID */
+#define X86_FEATURE_RTM		( 9*32+11) /* Restricted Transactional Memory */
+#define X86_FEATURE_CQM		( 9*32+12) /* Cache QoS Monitoring */
+#define X86_FEATURE_MPX		( 9*32+14) /* Memory Protection Extension */
+#define X86_FEATURE_RDT_A	( 9*32+15) /* Resource Director Technology Allocation */
+#define X86_FEATURE_AVX512F	( 9*32+16) /* AVX-512 Foundation */
+#define X86_FEATURE_AVX512DQ	( 9*32+17) /* AVX-512 DQ (Double/Quad granular) Instructions */
+#define X86_FEATURE_RDSEED	( 9*32+18) /* The RDSEED instruction */
+#define X86_FEATURE_ADX		( 9*32+19) /* The ADCX and ADOX instructions */
+#define X86_FEATURE_SMAP	( 9*32+20) /* Supervisor Mode Access Prevention */
+#define X86_FEATURE_AVX512IFMA  ( 9*32+21) /* AVX-512 Integer Fused Multiply-Add instructions */
+#define X86_FEATURE_CLFLUSHOPT	( 9*32+23) /* CLFLUSHOPT instruction */
+#define X86_FEATURE_CLWB	( 9*32+24) /* CLWB instruction */
+#define X86_FEATURE_AVX512PF	( 9*32+26) /* AVX-512 Prefetch */
+#define X86_FEATURE_AVX512ER	( 9*32+27) /* AVX-512 Exponential and Reciprocal */
+#define X86_FEATURE_AVX512CD	( 9*32+28) /* AVX-512 Conflict Detection */
+#define X86_FEATURE_SHA_NI	( 9*32+29) /* SHA1/SHA256 Instruction Extensions */
+#define X86_FEATURE_AVX512BW	( 9*32+30) /* AVX-512 BW (Byte/Word granular) Instructions */
+#define X86_FEATURE_AVX512VL	( 9*32+31) /* AVX-512 VL (128/256 Vector Length) Extensions */
+
+/* Extended state features, CPUID level 0x0000000d:1 (eax), word 10 */
+#define X86_FEATURE_XSAVEOPT	(10*32+ 0) /* XSAVEOPT */
+#define X86_FEATURE_XSAVEC	(10*32+ 1) /* XSAVEC */
+#define X86_FEATURE_XGETBV1	(10*32+ 2) /* XGETBV with ECX = 1 */
+#define X86_FEATURE_XSAVES	(10*32+ 3) /* XSAVES/XRSTORS */
+
+/* Intel-defined CPU QoS Sub-leaf, CPUID level 0x0000000F:0 (edx), word 11 */
+#define X86_FEATURE_CQM_LLC	(11*32+ 1) /* LLC QoS if 1 */
+
+/* Intel-defined CPU QoS Sub-leaf, CPUID level 0x0000000F:1 (edx), word 12 */
+#define X86_FEATURE_CQM_OCCUP_LLC (12*32+ 0) /* LLC occupancy monitoring if 1 */
+#define X86_FEATURE_CQM_MBM_TOTAL (12*32+ 1) /* LLC Total MBM monitoring */
+#define X86_FEATURE_CQM_MBM_LOCAL (12*32+ 2) /* LLC Local MBM monitoring */
+
+/* AMD-defined CPU features, CPUID level 0x80000008 (ebx), word 13 */
+#define X86_FEATURE_CLZERO	(13*32+0) /* CLZERO instruction */
+#define X86_FEATURE_IRPERF	(13*32+1) /* Instructions Retired Count */
+
+/* Thermal and Power Management Leaf, CPUID level 0x00000006 (eax), word 14 */
+#define X86_FEATURE_DTHERM	(14*32+ 0) /* Digital Thermal Sensor */
+#define X86_FEATURE_IDA		(14*32+ 1) /* Intel Dynamic Acceleration */
+#define X86_FEATURE_ARAT	(14*32+ 2) /* Always Running APIC Timer */
+#define X86_FEATURE_PLN		(14*32+ 4) /* Intel Power Limit Notification */
+#define X86_FEATURE_PTS		(14*32+ 6) /* Intel Package Thermal Status */
+#define X86_FEATURE_HWP		(14*32+ 7) /* Intel Hardware P-states */
+#define X86_FEATURE_HWP_NOTIFY	(14*32+ 8) /* HWP Notification */
+#define X86_FEATURE_HWP_ACT_WINDOW (14*32+ 9) /* HWP Activity Window */
+#define X86_FEATURE_HWP_EPP	(14*32+10) /* HWP Energy Perf. Preference */
+#define X86_FEATURE_HWP_PKG_REQ (14*32+11) /* HWP Package Level Request */
+
+/* AMD SVM Feature Identification, CPUID level 0x8000000a (edx), word 15 */
+#define X86_FEATURE_NPT		(15*32+ 0) /* Nested Page Table support */
+#define X86_FEATURE_LBRV	(15*32+ 1) /* LBR Virtualization support */
+#define X86_FEATURE_SVML	(15*32+ 2) /* "svm_lock" SVM locking MSR */
+#define X86_FEATURE_NRIPS	(15*32+ 3) /* "nrip_save" SVM next_rip save */
+#define X86_FEATURE_TSCRATEMSR  (15*32+ 4) /* "tsc_scale" TSC scaling support */
+#define X86_FEATURE_VMCBCLEAN   (15*32+ 5) /* "vmcb_clean" VMCB clean bits support */
+#define X86_FEATURE_FLUSHBYASID (15*32+ 6) /* flush-by-ASID support */
+#define X86_FEATURE_DECODEASSISTS (15*32+ 7) /* Decode Assists support */
+#define X86_FEATURE_PAUSEFILTER (15*32+10) /* filtered pause intercept */
+#define X86_FEATURE_PFTHRESHOLD (15*32+12) /* pause filter threshold */
+#define X86_FEATURE_AVIC	(15*32+13) /* Virtual Interrupt Controller */
+#define X86_FEATURE_V_VMSAVE_VMLOAD (15*32+15) /* Virtual VMSAVE VMLOAD */
+#define X86_FEATURE_VGIF	(15*32+16) /* Virtual GIF */
+
+/* Intel-defined CPU features, CPUID level 0x00000007:0 (ecx), word 16 */
+#define X86_FEATURE_AVX512VBMI  (16*32+ 1) /* AVX512 Vector Bit Manipulation instructions*/
+#define X86_FEATURE_UMIP	(16*32+ 2) /* User Mode Instruction Protection */
+#define X86_FEATURE_PKU		(16*32+ 3) /* Protection Keys for Userspace */
+#define X86_FEATURE_OSPKE	(16*32+ 4) /* OS Protection Keys Enable */
+#define X86_FEATURE_AVX512VBMI2	(16*32+ 6) /* Additional AVX512 Vector Bit Manipulation Instructions*/
+#define X86_FEATURE_GFNI	(16*32+ 8) /* Galois Field New Instructions */
+#define X86_FEATURE_VAES	(16*32+ 9) /* Vector AES */
+#define X86_FEATURE_VPCLMULQDQ	(16*32+ 10)/* Carry-Less Multiplication Quadword */
+#define X86_FEATURE_AVX512VNNI  (16*32+ 11) /* Vector Neural Network Instructions */
+#define X86_FEATURE_AVX512_BITALG (16*32+12) /* Support for VPOPCNT[B,W] and VPSHUF-BITQMB */
+#define X86_FEATURE_AVX512_VPOPCNTDQ (16*32+14) /* POPCNT for vectors of DW/QW */
+#define X86_FEATURE_LA57	(16*32+16) /* 5-level page tables */
+#define X86_FEATURE_RDPID	(16*32+22) /* RDPID instruction */
+
+/* AMD-defined CPU features, CPUID level 0x80000007 (ebx), word 17 */
+#define X86_FEATURE_OVERFLOW_RECOV (17*32+0) /* MCA overflow recovery support */
+#define X86_FEATURE_SUCCOR	(17*32+1) /* Uncorrectable error containment and recovery */
+#define X86_FEATURE_SMCA	(17*32+3) /* Scalable MCA */
+#endif
 
 /*
  * BUG word(s)

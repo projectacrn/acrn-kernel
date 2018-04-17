@@ -733,11 +733,11 @@ static unsigned long get_seg_limit(struct pt_regs *regs, int seg_reg_idx)
  *
  * Returns:
  *
- * An int containing ORed-in default parameters on success.
+ * A signed 8-bit value containing the default parameters on success.
  *
  * -EINVAL on error.
  */
-int insn_get_code_seg_params(struct pt_regs *regs)
+char insn_get_code_seg_params(struct pt_regs *regs)
 {
 	struct desc_struct *desc;
 	short sel;
@@ -888,13 +888,14 @@ static int get_eff_addr_reg(struct insn *insn, struct pt_regs *regs,
 	if (*regoff < 0)
 		return -EINVAL;
 
-	/* Ignore bytes that are outside the address size. */
+	/* Ignore bytes that are outside the address size */
 	if (insn->addr_bytes == 2)
-		*eff_addr = regs_get_register(regs, *regoff) & 0xffff;
+		*eff_addr = (long)(regs_get_register(regs, *regoff) & 0xffff);
 	else if (insn->addr_bytes == 4)
-		*eff_addr = regs_get_register(regs, *regoff) & 0xffffffff;
+		*eff_addr = (long)(regs_get_register(regs, *regoff) &
+				   0xffffffff);
 	else /* 64-bit address */
-		*eff_addr = regs_get_register(regs, *regoff);
+		*eff_addr = (long)regs_get_register(regs, *regoff);
 
 	return 0;
 }
@@ -911,7 +912,8 @@ static int get_eff_addr_reg(struct insn *insn, struct pt_regs *regs,
  * its value is obtained from the operands in @regs. The computed address is
  * stored @eff_addr. Also, the register operand that indicates the associated
  * segment is stored in @regoff, this parameter can later be used to determine
- * such segment.
+ * such segment. This function can be used for both 32-bit and 64-bit effective
+ * addresses.
  *
  * Returns:
  *
@@ -938,27 +940,26 @@ static int get_eff_addr_modrm(struct insn *insn, struct pt_regs *regs,
 		return -EINVAL;
 
 	*regoff = get_reg_offset(insn, regs, REG_TYPE_RM);
-
 	/*
 	 * -EDOM means that we must ignore the address_offset. In such a case,
-	 * in 64-bit mode the effective address relative to the rIP of the
+	 * in 64-bit mode the effective address relative to the RIP of the
 	 * following instruction.
 	 */
 	if (*regoff == -EDOM) {
 		if (user_64bit_mode(regs))
-			tmp = regs->ip + insn->length;
+			tmp = (long)regs->ip + insn->length;
 		else
 			tmp = 0;
 	} else if (*regoff < 0) {
 		return -EINVAL;
 	} else {
-		tmp = regs_get_register(regs, *regoff);
+		tmp = (long)regs_get_register(regs, *regoff);
 	}
 
 	if (insn->addr_bytes == 4) {
 		int addr32 = (int)(tmp & 0xffffffff) + insn->displacement.value;
 
-		*eff_addr = addr32 & 0xffffffff;
+		*eff_addr = (long)(addr32 & 0xffffffff);
 	} else {
 		*eff_addr = tmp + insn->displacement.value;
 	}
@@ -992,7 +993,7 @@ static int get_eff_addr_modrm_16(struct insn *insn, struct pt_regs *regs,
 				 int *regoff, short *eff_addr)
 {
 	int addr_offset1, addr_offset2, ret;
-	short addr1 = 0, addr2 = 0, displacement;
+	short addr1 = 0, addr2 = 0;
 
 	if (insn->addr_bytes != 2)
 		return -EINVAL;
@@ -1005,7 +1006,8 @@ static int get_eff_addr_modrm_16(struct insn *insn, struct pt_regs *regs,
 	if (X86_MODRM_MOD(insn->modrm.value) > 2)
 		return -EINVAL;
 
-	ret = get_reg_offset_16(insn, regs, &addr_offset1, &addr_offset2);
+	ret = get_reg_offset_16(insn, regs, &addr_offset1,
+				&addr_offset2);
 	if (ret < 0)
 		return -EINVAL;
 
@@ -1015,13 +1017,12 @@ static int get_eff_addr_modrm_16(struct insn *insn, struct pt_regs *regs,
 	 * them in the computation only if they contain a valid value.
 	 */
 	if (addr_offset1 != -EDOM)
-		addr1 = regs_get_register(regs, addr_offset1) & 0xffff;
+		addr1 = (short)(0xffff & regs_get_register(regs, addr_offset1));
 
 	if (addr_offset2 != -EDOM)
-		addr2 = regs_get_register(regs, addr_offset2) & 0xffff;
+		addr2 = (short)(0xffff & regs_get_register(regs, addr_offset2));
 
-	displacement = insn->displacement.value & 0xffff;
-	*eff_addr = addr1 + addr2 + displacement;
+	*eff_addr = addr1 + addr2 + (short)(insn->displacement.value & 0xffff);
 
 	/*
 	 * The first operand register could indicate to use of either SS or DS
@@ -1046,13 +1047,14 @@ static int get_eff_addr_modrm_16(struct insn *insn, struct pt_regs *regs,
  * reference, its value is obtained from the operands in @regs. The computed
  * address is stored @eff_addr. Also, the register operand that indicates the
  * associated segment is stored in @regoff, this parameter can later be used to
- * determine such segment.
+ * determine such segment. This function can be used for both 32-bit and 64-bit
+ * effective addresses.
  *
  * Returns:
  *
- * 0 on success. @eff_addr will have the referenced effective address.
- * @base_offset will have a register, as an offset from the base of pt_regs,
- * that can be used to resolve the associated segment.
+ * 0 on success. @eff_addr will have the referenced effective address. @regoff
+ * will have a register, as an offset from the base of pt_regs, that can be used
+ * to resolve the associated segment.
  *
  * -EINVAL on error.
  */
@@ -1080,7 +1082,6 @@ static int get_eff_addr_sib(struct insn *insn, struct pt_regs *regs,
 
 	*base_offset = get_reg_offset(insn, regs, REG_TYPE_BASE);
 	indx_offset = get_reg_offset(insn, regs, REG_TYPE_INDEX);
-
 	/*
 	 * Negative values in the base and index offset means an error when
 	 * decoding the SIB byte. Except -EDOM, which means that the registers
@@ -1091,25 +1092,25 @@ static int get_eff_addr_sib(struct insn *insn, struct pt_regs *regs,
 	else if (*base_offset < 0)
 		return -EINVAL;
 	else
-		base = regs_get_register(regs, *base_offset);
+		base = (long)regs_get_register(regs, *base_offset);
 
 	if (indx_offset == -EDOM)
 		indx = 0;
 	else if (indx_offset < 0)
 		return -EINVAL;
 	else
-		indx = regs_get_register(regs, indx_offset);
+		indx = (long)regs_get_register(regs, indx_offset);
 
 	if (insn->addr_bytes == 4) {
 		int addr32, base32, idx32;
 
-		base32 = base & 0xffffffff;
-		idx32 = indx & 0xffffffff;
+		base32 = (int)(base & 0xffffffff);
+		idx32 = (int)(indx & 0xffffffff);
 
 		addr32 = base32 + idx32 * (1 << X86_SIB_SCALE(insn->sib.value));
 		addr32 += insn->displacement.value;
 
-		*eff_addr = addr32 & 0xffffffff;
+		*eff_addr = (long)(addr32 & 0xffffffff);
 	} else {
 		*eff_addr = base + indx * (1 << X86_SIB_SCALE(insn->sib.value));
 		*eff_addr += insn->displacement.value;
@@ -1153,7 +1154,7 @@ static void __user *get_addr_ref_16(struct insn *insn, struct pt_regs *regs)
 		if (ret)
 			goto out;
 
-		eff_addr = tmp;
+		eff_addr = (short)tmp;
 	} else {
 		ret = get_eff_addr_modrm_16(insn, regs, &regoff, &eff_addr);
 		if (ret)
@@ -1214,7 +1215,7 @@ static void __user *get_addr_ref_32(struct insn *insn, struct pt_regs *regs)
 		if (ret)
 			goto out;
 
-		eff_addr = tmp;
+		eff_addr = (int)tmp;
 
 	} else {
 		if (insn->sib.nbytes) {
@@ -1222,20 +1223,20 @@ static void __user *get_addr_ref_32(struct insn *insn, struct pt_regs *regs)
 			if (ret)
 				goto out;
 
-			eff_addr = tmp;
+			eff_addr = (int)tmp;
 		} else {
 			ret = get_eff_addr_modrm(insn, regs, &regoff, &tmp);
 			if (ret)
 				goto out;
 
-			eff_addr = tmp;
+			eff_addr = (int)tmp;
 		}
 	}
 
-	ret = get_seg_base_limit(insn, regs, regoff, &seg_base, &seg_limit);
+	ret = get_seg_base_limit(insn, regs, regoff, &seg_base,
+				 &seg_limit);
 	if (ret)
 		goto out;
-
 	/*
 	 * In protected mode, before computing the linear address, make sure
 	 * the effective address is within the limits of the segment.
@@ -1296,31 +1297,33 @@ static void __user *get_addr_ref_64(struct insn *insn, struct pt_regs *regs)
 static void __user *get_addr_ref_64(struct insn *insn, struct pt_regs *regs)
 {
 	unsigned long linear_addr = -1L, seg_base;
-	int regoff, ret;
+	int addr_offset, ret;
 	long eff_addr;
 
 	if (insn->addr_bytes != 8)
 		goto out;
 
 	if (X86_MODRM_MOD(insn->modrm.value) == 3) {
-		ret = get_eff_addr_reg(insn, regs, &regoff, &eff_addr);
+		ret = get_eff_addr_reg(insn, regs, &addr_offset, &eff_addr);
 		if (ret)
 			goto out;
 
 	} else {
 		if (insn->sib.nbytes) {
-			ret = get_eff_addr_sib(insn, regs, &regoff, &eff_addr);
+			ret = get_eff_addr_sib(insn, regs, &addr_offset,
+					       &eff_addr);
 			if (ret)
 				goto out;
 		} else {
-			ret = get_eff_addr_modrm(insn, regs, &regoff, &eff_addr);
+			ret = get_eff_addr_modrm(insn, regs, &addr_offset,
+						 &eff_addr);
 			if (ret)
 				goto out;
 		}
 
 	}
 
-	ret = get_seg_base_limit(insn, regs, regoff, &seg_base, NULL);
+	ret = get_seg_base_limit(insn, regs, addr_offset, &seg_base, NULL);
 	if (ret)
 		goto out;
 

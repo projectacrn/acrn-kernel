@@ -537,10 +537,9 @@ do_general_protection(struct pt_regs *regs, long error_code)
 	RCU_LOCKDEP_WARN(!rcu_is_watching(), "entry code didn't wake RCU");
 	cond_local_irq_enable(regs);
 
-	if (static_cpu_has(X86_FEATURE_UMIP)) {
+	if (static_cpu_has(X86_FEATURE_UMIP))
 		if (user_mode(regs) && fixup_umip_exception(regs))
 			return;
-	}
 
 	if (v8086_mode(regs)) {
 		local_irq_enable();

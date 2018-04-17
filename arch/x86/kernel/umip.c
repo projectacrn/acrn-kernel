@@ -13,9 +13,6 @@
 #include <asm/insn-eval.h>
 #include <linux/ratelimit.h>
 
-#undef pr_fmt
-#define pr_fmt(fmt) "umip: " fmt
-
 /** DOC: Emulation for User-Mode Instruction Prevention (UMIP)
  *
  * The feature User-Mode Instruction Prevention present in recent Intel
@@ -78,83 +75,22 @@
 
 #define	UMIP_INST_SGDT	0	/* 0F 01 /0 */
 #define	UMIP_INST_SIDT	1	/* 0F 01 /1 */
-#define	UMIP_INST_SMSW	2	/* 0F 01 /4 */
-#define	UMIP_INST_SLDT  3       /* 0F 00 /0 */
-#define	UMIP_INST_STR   4       /* 0F 00 /1 */
-
-const char * const umip_insns[5] = {
-	[UMIP_INST_SGDT] = "SGDT",
-	[UMIP_INST_SIDT] = "SIDT",
-	[UMIP_INST_SMSW] = "SMSW",
-	[UMIP_INST_SLDT] = "SLDT",
-	[UMIP_INST_STR] = "STR",
-};
-
-#define umip_pr_err(regs, fmt, ...) \
-	umip_printk(regs, KERN_ERR, fmt, ##__VA_ARGS__)
-#define umip_pr_warning(regs, fmt, ...) \
-	umip_printk(regs, KERN_WARNING, fmt,  ##__VA_ARGS__)
-
-/**
- * umip_printk() - Print a rate-limited message
- * @regs:	Register set with the context in which the warning is printed
- * @log_level:	Kernel log level to print the message
- * @fmt:	The text string to print
- *
- * Print the text contained in @fmt. The print rate is limited to bursts of 5
- * messages every two minutes. The purpose of this customized version of
- * printk() is to print messages when user space processes use any of the
- * UMIP-protected instructions. Thus, the printed text is prepended with the
- * task name and process ID number of the current task as well as the
- * instruction and stack pointers in @regs as seen when entering kernel mode.
- *
- * Returns:
- *
- * None.
- */
-static __printf(3, 4)
-void umip_printk(const struct pt_regs *regs, const char *log_level,
-		 const char *fmt, ...)
-{
-	/* Bursts of 5 messages every two minutes */
-	static DEFINE_RATELIMIT_STATE(ratelimit, 2 * 60 * HZ, 5);
-	struct task_struct *tsk = current;
-	struct va_format vaf;
-	va_list args;
-
-	if (!__ratelimit(&ratelimit))
-		return;
-
-	va_start(args, fmt);
-	vaf.fmt = fmt;
-	vaf.va = &args;
-	printk("%s" pr_fmt("%s[%d] ip:%lx sp:%lx: %pV"), log_level, tsk->comm,
-	       task_pid_nr(tsk), regs->ip, regs->sp, &vaf);
-	va_end(args);
-}
+#define	UMIP_INST_SMSW	3	/* 0F 01 /4 */
 
 /**
  * identify_insn() - Identify a UMIP-protected instruction
  * @insn:	Instruction structure with opcode and ModRM byte.
  *
- * From the opcode and ModRM.reg in @insn identify, if any, a UMIP-protected
- * instruction that can be emulated.
+ * From the instruction opcode and the reg part of the ModRM byte, identify,
+ * if any, a UMIP-protected instruction.
  *
- * Returns:
- *
- * On success, a constant identifying a specific UMIP-protected instruction that
- * can be emulated.
- *
- * -EINVAL on error or when not an UMIP-protected instruction that can be
- * emulated.
+ * Return: a constant that identifies a specific UMIP-protected instruction.
+ * -EINVAL when not an UMIP-protected instruction.
  */
 static int identify_insn(struct insn *insn)
 {
 	/* By getting modrm we also get the opcode. */
 	insn_get_modrm(insn);
-
-	if (!insn->modrm.nbytes)
-		return -EINVAL;
 
 	/* All the instructions of interest start with 0x0f. */
 	if (insn->opcode.bytes[0] != 0xf)
@@ -171,35 +107,26 @@ static int identify_insn(struct insn *insn)
 		default:
 			return -EINVAL;
 		}
-	} else if (insn->opcode.bytes[1] == 0x0) {
-		if (X86_MODRM_REG(insn->modrm.value) == 0)
-			return UMIP_INST_SLDT;
-		else if (X86_MODRM_REG(insn->modrm.value) == 1)
-			return UMIP_INST_STR;
-		else
-			return -EINVAL;
-	} else {
-		return -EINVAL;
 	}
+	/* SLDT AND STR are not emulated */
+	return -EINVAL;
 }
 
 /**
- * emulate_umip_insn() - Emulate UMIP instructions and return dummy values
+ * emulate_umip_insn() - Emulate UMIP instructions with dummy values
  * @insn:	Instruction structure with operands
- * @umip_inst:	A constant indicating the instruction to emulate
- * @data:	Buffer into which the dummy result is stored
+ * @umip_inst:	Instruction to emulate
+ * @data:	Buffer into which the dummy values will be copied
  * @data_size:	Size of the emulated result
  *
- * Emulate an instruction protected by UMIP and provide a dummy result. The
- * result of the emulation is saved in @data. The size of the results depends
- * on both the instruction and type of operand (register vs memory address).
- * The size of the result is updated in @data_size. Caller is responsible
- * of providing a @data buffer of at least UMIP_GDT_IDT_BASE_SIZE +
- * UMIP_GDT_IDT_LIMIT_SIZE bytes.
+ * Emulate an instruction protected by UMIP. The result of the emulation
+ * is saved in the provided buffer. The size of the results depends on both
+ * the instruction and type of operand (register vs memory address). Thus,
+ * the size of the result needs to be updated.
  *
  * Returns:
  *
- * 0 on success, -EINVAL on error while emulating.
+ * 0 if success, -EINVAL on error while emulating.
  */
 static int emulate_umip_insn(struct insn *insn, int umip_inst,
 			     unsigned char *data, int *data_size)
@@ -287,24 +214,26 @@ static void force_sig_info_umip_fault(void __user *addr, struct pt_regs *regs)
 	if (!(show_unhandled_signals && unhandled_signal(tsk, SIGSEGV)))
 		return;
 
-	umip_pr_err(regs, "segfault in emulation. error%x\n",
-		    X86_PF_USER | X86_PF_WRITE);
+	pr_err_ratelimited("%s[%d] umip emulation segfault ip:%lx sp:%lx error:%x in %lx\n",
+			   tsk->comm, task_pid_nr(tsk), regs->ip,
+			   regs->sp, X86_PF_USER | X86_PF_WRITE,
+			   regs->ip);
 }
 
 /**
- * fixup_umip_exception() - Fixup a general protection fault caused by UMIP
- * @regs:	Registers as saved when entering the #GP handler
+ * fixup_umip_exception() - Fixup #GP faults caused by UMIP
+ * @regs:	Registers as saved when entering the #GP trap
  *
  * The instructions sgdt, sidt, str, smsw, sldt cause a general protection
  * fault if executed with CPL > 0 (i.e., from user space). If the offending
- * user-space process is not in long mode, this function fixes the exception
- * up and provides dummy results for sgdt, sidt and smsw; str and sldt are not
- * fixed up. Also long mode user-space processes are not fixed up.
+ * user-space process is 32-bit, this function fixes the exception up and
+ * provides dummy values for the sgdt, sidt and smsw; str and sldt are not
+ * fixed up. Also 64-bit user-space processes are not fixed up.
  *
- * If operands are memory addresses, results are copied to user-space memory as
- * indicated by the instruction pointed by eIP using the registers indicated in
- * the instruction operands. If operands are registers, results are copied into
- * the context that was saved when entering kernel mode.
+ * If operands are memory addresses, results are copied to user-
+ * space memory as indicated by the instruction pointed by EIP using the
+ * registers indicated in the instruction operands. If operands are registers,
+ * results are copied into the context that was saved when entering kernel mode.
  *
  * Returns:
  *
@@ -319,15 +248,19 @@ bool fixup_umip_exception(struct pt_regs *regs)
 	unsigned char buf[MAX_INSN_SIZE];
 	void __user *uaddr;
 	struct insn insn;
-	int seg_defs;
+	char seg_defs;
 
 	if (!regs)
 		return false;
 
+	/* Do not emulate 64-bit processes. */
+	if (user_64bit_mode(regs))
+		return false;
+
 	/*
-	 * If not in user-space long mode, a custom code segment could be in
-	 * use. This is true in protected mode (if the process defined a local
-	 * descriptor table), or virtual-8086 mode. In most of the cases
+	 * Use the segment base in case user space used a different code
+	 * segment, either in protected (e.g., from an LDT), virtual-8086
+	 * or long (via the FS or GS registers) modes. In most of the cases
 	 * seg_base will be zero as in USER_CS.
 	 */
 	if (!user_64bit_mode(regs))
@@ -364,8 +297,8 @@ bool fixup_umip_exception(struct pt_regs *regs)
 	if (seg_defs == -EINVAL)
 		return false;
 
-	insn.addr_bytes = INSN_CODE_SEG_ADDR_SZ(seg_defs);
-	insn.opnd_bytes = INSN_CODE_SEG_OPND_SZ(seg_defs);
+	insn.addr_bytes = (unsigned char)INSN_CODE_SEG_ADDR_SZ(seg_defs);
+	insn.opnd_bytes = (unsigned char)INSN_CODE_SEG_OPND_SZ(seg_defs);
 
 	insn_get_length(&insn);
 	if (nr_copied < insn.length)
@@ -374,15 +307,6 @@ bool fixup_umip_exception(struct pt_regs *regs)
 	umip_inst = identify_insn(&insn);
 	if (umip_inst < 0)
 		return false;
-
-	umip_pr_warning(regs, "%s instruction cannot be used by applications.\n",
-			umip_insns[umip_inst]);
-
-	/* Do not emulate SLDT, STR or user long mode processes. */
-	if (umip_inst == UMIP_INST_STR || umip_inst == UMIP_INST_SLDT || user_64bit_mode(regs))
-		return false;
-
-	umip_pr_warning(regs, "For now, expensive software emulation returns the result.\n");
 
 	if (emulate_umip_insn(&insn, umip_inst, dummy_data, &dummy_data_size))
 		return false;
