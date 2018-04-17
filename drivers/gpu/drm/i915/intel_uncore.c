@@ -140,7 +140,7 @@ fw_domain_wait_ack_with_fallback(const struct drm_i915_private *i915,
 	 * the fallback ack.
 	 *
 	 * This workaround is described in HSDES #1604254524 and it's known as:
-	 * WaRsForcewakeAddDelayForAck:skl,bxt,kbl,glk,cfl,cnl,icl
+	 * WaRsForcewakeAddDelayForAck:skl,bxt,kbl,glk,cfl,cnl,icl,tgl
 	 * although the name is a bit misleading.
 	 */
 
