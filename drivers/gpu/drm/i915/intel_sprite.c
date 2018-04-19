@@ -131,6 +131,10 @@ void intel_pipe_update_start(const struct intel_crtc_state *new_crtc_state)
 		if (scanline < min || scanline > max)
 			break;
 
+		/* Scanline counter doesn't increment properly in fulsim */
+		if (IS_GEN(dev_priv, 11, 12) && IS_PRESILICON(dev_priv))
+			break;
+
 		if (!timeout) {
 			DRM_ERROR("Potential atomic update failure on pipe %c\n",
 				  pipe_name(crtc->pipe));
