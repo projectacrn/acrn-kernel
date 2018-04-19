@@ -130,6 +130,10 @@ static void guc_prepare_xfer(struct intel_guc *guc)
 				     GUC_ENABLE_READ_CACHE_FOR_WOPCM_DATA |
 				     GUC_ENABLE_MIA_CLOCK_GATING);
 
+	/* SIM: Disable security checks */
+	if (IS_PRESILICON(dev_priv))
+		I915_WRITE(GUC_SHIM_CONTROL2, GUC_SHIM_CONTROL2_VALUE);
+
 	if (IS_GEN9_LP(dev_priv))
 		I915_WRITE(GEN9LP_GT_PM_CONFIG, GT_DOORBELL_ENABLE);
 	else
