@@ -490,12 +490,22 @@ static void gen11_guc_proxy_stage_init(struct intel_guc *guc,
 	desc->process_desc = gfx_addr + client->proc_desc_offset;
 	desc->wq_addr = gfx_addr + GUC_DB_SIZE;
 	desc->wq_size = GUC_WQ_SIZE;
+
+	if (IS_PRESILICON(guc_to_i915(guc)))
+		intel_mark_page_as_mop(guc_to_i915(guc),
+				       sg_dma_address(client->vma->pages->sgl),
+				       true);
 }
 
 static void gen11_guc_proxy_stage_fini(struct intel_guc *guc,
 				       struct intel_guc_client *client)
 {
 	struct gen11_guc_stage_desc *desc = __gen11_get_proxy_stage_desc(client);
+
+	if (IS_PRESILICON(guc_to_i915(guc)))
+		intel_mark_page_as_mop(guc_to_i915(guc),
+				       sg_dma_address(client->vma->pages->sgl),
+				       false);
 
 	/* No memset: the stage desc might still be used as a principal */
 	desc->priority = 0;
