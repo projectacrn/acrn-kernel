@@ -2143,6 +2143,8 @@ struct drm_i915_private {
 
 	struct i915_pmu pmu;
 
+	struct timer_list sim_irq_timer;
+
 	/*
 	 * NOTE: This is the dri1/ums dungeon, don't add stuff here. Your patch
 	 * will be rejected. Instead look for a better place.

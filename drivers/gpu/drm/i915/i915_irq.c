@@ -1243,6 +1243,38 @@ static void notify_ring(struct intel_engine_cs *engine)
 	trace_intel_engine_notify(engine, wait);
 }
 
+#define SIM_IRQ_TIMER_INTERVAL 30
+
+static void sim_irq_timer_fn(struct timer_list *t)
+{
+	struct drm_i915_private *dev_priv = from_timer(dev_priv, t,
+						       sim_irq_timer);
+	struct drm_device *dev = &dev_priv->drm;
+	int pipe;
+
+	if (INTEL_GEN(dev_priv) < 11) {
+		notify_ring(dev_priv->engine[RCS]);
+		notify_ring(dev_priv->engine[BCS]);
+	}
+
+	for_each_pipe(dev_priv, pipe)
+		drm_handle_vblank(dev, pipe);
+
+	mod_timer(&dev_priv->sim_irq_timer, jiffies + msecs_to_jiffies(SIM_IRQ_TIMER_INTERVAL));
+}
+
+static void sim_irq_timer_start(struct drm_i915_private *dev_priv)
+{
+	timer_setup(&dev_priv->sim_irq_timer, sim_irq_timer_fn, 0);
+	mod_timer(&dev_priv->sim_irq_timer, jiffies + msecs_to_jiffies(SIM_IRQ_TIMER_INTERVAL));
+}
+
+static void sim_irq_timer_stop(struct drm_i915_private *dev_priv)
+{
+	if (dev_priv->sim_irq_timer.function)
+		del_timer_sync(&dev_priv->sim_irq_timer);
+}
+
 static void vlv_c0_read(struct drm_i915_private *dev_priv,
 			struct intel_rps_ei *ei)
 {
@@ -3668,6 +3700,9 @@ static void gen8_irq_reset(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	int pipe;
 
+	if (IS_PRESILICON(dev_priv))
+		sim_irq_timer_stop(dev_priv);
+
 	I915_WRITE(GEN8_MASTER_IRQ, 0);
 	POSTING_READ(GEN8_MASTER_IRQ);
 
@@ -3716,6 +3751,9 @@ static void gen11_irq_reset(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int pipe;
+
+	if (IS_PRESILICON(dev_priv))
+		sim_irq_timer_stop(dev_priv);
 
 	I915_WRITE(GEN11_GFX_MSTR_IRQ, 0);
 	POSTING_READ(GEN11_GFX_MSTR_IRQ);
@@ -4324,6 +4362,9 @@ static int gen8_irq_postinstall(struct drm_device *dev)
 	I915_WRITE(GEN8_MASTER_IRQ, GEN8_MASTER_IRQ_CONTROL);
 	POSTING_READ(GEN8_MASTER_IRQ);
 
+	if (IS_PRESILICON(dev_priv))
+		sim_irq_timer_start(dev_priv);
+
 	return 0;
 }
 
@@ -4394,6 +4435,9 @@ static int gen11_irq_postinstall(struct drm_device *dev)
 
 	I915_WRITE(GEN11_GFX_MSTR_IRQ, GEN11_MASTER_IRQ);
 	POSTING_READ(GEN11_GFX_MSTR_IRQ);
+
+	if (IS_PRESILICON(dev_priv))
+		sim_irq_timer_start(dev_priv);
 
 	return 0;
 }
