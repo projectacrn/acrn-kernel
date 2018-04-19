@@ -2790,6 +2790,11 @@ int vlv_force_gfx_clock(struct drm_i915_private *dev_priv, bool on);
 int intel_engines_init_mmio(struct drm_i915_private *dev_priv);
 int intel_engines_init(struct drm_i915_private *dev_priv);
 
+int intel_mark_page_as_mop(struct drm_i915_private *dev_priv,
+			   u64 address, bool owned);
+int intel_mark_all_pages_as_mop(struct drm_i915_private *dev_priv,
+				struct sg_table *pages, bool owned);
+
 /* intel_hotplug.c */
 void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,
 			   u32 pin_mask, u32 long_mask);

@@ -276,6 +276,52 @@ static void simulator_set_pch(struct drm_i915_private *dev_priv)
 	dev_priv->pch_type = intel_pch_type(dev_priv, dev_priv->pch_id);
 }
 
+/*
+ * Marks a physical page to be model-owned, which means that access to this
+ * page triggers callback on HAS side and thanks to it we can inform fulsim that
+ * something was changed and it may need to be processed.
+ * The communication is done by writing a 64 bit value to mmio offset 0x180000,
+ * which is unused in real HW. HAS will trap writes to this offset and use the
+ * value internally according to the following encoding:
+ *
+ * Bit 0: 0 – delete mop page; 1 – add mop page
+ * Bits 1-11: reserved
+ * Bits 12-63: page number
+ */
+int intel_mark_page_as_mop(struct drm_i915_private *dev_priv,
+			   u64 address, bool owned)
+{
+	const i915_reg_t mop_reg = _MMIO(0x180000);
+
+	// The cake is a lie!
+	GEM_BUG_ON(!IS_PRESILICON(dev_priv));
+	GEM_BUG_ON(address & (PAGE_SIZE - 1));
+
+	if (owned)
+		address |= 1;
+
+	I915_WRITE64_FW(mop_reg, address);
+
+	return 0;
+}
+
+int intel_mark_all_pages_as_mop(struct drm_i915_private *dev_priv,
+				struct sg_table *pages, bool owned)
+{
+	struct sg_page_iter sg_iter;
+	int ret;
+
+	__sg_page_iter_start(&sg_iter, pages->sgl, sg_nents(pages->sgl), 0);
+	while (__sg_page_iter_next(&sg_iter)) {
+		ret = intel_mark_page_as_mop(dev_priv,
+				sg_page_iter_dma_address(&sg_iter), owned);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
 static void intel_detect_pch(struct drm_i915_private *dev_priv)
 {
 	struct pci_dev *pch = NULL;
