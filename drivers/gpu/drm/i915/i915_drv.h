@@ -641,6 +641,7 @@ enum intel_pch {
 	PCH_ICP,	/* Ice Lake PCH */
 	PCH_TGP,	/* Tiger Lake PCH */
 	PCH_NOP,
+	PCH_SIM = -1	/* Simulator hint */
 };
 
 enum intel_sbi_destination {
@@ -2677,6 +2678,7 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define INTEL_PCH_P2X_DEVICE_ID_TYPE		0x7100
 #define INTEL_PCH_P3X_DEVICE_ID_TYPE		0x7000
 #define INTEL_PCH_QEMU_DEVICE_ID_TYPE		0x2900 /* qemu q35 has 2918 */
+#define INTEL_PCH_HAS_DEVICE_ID_TYPE		0x7000
 
 #define INTEL_PCH_TYPE(dev_priv) ((dev_priv)->pch_type)
 #define INTEL_PCH_ID(dev_priv) ((dev_priv)->pch_id)

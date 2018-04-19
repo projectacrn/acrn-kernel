@@ -134,6 +134,9 @@ static enum intel_pch
 intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 {
 	switch (id) {
+	case INTEL_PCH_HAS_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found HAS PCH\n");
+		return PCH_SIM;
 	case INTEL_PCH_IBX_DEVICE_ID_TYPE:
 		DRM_DEBUG_KMS("Found Ibex Peak PCH\n");
 		WARN_ON(!IS_GEN5(dev_priv));
@@ -258,12 +261,17 @@ intel_virt_detect_pch(const struct drm_i915_private *dev_priv)
 	return id;
 }
 
+static void simulator_detect_pch(struct drm_i915_private *dev_priv)
+{
+	dev_priv->__is_simulator = true;
+	dev_priv->pch_type = intel_virt_detect_pch(dev_priv);
+}
+
 void intel_init_simulator(struct drm_i915_private *dev_priv)
 {
 	if (i915_modparams.is_simulator == 1) {
 		DRM_DEBUG_KMS("Forcing Simulator mode\n");
-		dev_priv->__is_simulator = true;
-		dev_priv->pch_type = intel_virt_detect_pch(dev_priv);
+		simulator_detect_pch(dev_priv);
 	}
 }
 
@@ -300,7 +308,11 @@ static void intel_detect_pch(struct drm_i915_private *dev_priv)
 		id = pch->device & INTEL_PCH_DEVICE_ID_MASK;
 
 		pch_type = intel_pch_type(dev_priv, id);
-		if (pch_type != PCH_NONE) {
+		if (pch_type == PCH_SIM) {
+			simulator_detect_pch(dev_priv);
+			dev_priv->pch_id = id;
+			break;
+		} else if (pch_type != PCH_NONE) {
 			dev_priv->pch_type = pch_type;
 			dev_priv->pch_id = id;
 			break;
