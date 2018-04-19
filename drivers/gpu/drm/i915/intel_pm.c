@@ -2942,8 +2942,9 @@ static void intel_print_wm_latency(struct drm_i915_private *dev_priv,
 		unsigned int latency = wm[level];
 
 		if (latency == 0) {
-			DRM_ERROR("%s WM%d latency not provided\n",
-				  name, level);
+			if (!IS_PRESILICON(dev_priv))
+				DRM_ERROR("%s WM%d latency not provided\n",
+					  name, level);
 			continue;
 		}
 
