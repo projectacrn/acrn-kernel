@@ -2674,7 +2674,8 @@ void icl_map_plls_to_ports(struct drm_crtc *crtc,
 		mutex_lock(&dev_priv->dpll_lock);
 
 		val = I915_READ(DPCLKA_CFGCR0_ICL);
-		WARN_ON((val & icl_dpclka_cfgcr0_clk_off(dev_priv, port)) == 0);
+		WARN_ON((val & icl_dpclka_cfgcr0_clk_off(dev_priv, port)) == 0 &&
+			!IS_PRESILICON(dev_priv));
 
 		if (intel_is_port_combophy(dev_priv, port)) {
 			val &= ~DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(port);

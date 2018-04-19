@@ -11453,7 +11453,8 @@ intel_pipe_config_compare(struct drm_i915_private *dev_priv,
 		}
 
 		PIPE_CONF_CHECK_I(scaler_state.scaler_id);
-		PIPE_CONF_CHECK_CLOCK_FUZZY(pixel_rate);
+		if (!IS_PRESILICON(dev_priv))
+			PIPE_CONF_CHECK_CLOCK_FUZZY(pixel_rate);
 	}
 
 	PIPE_CONF_CHECK_BOOL(double_wide);
@@ -11497,8 +11498,10 @@ intel_pipe_config_compare(struct drm_i915_private *dev_priv,
 	if (IS_G4X(dev_priv) || INTEL_GEN(dev_priv) >= 5)
 		PIPE_CONF_CHECK_I(pipe_bpp);
 
-	PIPE_CONF_CHECK_CLOCK_FUZZY(base.adjusted_mode.crtc_clock);
-	PIPE_CONF_CHECK_CLOCK_FUZZY(port_clock);
+	if (!IS_PRESILICON(dev_priv)) {
+		PIPE_CONF_CHECK_CLOCK_FUZZY(base.adjusted_mode.crtc_clock);
+		PIPE_CONF_CHECK_CLOCK_FUZZY(port_clock);
+	}
 
 	PIPE_CONF_CHECK_I(min_voltage_level);
 
