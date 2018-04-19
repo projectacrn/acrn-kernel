@@ -158,6 +158,16 @@
 #define GEN8_CTX_STATUS_COMPLETED_MASK \
 	 (GEN8_CTX_STATUS_COMPLETE | GEN8_CTX_STATUS_PREEMPTED)
 
+#define GEN12_CTX_STATUS_SWITCHED_TO_NEW_QUEUE	(0x1)
+#define GEN12_CTX_SWITCH_DETAIL(status)	((status >> 32) & 0xF)
+#define  GEN12_CTX_COMPLETE		(0x0)
+#define  GEN12_CTX_PREEMPTED		(0x5)
+#define GEN12_CTX_TO(status)		(((status) & GENMASK_ULL(31, 15)) >> 15)
+#define GEN12_CTX_AWAY(status)		(((status) & GENMASK_ULL(63, 47)) >> 47)
+#define GEN12_CTX_SW_ID(ctx)		((ctx) & GENMASK(10, 0))
+#define GEN12_CTX_SW_COUNTER(ctx)	(((ctx) & GENMASK(16, 11)) >> 11)
+#define GEN12_CTX_INVALID_ID		0x7FF
+
 /* Typical size of the average request (2 pipecontrols and a MI_BB) */
 #define EXECLISTS_REQUEST_SIZE 64 /* bytes */
 #define WA_TAIL_DWORDS 2
@@ -220,6 +230,30 @@ static inline bool need_preempt(const struct intel_engine_cs *engine,
  * engine info, SW context ID and SW counter need to form a unique number
  * (Context ID) per lrc.
  */
+
+static void __gen11_ctx_desc_fill_upper_32_bits(struct intel_engine_cs *engine,
+						 u32 sw_context_id,
+						 u32 sw_counter, u64 *desc)
+{
+	*desc |= (u64)sw_context_id << GEN11_SW_CTX_ID_SHIFT; /* bits 37-47 */
+
+	*desc |= (u64)engine->instance << GEN11_ENGINE_INSTANCE_SHIFT;
+							/* bits 48-53 */
+
+	*desc |= (u64)sw_counter << GEN11_SW_COUNTER_SHIFT; /* bits 55-60 */
+
+	/*
+	 * Although GuC will never see this upper part as it fills
+	 * its own descriptor, using the guc_class here will help keep
+	 * the i915 and firmware logs in sync.
+	 */
+	if (HAS_GUC_SCHED(engine->i915))
+		*desc |= (u64)engine->guc_class << GEN11_ENGINE_CLASS_SHIFT;
+	else
+		*desc |= (u64)engine->class << GEN11_ENGINE_CLASS_SHIFT;
+							/* bits 61-63 */
+}
+
 static void
 intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 				   struct intel_engine_cs *engine)
@@ -240,25 +274,8 @@ intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 
 	if (INTEL_GEN(ctx->i915) >= 11) {
 		GEM_BUG_ON(ce->sw_context_id >= BIT(GEN11_SW_CTX_ID_WIDTH));
-		desc |= (u64)ce->sw_context_id << GEN11_SW_CTX_ID_SHIFT;
-								/* bits 37-47 */
-
-		desc |= (u64)engine->instance << GEN11_ENGINE_INSTANCE_SHIFT;
-								/* bits 48-53 */
-
-		desc |= (u64)ce->sw_counter << GEN11_SW_COUNTER_SHIFT;
-								/* bits 55-60 */
-
-		/*
-		 * Although GuC will never see this upper part as it fills
-		 * its own descriptor, using the guc_class here will help keep
-		 * the i915 and firmware logs in sync.
-		 */
-		if (HAS_GUC_SCHED(ctx->i915))
-			desc |= (u64)engine->guc_class << GEN11_ENGINE_CLASS_SHIFT;
-		else
-			desc |= (u64)engine->class << GEN11_ENGINE_CLASS_SHIFT;
-								/* bits 61-63 */
+		__gen11_ctx_desc_fill_upper_32_bits(engine, ce->sw_context_id,
+						    ce->sw_counter, &desc);
 	} else {
 		GEM_BUG_ON(ctx->hw_id >= BIT(GEN8_CTX_ID_WIDTH));
 		desc |= (u64)ctx->hw_id << GEN8_CTX_ID_SHIFT;	/* bits 32-52 */
@@ -968,6 +985,91 @@ static void execlists_cancel_requests(struct intel_engine_cs *engine)
 }
 
 /*
+ * Starting with Gen12, the status has a new format:
+ *
+ * bit  0:     switched to new queue
+ * bit  1:     reserved
+ * bits 3-5:   engine class
+ * bits 6-11:  engine instance
+ * bits 12-14: reserved
+ * bits 15-25: sw context id of the lrc we're switching to
+ * bits 26-31: sw counter of the lrc we're switching to
+ * bits 32-35: context switch detail
+ *              - 0: ctx complete
+ *              - 1: wait on sync flip
+ *              - 2: wait on vblank
+ *              - 3: wait on scanline
+ *              - 4: wait on semaphore
+ *              - 5: context preempted (not on SEMAPHORE_WAIT or WAIT_FOR_EVENT)
+ * bit  36:    reserved
+ * bits 37-43: wait detail (for switch detail 1 to 4)
+ * bits 44-46: reserved
+ * bits 47-57: sw context id of the lrc we're switching away from
+ * bits 58-63: sw counter of the lrc we're switching away from
+ *
+ * To keep the logic simple, we convert the new gen12 format to the gen11
+ * format and re-use the legacy csb handling logic.
+ */
+static u64 gen12_convert_csb(struct intel_engine_cs *engine, u64 status)
+{
+	u64 legacy_status = 0;
+	u32 ctx_to = GEN12_CTX_TO(status);
+	u32 ctx_away = GEN12_CTX_AWAY(status);
+	u8 switch_detail = GEN12_CTX_SWITCH_DETAIL(status);
+	bool new_queue = status & GEN12_CTX_STATUS_SWITCHED_TO_NEW_QUEUE;
+	bool ctx_to_valid = GEN12_CTX_SW_ID(ctx_to) != GEN12_CTX_INVALID_ID;
+	bool ctx_away_valid = GEN12_CTX_SW_ID(ctx_away) != GEN12_CTX_INVALID_ID;
+
+	if (!ctx_away_valid && ctx_to_valid)
+		legacy_status |= GEN8_CTX_STATUS_IDLE_ACTIVE;
+
+	/*
+	 * ctx_ away valid and ctx_to !valid can indicate either a
+	 * ctx completion or a preempt-to-idle of a running ctx. The 2 cases
+	 * can be distinguished by the value of new_queue, but since the
+	 * GEN8_CTX_STATUS_ACTIVE_IDLE is set in both situation we don't
+	 * distiguish them here. Other flags related to preempt-to-idle are
+	 * handled below
+	 */
+	if (ctx_away_valid && !ctx_to_valid)
+		legacy_status |= GEN8_CTX_STATUS_ACTIVE_IDLE;
+
+	if ((ctx_away == ctx_to) && ctx_to_valid)
+		legacy_status |= GEN8_CTX_STATUS_LITE_RESTORE;
+
+	if ((ctx_away != ctx_to) && ctx_away_valid && ctx_to_valid && !new_queue)
+		legacy_status |= GEN8_CTX_STATUS_ELEMENT_SWITCH;
+
+	if ((switch_detail == GEN12_CTX_PREEMPTED) || (new_queue && ctx_away_valid))
+		legacy_status |= GEN8_CTX_STATUS_PREEMPTED;
+
+	if ((switch_detail == GEN12_CTX_COMPLETE) && ctx_away_valid)
+		legacy_status |= GEN8_CTX_STATUS_COMPLETE;
+
+	/* FIXME preempt to idle support - require gen11 patch to land first
+	if (!ctx_to_valid && new_queue) {
+		legacy_status |= GEN11_CTX_STATUS_PREEMPT_IDLE;
+
+		if (!ctx_away_valid)
+			legacy_status |= GEN8_CTX_STATUS_IDLE_ACTIVE;
+	}
+	*/
+
+	/* add other events as required (e.g. semaphore wait) */
+	GEM_BUG_ON(!legacy_status);
+
+	/*
+	 * the upper 32 bits of the legacy status match the upper 32 bits
+	 * of the descriptor of the ctx we're switching away from.
+	 */
+	__gen11_ctx_desc_fill_upper_32_bits(engine, GEN12_CTX_SW_ID(ctx_away),
+					    GEN12_CTX_SW_COUNTER(ctx_away),
+					    &legacy_status);
+
+	return legacy_status;
+}
+
+/*
  * Check the unread Context Status Buffers and manage the submission of new
  * contexts to the ELSP accordingly.
  */
@@ -1037,7 +1139,7 @@ static void execlists_submission_tasklet(unsigned long data)
 
 		while (head != tail) {
 			struct i915_request *rq;
-			unsigned int status;
+			u64 status;
 			unsigned int count;
 
 			if (++head == GEN8_CSB_ENTRIES)
@@ -1061,9 +1163,14 @@ static void execlists_submission_tasklet(unsigned long data)
 			 */
 
 			status = READ_ONCE(buf[2 * head]); /* maybe mmio! */
+			status |= (u64)READ_ONCE(buf[2 * head + 1]) << 32;
+
+			if (INTEL_GEN(engine->i915) >= 12)
+				status = gen12_convert_csb(engine, status);
+
 			GEM_TRACE("%s csb[%d]: status=0x%08x:0x%08x, active=0x%x\n",
 				  engine->name, head,
-				  status, buf[2*head + 1],
+				  lower_32_bits(status), upper_32_bits(status),
 				  execlists->active);
 
 			if (status & (GEN8_CTX_STATUS_IDLE_ACTIVE |
@@ -1081,7 +1188,7 @@ static void execlists_submission_tasklet(unsigned long data)
 			GEM_BUG_ON(status & GEN8_CTX_STATUS_IDLE_ACTIVE);
 
 			if (status & GEN8_CTX_STATUS_COMPLETE &&
-			    buf[2*head + 1] == execlists->preempt_complete_status) {
+			    upper_32_bits(status) == execlists->preempt_complete_status) {
 				GEM_TRACE("%s preempt-idle\n", engine->name);
 
 				execlists_cancel_port_requests(execlists);
@@ -1113,7 +1220,7 @@ static void execlists_submission_tasklet(unsigned long data)
 				  rq ? rq_prio(rq) : 0);
 
 			/* Check the context/desc id for this event matches */
-			GEM_DEBUG_BUG_ON(buf[2 * head + 1] != port->context_id);
+			GEM_DEBUG_BUG_ON(upper_32_bits(status) != port->context_id);
 
 			GEM_BUG_ON(count == 0);
 			if (--count == 0) {
