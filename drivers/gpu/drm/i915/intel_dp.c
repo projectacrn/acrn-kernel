@@ -5055,7 +5055,7 @@ static bool icl_tc_port_connected(struct drm_i915_private *dev_priv,
 	cpu_isr = I915_READ(GEN11_DE_HPD_ISR);
 	if (cpu_isr & typec_bit)
 		is_typec = true;
-	if (cpu_isr & tbt_bit)
+	if (cpu_isr & tbt_bit && !IS_PRESILICON(dev_priv))
 		is_tbt = true;
 
 	if (!is_legacy && !is_typec && !is_tbt) {
