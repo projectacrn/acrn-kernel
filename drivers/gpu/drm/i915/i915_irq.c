@@ -3255,15 +3255,20 @@ static irqreturn_t gen11_irq_handler(int irq, void *arg)
 
 	/* IRQs are synced during runtime_suspend, we don't require a wakeref */
 	if (master_ctl & GEN11_DISPLAY_IRQ) {
-		const u32 disp_ctl = raw_reg_read(regs, GEN11_DISPLAY_INT_CTL);
+		do {
+			const u32 disp_ctl = raw_reg_read(regs, GEN11_DISPLAY_INT_CTL);
 
-		disable_rpm_wakeref_asserts(i915);
-		/*
-		 * GEN11_DISPLAY_INT_CTL has same format as GEN8_MASTER_IRQ
-		 * for the display related bits.
-		 */
-		gen8_de_irq_handler(i915, disp_ctl);
-		enable_rpm_wakeref_asserts(i915);
+			if ((disp_ctl & ~GEN11_DISPLAY_IRQ_ENABLE) == 0)
+				break;
+
+			disable_rpm_wakeref_asserts(i915);
+			/*
+			 * GEN11_DISPLAY_INT_CTL has same format as GEN8_MASTER_IRQ
+			 * for the display related bits.
+			 */
+			gen8_de_irq_handler(i915, disp_ctl);
+			enable_rpm_wakeref_asserts(i915);
+		} while (IS_PRESILICON(i915));
 	}
 
 	gen11_gu_misc_irq_handler(i915, master_ctl);
