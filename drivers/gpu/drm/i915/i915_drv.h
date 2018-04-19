@@ -2146,7 +2146,10 @@ struct drm_i915_private {
 	 * NOTE: This is the dri1/ums dungeon, don't add stuff here. Your patch
 	 * will be rejected. Instead look for a better place.
 	 */
+
+	bool __is_simulator; /* To be replaced, do not check directly */
 };
+#define IS_PRESILICON(i915) ((i915)->__is_simulator)
 
 static inline struct drm_i915_private *to_i915(const struct drm_device *dev)
 {

@@ -258,6 +258,15 @@ intel_virt_detect_pch(const struct drm_i915_private *dev_priv)
 	return id;
 }
 
+void intel_init_simulator(struct drm_i915_private *dev_priv)
+{
+	if (i915_modparams.is_simulator == 1) {
+		DRM_DEBUG_KMS("Forcing Simulator mode\n");
+		dev_priv->__is_simulator = true;
+		dev_priv->pch_type = intel_virt_detect_pch(dev_priv);
+	}
+}
+
 static void intel_detect_pch(struct drm_i915_private *dev_priv)
 {
 	struct pci_dev *pch = NULL;
@@ -952,6 +961,15 @@ static int i915_driver_init_early(struct drm_i915_private *dev_priv,
 	ret = i915_gem_init_early(dev_priv);
 	if (ret < 0)
 		goto err_workqueues;
+
+	/*
+	 * Unconditionally call before detecting the PCH, as we currently can't
+	 * determine we're in simulation when using full platform simulation.
+	 * This allows us to actually use the i915.is_simulator parameter when
+	 * we can't already tell we're in a simulator - i.e. exactly when we
+	 * need it! :)
+	 */
+	intel_init_simulator(dev_priv);
 
 	/* This must be called before any calls to HAS_PCH_* */
 	intel_detect_pch(dev_priv);
