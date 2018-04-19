@@ -211,6 +211,10 @@ void intel_pipe_update_end(struct intel_crtc_state *new_crtc_state)
 	if (intel_vgpu_active(dev_priv))
 		return;
 
+	/*  Gen11-12 only to allow the Gen13 folks to re-verify ¯\_(ツ)_/¯ */
+	if (IS_GEN(dev_priv, 11, 12) && IS_PRESILICON(dev_priv))
+		return;
+
 	if (crtc->debug.start_vbl_count &&
 	    crtc->debug.start_vbl_count != end_vbl_count) {
 		DRM_ERROR("Atomic update failure on pipe %c (start=%u end=%u) time %lld us, min %d, max %d, scanline start %d, end %d\n",
