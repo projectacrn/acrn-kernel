@@ -423,6 +423,11 @@ static void hsw_wait_for_power_well_disable(struct drm_i915_private *dev_priv,
 static void gen9_wait_for_power_well_fuses(struct drm_i915_private *dev_priv,
 					   enum skl_power_gate pg)
 {
+	if (IS_PRESILICON(dev_priv) && pg >= 3) {
+		msleep(1);
+		return;
+	}
+
 	/* Timeout 5us for PG#0, for other PGs 1us */
 	WARN_ON(intel_wait_for_register(dev_priv, SKL_FUSE_STATUS,
 					SKL_FUSE_PG_DIST_STATUS(pg),
