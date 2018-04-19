@@ -173,6 +173,9 @@ static void gen3_assert_iir_is_zero(struct drm_i915_private *dev_priv,
 	if (val == 0)
 		return;
 
+	if (IS_PRESILICON(dev_priv) && reg.reg == 0x444f8)
+		return;
+
 	WARN(1, "Interrupt register 0x%x is not zero: 0x%08x\n",
 	     i915_mmio_reg_offset(reg), val);
 	I915_WRITE(reg, 0xffffffff);
