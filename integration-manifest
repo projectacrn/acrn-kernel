@@ -1,0 +1,30 @@
+drm-upstream drm-fixes 221bda4b5f1abfd74159d7bf3703affa62468030
+	Merge branch 'drm-next-4.17' of git://people.freedesktop.org/~agd5f/linux into drm-next
+drm-misc drm-misc-fixes a5a4fd4d135bfc1d9d42026c257ed5d98052c537
+	drm/virtio: fix vq wait_event condition
+drm-intel drm-intel-fixes 0b551f1e0fc50ee4e3cde2dd639cb010dae5b997
+	drm/i915/fbdev: Enable late fbdev initial configuration
+drm-amd drm-amd-fixes 2b702e72e33bbdec0764cfb6e1dd00fe1142ae55
+	Merge tag 'drm-misc-fixes-2017-09-28-1' of git://anongit.freedesktop.org/git/drm-misc into drm-fixes
+drm-upstream drm-next a10beabba213924d876f2d10ca9351aeab93f58a
+	Merge branch 'drm-next-4.17' of git://people.freedesktop.org/~agd5f/linux into drm-next
+drm-misc drm-misc-next-fixes 3131f209468d1514af378dd46eb34123d0af84ff
+	drm/vc4: Fix leak of the file_priv that stored the perfmon.
+drm-intel drm-intel-next-fixes 6d08b06e67cd117f6992c46611dfb4ce267cd71e
+	Linux 4.17-rc2
+drm-amd drm-amd-next-fixes 2bd6bf03f4c1c59381d62c61d03f6cc3fe71f66e
+	Linux 4.14-rc1
+drm-misc drm-misc-next c24c88c4df2eb89f71af87ee00e75499a369538d
+	drm/bochs: fix mode_valid's return type
+drm-intel drm-intel-next-queued 14d4e522f0cbef2a10c3e5c243786a84d91cfb7b
+	drm/atomic: Print debug message on atomic check failure
+drm-amd drm-amd-next 754270c7c56292e97d0eff924a5d5d83f92add07
+	Merge branch 'drm-next-4.15' of git://people.freedesktop.org/~agd5f/linux into drm-next
+sound-upstream for-linus 41412fe921188a2929832ebd643e63bdbb61d326
+	ALSA: pcm: Change return type to vm_fault_t
+sound-upstream for-next 08605068df8bf52c0ec5a8897ddf2b4de753c9d0
+	ALSA: hda - Sanity check of access to SPDIF controls array
+drm-intel topic/core-for-CI 1bb5f7fce1fe95fb9a9a9a23845b286ca47c9ed6
+	RFC: debugobjects: capture stack traces at _init() time
+drm-misc topic/backlight 60cc43fc888428bb2f18f08997432d426a243338
+	Linux 4.17-rc1
