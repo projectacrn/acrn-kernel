@@ -5642,8 +5642,11 @@ static void haswell_crtc_enable(struct intel_crtc_state *pipe_config,
 				     &intel_crtc->config->fdi_m_n, NULL);
 	}
 
-	if (!transcoder_is_dsi(cpu_transcoder))
+	if (!transcoder_is_dsi(cpu_transcoder)) {
+		intel_ddi_enable_pipe_clock(pipe_config);
+
 		haswell_set_pipeconf(crtc);
+	}
 
 	haswell_set_pipemisc(crtc);
 
@@ -5652,9 +5655,6 @@ static void haswell_crtc_enable(struct intel_crtc_state *pipe_config,
 	intel_crtc->active = true;
 
 	intel_encoders_pre_enable(crtc, pipe_config, old_state);
-
-	if (!transcoder_is_dsi(cpu_transcoder))
-		intel_ddi_enable_pipe_clock(pipe_config);
 
 	/* Display WA #1180: WaDisableScalarClockGating: glk, cnl */
 	psl_clkgate_wa = (IS_GEMINILAKE(dev_priv) || IS_CANNONLAKE(dev_priv)) &&
