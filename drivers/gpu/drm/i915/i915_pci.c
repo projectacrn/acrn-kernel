@@ -628,6 +628,7 @@ static const struct intel_device_info intel_icelake_11_5_info = {
 static const struct intel_device_info intel_tigerlake_12_info = {
 	GEN12_FEATURES,
 	PLATFORM(INTEL_TIGERLAKE),
+	.num_pipes = 4,
 	.is_alpha_support = 1,
 	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING |
 		     BSD3_RING | CCS_RING,
