@@ -39,6 +39,9 @@
 #define KBL_FW_MAJOR 9
 #define KBL_FW_MINOR 39
 
+#define ICL_FW_MAJOR 27
+#define ICL_FW_MINOR 185
+
 #define GUC_FW_PATH(platform, major, minor) \
        "i915/" __stringify(platform) "_guc_ver" __stringify(major) "_" __stringify(minor) ".bin"
 
@@ -50,6 +53,8 @@ MODULE_FIRMWARE(I915_BXT_GUC_UCODE);
 
 #define I915_KBL_GUC_UCODE GUC_FW_PATH(kbl, KBL_FW_MAJOR, KBL_FW_MINOR)
 MODULE_FIRMWARE(I915_KBL_GUC_UCODE);
+
+#define I915_ICL_GUC_UCODE GUC_FW_PATH(icl, ICL_FW_MAJOR, ICL_FW_MINOR)
 
 static void guc_fw_select(struct intel_uc_fw *guc_fw)
 {
@@ -77,6 +82,10 @@ static void guc_fw_select(struct intel_uc_fw *guc_fw)
 		guc_fw->path = I915_KBL_GUC_UCODE;
 		guc_fw->major_ver_wanted = KBL_FW_MAJOR;
 		guc_fw->minor_ver_wanted = KBL_FW_MINOR;
+	} else if (IS_ICELAKE(dev_priv)) {
+		guc_fw->path = I915_ICL_GUC_UCODE;
+		guc_fw->major_ver_wanted = ICL_FW_MAJOR;
+		guc_fw->minor_ver_wanted = ICL_FW_MINOR;
 	} else {
 		DRM_WARN("%s: No firmware known for this platform!\n",
 			 intel_uc_fw_type_repr(guc_fw->type));
