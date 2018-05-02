@@ -233,14 +233,15 @@ void intel_guc_fini(struct intel_guc *guc)
 	intel_uc_fw_fini(&guc->fw);
 }
 
+static inline u32 guc_ctl_ads_gtt_offset(struct intel_guc *guc)
+{
+	return intel_guc_ggtt_offset(guc, guc->ads_vma) >> PAGE_SHIFT;
+}
+
 static u32 guc_ctl_debug_flags(struct intel_guc *guc)
 {
 	u32 level = intel_guc_log_get_level(&guc->log);
-	u32 flags;
-	u32 ads;
-
-	ads = intel_guc_ggtt_offset(guc, guc->ads_vma) >> PAGE_SHIFT;
-	flags = ads << GUC_ADS_ADDR_SHIFT | GUC_ADS_ENABLED;
+	u32 flags = 0;
 
 	if (!GUC_LOG_LEVEL_IS_ENABLED(level))
 		flags |= GUC_LOG_DEFAULT_DISABLED;
@@ -251,6 +252,12 @@ static u32 guc_ctl_debug_flags(struct intel_guc *guc)
 		flags |= GUC_LOG_LEVEL_TO_VERBOSITY(level) <<
 			 GUC_LOG_VERBOSITY_SHIFT;
 
+	if (INTEL_GEN(guc_to_i915(guc)) < 11) {
+		u32 ads = guc_ctl_ads_gtt_offset(guc);
+
+		flags |= ads << GUC_ADS_ADDR_SHIFT | GUC_ADS_ENABLED;
+	}
+
 	return flags;
 }
 
@@ -259,7 +266,8 @@ static u32 guc_ctl_feature_flags(struct intel_guc *guc)
 	u32 flags = 0;
 
 	if (INTEL_GEN(guc_to_i915(guc)) >= 11) {
-		flags |= GEN11_GUC_CTL_DISABLE_SCHEDULER;
+		if (!USES_GUC_SUBMISSION(guc_to_i915(guc)))
+			flags |= GEN11_GUC_CTL_DISABLE_SCHEDULER;
 	} else {
 		flags |=  GUC_CTL_VCS2_ENABLED;
 
@@ -278,8 +286,6 @@ static u32 guc_ctl_ctxinfo_flags(struct intel_guc *guc)
 
 	if (USES_GUC_SUBMISSION(guc_to_i915(guc))) {
 		u32 ctxnum, base;
-
-		GEM_BUG_ON(INTEL_GEN(guc_to_i915(guc)) >= 11);
 
 		base = intel_guc_ggtt_offset(guc, guc->stage_desc_pool);
 		ctxnum = guc->max_stage_desc / 16;
@@ -332,6 +338,18 @@ static u32 guc_ctl_log_params_flags(struct intel_guc *guc)
 	return flags;
 }
 
+static u32 gen11_guc_ctl_ads_flags(struct intel_guc *guc)
+{
+	u32 ads = guc_ctl_ads_gtt_offset(guc);
+	u32 flags = 0;
+
+	GEM_BUG_ON(INTEL_GEN(guc_to_i915(guc)) < 11);
+
+	flags |= ads << GEN11_GUC_ADS_ADDR_SHIFT | GEN11_GUC_ADS_ENABLE;
+
+	return flags;
+}
+
 /*
  * Initialise the GuC parameter block before starting the firmware
  * transfer. These parameters are read by the firmware on startup
@@ -359,6 +377,9 @@ void intel_guc_init_params(struct intel_guc *guc)
 	params[GUC_CTL_LOG_PARAMS]  = guc_ctl_log_params_flags(guc);
 	params[GUC_CTL_DEBUG] = guc_ctl_debug_flags(guc);
 	params[GUC_CTL_CTXINFO] = guc_ctl_ctxinfo_flags(guc);
+
+	if (INTEL_GEN(dev_priv) >= 11)
+		params[GEN11_GUC_ADS_CTL] = gen11_guc_ctl_ads_flags(guc);
 
 	for (i = 0; i < GUC_CTL_MAX_DWORDS; i++)
 		DRM_DEBUG_DRIVER("param[%2d] = %#x\n", i, params[i]);
