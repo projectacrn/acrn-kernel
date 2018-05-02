@@ -255,12 +255,16 @@ static u32 guc_ctl_feature_flags(struct intel_guc *guc)
 {
 	u32 flags = 0;
 
-	flags |=  GUC_CTL_VCS2_ENABLED;
+	if (INTEL_GEN(guc_to_i915(guc)) >= 11) {
+		flags |= GEN11_GUC_CTL_DISABLE_SCHEDULER;
+	} else {
+		flags |=  GUC_CTL_VCS2_ENABLED;
 
-	if (USES_GUC_SUBMISSION(guc_to_i915(guc)))
-		flags |= GUC_CTL_KERNEL_SUBMISSIONS;
-	else
-		flags |= GUC_CTL_DISABLE_SCHEDULER;
+		if (USES_GUC_SUBMISSION(guc_to_i915(guc)))
+			flags |= GUC_CTL_KERNEL_SUBMISSIONS;
+		else
+			flags |= GUC_CTL_DISABLE_SCHEDULER;
+	}
 
 	return flags;
 }
@@ -271,6 +275,8 @@ static u32 guc_ctl_ctxinfo_flags(struct intel_guc *guc)
 
 	if (USES_GUC_SUBMISSION(guc_to_i915(guc))) {
 		u32 ctxnum, base;
+
+		GEM_BUG_ON(INTEL_GEN(guc_to_i915(guc)) >= 11);
 
 		base = intel_guc_ggtt_offset(guc, guc->stage_desc_pool);
 		ctxnum = GUC_MAX_STAGE_DESCRIPTORS / 16;
