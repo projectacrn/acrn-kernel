@@ -245,8 +245,12 @@ void intel_guc_init_params(struct intel_guc *guc)
 
 	params[GUC_CTL_WA] |= GUC_CTL_WA_UK_BY_DRIVER;
 
-	params[GUC_CTL_FEATURE] |= GUC_CTL_DISABLE_SCHEDULER |
-			GUC_CTL_VCS2_ENABLED;
+	if (INTEL_GEN(dev_priv) >= 11) {
+		params[GUC_CTL_FEATURE] |= GEN11_GUC_CTL_DISABLE_SCHEDULER;
+	} else {
+		params[GUC_CTL_FEATURE] |= GUC_CTL_DISABLE_SCHEDULER;
+		params[GUC_CTL_FEATURE] |= GUC_CTL_VCS2_ENABLED;
+	}
 
 	params[GUC_CTL_LOG_PARAMS] = guc->log.flags;
 
@@ -258,6 +262,8 @@ void intel_guc_init_params(struct intel_guc *guc)
 						guc->ads_vma) >> PAGE_SHIFT;
 		u32 pgs = intel_guc_ggtt_offset(guc, guc->stage_desc_pool);
 		u32 ctx_in_16 = GUC_MAX_STAGE_DESCRIPTORS / 16;
+
+		GEM_BUG_ON(INTEL_GEN(dev_priv) >= 11);
 
 		params[GUC_CTL_DEBUG] |= ads << GUC_ADS_ADDR_SHIFT;
 		params[GUC_CTL_DEBUG] |= GUC_ADS_ENABLED;
