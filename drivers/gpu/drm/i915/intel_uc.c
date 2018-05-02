@@ -63,8 +63,6 @@ static int __get_platform_enable_guc(struct drm_i915_private *dev_priv)
 		enable_guc |= ENABLE_GUC_LOAD_HUC;
 
 	/* Any platform specific fine-tuning can be done here */
-	if (INTEL_GEN(dev_priv) >= 11)
-		enable_guc &= ~ENABLE_GUC_SUBMISSION;
 
 	return enable_guc;
 }
@@ -116,14 +114,6 @@ static void sanitize_options_early(struct drm_i915_private *dev_priv)
 			 i915_modparams.enable_guc,
 			 yesno(intel_uc_is_using_guc_submission()),
 			 yesno(intel_uc_is_using_huc()));
-
-	/* Verify GuC submission support */
-	if (intel_uc_is_using_guc_submission() && INTEL_GEN(dev_priv) >= 11) {
-		DRM_WARN("Incompatible option detected: %s=%d, %s!\n",
-			 "enable_guc", i915_modparams.enable_guc,
-			 "submission not supported");
-		i915_modparams.enable_guc &= ~ENABLE_GUC_SUBMISSION;
-	}
 
 	/* Verify GuC firmware availability */
 	if (intel_uc_is_using_guc() && !intel_uc_fw_is_selected(guc_fw)) {
