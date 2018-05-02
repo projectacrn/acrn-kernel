@@ -225,6 +225,24 @@ static u32 get_log_control_flags(void)
 	return flags;
 }
 
+static u32 guc_feature_flags(struct drm_i915_private *dev_priv)
+{
+	u32 feature_flags = 0;
+
+	if (INTEL_GEN(dev_priv) >= 11) {
+		if (!USES_GUC_SUBMISSION(dev_priv))
+			feature_flags |= GEN11_GUC_CTL_DISABLE_SCHEDULER;
+	} else {
+		feature_flags |= GUC_CTL_VCS2_ENABLED;
+		if (USES_GUC_SUBMISSION(dev_priv))
+			feature_flags |= GUC_CTL_KERNEL_SUBMISSIONS;
+		else
+			feature_flags |= GUC_CTL_DISABLE_SCHEDULER;
+	}
+
+	return feature_flags;
+}
+
 /*
  * Initialise the GuC parameter block before starting the firmware
  * transfer. These parameters are read by the firmware on startup
@@ -248,37 +266,28 @@ void intel_guc_init_params(struct intel_guc *guc)
 
 	params[GUC_CTL_WA] |= GUC_CTL_WA_UK_BY_DRIVER;
 
-	if (INTEL_GEN(dev_priv) >= 11) {
-		params[GUC_CTL_FEATURE] |= GEN11_GUC_CTL_DISABLE_SCHEDULER;
-	} else {
-		params[GUC_CTL_FEATURE] |= GUC_CTL_DISABLE_SCHEDULER;
-		params[GUC_CTL_FEATURE] |= GUC_CTL_VCS2_ENABLED;
-	}
+	params[GUC_CTL_FEATURE] |= guc_feature_flags(dev_priv);
 
 	params[GUC_CTL_LOG_PARAMS] = guc->log.flags;
 
 	params[GUC_CTL_DEBUG] = get_log_control_flags();
 
-	/* If GuC submission is enabled, set up additional parameters here */
 	if (USES_GUC_SUBMISSION(dev_priv)) {
 		u32 ads = intel_guc_ggtt_offset(guc,
 						guc->ads_vma) >> PAGE_SHIFT;
-		u32 pgs = intel_guc_ggtt_offset(guc, guc->stage_desc_pool);
+		u32 pgs = intel_guc_ggtt_offset(guc, guc->stage_desc_pool) >> PAGE_SHIFT;
 		u32 ctx_in_16 = guc->max_stage_desc / 16;
 
-		GEM_BUG_ON(INTEL_GEN(dev_priv) >= 11);
+		if (INTEL_GEN(dev_priv) >= 11) {
+			params[GEN11_GUC_ADS_CTL] = GEN11_GUC_ADS_ENABLE;
+			params[GEN11_GUC_ADS_CTL] |= ads << GEN11_GUC_ADS_ADDR_SHIFT;
+		} else {
+			params[GUC_CTL_DEBUG] |= GUC_ADS_ENABLED;
+			params[GUC_CTL_DEBUG] |= ads << GUC_ADS_ADDR_SHIFT;
+		}
 
-		params[GUC_CTL_DEBUG] |= ads << GUC_ADS_ADDR_SHIFT;
-		params[GUC_CTL_DEBUG] |= GUC_ADS_ENABLED;
-
-		pgs >>= PAGE_SHIFT;
 		params[GUC_CTL_CTXINFO] = (pgs << GUC_CTL_BASE_ADDR_SHIFT) |
 			(ctx_in_16 << GUC_CTL_CTXNUM_IN16_SHIFT);
-
-		params[GUC_CTL_FEATURE] |= GUC_CTL_KERNEL_SUBMISSIONS;
-
-		/* Unmask this bit to enable the GuC's internal scheduler */
-		params[GUC_CTL_FEATURE] &= ~GUC_CTL_DISABLE_SCHEDULER;
 	}
 
 	/*
