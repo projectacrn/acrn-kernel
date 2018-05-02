@@ -48,8 +48,18 @@ int intel_huc_auth(struct intel_huc *huc)
 	struct drm_i915_private *i915 = huc_to_i915(huc);
 	struct intel_guc *guc = &i915->guc;
 	struct i915_vma *vma;
+	i915_reg_t status_reg;
 	u32 status;
+	u32 status_ok;
 	int ret;
+
+	if (INTEL_GEN(i915) >= 11) {
+		status_reg = HUC_KERNEL_LOAD_INFO;
+		status_ok = HUC_LOAD_SUCCESSFUL;
+	} else {
+		status_reg = HUC_STATUS2;
+		status_ok = HUC_FW_VERIFIED;
+	}
 
 	if (huc->fw.load_status != INTEL_UC_FIRMWARE_SUCCESS)
 		return -ENOEXEC;
@@ -72,9 +82,9 @@ int intel_huc_auth(struct intel_huc *huc)
 
 	/* Check authentication status, it should be done by now */
 	ret = __intel_wait_for_register(i915,
-					HUC_STATUS2,
-					HUC_FW_VERIFIED,
-					HUC_FW_VERIFIED,
+					status_reg,
+					status_ok,
+					status_ok,
 					2, 50, &status);
 	if (ret) {
 		DRM_ERROR("HuC: Firmware not verified %#x\n", status);
@@ -112,7 +122,12 @@ int intel_huc_check_status(struct intel_huc *huc)
 		return -ENODEV;
 
 	intel_runtime_pm_get(dev_priv);
-	status = I915_READ(HUC_STATUS2) & HUC_FW_VERIFIED;
+
+	if (INTEL_GEN(dev_priv) >= 11)
+		status = I915_READ(HUC_KERNEL_LOAD_INFO) & HUC_LOAD_SUCCESSFUL;
+	else
+		status = I915_READ(HUC_STATUS2) & HUC_FW_VERIFIED;
+
 	intel_runtime_pm_put(dev_priv);
 
 	return status;
