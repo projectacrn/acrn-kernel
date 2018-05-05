@@ -4905,6 +4905,9 @@ bool intel_digital_port_connected(struct intel_encoder *encoder)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 
+	if (IS_PRESILICON(dev_priv))
+		return true;
+
 	if (HAS_GMCH_DISPLAY(dev_priv)) {
 		if (IS_GM45(dev_priv))
 			return gm45_digital_port_connected(encoder);
