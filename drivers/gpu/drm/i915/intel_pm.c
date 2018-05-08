@@ -4271,6 +4271,109 @@ skl_ddb_calc_min(const struct intel_crtc_state *cstate, int num_active,
 	minimum[PLANE_CURSOR] = skl_cursor_allocation(num_active);
 }
 
+static void
+tgl_write_pipe_isoc_req(struct drm_i915_private *dev_priv,
+			const struct tgl_pipe_isoc_req *isocreq,
+			enum pipe pipe)
+{
+	u32 reg;
+
+	reg = TGL_PIPE_BW(isocreq->bandwidth) | TGL_PIPE_LTR(isocreq->ltr);
+	I915_WRITE(TGL_PIPE_ISOC_REQ_0(pipe), reg);
+
+	reg = TGL_ISOCREQ_EN | TGL_ISOCREQ_DELAY(isocreq->delay);
+	I915_WRITE(TGL_PIPE_ISOC_REQ_1(pipe), reg);
+
+}
+
+void intel_update_crtc_isoc_req(struct drm_crtc *crtc,
+				const struct intel_crtc_state *new_cstate,
+				const struct intel_crtc_state *old_cstate,
+				bool begin)
+{
+	struct drm_device *dev = crtc->dev;
+	struct drm_i915_private *dev_priv = to_i915(dev);
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct tgl_pipe_isoc_req isocreq = new_cstate->wm.skl.isocreq;
+	const struct tgl_pipe_isoc_req *old_isocreq =
+						&old_cstate->wm.skl.isocreq;
+	bool needs_modeset = drm_atomic_crtc_needs_modeset(&new_cstate->base);
+	enum pipe pipe = intel_crtc->pipe;
+	bool req_update = false;
+	unsigned long ret;
+
+	if (INTEL_GEN(dev_priv) < 12)
+		return;
+
+	if (!memcmp(old_isocreq, &isocreq, sizeof(struct tgl_pipe_isoc_req)))
+		return;
+
+	if (begin) {
+		/*
+		 * In case pipe needs modeset or previously off just request
+		 * new BW, else request max bandwidth and min latency for
+		 * upwards requests during begin commit
+		 */
+		if (needs_modeset || !old_isocreq->bandwidth) {
+			req_update = true;
+		} else if (isocreq.bandwidth > old_isocreq->bandwidth ||
+			   isocreq.ltr < old_isocreq->ltr) {
+			isocreq.bandwidth = max(isocreq.bandwidth,
+						old_isocreq->bandwidth);
+			isocreq.ltr = min(isocreq.ltr, old_isocreq->ltr);
+			req_update = true;
+		}
+	} else {
+		/*
+		 * If pipe was off or needs_modeset, we already requested
+		 * required BW. Handle downwards requests during finish commit
+		 */
+		if (needs_modeset || !old_isocreq->bandwidth) {
+			req_update = false;
+		} else if (isocreq.bandwidth < old_isocreq->bandwidth ||
+			    isocreq.ltr > old_isocreq->ltr) {
+			req_update = true;
+		}
+	}
+
+	if (req_update) {
+		DRM_DEBUG_KMS("Requesting %dMBPs BW %dus latency for pipe %c\n",
+			      isocreq.bandwidth * 100, isocreq.ltr,
+			      pipe_name(intel_crtc->pipe));
+		reinit_completion(&dev_priv->isocreq_rsp[pipe]);
+		tgl_write_pipe_isoc_req(dev_priv, &isocreq, intel_crtc->pipe);
+
+		ret = wait_for_completion_interruptible_timeout(
+				&dev_priv->isocreq_rsp[pipe],
+				usecs_to_jiffies(1000));
+
+		WARN(ret != 0, "wait for isoch response timed out\n");
+	}
+}
+
+static void
+tgl_get_pipe_isoc_req(struct drm_i915_private *dev_priv,
+		      const struct intel_crtc_state *cstate,
+		      const unsigned int total_data_rate,
+		      const u16 ltr,
+		      struct tgl_pipe_isoc_req *isocreq)
+{
+	const struct drm_display_mode *adjusted_mode;
+	u64 pipe_data_bw;
+
+	if (INTEL_GEN(dev_priv) < 12)
+		return;
+
+	adjusted_mode = &cstate->base.adjusted_mode;
+	pipe_data_bw = (u64)total_data_rate * drm_mode_vrefresh(adjusted_mode);
+
+	/* ISOCREQ request BW in multiple of 100MB/s */
+	isocreq->bandwidth = DIV_ROUND_UP_ULL(pipe_data_bw, MBps(100));
+	isocreq->ltr = ltr;
+	/* Keep one vblank delay for demote request */
+	isocreq->delay = DIV_ROUND_UP(1000, drm_mode_vrefresh(adjusted_mode));
+}
+
 static int
 skl_allocate_pipe_ddb(struct intel_crtc_state *cstate,
 		      struct skl_ddb_allocation *ddb /* out */)
@@ -4278,6 +4381,7 @@ skl_allocate_pipe_ddb(struct intel_crtc_state *cstate,
 	struct drm_atomic_state *state = cstate->base.state;
 	struct drm_crtc *crtc = cstate->base.crtc;
 	struct drm_device *dev = crtc->dev;
+	struct drm_i915_private *dev_priv = to_i915(dev);
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	enum pipe pipe = intel_crtc->pipe;
 	struct skl_ddb_entry *alloc = &cstate->wm.skl.ddb;
@@ -4290,6 +4394,7 @@ skl_allocate_pipe_ddb(struct intel_crtc_state *cstate,
 	unsigned int plane_data_rate[I915_MAX_PLANES] = {};
 	unsigned int uv_plane_data_rate[I915_MAX_PLANES] = {};
 	uint16_t total_min_blocks = 0;
+	uint32_t latency = dev_priv->wm.skl_latency[0];
 
 	/* Clear the partitioning for disabled planes. */
 	memset(ddb->plane[pipe], 0, sizeof(ddb->plane[pipe]));
@@ -4312,6 +4417,12 @@ skl_allocate_pipe_ddb(struct intel_crtc_state *cstate,
 	if (alloc_size == 0)
 		return 0;
 
+	/*
+	 * TODO: once we start using new ddb allocation algorithm pass maximum
+	 * enabled level's latency instead of level "0" latency
+	 */
+	tgl_get_pipe_isoc_req(dev_priv, cstate, total_data_rate, latency,
+			      &cstate->wm.skl.isocreq);
 	skl_ddb_calc_min(cstate, num_active, minimum, uv_minimum);
 
 	/*

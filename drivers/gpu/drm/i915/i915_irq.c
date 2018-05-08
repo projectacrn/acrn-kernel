@@ -2117,6 +2117,12 @@ static void valleyview_pipestat_irq_handler(struct drm_i915_private *dev_priv,
 		gmbus_irq_handler(dev_priv);
 }
 
+void tgl_pipe_isoc_req_irq_handler(struct drm_i915_private *dev_priv,
+				   enum pipe pipe)
+{
+	complete(&dev_priv->isocreq_rsp[pipe]);
+}
+
 static u32 i9xx_hpd_irq_ack(struct drm_i915_private *dev_priv)
 {
 	u32 hotplug_status = 0, hotplug_status_mask;
@@ -2985,6 +2991,9 @@ gen8_de_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 
 		if (iir & GEN8_PIPE_FIFO_UNDERRUN)
 			intel_cpu_fifo_underrun_irq_handler(dev_priv, pipe);
+
+		if (INTEL_GEN(dev_priv) >= 12 && iir & GEN12_PIPE_ISOCH_ACK)
+			tgl_pipe_isoc_req_irq_handler(dev_priv, pipe);
 
 		fault_errors = iir;
 		if (INTEL_GEN(dev_priv) >= 9)
