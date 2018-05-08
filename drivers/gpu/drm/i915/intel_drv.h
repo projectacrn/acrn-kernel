@@ -620,6 +620,12 @@ struct skl_pipe_wm {
 	uint32_t linetime;
 };
 
+struct tgl_pipe_isoc_req {
+	u16 ltr;	// Pipe latency tolerance in microseconds
+	u16 bandwidth;	// Require pipe BW in multiple of 100MB/s
+	u8 delay;	// downwards transition delay in ms
+};
+
 enum vlv_wm_level {
 	VLV_WM_LEVEL_PM2,
 	VLV_WM_LEVEL_PM5,
@@ -677,6 +683,7 @@ struct intel_crtc_wm_state {
 			/* gen9+ only needs 1-step wm programming */
 			struct skl_pipe_wm optimal;
 			struct skl_ddb_entry ddb;
+			struct tgl_pipe_isoc_req isocreq;
 		} skl;
 
 		struct {
@@ -2092,6 +2099,10 @@ int skl_check_pipe_max_pixel_rate(struct intel_crtc *intel_crtc,
 				  struct intel_crtc_state *cstate);
 void intel_init_ipc(struct drm_i915_private *dev_priv);
 void intel_enable_ipc(struct drm_i915_private *dev_priv);
+void intel_update_crtc_isoc_req(struct drm_crtc *crtc,
+				const struct intel_crtc_state *new_cstate,
+				const struct intel_crtc_state *old_cstate,
+				bool begin);
 
 /* intel_sdvo.c */
 bool intel_sdvo_port_enabled(struct drm_i915_private *dev_priv,

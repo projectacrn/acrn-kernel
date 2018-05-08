@@ -13258,6 +13258,8 @@ static void intel_begin_crtc_commit(struct drm_crtc *crtc,
 		intel_color_load_luts(&intel_cstate->base);
 	}
 
+	intel_update_crtc_isoc_req(crtc, intel_cstate, old_intel_cstate, true);
+
 	/* Perform vblank evasion around commit operation */
 	intel_pipe_update_start(intel_cstate);
 
@@ -13295,6 +13297,8 @@ static void intel_finish_crtc_commit(struct drm_crtc *crtc,
 				     struct drm_crtc_state *old_crtc_state)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_crtc_state *old_intel_cstate =
+		to_intel_crtc_state(old_crtc_state);
 	struct intel_atomic_state *old_intel_state =
 		to_intel_atomic_state(old_crtc_state->state);
 	struct intel_crtc_state *new_crtc_state =
@@ -13302,6 +13306,8 @@ static void intel_finish_crtc_commit(struct drm_crtc *crtc,
 
 	intel_pipe_update_end(new_crtc_state);
 
+	intel_update_crtc_isoc_req(crtc, new_crtc_state,
+				   old_intel_cstate, false);
 	if (new_crtc_state->update_pipe &&
 	    !needs_modeset(&new_crtc_state->base) &&
 	    old_crtc_state->mode.private_flags & I915_MODE_FLAG_INHERITED)
@@ -13983,6 +13989,9 @@ static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 	intel_color_init(&intel_crtc->base);
 
 	WARN_ON(drm_crtc_index(&intel_crtc->base) != intel_crtc->pipe);
+
+	/* Initialize completion for isoc_response */
+	init_completion(&dev_priv->isocreq_rsp[pipe]);
 
 	return 0;
 

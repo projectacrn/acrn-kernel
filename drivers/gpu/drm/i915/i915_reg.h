@@ -6084,6 +6084,23 @@ enum {
 #define PLANE_WM_TRANS(pipe, plane)	\
 	_MMIO(_PLANE(plane, _PLANE_WM_TRANS_1(pipe), _PLANE_WM_TRANS_2(pipe)))
 
+#define _TGL_PIPE_ISOCREQ_0_A		0x70010
+#define _TGL_PIPE_ISOCREQ_1_A		0x70014
+#define _TGL_PIPE_ISOCREQ_OFFSET_A	0x70018
+#define _TGL_NONPIPE_ISOCREQ_0		0x45230
+#define _TGL_NONPIPE_ISOCREQ_1		0x45234
+#define  TGL_PIPE_BW_MASK		0xFFFF
+#define  TGL_PIPE_BW(bw)		((bw))
+#define  TGL_PIPE_LTR_MASK		(0xFFFF<<16)
+#define  TGL_PIPE_LTR_SHIFT		16
+#define  TGL_PIPE_LTR(ltr)		((ltr)<<16)
+#define  TGL_ISOCREQ_EN			(1 << 31)
+#define  TGL_ISOCREQ_DELAY_MASK		0xFF
+#define  TGL_ISOCREQ_DELAY(delay)	((delay))
+
+#define TGL_PIPE_ISOC_REQ_0(pipe)	_MMIO_PIPE2(pipe, _TGL_PIPE_ISOCREQ_0_A)
+#define TGL_PIPE_ISOC_REQ_1(pipe)	_MMIO_PIPE2(pipe, _TGL_PIPE_ISOCREQ_1_A)
+
 /* define the Watermark register on Ironlake */
 #define WM0_PIPEA_ILK		_MMIO(0x45100)
 #define  WM0_PIPE_PLANE_MASK	(0xffff << 16)
@@ -7226,6 +7243,7 @@ enum {
 #define  GEN8_PIPE_FIFO_UNDERRUN	(1 << 31)
 #define  GEN8_PIPE_CDCLK_CRC_ERROR	(1 << 29)
 #define  GEN8_PIPE_CDCLK_CRC_DONE	(1 << 28)
+#define  GEN12_PIPE_ISOCH_ACK		(1 << 27)
 #define  GEN8_PIPE_CURSOR_FAULT		(1 << 10)
 #define  GEN8_PIPE_SPRITE_FAULT		(1 << 9)
 #define  GEN8_PIPE_PRIMARY_FAULT	(1 << 8)

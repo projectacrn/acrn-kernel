@@ -2123,6 +2123,7 @@ struct drm_i915_private {
 	bool chv_phy_assert[2];
 
 	bool ipc_enabled;
+	struct completion isocreq_rsp[I915_MAX_PIPES];
 
 	/* Used to save the pipe-to-encoder mapping for audio */
 	struct intel_encoder *av_enc_map[I915_MAX_PIPES];
