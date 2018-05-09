@@ -827,7 +827,7 @@ static void __pci_start_power_transition(struct pci_dev *dev, pci_power_t state)
 		 * because have already delayed for the bridge.
 		 */
 		if (dev->runtime_d3cold) {
-			if (dev->d3cold_delay)
+			if (dev->d3cold_delay && !dev->immediate)
 				msleep(dev->d3cold_delay);
 			/*
 			 * When powering on a bridge from D3cold, the
@@ -2287,9 +2287,17 @@ bool pci_bridge_d3_possible(struct pci_dev *bridge)
 		 * hotplug ports handled by firmware in System Management Mode
 		 * may not be put into D3 by the OS (Thunderbolt on non-Macs).
 		 * For simplicity, disallow in general for now.
+		 *
+		 * Only exception is a PCIe hierarchy whose root port has
+		 * hotplug_d3 set.
 		 */
-		if (bridge->is_hotplug_bridge)
-			return false;
+		if (bridge->is_hotplug_bridge) {
+			struct pci_dev *root;
+
+			root = pcie_find_root_port(bridge);
+			if (!root->hotplug_d3)
+				return false;
+		}
 
 		if (pci_bridge_d3_force)
 			return true;
@@ -2419,6 +2427,7 @@ EXPORT_SYMBOL_GPL(pci_d3cold_disable);
 void pci_pm_init(struct pci_dev *dev)
 {
 	int pm;
+	u16 status;
 	u16 pmc;
 
 	pm_runtime_forbid(&dev->dev);
@@ -2481,6 +2490,9 @@ void pci_pm_init(struct pci_dev *dev)
 		/* Disable the PME# generation functionality */
 		pci_pme_active(dev, false);
 	}
+
+	pci_read_config_word(dev, PCI_STATUS, &status);
+	dev->immediate = status & PCI_STATUS_IMMEDIATE;
 }
 
 static unsigned long pci_ea_flags(struct pci_dev *dev, u8 prop)
@@ -3972,6 +3984,9 @@ static int pci_dev_wait(struct pci_dev *dev, char *reset_type, int timeout)
 {
 	int delay = 1;
 	u32 id;
+
+	if (dev->immediate)
+		return 0;
 
 	/*
 	 * After reset, the device should not silently discard config

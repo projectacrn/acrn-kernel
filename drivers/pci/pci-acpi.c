@@ -723,6 +723,29 @@ static void pci_acpi_optimize_delay(struct pci_dev *pdev,
 	ACPI_FREE(obj);
 }
 
+
+static void pci_acpi_set_hotplug_d3(struct pci_dev *pdev)
+{
+	u8 val;
+
+	if (!pci_is_pcie(pdev))
+		return;
+	if (pci_pcie_type(pdev) != PCI_EXP_TYPE_ROOT_PORT)
+		return;
+
+	/*
+	 * We prevent D3 from PCIe hotplug ports because there has been
+	 * problems in the past waking the port up once a device is
+	 * hotplugged. However, we allow this for PCIe hotplug ports whose
+	 * root port has HotPlugSupportInD3 property set explicitly in the
+	 * boot firmware.
+	 */
+	if (device_property_read_u8(&pdev->dev, "HotPlugSupportInD3", &val))
+		return;
+
+	pdev->hotplug_d3 = true;
+}
+
 static void pci_acpi_setup(struct device *dev)
 {
 	struct pci_dev *pci_dev = to_pci_dev(dev);
@@ -731,6 +754,7 @@ static void pci_acpi_setup(struct device *dev)
 	if (!adev)
 		return;
 
+	pci_acpi_set_hotplug_d3(pci_dev);
 	pci_acpi_optimize_delay(pci_dev, adev->handle);
 
 	pci_acpi_add_pm_notifier(adev, pci_dev);

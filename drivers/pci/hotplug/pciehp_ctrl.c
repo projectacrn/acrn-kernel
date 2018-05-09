@@ -18,6 +18,8 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/pci.h>
+#include <linux/pm_runtime.h>
+
 #include "../pci.h"
 #include "pciehp.h"
 
@@ -377,18 +379,24 @@ int pciehp_enable_slot(struct slot *p_slot)
 {
 	u8 getstatus = 0;
 	struct controller *ctrl = p_slot->ctrl;
+	struct pci_dev *bridge = ctrl->pcie->port;
+	int ret;
+
+	pm_runtime_get_sync(&bridge->dev);
 
 	pciehp_get_adapter_status(p_slot, &getstatus);
 	if (!getstatus) {
 		ctrl_info(ctrl, "Slot(%s): No adapter\n", slot_name(p_slot));
-		return -ENODEV;
+		ret = -ENODEV;
+		goto out;
 	}
 	if (MRL_SENS(p_slot->ctrl)) {
 		pciehp_get_latch_status(p_slot, &getstatus);
 		if (getstatus) {
 			ctrl_info(ctrl, "Slot(%s): Latch open\n",
 				  slot_name(p_slot));
-			return -ENODEV;
+			ret = -ENODEV;
+			goto out;
 		}
 	}
 
@@ -397,11 +405,16 @@ int pciehp_enable_slot(struct slot *p_slot)
 		if (getstatus) {
 			ctrl_info(ctrl, "Slot(%s): Already enabled\n",
 				  slot_name(p_slot));
-			return 0;
+			ret = 0;
+			goto out;
 		}
 	}
 
-	return board_added(p_slot);
+	ret = board_added(p_slot);
+
+out:
+	pm_runtime_put(&bridge->dev);
+	return ret;
 }
 
 /*
@@ -411,20 +424,29 @@ int pciehp_disable_slot(struct slot *p_slot)
 {
 	u8 getstatus = 0;
 	struct controller *ctrl = p_slot->ctrl;
+	struct pci_dev *bridge = ctrl->pcie->port;
+	int ret;
 
 	if (!p_slot->ctrl)
 		return 1;
+
+	pm_runtime_get_sync(&bridge->dev);
 
 	if (POWER_CTRL(p_slot->ctrl)) {
 		pciehp_get_power_status(p_slot, &getstatus);
 		if (!getstatus) {
 			ctrl_info(ctrl, "Slot(%s): Already disabled\n",
 				  slot_name(p_slot));
-			return -EINVAL;
+			ret = -EINVAL;
+			goto out;
 		}
 	}
 
-	return remove_board(p_slot);
+	ret = remove_board(p_slot);
+
+out:
+	pm_runtime_put(&bridge->dev);
+	return ret;
 }
 
 int pciehp_sysfs_enable_slot(struct slot *p_slot)

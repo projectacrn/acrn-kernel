@@ -158,6 +158,7 @@ struct acpiphp_attention_info
 
 #define SLOT_ENABLED		(0x00000001)
 #define SLOT_IS_GOING_AWAY	(0x00000002)
+#define SLOT_IS_NATIVE		(0x00000004)
 
 /* function flags */
 

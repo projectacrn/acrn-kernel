@@ -96,12 +96,13 @@ static void __init unmarshal_key_value_pairs(struct dev_header *dev_header,
 		entry[i].name = key;
 		entry[i].length = val_len - sizeof(val_len);
 		entry[i].is_array = !!entry[i].length;
-		entry[i].pointer.raw_data = ptr + key_len + sizeof(val_len);
+		entry[i].type = DEV_PROP_U32;
+		entry[i].pointer.u32_data = ptr + key_len + sizeof(val_len);
 
 		if (dump_properties) {
 			dev_info(dev, "property: %s\n", entry[i].name);
 			print_hex_dump(KERN_INFO, pr_fmt(), DUMP_PREFIX_OFFSET,
-				16, 1, entry[i].pointer.raw_data,
+				16, 1, entry[i].pointer.u32_data,
 				entry[i].length, true);
 		}
 
