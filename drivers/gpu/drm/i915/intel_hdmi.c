@@ -1574,23 +1574,37 @@ intel_hdmi_mode_valid(struct drm_connector *connector,
 	/* check if we can do 8bpc */
 	status = hdmi_port_clock_valid(hdmi, clock, true, force_dvi);
 
-	/* if we can't do 8bpc we may still be able to do 12bpc */
-	if (!HAS_GMCH_DISPLAY(dev_priv) && status != MODE_OK && hdmi->has_hdmi_sink && !force_dvi)
-		status = hdmi_port_clock_valid(hdmi, clock * 3 / 2, true, force_dvi);
+	if (hdmi->has_hdmi_sink && !force_dvi) {
+		/* if we can't do 8bpc we may still be able to do 12bpc */
+		if (status != MODE_OK && !HAS_GMCH_DISPLAY(dev_priv))
+			status = hdmi_port_clock_valid(hdmi, clock * 3 / 2,
+						       true, force_dvi);
+
+		/* if we can't do 8,12bpc we may still be able to do 10bpc */
+		if (status != MODE_OK && INTEL_GEN(dev_priv) >= 11)
+			status = hdmi_port_clock_valid(hdmi, clock * 5 / 4,
+						       true, force_dvi);
+	}
 
 	return status;
 }
 
-static bool hdmi_12bpc_possible(const struct intel_crtc_state *crtc_state)
+static bool hdmi_deep_color_possible(const struct intel_crtc_state *crtc_state,
+				     int bpc)
 {
 	struct drm_i915_private *dev_priv =
 		to_i915(crtc_state->base.crtc->dev);
 	struct drm_atomic_state *state = crtc_state->base.state;
 	struct drm_connector_state *connector_state;
 	struct drm_connector *connector;
+	const struct drm_display_mode *adjusted_mode =
+		&crtc_state->base.adjusted_mode;
 	int i;
 
 	if (HAS_GMCH_DISPLAY(dev_priv))
+		return false;
+
+	if (bpc == 10 && INTEL_GEN(dev_priv) < 11)
 		return false;
 
 	if (crtc_state->pipe_bpp <= 8*3)
@@ -1600,7 +1614,7 @@ static bool hdmi_12bpc_possible(const struct intel_crtc_state *crtc_state)
 		return false;
 
 	/*
-	 * HDMI 12bpc affects the clocks, so it's only possible
+	 * HDMI deep color affects the clocks, so it's only possible
 	 * when not cloning with other encoder types.
 	 */
 	if (crtc_state->output_types != 1 << INTEL_OUTPUT_HDMI)
@@ -1615,17 +1629,31 @@ static bool hdmi_12bpc_possible(const struct intel_crtc_state *crtc_state)
 		if (crtc_state->ycbcr420) {
 			const struct drm_hdmi_info *hdmi = &info->hdmi;
 
-			if (!(hdmi->y420_dc_modes & DRM_EDID_YCBCR420_DC_36))
+			if (bpc == 12 && !(hdmi->y420_dc_modes &
+					   DRM_EDID_YCBCR420_DC_36))
+				return false;
+			else if (bpc == 10 && !(hdmi->y420_dc_modes &
+						DRM_EDID_YCBCR420_DC_30))
 				return false;
 		} else {
-			if (!(info->edid_hdmi_dc_modes & DRM_EDID_HDMI_DC_36))
+			if (bpc == 12 && !(info->edid_hdmi_dc_modes &
+					   DRM_EDID_HDMI_DC_36))
+				return false;
+			else if (bpc == 10 && !(info->edid_hdmi_dc_modes &
+						DRM_EDID_HDMI_DC_30))
 				return false;
 		}
 	}
 
 	/* Display WA #1139: glk */
-	if (IS_GLK_REVID(dev_priv, 0, GLK_REVID_A1) &&
-	    crtc_state->base.adjusted_mode.htotal > 5460)
+	if (bpc == 12 && IS_GLK_REVID(dev_priv, 0, GLK_REVID_A1) &&
+	    adjusted_mode->htotal > 5460)
+		return false;
+
+	/* Display Wa #1148:icl */
+	if (crtc_state->ycbcr420 && bpc == 10 && IS_ICELAKE(dev_priv) &&
+	    (adjusted_mode->crtc_hblank_end -
+	     adjusted_mode->crtc_hblank_start) % 8 == 2)
 		return false;
 
 	return true;
@@ -1634,7 +1662,8 @@ static bool hdmi_12bpc_possible(const struct intel_crtc_state *crtc_state)
 static bool
 intel_hdmi_ycbcr420_config(struct drm_connector *connector,
 			   struct intel_crtc_state *config,
-			   int *clock_12bpc, int *clock_8bpc)
+			   int *clock_12bpc, int *clock_10bpc,
+			   int *clock_8bpc)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(config->base.crtc);
 
@@ -1646,6 +1675,7 @@ intel_hdmi_ycbcr420_config(struct drm_connector *connector,
 	/* YCBCR420 TMDS rate requirement is half the pixel clock */
 	config->port_clock /= 2;
 	*clock_12bpc /= 2;
+	*clock_10bpc /= 2;
 	*clock_8bpc /= 2;
 	config->ycbcr420 = true;
 
@@ -1673,6 +1703,7 @@ bool intel_hdmi_compute_config(struct intel_encoder *encoder,
 	struct intel_digital_connector_state *intel_conn_state =
 		to_intel_digital_connector_state(conn_state);
 	int clock_8bpc = pipe_config->base.adjusted_mode.crtc_clock;
+	int clock_10bpc = clock_8bpc * 5 / 4;
 	int clock_12bpc = clock_8bpc * 3 / 2;
 	int desired_bpp;
 	bool force_dvi = intel_conn_state->force_audio == HDMI_AUDIO_OFF_DVI;
@@ -1696,12 +1727,14 @@ bool intel_hdmi_compute_config(struct intel_encoder *encoder,
 	if (adjusted_mode->flags & DRM_MODE_FLAG_DBLCLK) {
 		pipe_config->pixel_multiplier = 2;
 		clock_8bpc *= 2;
+		clock_10bpc *= 2;
 		clock_12bpc *= 2;
 	}
 
 	if (drm_mode_is_420_only(&connector->display_info, adjusted_mode)) {
 		if (!intel_hdmi_ycbcr420_config(connector, pipe_config,
-						&clock_12bpc, &clock_8bpc)) {
+						&clock_12bpc, &clock_10bpc,
+						&clock_8bpc)) {
 			DRM_ERROR("Can't support YCBCR420 output\n");
 			return false;
 		}
@@ -1719,18 +1752,25 @@ bool intel_hdmi_compute_config(struct intel_encoder *encoder,
 	}
 
 	/*
-	 * HDMI is either 12 or 8, so if the display lets 10bpc sneak
-	 * through, clamp it down. Note that g4x/vlv don't support 12bpc hdmi
-	 * outputs. We also need to check that the higher clock still fits
-	 * within limits.
+	 * Note that g4x/vlv don't support 12bpc hdmi outputs. We also need
+	 * to check that the higher clock still fits within limits.
 	 */
-	if (hdmi_12bpc_possible(pipe_config) &&
-	    hdmi_port_clock_valid(intel_hdmi, clock_12bpc, true, force_dvi) == MODE_OK) {
+	if (hdmi_deep_color_possible(pipe_config, 12) &&
+	    hdmi_port_clock_valid(intel_hdmi, clock_12bpc,
+				  true, force_dvi) == MODE_OK) {
 		DRM_DEBUG_KMS("picking bpc to 12 for HDMI output\n");
 		desired_bpp = 12*3;
 
 		/* Need to adjust the port link by 1.5x for 12bpc. */
 		pipe_config->port_clock = clock_12bpc;
+	} else if (hdmi_deep_color_possible(pipe_config, 10) &&
+		   hdmi_port_clock_valid(intel_hdmi, clock_10bpc,
+					 true, force_dvi) == MODE_OK) {
+		DRM_DEBUG_KMS("picking bpc to 10 for HDMI output\n");
+		desired_bpp = 10*3;
+
+		/* Need to adjust the port link by 1.25x for 10bpc. */
+		pipe_config->port_clock = clock_10bpc;
 	} else {
 		DRM_DEBUG_KMS("picking bpc to 8 for HDMI output\n");
 		desired_bpp = 8*3;
@@ -1874,21 +1914,26 @@ intel_hdmi_set_edid(struct drm_connector *connector)
 static enum drm_connector_status
 intel_hdmi_detect(struct drm_connector *connector, bool force)
 {
-	enum drm_connector_status status;
+	enum drm_connector_status status = connector_status_disconnected;
 	struct drm_i915_private *dev_priv = to_i915(connector->dev);
+	struct intel_hdmi *intel_hdmi = intel_attached_hdmi(connector);
+	struct intel_encoder *encoder = &hdmi_to_dig_port(intel_hdmi)->base;
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s]\n",
 		      connector->base.id, connector->name);
 
 	intel_display_power_get(dev_priv, POWER_DOMAIN_GMBUS);
 
+	if (IS_ICELAKE(dev_priv) &&
+	    !intel_digital_port_connected(encoder))
+		goto out;
+
 	intel_hdmi_unset_edid(connector);
 
 	if (intel_hdmi_set_edid(connector))
 		status = connector_status_connected;
-	else
-		status = connector_status_disconnected;
 
+out:
 	intel_display_power_put(dev_priv, POWER_DOMAIN_GMBUS);
 
 	return status;
@@ -2082,41 +2127,33 @@ intel_hdmi_add_properties(struct intel_hdmi *intel_hdmi, struct drm_connector *c
  * it enables scrambling. This should be called before enabling the HDMI
  * 2.0 port, as the sink can choose to disable the scrambling if it doesn't
  * detect a scrambled clock within 100 ms.
+ *
+ * Returns:
+ * True on success, false on failure.
  */
-void intel_hdmi_handle_sink_scrambling(struct intel_encoder *encoder,
+bool intel_hdmi_handle_sink_scrambling(struct intel_encoder *encoder,
 				       struct drm_connector *connector,
 				       bool high_tmds_clock_ratio,
 				       bool scrambling)
 {
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	struct intel_hdmi *intel_hdmi = enc_to_intel_hdmi(&encoder->base);
-	struct drm_i915_private *dev_priv = connector->dev->dev_private;
 	struct drm_scrambling *sink_scrambling =
-				&connector->display_info.hdmi.scdc.scrambling;
-	struct i2c_adapter *adptr = intel_gmbus_get_adapter(dev_priv,
-							   intel_hdmi->ddc_bus);
-	bool ret;
+		&connector->display_info.hdmi.scdc.scrambling;
+	struct i2c_adapter *adapter =
+		intel_gmbus_get_adapter(dev_priv, intel_hdmi->ddc_bus);
 
 	if (!sink_scrambling->supported)
-		return;
+		return true;
 
-	DRM_DEBUG_KMS("Setting sink scrambling for enc:%s connector:%s\n",
-		      encoder->base.name, connector->name);
+	DRM_DEBUG_KMS("[CONNECTOR:%d:%s] scrambling=%s, TMDS bit clock ratio=1/%d\n",
+		      connector->base.id, connector->name,
+		      yesno(scrambling), high_tmds_clock_ratio ? 40 : 10);
 
-	/* Set TMDS bit clock ratio to 1/40 or 1/10 */
-	ret = drm_scdc_set_high_tmds_clock_ratio(adptr, high_tmds_clock_ratio);
-	if (!ret) {
-		DRM_ERROR("Set TMDS ratio failed\n");
-		return;
-	}
-
-	/* Enable/disable sink scrambling */
-	ret = drm_scdc_set_scrambling(adptr, scrambling);
-	if (!ret) {
-		DRM_ERROR("Set sink scrambling failed\n");
-		return;
-	}
-
-	DRM_DEBUG_KMS("sink scrambling handled\n");
+	/* Set TMDS bit clock ratio to 1/40 or 1/10, and enable/disable scrambling */
+	return drm_scdc_set_high_tmds_clock_ratio(adapter,
+						  high_tmds_clock_ratio) &&
+		drm_scdc_set_scrambling(adapter, scrambling);
 }
 
 static u8 chv_port_to_ddc_pin(struct drm_i915_private *dev_priv, enum port port)
@@ -2217,6 +2254,18 @@ static u8 icl_port_to_ddc_pin(struct drm_i915_private *dev_priv, enum port port)
 	return ddc_pin;
 }
 
+static u8 icph_port_to_ddc_pin(struct drm_i915_private *dev_priv,
+			       enum port port)
+{
+	if (intel_is_port_combophy(dev_priv, port))
+		return GMBUS_PIN_1_BXT + port;
+	else if (intel_is_port_tc(dev_priv, port))
+		return GMBUS_PIN_9_TC1_ICP + intel_port_to_tc(dev_priv, port);
+
+	WARN(1, "Unknown port:%c\n", port_name(port));
+	return GMBUS_PIN_2_BXT;
+}
+
 static u8 g4x_port_to_ddc_pin(struct drm_i915_private *dev_priv,
 			      enum port port)
 {
@@ -2259,7 +2308,9 @@ static u8 intel_hdmi_ddc_pin(struct drm_i915_private *dev_priv,
 		ddc_pin = bxt_port_to_ddc_pin(dev_priv, port);
 	else if (HAS_PCH_CNP(dev_priv))
 		ddc_pin = cnp_port_to_ddc_pin(dev_priv, port);
-	else if (IS_ICELAKE(dev_priv))
+	else if (HAS_PCH_ICP_H(dev_priv) || HAS_PCH_TGP(dev_priv))
+		ddc_pin = icph_port_to_ddc_pin(dev_priv, port);
+	else if (HAS_PCH_ICP(dev_priv))
 		ddc_pin = icl_port_to_ddc_pin(dev_priv, port);
 	else
 		ddc_pin = g4x_port_to_ddc_pin(dev_priv, port);

@@ -1196,18 +1196,37 @@ static const u8 cnp_ddc_pin_map[] = {
 	[DDC_BUS_DDI_F] = GMBUS_PIN_3_BXT, /* sic */
 };
 
+static const u8 icp_ddc_pin_map[] = {
+	[ICL_DDC_BUS_DDI_A] = GMBUS_PIN_1_BXT,
+	[ICL_DDC_BUS_DDI_B] = GMBUS_PIN_2_BXT,
+	[ICL_DDC_BUS_PORT_1] = GMBUS_PIN_9_TC1_ICP,
+	[ICL_DDC_BUS_PORT_2] = GMBUS_PIN_10_TC2_ICP,
+	[ICL_DDC_BUS_PORT_3] = GMBUS_PIN_11_TC3_ICP,
+	[ICL_DDC_BUS_PORT_4] = GMBUS_PIN_12_TC4_ICP,
+};
+
 static u8 map_ddc_pin(struct drm_i915_private *dev_priv, u8 vbt_pin)
 {
-	if (HAS_PCH_CNP(dev_priv)) {
-		if (vbt_pin < ARRAY_SIZE(cnp_ddc_pin_map)) {
-			return cnp_ddc_pin_map[vbt_pin];
-		} else {
-			DRM_DEBUG_KMS("Ignoring alternate pin: VBT claims DDC pin %d, which is not valid for this platform\n", vbt_pin);
-			return 0;
-		}
+	const u8 *ddc_pin_map;
+	int n_entries;
+
+	if (HAS_PCH_ICP(dev_priv)) {
+		ddc_pin_map = icp_ddc_pin_map;
+		n_entries = ARRAY_SIZE(icp_ddc_pin_map);
+	} else if (HAS_PCH_CNP(dev_priv)) {
+		ddc_pin_map = cnp_ddc_pin_map;
+		n_entries = ARRAY_SIZE(cnp_ddc_pin_map);
+	} else {
+		/* Assuming direct map */
+		return vbt_pin;
 	}
 
-	return vbt_pin;
+	if (vbt_pin < n_entries && ddc_pin_map[vbt_pin] != 0) {
+		return ddc_pin_map[vbt_pin];
+	} else {
+		DRM_DEBUG_KMS("Ignoring alternate pin: VBT claims DDC pin %d, which is not valid for this platform\n", vbt_pin);
+		return 0;
+	}
 }
 
 static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
@@ -1215,10 +1234,8 @@ static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
 {
 	struct child_device_config *it, *child = NULL;
 	struct ddi_vbt_port_info *info = &dev_priv->vbt.ddi_port_info[port];
-	uint8_t hdmi_level_shift;
 	int i, j;
 	bool is_dvi, is_hdmi, is_dp, is_edp, is_crt;
-	uint8_t aux_channel, ddc_pin;
 	/* Each DDI port can have more than one value on the "DVO Port" field,
 	 * so look for all the possible values for each port.
 	 */
@@ -1255,20 +1272,11 @@ static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
 	if (!child)
 		return;
 
-	aux_channel = child->aux_channel;
-
 	is_dvi = child->device_type & DEVICE_TYPE_TMDS_DVI_SIGNALING;
 	is_dp = child->device_type & DEVICE_TYPE_DISPLAYPORT_OUTPUT;
 	is_crt = child->device_type & DEVICE_TYPE_ANALOG_OUTPUT;
 	is_hdmi = is_dvi && (child->device_type & DEVICE_TYPE_NOT_HDMI_OUTPUT) == 0;
 	is_edp = is_dp && (child->device_type & DEVICE_TYPE_INTERNAL_CONNECTOR);
-
-	if (port == PORT_A && is_dvi) {
-		DRM_DEBUG_KMS("VBT claims port A supports DVI%s, ignoring\n",
-			      is_hdmi ? "/HDMI" : "");
-		is_dvi = false;
-		is_hdmi = false;
-	}
 
 	if (port == PORT_A && is_dvi) {
 		DRM_DEBUG_KMS("VBT claims port A supports DVI%s, ignoring\n",
@@ -1302,6 +1310,8 @@ static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
 		DRM_DEBUG_KMS("Port %c is internal DP\n", port_name(port));
 
 	if (is_dvi) {
+		u8 ddc_pin;
+
 		ddc_pin = map_ddc_pin(dev_priv, child->ddc_pin);
 		if (intel_gmbus_is_valid_pin(dev_priv, ddc_pin)) {
 			info->alternate_ddc_pin = ddc_pin;
@@ -1314,14 +1324,14 @@ static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
 	}
 
 	if (is_dp) {
-		info->alternate_aux_channel = aux_channel;
+		info->alternate_aux_channel = child->aux_channel;
 
 		sanitize_aux_ch(dev_priv, port);
 	}
 
 	if (bdb_version >= 158) {
 		/* The VBT HDMI level shift values match the table we have. */
-		hdmi_level_shift = child->hdmi_level_shifter_value;
+		u8 hdmi_level_shift = child->hdmi_level_shifter_value;
 		DRM_DEBUG_KMS("VBT HDMI level shift for port %c: %d\n",
 			      port_name(port),
 			      hdmi_level_shift);
@@ -1382,6 +1392,19 @@ static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
 		DRM_DEBUG_KMS("VBT DP max link rate for port %c: %d\n",
 			      port_name(port), info->dp_max_link_rate);
 	}
+
+	/*
+	 * Parse Enable/Disable support for DP display through USB Type C port.
+	 */
+	if (bdb_version >= 195)
+		info->supports_dp_typec = child->dp_usb_type_c;
+
+	/*
+	 * Parse Enable/Disable feature flag indicating whether this port is a
+	 * Thunderbolt port (applicable from ICL onwards).
+	 */
+	if (bdb_version >= 209)
+		info->supports_tbt = child->tbt;
 }
 
 static void parse_ddi_ports(struct drm_i915_private *dev_priv, u8 bdb_version)
@@ -1499,7 +1522,6 @@ parse_general_definitions(struct drm_i915_private *dev_priv,
 	}
 }
 
-/* Common defaults which may be overridden by VBT. */
 static void
 init_vbt_defaults(struct drm_i915_private *dev_priv)
 {
@@ -1536,18 +1558,6 @@ init_vbt_defaults(struct drm_i915_private *dev_priv)
 			&dev_priv->vbt.ddi_port_info[port];
 
 		info->hdmi_level_shift = HDMI_LEVEL_SHIFT_UNKNOWN;
-	}
-}
-
-/* Defaults to initialize only if there is no VBT. */
-static void
-init_vbt_missing_defaults(struct drm_i915_private *dev_priv)
-{
-	enum port port;
-
-	for (port = PORT_A; port < I915_MAX_PORTS; port++) {
-		struct ddi_vbt_port_info *info =
-			&dev_priv->vbt.ddi_port_info[port];
 
 		info->supports_dvi = (port != PORT_A && port != PORT_E);
 		info->supports_hdmi = info->supports_dvi;
@@ -1688,10 +1698,8 @@ void intel_bios_init(struct drm_i915_private *dev_priv)
 	parse_ddi_ports(dev_priv, bdb->version);
 
 out:
-	if (!vbt) {
+	if (!vbt)
 		DRM_INFO("Failed to find VBIOS tables (VBT)\n");
-		init_vbt_missing_defaults(dev_priv);
-	}
 
 	if (bios)
 		pci_unmap_rom(pdev, bios);
@@ -1953,6 +1961,7 @@ bool intel_bios_is_dsi_present(struct drm_i915_private *dev_priv,
 	const struct child_device_config *child;
 	u8 dvo_port;
 	int i;
+	bool ret = false;
 
 	for (i = 0; i < dev_priv->vbt.child_dev_num; i++) {
 		child = dev_priv->vbt.child_dev + i;
@@ -1964,11 +1973,20 @@ bool intel_bios_is_dsi_present(struct drm_i915_private *dev_priv,
 
 		switch (dvo_port) {
 		case DVO_PORT_MIPIA:
+			ret = true;
+			goto out;
 		case DVO_PORT_MIPIC:
-			if (port)
-				*port = dvo_port - DVO_PORT_MIPIA;
-			return true;
+			ret = IS_ICELAKE(dev_priv);
+			if (!ret) {
+				ret = true;
+				goto out;
+			}
+			break;
 		case DVO_PORT_MIPIB:
+			ret = IS_ICELAKE(dev_priv);
+			if (ret)
+				goto out;
+			break;
 		case DVO_PORT_MIPID:
 			DRM_DEBUG_KMS("VBT has unsupported DSI port %c\n",
 				      port_name(dvo_port - DVO_PORT_MIPIA));
@@ -1976,7 +1994,16 @@ bool intel_bios_is_dsi_present(struct drm_i915_private *dev_priv,
 		}
 	}
 
-	return false;
+out:
+	if (ret) {
+		if (port)
+			*port = dvo_port - DVO_PORT_MIPIA;
+	} else {
+		DRM_DEBUG_KMS("DSI info not present in VBT\n");
+	}
+
+
+	return ret;
 }
 
 /**

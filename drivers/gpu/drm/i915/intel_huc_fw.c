@@ -34,6 +34,14 @@
 #define KBL_HUC_FW_MINOR 00
 #define KBL_BLD_NUM 1810
 
+#define ICL_HUC_FW_MAJOR 8
+#define ICL_HUC_FW_MINOR 02
+#define ICL_BLD_NUM 2678
+
+#define TGL_HUC_FW_MAJOR 6
+#define TGL_HUC_FW_MINOR 00
+#define TGL_BLD_NUM 2740
+
 #define HUC_FW_PATH(platform, major, minor, bld_num) \
 	"i915/" __stringify(platform) "_huc_ver" __stringify(major) "_" \
 	__stringify(minor) "_" __stringify(bld_num) ".bin"
@@ -49,6 +57,12 @@ MODULE_FIRMWARE(I915_BXT_HUC_UCODE);
 #define I915_KBL_HUC_UCODE HUC_FW_PATH(kbl, KBL_HUC_FW_MAJOR, \
 	KBL_HUC_FW_MINOR, KBL_BLD_NUM)
 MODULE_FIRMWARE(I915_KBL_HUC_UCODE);
+
+#define I915_ICL_HUC_UCODE HUC_FW_PATH(icl, ICL_HUC_FW_MAJOR, \
+	ICL_HUC_FW_MINOR, ICL_BLD_NUM)
+
+#define I915_TGL_HUC_UCODE HUC_FW_PATH(tgl, TGL_HUC_FW_MAJOR, \
+	TGL_HUC_FW_MINOR, TGL_BLD_NUM)
 
 static void huc_fw_select(struct intel_uc_fw *huc_fw)
 {
@@ -76,6 +90,14 @@ static void huc_fw_select(struct intel_uc_fw *huc_fw)
 		huc_fw->path = I915_KBL_HUC_UCODE;
 		huc_fw->major_ver_wanted = KBL_HUC_FW_MAJOR;
 		huc_fw->minor_ver_wanted = KBL_HUC_FW_MINOR;
+	} else if (IS_ICELAKE(dev_priv)) {
+		huc->fw.path = I915_ICL_HUC_UCODE;
+		huc->fw.major_ver_wanted = ICL_HUC_FW_MAJOR;
+		huc->fw.minor_ver_wanted = ICL_HUC_FW_MINOR;
+	} else if (IS_TIGERLAKE(dev_priv)) {
+		huc->fw.path = I915_TGL_HUC_UCODE;
+		huc->fw.major_ver_wanted = TGL_HUC_FW_MAJOR;
+		huc->fw.minor_ver_wanted = TGL_HUC_FW_MINOR;
 	} else {
 		DRM_WARN("%s: No firmware known for this platform!\n",
 			 intel_uc_fw_type_repr(huc_fw->type));
@@ -118,7 +140,8 @@ static int huc_fw_xfer(struct intel_uc_fw *huc_fw, struct i915_vma *vma)
 	intel_uncore_forcewake_get(dev_priv, FORCEWAKE_ALL);
 
 	/* Set the source address for the uCode */
-	offset = guc_ggtt_offset(vma) + huc_fw->header_offset;
+	offset = intel_guc_ggtt_offset(&dev_priv->guc, vma) +
+		 huc_fw->header_offset;
 	I915_WRITE(DMA_ADDR_0_LOW, lower_32_bits(offset));
 	I915_WRITE(DMA_ADDR_0_HIGH, upper_32_bits(offset) & 0xFFFF);
 
@@ -154,9 +177,8 @@ static int huc_fw_xfer(struct intel_uc_fw *huc_fw, struct i915_vma *vma)
  * Called from intel_uc_init_hw() during driver load, resume from sleep and
  * after a GPU reset. Note that HuC must be loaded before GuC.
  *
- * The firmware image should have already been fetched into memory by the
- * earlier call to intel_uc_init_fw(), so here we need to only check that
- * fetch succeeded, and then transfer the image to the h/w.
+ * The firmware image should have already been fetched into memory, so only
+ * check that fetch succeeded, and then transfer the image to the h/w.
  *
  * Return:	non-zero code on error
  */

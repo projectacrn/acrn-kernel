@@ -90,6 +90,7 @@
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 #include "i915_trace.h"
+#include "intel_workarounds.h"
 
 #define ALL_L3_SLICES(dev) (1 << NUM_L3_SLICES(dev)) - 1
 
@@ -116,6 +117,7 @@ static void lut_close(struct i915_gem_context *ctx)
 
 static void i915_gem_context_free(struct i915_gem_context *ctx)
 {
+	struct drm_i915_private *dev_priv = ctx->i915;
 	int i;
 
 	lockdep_assert_held(&ctx->i915->drm.struct_mutex);
@@ -125,9 +127,13 @@ static void i915_gem_context_free(struct i915_gem_context *ctx)
 
 	for (i = 0; i < I915_NUM_ENGINES; i++) {
 		struct intel_context *ce = &ctx->engine[i];
+		struct intel_engine_cs *engine = dev_priv->engine[i];
 
 		if (!ce->state)
 			continue;
+
+		if (dev_priv->guc.ctx_free_hook)
+			dev_priv->guc.ctx_free_hook(ctx, engine);
 
 		WARN_ON(ce->pin_count);
 		if (ce->ring)
@@ -213,9 +219,14 @@ static int assign_hw_id(struct drm_i915_private *dev_priv, unsigned *out)
 	int ret;
 	unsigned int max;
 
-	if (INTEL_GEN(dev_priv) >= 11)
-		max = GEN11_MAX_CONTEXT_HW_ID;
-	else
+	if (INTEL_GEN(dev_priv) >= 11) {
+		if (USES_GUC_SUBMISSION(dev_priv))
+			max = GEN11_MAX_CONTEXT_HW_ID_WITH_GUC;
+		else if (INTEL_GEN(dev_priv) >= 12)
+			max = GEN12_MAX_CONTEXT_HW_ID;
+		else
+			max = GEN11_MAX_CONTEXT_HW_ID;
+	} else
 		max = MAX_CONTEXT_HW_ID;
 
 	ret = ida_simple_get(&dev_priv->contexts.hw_ida,
@@ -252,6 +263,9 @@ static u32 default_desc_template(const struct drm_i915_private *i915,
 	if (IS_GEN8(i915))
 		desc |= GEN8_CTX_L3LLC_COHERENT;
 
+	if (HAS_CCS(i915))
+		desc |= GEN12_CTX_PRIORITY_LOW;
+
 	/* TODO: WaDisableLiteRestore when we start using semaphore
 	 * signalling between Command Streamers
 	 * ring->ctx_desc_template |= GEN8_CTX_FORCE_RESTORE;
@@ -280,7 +294,7 @@ __create_hw_context(struct drm_i915_private *dev_priv,
 	kref_init(&ctx->ref);
 	list_add_tail(&ctx->link, &dev_priv->contexts.list);
 	ctx->i915 = dev_priv;
-	ctx->priority = I915_PRIORITY_NORMAL;
+	ctx->sched.priority = I915_PRIORITY_NORMAL;
 
 	INIT_RADIX_TREE(&ctx->handles_vma, GFP_KERNEL);
 	INIT_LIST_HEAD(&ctx->handles_list);
@@ -318,12 +332,13 @@ __create_hw_context(struct drm_i915_private *dev_priv,
 	ctx->desc_template =
 		default_desc_template(dev_priv, dev_priv->mm.aliasing_ppgtt);
 
-	/* GuC requires the ring to be placed above GUC_WOPCM_TOP. If GuC is not
+	/*
+	 * GuC requires the ring to be placed in Non-WOPCM memory. If GuC is not
 	 * present or not in use we still need a small bias as ring wraparound
 	 * at offset 0 sometimes hangs. No idea why.
 	 */
 	if (USES_GUC(dev_priv))
-		ctx->ggtt_offset_bias = GUC_WOPCM_TOP;
+		ctx->ggtt_offset_bias = dev_priv->guc.ggtt_pin_bias;
 	else
 		ctx->ggtt_offset_bias = I915_GTT_PAGE_SIZE;
 
@@ -429,7 +444,7 @@ i915_gem_context_create_kernel(struct drm_i915_private *i915, int prio)
 		return ctx;
 
 	i915_gem_context_clear_bannable(ctx);
-	ctx->priority = prio;
+	ctx->sched.priority = prio;
 	ctx->ring_size = PAGE_SIZE;
 
 	GEM_BUG_ON(!i915_gem_context_is_kernel(ctx));
@@ -458,10 +473,15 @@ static bool needs_preempt_context(struct drm_i915_private *i915)
 int i915_gem_contexts_init(struct drm_i915_private *dev_priv)
 {
 	struct i915_gem_context *ctx;
+	int ret;
 
 	/* Reassure ourselves we are only called once */
 	GEM_BUG_ON(dev_priv->kernel_context);
 	GEM_BUG_ON(dev_priv->preempt_context);
+
+	ret = intel_ctx_workarounds_init(dev_priv);
+	if (ret)
+		return ret;
 
 	INIT_LIST_HEAD(&dev_priv->contexts.list);
 	INIT_WORK(&dev_priv->contexts.free_work, contexts_free_worker);
@@ -746,7 +766,7 @@ int i915_gem_context_getparam_ioctl(struct drm_device *dev, void *data,
 		args->value = i915_gem_context_is_bannable(ctx);
 		break;
 	case I915_CONTEXT_PARAM_PRIORITY:
-		args->value = ctx->priority;
+		args->value = ctx->sched.priority;
 		break;
 	default:
 		ret = -EINVAL;
@@ -819,7 +839,7 @@ int i915_gem_context_setparam_ioctl(struct drm_device *dev, void *data,
 				 !capable(CAP_SYS_NICE))
 				ret = -EPERM;
 			else
-				ctx->priority = priority;
+				ctx->sched.priority = priority;
 		}
 		break;
 

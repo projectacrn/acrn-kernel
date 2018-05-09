@@ -49,13 +49,24 @@ struct intel_guc {
 	struct intel_guc_log log;
 	struct intel_guc_ct ct;
 
+	/* Offset where Non-WOPCM memory starts. */
+	u32 ggtt_pin_bias;
+
 	/* Log snapshot if GuC errors during load */
 	struct drm_i915_gem_object *load_err_log;
 
 	/* intel_guc_recv interrupt related state */
-	bool interrupts_enabled;
+	spinlock_t irq_lock;
+	struct {
+		bool enabled;
+		void (*reset)(struct drm_i915_private *dev_priv);
+		void (*enable)(struct drm_i915_private *dev_priv);
+		void (*disable)(struct drm_i915_private *dev_priv);
+	} interrupts;
+	unsigned int msg_enabled_mask;
 
 	struct i915_vma *ads_vma;
+	uint32_t max_stage_desc;
 	struct i915_vma *stage_desc_pool;
 	void *stage_desc_pool_vaddr;
 	struct ida stage_ids;
@@ -72,6 +83,17 @@ struct intel_guc {
 	/* Cyclic counter mod pagesize	*/
 	u32 db_cacheline;
 
+	/* distributted doorbell information */
+	u8 last_sqidi_num_used;
+	u8 num_sqidi_supported;
+	u16 num_of_doorbells_per_sqidi;
+
+	/*
+	 * Track outstanding request-engine-reset h2g commands,
+	 * accessed by set/clear/is_engine_class_under_reset
+	 */
+	unsigned int engine_class_under_reset;
+
 	/* GuC's FW specific registers used in MMIO send */
 	struct {
 		u32 base;
@@ -83,16 +105,38 @@ struct intel_guc {
 	struct mutex send_mutex;
 
 	/* GuC's FW specific send function */
-	int (*send)(struct intel_guc *guc, const u32 *data, u32 len);
+	int (*send)(struct intel_guc *guc, const u32 *data, u32 len,
+		    u32 *response_buf, u32 response_buf_size);
+
+	/* GuC's FW specific event handler function */
+	void (*handler)(struct intel_guc *guc);
 
 	/* GuC's FW specific notify function */
 	void (*notify)(struct intel_guc *guc);
+
+	/*
+	 * Hooks for context (per-engine context, not gem context) allocation,
+	 * deallocation and descriptor update.
+	 */
+	void (*ctx_alloc_hook)(struct i915_gem_context *ctx,
+			       struct intel_engine_cs *engine);
+	void (*ctx_free_hook)(struct i915_gem_context *ctx,
+			      struct intel_engine_cs *engine);
+	void (*ctx_update_hook)(struct i915_gem_context *ctx,
+				struct intel_engine_cs *engine);
 };
 
 static
 inline int intel_guc_send(struct intel_guc *guc, const u32 *action, u32 len)
 {
-	return guc->send(guc, action, len);
+	return guc->send(guc, action, len, NULL, 0);
+}
+
+static inline int
+intel_guc_send_and_receive(struct intel_guc *guc, const u32 *action, u32 len,
+			   u32 *response_buf, u32 response_buf_size)
+{
+	return guc->send(guc, action, len, response_buf, response_buf_size);
 }
 
 static inline void intel_guc_notify(struct intel_guc *guc)
@@ -100,17 +144,33 @@ static inline void intel_guc_notify(struct intel_guc *guc)
 	guc->notify(guc);
 }
 
-/*
- * GuC does not allow any gfx GGTT address that falls into range [0, WOPCM_TOP),
- * which is reserved for Boot ROM, SRAM and WOPCM. Currently this top address is
- * 512K. In order to exclude 0-512K address space from GGTT, all gfx objects
- * used by GuC is pinned with PIN_OFFSET_BIAS along with size of WOPCM.
+static inline void intel_guc_to_host_event_handler(struct intel_guc *guc)
+{
+	guc->handler(guc);
+}
+
+/* GuC addresses above GUC_GGTT_TOP also don't map through the GTT */
+#define GUC_GGTT_TOP	0xFEE00000
+
+/**
+ * intel_guc_ggtt_offset() - Get and validate the GGTT offset of @vma
+ * @guc: intel_guc structure.
+ * @vma: i915 graphics virtual memory area.
+ *
+ * GuC does not allow any gfx GGTT address that falls into range
+ * [0, GuC ggtt_pin_bias), which is reserved for Boot ROM, SRAM and WOPCM.
+ * Currently, in order to exclude [0, GuC ggtt_pin_bias) address space from
+ * GGTT, all gfx objects used by GuC are allocated with intel_guc_allocate_vma()
+ * and pinned with PIN_OFFSET_BIAS along with the value of GuC ggtt_pin_bias.
+ *
+ * Return: GGTT offset of the @vma.
  */
-static inline u32 guc_ggtt_offset(struct i915_vma *vma)
+static inline u32 intel_guc_ggtt_offset(struct intel_guc *guc,
+					struct i915_vma *vma)
 {
 	u32 offset = i915_ggtt_offset(vma);
 
-	GEM_BUG_ON(offset < GUC_WOPCM_TOP);
+	GEM_BUG_ON(offset < guc->ggtt_pin_bias);
 	GEM_BUG_ON(range_overflows_t(u64, offset, vma->size, GUC_GGTT_TOP));
 
 	return offset;
@@ -119,17 +179,44 @@ static inline u32 guc_ggtt_offset(struct i915_vma *vma)
 void intel_guc_init_early(struct intel_guc *guc);
 void intel_guc_init_send_regs(struct intel_guc *guc);
 void intel_guc_init_params(struct intel_guc *guc);
+void intel_guc_init_ggtt_pin_bias(struct intel_guc *guc);
 int intel_guc_init_wq(struct intel_guc *guc);
 void intel_guc_fini_wq(struct intel_guc *guc);
 int intel_guc_init(struct intel_guc *guc);
 void intel_guc_fini(struct intel_guc *guc);
-int intel_guc_send_nop(struct intel_guc *guc, const u32 *action, u32 len);
-int intel_guc_send_mmio(struct intel_guc *guc, const u32 *action, u32 len);
+int intel_guc_send_nop(struct intel_guc *guc, const u32 *action, u32 len,
+		       u32 *response_buf, u32 response_buf_size);
+int intel_guc_send_mmio(struct intel_guc *guc, const u32 *action, u32 len,
+			u32 *response_buf, u32 response_buf_size);
+void intel_guc_to_host_event_handler(struct intel_guc *guc);
+void intel_guc_to_host_event_handler_nop(struct intel_guc *guc);
+void intel_guc_to_host_event_handler_mmio(struct intel_guc *guc);
+void intel_guc_to_host_process_recv_msg(struct intel_guc *guc,
+					const u32 *payload, u32 len);
 int intel_guc_sample_forcewake(struct intel_guc *guc);
 int intel_guc_auth_huc(struct intel_guc *guc, u32 rsa_offset);
 int intel_guc_suspend(struct intel_guc *guc);
 int intel_guc_resume(struct intel_guc *guc);
 struct i915_vma *intel_guc_allocate_vma(struct intel_guc *guc, u32 size);
-u32 intel_guc_wopcm_size(struct drm_i915_private *dev_priv);
+
+static inline int intel_guc_sanitize(struct intel_guc *guc)
+{
+	intel_uc_fw_sanitize(&guc->fw);
+	return 0;
+}
+
+static inline void intel_guc_enable_msg(struct intel_guc *guc, u32 mask)
+{
+	spin_lock_irq(&guc->irq_lock);
+	guc->msg_enabled_mask |= mask;
+	spin_unlock_irq(&guc->irq_lock);
+}
+
+static inline void intel_guc_disable_msg(struct intel_guc *guc, u32 mask)
+{
+	spin_lock_irq(&guc->irq_lock);
+	guc->msg_enabled_mask &= ~mask;
+	spin_unlock_irq(&guc->irq_lock);
+}
 
 #endif

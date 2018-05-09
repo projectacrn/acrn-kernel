@@ -137,18 +137,7 @@ struct i915_gem_context {
 	 */
 	u32 user_handle;
 
-	/**
-	 * @priority: execution and service priority
-	 *
-	 * All clients are equal, but some are more equal than others!
-	 *
-	 * Requests from a context with a greater (more positive) value of
-	 * @priority will be executed before those with a lower @priority
-	 * value, forming a simple QoS.
-	 *
-	 * The &drm_i915_private.kernel_context is assigned the lowest priority.
-	 */
-	int priority;
+	struct i915_sched_attr sched;
 
 	/** ggtt_offset_bias: placement restriction for context objects */
 	u32 ggtt_offset_bias;
@@ -159,6 +148,8 @@ struct i915_gem_context {
 		struct intel_ring *ring;
 		u32 *lrc_reg_state;
 		u64 lrc_desc;
+		u32 sw_context_id;
+		u32 sw_counter;
 		int pin_count;
 	} engine[I915_NUM_ENGINES];
 

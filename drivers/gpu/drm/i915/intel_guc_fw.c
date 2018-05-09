@@ -39,6 +39,12 @@
 #define KBL_FW_MAJOR 9
 #define KBL_FW_MINOR 39
 
+#define ICL_FW_MAJOR 26
+#define ICL_FW_MINOR 171
+
+#define TGL_FW_MAJOR 26
+#define TGL_FW_MINOR 171
+
 #define GUC_FW_PATH(platform, major, minor) \
        "i915/" __stringify(platform) "_guc_ver" __stringify(major) "_" __stringify(minor) ".bin"
 
@@ -50,6 +56,12 @@ MODULE_FIRMWARE(I915_BXT_GUC_UCODE);
 
 #define I915_KBL_GUC_UCODE GUC_FW_PATH(kbl, KBL_FW_MAJOR, KBL_FW_MINOR)
 MODULE_FIRMWARE(I915_KBL_GUC_UCODE);
+
+#define I915_ICL_GUC_UCODE GUC_FW_PATH(icl, ICL_FW_MAJOR, ICL_FW_MINOR)
+MODULE_FIRMWARE(I915_ICL_GUC_UCODE);
+
+#define I915_TGL_GUC_UCODE GUC_FW_PATH(tgl, TGL_FW_MAJOR, TGL_FW_MINOR)
+MODULE_FIRMWARE(I915_TGL_GUC_UCODE);
 
 static void guc_fw_select(struct intel_uc_fw *guc_fw)
 {
@@ -77,6 +89,15 @@ static void guc_fw_select(struct intel_uc_fw *guc_fw)
 		guc_fw->path = I915_KBL_GUC_UCODE;
 		guc_fw->major_ver_wanted = KBL_FW_MAJOR;
 		guc_fw->minor_ver_wanted = KBL_FW_MINOR;
+	} else if (IS_ICELAKE(dev_priv)) {
+		guc_fw->path = I915_ICL_GUC_UCODE;
+		guc_fw->major_ver_wanted = ICL_FW_MAJOR;
+		guc_fw->minor_ver_wanted = ICL_FW_MINOR;
+	} else if (IS_TIGERLAKE(dev_priv)) {
+		BUILD_BUG_ON(TGL_FW_MAJOR != ICL_FW_MAJOR);
+		guc_fw->path = I915_TGL_GUC_UCODE;
+		guc_fw->major_ver_wanted = TGL_FW_MAJOR;
+		guc_fw->minor_ver_wanted = TGL_FW_MINOR;
 	} else {
 		DRM_WARN("%s: No firmware known for this platform!\n",
 			 intel_uc_fw_type_repr(guc_fw->type));
@@ -108,6 +129,10 @@ static void guc_prepare_xfer(struct intel_guc *guc)
 				     GUC_ENABLE_READ_CACHE_FOR_SRAM_DATA |
 				     GUC_ENABLE_READ_CACHE_FOR_WOPCM_DATA |
 				     GUC_ENABLE_MIA_CLOCK_GATING);
+
+	/* SIM: Disable security checks */
+	if (IS_PRESILICON(dev_priv))
+		I915_WRITE(GUC_SHIM_CONTROL2, GUC_SHIM_CONTROL2_VALUE);
 
 	if (IS_GEN9_LP(dev_priv))
 		I915_WRITE(GEN9LP_GT_PM_CONFIG, GT_DOORBELL_ENABLE);
@@ -165,7 +190,7 @@ static int guc_xfer_ucode(struct intel_guc *guc, struct i915_vma *vma)
 	I915_WRITE(DMA_COPY_SIZE, guc_fw->header_size + guc_fw->ucode_size);
 
 	/* Set the source address for the new blob */
-	offset = guc_ggtt_offset(vma) + guc_fw->header_offset;
+	offset = intel_guc_ggtt_offset(guc, vma) + guc_fw->header_offset;
 	I915_WRITE(DMA_ADDR_0_LOW, lower_32_bits(offset));
 	I915_WRITE(DMA_ADDR_0_HIGH, upper_32_bits(offset) & 0xFFFF);
 
@@ -275,9 +300,8 @@ static int guc_fw_xfer(struct intel_uc_fw *guc_fw, struct i915_vma *vma)
  * Called from intel_uc_init_hw() during driver load, resume from sleep and
  * after a GPU reset.
  *
- * The firmware image should have already been fetched into memory by the
- * earlier call to intel_uc_init_fw(), so here we need to only check that
- * fetch succeeded, and then transfer the image to the h/w.
+ * The firmware image should have already been fetched into memory, so only
+ * check that fetch succeeded, and then transfer the image to the h/w.
  *
  * Return:	non-zero code on error
  */

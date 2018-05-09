@@ -7,11 +7,14 @@
 #include "i915_gem_batch_pool.h"
 #include "i915_gem_timeline.h"
 
+#include "i915_reg.h"
 #include "i915_pmu.h"
 #include "i915_request.h"
 #include "i915_selftest.h"
+#include "intel_gpu_commands.h"
 
 struct drm_printer;
+struct i915_sched_attr;
 
 #define I915_CMD_HASH_ORDER 9
 
@@ -84,7 +87,7 @@ hangcheck_action_to_str(const enum intel_engine_hangcheck_action a)
 }
 
 #define I915_MAX_SLICES	3
-#define I915_MAX_SUBSLICES 3
+#define I915_MAX_SUBSLICES 8
 
 #define instdone_slice_mask(dev_priv__) \
 	(INTEL_GEN(dev_priv__) == 7 ? \
@@ -176,8 +179,9 @@ enum intel_engine_id {
 	VCS4,
 #define _VCS(n) (VCS + (n))
 	VECS,
-	VECS2
+	VECS2,
 #define _VECS(n) (VECS + (n))
+	CCS,
 };
 
 struct i915_priolist {
@@ -321,7 +325,9 @@ struct intel_engine_cs {
 
 	enum intel_engine_id id;
 	unsigned int hw_id;
+
 	unsigned int guc_id;
+	u8 guc_class;
 
 	u8 uabi_id;
 	u8 uabi_class;
@@ -330,7 +336,6 @@ struct intel_engine_cs {
 	u8 instance;
 	u32 context_size;
 	u32 mmio_base;
-	unsigned int irq_shift;
 
 	struct intel_ring *buffer;
 	struct intel_timeline *timeline;
@@ -459,7 +464,8 @@ struct intel_engine_cs {
 	 *
 	 * Called under the struct_mutex.
 	 */
-	void		(*schedule)(struct i915_request *request, int priority);
+	void		(*schedule)(struct i915_request *request,
+				    const struct i915_sched_attr *attr);
 
 	/*
 	 * Cancel all requests on the hardware, or queued for execution.
@@ -561,6 +567,9 @@ struct intel_engine_cs {
 
 #define I915_ENGINE_NEEDS_CMD_PARSER BIT(0)
 #define I915_ENGINE_SUPPORTS_STATS   BIT(1)
+#define I915_ENGINE_HAS_PREEMPTION   BIT(2)
+#define I915_ENGINE_HAS_RCS_REG_STATE	BIT(3)
+#define I915_ENGINE_HAS_EU_PRIORITY	BIT(4)
 	unsigned int flags;
 
 	/*
@@ -620,14 +629,27 @@ struct intel_engine_cs {
 	} stats;
 };
 
-static inline bool intel_engine_needs_cmd_parser(struct intel_engine_cs *engine)
+static inline bool
+intel_engine_needs_cmd_parser(const struct intel_engine_cs *engine)
 {
 	return engine->flags & I915_ENGINE_NEEDS_CMD_PARSER;
 }
 
-static inline bool intel_engine_supports_stats(struct intel_engine_cs *engine)
+static inline bool
+intel_engine_supports_stats(const struct intel_engine_cs *engine)
 {
 	return engine->flags & I915_ENGINE_SUPPORTS_STATS;
+}
+
+static inline bool
+intel_engine_has_preemption(const struct intel_engine_cs *engine)
+{
+	return engine->flags & I915_ENGINE_HAS_PREEMPTION;
+}
+
+static inline bool __execlists_need_preempt(int prio, int last)
+{
+	return prio > max(0, last);
 }
 
 static inline void
@@ -635,6 +657,13 @@ execlists_set_active(struct intel_engine_execlists *execlists,
 		     unsigned int bit)
 {
 	__set_bit(bit, (unsigned long *)&execlists->active);
+}
+
+static inline bool
+execlists_set_active_once(struct intel_engine_execlists *execlists,
+			  unsigned int bit)
+{
+	return !__test_and_set_bit(bit, (unsigned long *)&execlists->active);
 }
 
 static inline void
@@ -651,6 +680,10 @@ execlists_is_active(const struct intel_engine_execlists *execlists,
 	return test_bit(bit, (unsigned long *)&execlists->active);
 }
 
+void execlists_user_begin(struct intel_engine_execlists *execlists,
+			  const struct execlist_port *port);
+void execlists_user_end(struct intel_engine_execlists *execlists);
+
 void
 execlists_cancel_port_requests(struct intel_engine_execlists * const execlists);
 
@@ -663,7 +696,7 @@ execlists_num_ports(const struct intel_engine_execlists * const execlists)
 	return execlists->port_mask + 1;
 }
 
-static inline void
+static inline struct execlist_port *
 execlists_port_complete(struct intel_engine_execlists * const execlists,
 			struct execlist_port * const port)
 {
@@ -674,6 +707,8 @@ execlists_port_complete(struct intel_engine_execlists * const execlists,
 
 	memmove(port, port + 1, m * sizeof(struct execlist_port));
 	memset(port + m, 0, sizeof(struct execlist_port));
+
+	return port;
 }
 
 static inline unsigned int
@@ -857,9 +892,6 @@ static inline u32 intel_engine_last_submit(struct intel_engine_cs *engine)
 	return READ_ONCE(engine->timeline->seqno);
 }
 
-int init_workarounds_ring(struct intel_engine_cs *engine);
-int intel_ring_workarounds_emit(struct i915_request *rq);
-
 void intel_engine_get_instdone(struct intel_engine_cs *engine,
 			       struct intel_instdone *instdone);
 
@@ -939,7 +971,7 @@ bool intel_engine_add_wait(struct intel_engine_cs *engine,
 			   struct intel_wait *wait);
 void intel_engine_remove_wait(struct intel_engine_cs *engine,
 			      struct intel_wait *wait);
-void intel_engine_enable_signaling(struct i915_request *request, bool wakeup);
+bool intel_engine_enable_signaling(struct i915_request *request, bool wakeup);
 void intel_engine_cancel_signaling(struct i915_request *request);
 
 static inline bool intel_engine_has_waiter(const struct intel_engine_cs *engine)
@@ -1089,5 +1121,8 @@ int intel_enable_engine_stats(struct intel_engine_cs *engine);
 void intel_disable_engine_stats(struct intel_engine_cs *engine);
 
 ktime_t intel_engine_get_busy_time(struct intel_engine_cs *engine);
+
+u32 intel_class_context_size(struct drm_i915_private *dev_priv, u8 class);
+
 
 #endif /* _INTEL_RINGBUFFER_H_ */

@@ -48,14 +48,24 @@ int intel_huc_auth(struct intel_huc *huc)
 	struct drm_i915_private *i915 = huc_to_i915(huc);
 	struct intel_guc *guc = &i915->guc;
 	struct i915_vma *vma;
+	i915_reg_t status_reg;
 	u32 status;
+	u32 status_ok;
 	int ret;
+
+	if (INTEL_GEN(i915) >= 11) {
+		status_reg = HUC_KERNEL_LOAD_INFO;
+		status_ok = HUC_LOAD_SUCCESSFUL;
+	} else {
+		status_reg = HUC_STATUS2;
+		status_ok = HUC_FW_VERIFIED;
+	}
 
 	if (huc->fw.load_status != INTEL_UC_FIRMWARE_SUCCESS)
 		return -ENOEXEC;
 
 	vma = i915_gem_object_ggtt_pin(huc->fw.obj, NULL, 0, 0,
-				PIN_OFFSET_BIAS | GUC_WOPCM_TOP);
+				       PIN_OFFSET_BIAS | guc->ggtt_pin_bias);
 	if (IS_ERR(vma)) {
 		ret = PTR_ERR(vma);
 		DRM_ERROR("HuC: Failed to pin huc fw object %d\n", ret);
@@ -63,7 +73,8 @@ int intel_huc_auth(struct intel_huc *huc)
 	}
 
 	ret = intel_guc_auth_huc(guc,
-				 guc_ggtt_offset(vma) + huc->fw.rsa_offset);
+				 intel_guc_ggtt_offset(guc, vma) +
+				 huc->fw.rsa_offset);
 	if (ret) {
 		DRM_ERROR("HuC: GuC did not ack Auth request %d\n", ret);
 		goto fail_unpin;
@@ -71,9 +82,9 @@ int intel_huc_auth(struct intel_huc *huc)
 
 	/* Check authentication status, it should be done by now */
 	ret = __intel_wait_for_register(i915,
-					HUC_STATUS2,
-					HUC_FW_VERIFIED,
-					HUC_FW_VERIFIED,
+					status_reg,
+					status_ok,
+					status_ok,
 					2, 50, &status);
 	if (ret) {
 		DRM_ERROR("HuC: Firmware not verified %#x\n", status);
@@ -90,4 +101,34 @@ fail:
 
 	DRM_ERROR("HuC: Authentication failed %d\n", ret);
 	return ret;
+}
+
+/**
+ * intel_huc_check_status() - check HuC status
+ * @huc: intel_huc structure
+ *
+ * This function reads status register to verify if HuC
+ * firmware was successfully loaded.
+ *
+ * Returns positive value if HuC firmware is loaded and verified
+ * and -ENODEV if HuC is not present.
+ */
+int intel_huc_check_status(struct intel_huc *huc)
+{
+	struct drm_i915_private *dev_priv = huc_to_i915(huc);
+	u32 status;
+
+	if (!HAS_HUC(dev_priv))
+		return -ENODEV;
+
+	intel_runtime_pm_get(dev_priv);
+
+	if (INTEL_GEN(dev_priv) >= 11)
+		status = I915_READ(HUC_KERNEL_LOAD_INFO) & HUC_LOAD_SUCCESSFUL;
+	else
+		status = I915_READ(HUC_STATUS2) & HUC_FW_VERIFIED;
+
+	intel_runtime_pm_put(dev_priv);
+
+	return status;
 }

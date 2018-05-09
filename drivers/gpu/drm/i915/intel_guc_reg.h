@@ -51,6 +51,9 @@
 #define SOFT_SCRATCH(n)			_MMIO(0xc180 + (n) * 4)
 #define SOFT_SCRATCH_COUNT		16
 
+#define GEN11_SOFT_SCRATCH(n)		_MMIO(0x190240 + (n) * 4)
+#define GEN11_SOFT_SCRATCH_COUNT	4
+
 #define UOS_RSA_SCRATCH(i)		_MMIO(0xc200 + (i) * 4)
 #define UOS_RSA_SCRATCH_COUNT		64
 
@@ -66,29 +69,36 @@
 #define   UOS_MOVE			  (1<<4)
 #define   START_DMA			  (1<<0)
 #define DMA_GUC_WOPCM_OFFSET		_MMIO(0xc340)
+#define   GUC_WOPCM_OFFSET_VALID	  (1<<0)
 #define   HUC_LOADING_AGENT_VCR		  (0<<1)
 #define   HUC_LOADING_AGENT_GUC		  (1<<1)
-#define   GUC_WOPCM_OFFSET_VALUE	  0x80000	/* 512KB */
+#define   GUC_WOPCM_OFFSET_SHIFT	14
+#define   GUC_WOPCM_OFFSET_MASK		  (0x3ffff << GUC_WOPCM_OFFSET_SHIFT)
 #define GUC_MAX_IDLE_COUNT		_MMIO(0xC3E4)
 
 #define HUC_STATUS2             _MMIO(0xD3B0)
 #define   HUC_FW_VERIFIED       (1<<7)
 
-/* Defines WOPCM space available to GuC firmware */
-#define GUC_WOPCM_SIZE			_MMIO(0xc050)
-/* GuC addresses below GUC_WOPCM_TOP don't map through the GTT */
-#define   GUC_WOPCM_TOP			  (0x80 << 12)	/* 512KB */
-#define   BXT_GUC_WOPCM_RC6_RESERVED	  (0x10 << 12)	/* 64KB  */
+#define HUC_KERNEL_LOAD_INFO	_MMIO(0xC1DC)
+#define   HUC_LOAD_SUCCESSFUL	(1 << 0)
 
-/* GuC addresses above GUC_GGTT_TOP also don't map through the GTT */
-#define GUC_GGTT_TOP			0xFEE00000
+#define GUC_WOPCM_SIZE			_MMIO(0xc050)
+#define   GUC_WOPCM_SIZE_LOCKED		  (1<<0)
+#define   GUC_WOPCM_SIZE_SHIFT		12
+#define   GUC_WOPCM_SIZE_MASK		  (0xfffff << GUC_WOPCM_SIZE_SHIFT)
 
 #define GEN8_GT_PM_CONFIG		_MMIO(0x138140)
 #define GEN9LP_GT_PM_CONFIG		_MMIO(0x138140)
 #define GEN9_GT_PM_CONFIG		_MMIO(0x13816c)
 #define   GT_DOORBELL_ENABLE		  (1<<0)
 
+#define GEN12_DIST_DBS_POPULATED	_MMIO(0xd08)
+#define   GEN12_DOORBELLS_PER_SQIDI_SHIFT 16
+#define   GEN12_DOORBELLS_PER_SQIDI	  (0xff)
+#define   GEN12_SQIDIS_DOORBELL_EXIST	  (0xffff)
+
 #define GEN8_GTCR			_MMIO(0x4274)
+#define GEN12_GTCR			_MMIO(0xcee8)
 #define   GEN8_GTCR_INVALIDATE		  (1<<0)
 
 #define GUC_ARAT_C6DIS			_MMIO(0xA178)
@@ -103,8 +113,18 @@
 #define   GUC_ENABLE_MIA_CLOCK_GATING		(1<<15)
 #define   GUC_GEN10_SHIM_WC_ENABLE		(1<<21)
 
+#define GUC_SHIM_CONTROL2		_MMIO(0xc068)
+#define  GUC_SHA_COMPUTATION_DISABLE		(1<<0)
+#define  GUC_RSA_CHECK_BOOT_ROM_DISABLE		(1<<1)
+#define  GUC_RSA_KEY_SELECTION			(1<<2)
+
+#define GUC_SHIM_CONTROL2_VALUE (GUC_SHA_COMPUTATION_DISABLE	| \
+				 GUC_RSA_CHECK_BOOT_ROM_DISABLE	| \
+				 GUC_RSA_KEY_SELECTION)
+
 #define GUC_SEND_INTERRUPT		_MMIO(0xc4c8)
 #define   GUC_SEND_TRIGGER		  (1<<0)
+#define GEN11_GUC_HOST_INTERRUPT	_MMIO(0x1901f0)
 
 #define GEN8_DRBREGL(x)			_MMIO(0x1000 + (x) * 8)
 #define   GEN8_DRB_VALID		  (1<<0)
@@ -116,5 +136,23 @@
 #define GUC_VCS2_VCS1_IER		_MMIO(0xC554)
 #define GUC_WD_VECS_IER			_MMIO(0xC558)
 #define GUC_PM_P24C_IER			_MMIO(0xC55C)
+
+/* GuC Interrupt Vector */
+#define GEN11_GUC_INTR_GUC2HOST		(1 << 15)
+#define GEN11_GUC_INTR_EXEC_ERROR	(1 << 14)
+#define GEN11_GUC_INTR_DISPLAY_EVENT	(1 << 13)
+#define GEN11_GUC_INTR_SEM_SIG		(1 << 12)
+#define GEN11_GUC_INTR_IOMMU2GUC	(1 << 11)
+#define GEN11_GUC_INTR_DOORBELL_RANG	(1 << 10)
+#define GEN11_GUC_INTR_DMA_DONE		(1 <<  9)
+#define GEN11_GUC_INTR_FATAL_ERROR	(1 <<  8)
+#define GEN11_GUC_INTR_NOTIF_ERROR	(1 <<  7)
+#define GEN11_GUC_INTR_SW_INT_6		(1 <<  6)
+#define GEN11_GUC_INTR_SW_INT_5		(1 <<  5)
+#define GEN11_GUC_INTR_SW_INT_4		(1 <<  4)
+#define GEN11_GUC_INTR_SW_INT_3		(1 <<  3)
+#define GEN11_GUC_INTR_SW_INT_2		(1 <<  2)
+#define GEN11_GUC_INTR_SW_INT_1		(1 <<  1)
+#define GEN11_GUC_INTR_SW_INT_0		(1 <<  0)
 
 #endif

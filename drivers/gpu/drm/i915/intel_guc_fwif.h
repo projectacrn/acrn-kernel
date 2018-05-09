@@ -23,17 +23,18 @@
 #ifndef _INTEL_GUC_FWIF_H
 #define _INTEL_GUC_FWIF_H
 
-#define GUC_CORE_FAMILY_GEN9		12
-#define GUC_CORE_FAMILY_UNKNOWN		0x7fffffff
-
 #define GUC_CLIENT_PRIORITY_KMD_HIGH	0
 #define GUC_CLIENT_PRIORITY_HIGH	1
 #define GUC_CLIENT_PRIORITY_KMD_NORMAL	2
 #define GUC_CLIENT_PRIORITY_NORMAL	3
 #define GUC_CLIENT_PRIORITY_NUM		4
 
-#define GUC_MAX_STAGE_DESCRIPTORS	1024
-#define	GUC_INVALID_STAGE_ID		GUC_MAX_STAGE_DESCRIPTORS
+#define GEN9_GUC_MAX_STAGE_DESCRIPTORS	1024
+#define   GEN9_GUC_INVALID_STAGE_ID	GEN9_GUC_MAX_STAGE_DESCRIPTORS
+#define GEN11_GUC_MAX_STAGE_DESCRIPTORS	2032
+#define   GEN11_GUC_INVALID_STAGE_ID	GEN11_GUC_MAX_STAGE_DESCRIPTORS
+
+#define GUC_MAX_LRC_PER_CLASS		64
 
 #define GUC_RENDER_ENGINE		0
 #define GUC_VIDEO_ENGINE		1
@@ -41,6 +42,14 @@
 #define GUC_VIDEOENHANCE_ENGINE		3
 #define GUC_VIDEO_ENGINE2		4
 #define GUC_MAX_ENGINES_NUM		(GUC_VIDEO_ENGINE2 + 1)
+
+#define GUC_RENDER_CLASS	0
+#define GUC_VIDEO_CLASS		1
+#define GUC_VIDEOENHANCE_CLASS	2
+#define GUC_BLITTER_CLASS	3
+#define GUC_COMPUTE_CLASS	4
+#define GUC_MAX_ENGINE_CLASSES	(GUC_COMPUTE_CLASS + 1)
+#define GUC_MAX_INSTANCES_PER_CLASS	4
 
 /* Work queue item header definitions */
 #define WQ_STATUS_ACTIVE		1
@@ -52,11 +61,18 @@
 #define   WQ_TYPE_BATCH_BUF		(0x1 << WQ_TYPE_SHIFT)
 #define   WQ_TYPE_PSEUDO		(0x2 << WQ_TYPE_SHIFT)
 #define   WQ_TYPE_INORDER		(0x3 << WQ_TYPE_SHIFT)
+#define   WQ_TYPE_NOOP			(0x4 << WQ_TYPE_SHIFT)
+#define   WQ_TYPE_RESUME_WQ_PARSING	(0x5 << WQ_TYPE_SHIFT)
 #define WQ_TARGET_SHIFT			10
+#define GEN11_WQ_TARGET_SHIFT		8
 #define WQ_LEN_SHIFT			16
 #define WQ_NO_WCFLUSH_WAIT		(1 << 27)
 #define WQ_PRESENT_WORKLOAD		(1 << 28)
 
+/* Work queue item submit element info definitions */
+#define GEN11_WQ_SW_CTX_INDEX_SHIFT	0
+#define GEN11_WQ_SW_COUNTER_SHIFT	11
+#define GEN11_WQ_RING_TAIL_INDEX_SHIFT	18
 #define WQ_RING_TAIL_SHIFT		20
 #define WQ_RING_TAIL_MAX		0x7FF	/* 2^11 QWords */
 #define WQ_RING_TAIL_MASK		(WQ_RING_TAIL_MAX << WQ_RING_TAIL_SHIFT)
@@ -82,8 +98,6 @@
 #define GUC_CTL_ARAT_LOW		2
 
 #define GUC_CTL_DEVICE_INFO		3
-#define   GUC_CTL_GT_TYPE_SHIFT		0
-#define   GUC_CTL_CORE_FAMILY_SHIFT	7
 
 #define GUC_CTL_LOG_PARAMS		4
 #define   GUC_LOG_VALID			(1 << 0)
@@ -127,13 +141,31 @@
 #define   GUC_PROFILE_ENABLED		(1 << 7)
 #define   GUC_WQ_TRACK_ENABLED		(1 << 8)
 #define   GUC_ADS_ENABLED		(1 << 9)
-#define   GUC_DEBUG_RESERVED		(1 << 10)
+#define   GUC_LOG_DEFAULT_DISABLED	(1 << 10)
 #define   GUC_ADS_ADDR_SHIFT		11
 #define   GUC_ADS_ADDR_MASK		0xfffff800
 
-#define GUC_CTL_RSRVD			9
+#define GEN11_GUC_ADS_CTL		9
+#define   GEN11_GUC_ADS_ENABLE		(1 << 0)
+#define   GEN11_GUC_ADS_ADDR_SHIFT	1
 
 #define GUC_CTL_MAX_DWORDS		(SOFT_SCRATCH_COUNT - 2) /* [1..14] */
+
+/*
+ * The class goes in bits [0, 2] of the GuC ID, the instance in bits [3, 6]. Bit
+ * 7 can be used for operations that apply to all engine classes and instances.
+ */
+#define GEN11_GUC_ENGINE_CLASS_MASK	0x7
+#define GEN11_GUC_ENGINE_INSTANCE_SHIFT	3
+#define GEN11_GUC_ENGINE_INSTANCE_MASK	(0xf << GEN11_GUC_ENGINE_INSTANCE_SHIFT)
+#define GEN11_GUC_ENGINE_ALL_INSTANCES	BIT(7)
+
+#define GEN11_GUC_ENGINE_ID(class, instance) \
+	((class) | ((instance) << GEN11_GUC_ENGINE_INSTANCE_SHIFT))
+
+#define GEN11_GUC_ID_TO_ENGINE_CLASS(guc_id) ((guc_id) & GEN11_GUC_ENGINE_CLASS_MASK)
+#define GEN11_GUC_ID_TO_ENGINE_INSTANCE(guc_id) \
+	(((guc_id) & GEN11_GUC_ENGINE_INSTANCE_MASK) >> GEN11_GUC_ENGINE_INSTANCE_SHIFT)
 
 /**
  * DOC: GuC Firmware Layout
@@ -262,7 +294,10 @@ struct guc_process_desc {
 	u32 wq_status;
 	u32 engine_presence;
 	u32 priority;
-	u32 reserved[30];
+	u32 reserved0;
+	u8 queue_engine_error;
+	u8 reserved1[3];
+	u32 reserved[28];
 } __packed;
 
 /* engine id and context id is packed into guc_execlist_context.context_id*/
@@ -283,6 +318,63 @@ struct guc_execlist_context {
 	u8 engine_state_wait_value;
 	u16 pagefault_count;
 	u16 engine_submit_queue_count;
+} __packed;
+
+/* ICL-specific version of the GuC stage descriptor */
+struct gen11_guc_stage_desc {
+	u32 sched_common_area;
+	u32 stage_id;
+	u32 pas_id;
+	u8 engines_used;
+	u32 engines_instance_used[GUC_MAX_ENGINE_CLASSES];
+
+	/* Work is submitted using doorbell and workqueue of this desc on behalf
+	 * of other entries in the desc pool (a.k.a. proxy submission). */
+	u16 is_proxy;
+	/* Work will be submitted using some other entry in the context desc
+	 * pool (a.k.a. proxy entry). */
+	u16 is_principal;
+
+	u64 db_trigger_cpu;
+	u32 db_trigger_uk;
+	u64 db_trigger_phy;
+	u16 db_id;
+
+	struct guc_execlist_context lrc[GUC_MAX_ENGINE_CLASSES][GUC_MAX_LRC_PER_CLASS];
+	DECLARE_BITMAP(lrc_bitmap[GUC_MAX_ENGINE_CLASSES], GUC_MAX_LRC_PER_CLASS);
+	u32 lrc_count;
+	u32 max_lrc_per_class;
+
+	u8 attribute;
+
+	u8 reserved[3];
+
+	u32 priority;
+
+	u32 wq_sampled_tail_offset;
+	u32 wq_total_submit_enqueues;
+
+	u32 process_desc;
+	u32 wq_addr;
+	u32 wq_size;
+
+	u32 engine_presence;
+
+	u8 engine_suspended;
+	u32 engines_suspended_per_class[GUC_MAX_ENGINE_CLASSES];
+
+	u8 reserved0[4];
+
+	u32 reserved4;
+	u8 queue_engine_error;
+	u8 reserved1[3];
+	u32 reserved2;
+	u64 reserved3[9];
+} __packed;
+
+struct gen11_guc_pooled_stage_desc {
+	struct gen11_guc_stage_desc desc;
+	u64 host_private; // back pointer for host usage
 } __packed;
 
 /*
@@ -326,6 +418,58 @@ struct guc_stage_desc {
 
 	u64 desc_private;
 } __packed;
+
+/**
+ * DOC: CTB based communication
+ *
+ * The CTB (command transport buffer) communication between Host and GuC
+ * is based on u32 data stream written to the shared buffer. One buffer can
+ * be used to transmit data only in one direction (one-directional channel).
+ *
+ * Current status of the each buffer is stored in the buffer descriptor.
+ * Buffer descriptor holds tail and head fields that represents active data
+ * stream. The tail field is updated by the data producer (sender), and head
+ * field is updated by the data consumer (receiver)::
+ *
+ *      +------------+
+ *      | DESCRIPTOR |          +=================+============+========+
+ *      +============+          |                 | MESSAGE(s) |        |
+ *      | address    |--------->+=================+============+========+
+ *      +------------+
+ *      | head       |          ^-----head--------^
+ *      +------------+
+ *      | tail       |          ^---------tail-----------------^
+ *      +------------+
+ *      | size       |          ^---------------size--------------------^
+ *      +------------+
+ *
+ * Each message in data stream starts with the single u32 treated as a header,
+ * followed by optional set of u32 data that makes message specific payload::
+ *
+ *      +------------+---------+---------+---------+
+ *      |         MESSAGE                          |
+ *      +------------+---------+---------+---------+
+ *      |   msg[0]   |   [1]   |   ...   |  [n-1]  |
+ *      +------------+---------+---------+---------+
+ *      |   MESSAGE  |       MESSAGE PAYLOAD       |
+ *      +   HEADER   +---------+---------+---------+
+ *      |            |    0    |   ...   |    n    |
+ *      +======+=====+=========+=========+=========+
+ *      | 31:16| code|         |         |         |
+ *      +------+-----+         |         |         |
+ *      |  15:5|flags|         |         |         |
+ *      +------+-----+         |         |         |
+ *      |   4:0|  len|         |         |         |
+ *      +------+-----+---------+---------+---------+
+ *
+ *                   ^-------------len-------------^
+ *
+ * The message header consists of:
+ *
+ * - **len**, indicates length of the message payload (in u32)
+ * - **code**, indicates message code
+ * - **flags**, holds various bits to control message handling
+ */
 
 /*
  * Describes single command transport buffer.
@@ -407,6 +551,24 @@ struct guc_policy {
 	u32 reserved[2];
 } __packed;
 
+struct gen11_guc_policies {
+	struct guc_policy policy[GUC_CLIENT_PRIORITY_NUM][GUC_MAX_ENGINE_CLASSES];
+
+	/* In micro seconds. How much time to allow before DPC processing is
+	 * called back via interrupt (to prevent DPC queue drain starving).
+	 * Typically 1000s of micro seconds (example only, not granularity). */
+	u32 dpc_promote_time;
+
+	/* Must be set to take these new values. */
+	u32 is_valid;
+
+	/* Max number of WIs to process per call. A large value may keep CS
+	 * idle. */
+	u32 max_num_work_items;
+
+	u32 reserved[19];
+} __packed;
+
 struct guc_policies {
 	struct guc_policy policy[GUC_CLIENT_PRIORITY_NUM][GUC_MAX_ENGINES_NUM];
 
@@ -457,14 +619,67 @@ struct mmio_white_list {
 	u32 count;
 } __packed;
 
+/* Gen11+ GuC register sets */
+struct gen11_guc_mmio_reg_state {
+	struct guc_mmio_regset global_reg;
+	struct guc_mmio_regset engine_reg[GUC_MAX_ENGINE_CLASSES][GUC_MAX_INSTANCES_PER_CLASS];
+	struct mmio_white_list white_list[GUC_MAX_ENGINE_CLASSES];
+} __packed;
+
+/* GuC register sets */
 struct guc_mmio_reg_state {
 	struct guc_mmio_regset global_reg;
 	struct guc_mmio_regset engine_reg[GUC_MAX_ENGINES_NUM];
 	struct mmio_white_list white_list[GUC_MAX_ENGINES_NUM];
 } __packed;
 
-/* GuC Additional Data Struct */
+/* Gen11+ HW info */
+struct guc_gt_system_info {
+	u32 slice_enabled;
+	u32 rcs_enabled;
+	u32 ccs_enabled;
+	u32 bcs_enabled;
+	u32 vdbox_enable_mask;
+	u32 vdbox_sfc_support_mask;
+	u32 vebox_enable_mask;
+	u32 num_of_doorbells_per_sqidi;	/* GEN12+ */
+	u32 reserved[9];
+} __packed;
 
+struct guc_gt_system_additional_info {
+	u8 reserved0[26];
+	u32 gfx_address_command_transport_pool;
+	u16 command_transport_pool_count;
+	u8 reserved1[377];
+} __packed;
+
+struct guc_master_cmd_transport_buffer_alloc {
+	struct guc_ct_buffer_desc desc;
+	u32 reserved[7];
+} __packed;
+
+#define GUC_CMD_TRANSPORT_POOL_SIZE	2
+
+struct guc_master_cmd_transport_pool {
+	struct guc_master_cmd_transport_buffer_alloc pool[GUC_CMD_TRANSPORT_POOL_SIZE];
+} __packed;
+
+/* Gen11+ GuC Additional Data Struct */
+struct gen11_guc_ads {
+	u32 reg_state_addr;
+	u32 reg_state_buffer;
+	u32 golden_context_lrca[GUC_MAX_ENGINE_CLASSES];
+	u32 reserved3[10];
+	u32 scheduler_policies;
+	u32 reserved0[2];
+	u32 gt_system_info;
+	u32 gt_system_additional_info;
+	u32 reserved1;
+	u32 eng_state_size[GUC_MAX_ENGINE_CLASSES];
+	u32 reserved2[4];
+} __packed;
+
+/* GuC Additional Data Struct */
 struct guc_ads {
 	u32 reg_state_addr;
 	u32 reg_state_buffer;
@@ -534,16 +749,6 @@ struct guc_log_buffer_state {
 	u32 version;
 } __packed;
 
-union guc_log_control {
-	struct {
-		u32 logging_enabled:1;
-		u32 reserved1:3;
-		u32 verbosity:4;
-		u32 reserved2:24;
-	};
-	u32 value;
-} __packed;
-
 struct guc_ctx_report {
 	u32 report_return_status;
 	u32 reserved1[64];
@@ -570,7 +775,68 @@ struct guc_shared_ctx_data {
 	struct guc_ctx_report preempt_ctx_report[GUC_MAX_ENGINES_NUM];
 } __packed;
 
-/* This Action will be programmed in C180 - SOFT_SCRATCH_O_REG */
+/**
+ * DOC: MMIO based communication
+ *
+ * The MMIO based communication between Host and GuC uses software scratch
+ * registers, where first register holds data treated as message header,
+ * and other registers are used to hold message payload.
+ *
+ * For Gen9+, GuC uses software scratch registers 0xC180-0xC1B8
+ *
+ *      +-----------+---------+---------+---------+
+ *      |  MMIO[0]  | MMIO[1] |   ...   | MMIO[n] |
+ *      +-----------+---------+---------+---------+
+ *      | header    |      optional payload       |
+ *      +======+====+=========+=========+=========+
+ *      | 31:28|type|         |         |         |
+ *      +------+----+         |         |         |
+ *      | 27:16|data|         |         |         |
+ *      +------+----+         |         |         |
+ *      |  15:0|code|         |         |         |
+ *      +------+----+---------+---------+---------+
+ *
+ * The message header consists of:
+ *
+ * - **type**, indicates message type
+ * - **code**, indicates message code, is specific for **type**
+ * - **data**, indicates message data, optional, depends on **code**
+ *
+ * The following message **types** are supported:
+ *
+ * - **REQUEST**, indicates Host-to-GuC request, requested GuC action code
+ *   must be priovided in **code** field. Optional action specific parameters
+ *   can be provided in remaining payload registers or **data** field.
+ *
+ * - **RESPONSE**, indicates GuC-to-Host response from earlier GuC request,
+ *   action response status will be provided in **code** field. Optional
+ *   response data can be returned in remaining payload registers or **data**
+ *   field.
+ */
+
+#define INTEL_GUC_MSG_TYPE_SHIFT	28
+#define INTEL_GUC_MSG_TYPE_MASK		(0xF << INTEL_GUC_MSG_TYPE_SHIFT)
+#define INTEL_GUC_MSG_DATA_SHIFT	16
+#define INTEL_GUC_MSG_DATA_MASK		(0xFFF << INTEL_GUC_MSG_DATA_SHIFT)
+#define INTEL_GUC_MSG_CODE_SHIFT	0
+#define INTEL_GUC_MSG_CODE_MASK		(0xFFFF << INTEL_GUC_MSG_CODE_SHIFT)
+
+#define __INTEL_GUC_MSG_GET(T, m) \
+	(((m) & INTEL_GUC_MSG_ ## T ## _MASK) >> INTEL_GUC_MSG_ ## T ## _SHIFT)
+#define INTEL_GUC_MSG_TO_TYPE(m)	__INTEL_GUC_MSG_GET(TYPE, m)
+#define INTEL_GUC_MSG_TO_DATA(m)	__INTEL_GUC_MSG_GET(DATA, m)
+#define INTEL_GUC_MSG_TO_CODE(m)	__INTEL_GUC_MSG_GET(CODE, m)
+
+enum intel_guc_msg_type {
+	INTEL_GUC_MSG_TYPE_REQUEST = 0x0,
+	INTEL_GUC_MSG_TYPE_RESPONSE = 0xF,
+};
+
+#define __INTEL_GUC_MSG_TYPE_IS(T, m) \
+	(INTEL_GUC_MSG_TO_TYPE(m) == INTEL_GUC_MSG_TYPE_ ## T)
+#define INTEL_GUC_MSG_IS_REQUEST(m)	__INTEL_GUC_MSG_TYPE_IS(REQUEST, m)
+#define INTEL_GUC_MSG_IS_RESPONSE(m)	__INTEL_GUC_MSG_TYPE_IS(RESPONSE, m)
+
 enum intel_guc_action {
 	INTEL_GUC_ACTION_DEFAULT = 0x0,
 	INTEL_GUC_ACTION_REQUEST_PREEMPTION = 0x2,
@@ -602,28 +868,27 @@ enum intel_guc_report_status {
 	INTEL_GUC_REPORT_STATUS_COMPLETE = 0x4,
 };
 
-/*
- * The GuC sends its response to a command by overwriting the
- * command in SS0. The response is distinguishable from a command
- * by the fact that all the MASK bits are set. The remaining bits
- * give more detail.
- */
-#define	INTEL_GUC_RECV_MASK	((u32)0xF0000000)
-#define	INTEL_GUC_RECV_IS_RESPONSE(x)	((u32)(x) >= INTEL_GUC_RECV_MASK)
-#define	INTEL_GUC_RECV_STATUS(x)	(INTEL_GUC_RECV_MASK | (x))
+#define GUC_LOG_CONTROL_LOGGING_ENABLED	(1 << 0)
+#define GUC_LOG_CONTROL_VERBOSITY_SHIFT	4
+#define GUC_LOG_CONTROL_VERBOSITY_MASK	(0xF << GUC_LOG_CONTROL_VERBOSITY_SHIFT)
+#define GUC_LOG_CONTROL_DEFAULT_LOGGING	(1 << 8)
 
-/* GUC will return status back to SOFT_SCRATCH_O_REG */
-enum intel_guc_status {
-	INTEL_GUC_STATUS_SUCCESS = INTEL_GUC_RECV_STATUS(0x0),
-	INTEL_GUC_STATUS_ALLOCATE_DOORBELL_FAIL = INTEL_GUC_RECV_STATUS(0x10),
-	INTEL_GUC_STATUS_DEALLOCATE_DOORBELL_FAIL = INTEL_GUC_RECV_STATUS(0x20),
-	INTEL_GUC_STATUS_GENERIC_FAIL = INTEL_GUC_RECV_STATUS(0x0000F000)
+enum intel_guc_response_status {
+	INTEL_GUC_RESPONSE_STATUS_SUCCESS = 0x0,
+	INTEL_GUC_RESPONSE_STATUS_GENERIC_FAIL = 0xF000,
 };
+
+#define INTEL_GUC_MSG_IS_RESPONSE_SUCCESS(m) \
+	 (typecheck(u32, (m)) && \
+	  ((m) & (INTEL_GUC_MSG_TYPE_MASK | INTEL_GUC_MSG_CODE_MASK)) == \
+	  ((INTEL_GUC_MSG_TYPE_RESPONSE << INTEL_GUC_MSG_TYPE_SHIFT) | \
+	   (INTEL_GUC_RESPONSE_STATUS_SUCCESS << INTEL_GUC_MSG_CODE_SHIFT)))
 
 /* This action will be programmed in C1BC - SOFT_SCRATCH_15_REG */
 enum intel_guc_recv_message {
 	INTEL_GUC_RECV_MSG_CRASH_DUMP_POSTED = BIT(1),
-	INTEL_GUC_RECV_MSG_FLUSH_LOG_BUFFER = BIT(3)
+	INTEL_GUC_RECV_MSG_FLUSH_LOG_BUFFER = BIT(3),
+	INTEL_GUC_RECV_MSG_ENGINE_RESET_COMPLETE = BIT(25),
 };
 
 #endif
