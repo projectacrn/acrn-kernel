@@ -1,0 +1,32 @@
+[
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0x13",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "MISALIGN_MEM_REF.LOAD_PAGE_SPLIT",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of memory load uops retired that are page split on 4k boundary.Counts misaligned loads that are 4K page splits."
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0x13",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "MISALIGN_MEM_REF.STORE_PAGE_SPLIT",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts misaligned stores that are 4K page splits."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xC3",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "MACHINE_CLEARS.MEMORY_ORDERING",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "20003",
+        "BriefDescription": "Counts the number of memory ordering machine clears triggered due to a snoop from an external agent. Does not count internally generated machine clears such as those due to disambiguations."
+    }
+]

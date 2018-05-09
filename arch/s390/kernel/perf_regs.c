@@ -8,7 +8,7 @@
 #include <asm/fpu/api.h>
 #include <asm/fpu/types.h>
 
-u64 perf_reg_value(struct pt_regs *regs, int idx)
+u64 perf_reg_value(struct pt_regs *regs, u64 *extra_regs, int idx)
 {
 	freg_t fp;
 

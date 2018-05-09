@@ -54,6 +54,7 @@
 #define INTEL_FAM6_KABYLAKE_DESKTOP	0x9E
 
 #define INTEL_FAM6_CANNONLAKE_MOBILE	0x66
+#define INTEL_FAM6_CANNONLAKE_DESKTOP	0x67
 
 /* "Small Core" Processors (Atom) */
 
@@ -70,10 +71,17 @@
 #define INTEL_FAM6_ATOM_GOLDMONT	0x5C
 #define INTEL_FAM6_ATOM_DENVERTON	0x5F /* Goldmont Microserver */
 #define INTEL_FAM6_ATOM_GEMINI_LAKE	0x7A
+#define INTEL_FAM6_ATOM_JACOBSVILLE	0x86
 
 /* Xeon Phi */
 
 #define INTEL_FAM6_XEON_PHI_KNL		0x57 /* Knights Landing */
 #define INTEL_FAM6_XEON_PHI_KNM		0x85 /* Knights Mill */
+
+#define INTEL_FAM6_ICELAKE_X		0x6a
+#define INTEL_FAM6_ICELAKE_DESKTOP	0x7d
+#define INTEL_FAM6_ICELAKE_MOBILE	0x7e
+
+#define INTEL_FAM6_TIGERLAKE		0x8c
 
 #endif /* _ASM_X86_INTEL_FAMILY_H */

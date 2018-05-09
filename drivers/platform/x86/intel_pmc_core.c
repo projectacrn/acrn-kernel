@@ -196,9 +196,64 @@ static const struct pmc_bit_map cnp_pfear_map[] = {
 	{}
 };
 
+static const struct pmc_bit_map cnp_slps0_dbg0_map[] = {
+	{"AUDIO_D3_STS",	BIT(0)},
+	{"OTG_D3_STS",		BIT(1)},
+	{"XHCI_D3_STS",		BIT(2)},
+	{"LPIO_D3_STS",		BIT(3)},
+	{"SDX_D3_STS",		BIT(4)},
+	{"SATA_D3_STS",		BIT(5)},
+	{"UFS0_D3_STS",		BIT(6)},
+	{"UFS1_D3_STS",		BIT(7)},
+	{"EMMC_D3_STS",		BIT(8)},
+};
+
+static const struct pmc_bit_map cnp_slps0_dbg1_map[] = {
+	{"SDIO_PLL_OFF_STS",	BIT(0)},
+	{"USB2_PLL_OFF_STS",	BIT(1)},
+	{"AUDIO_PLL_OFF_STS",	BIT(2)},
+	{"OC_PLL_OFF_STS",	BIT(3)},
+	{"MAIN_PLL_OFF_STS",	BIT(4)},
+	{"XOSC_OFF_STS",	BIT(5)},
+	{"LPC_CLKS_GATED_STS",	BIT(6)},
+	{"PCIE_CLKREQS_OFF_STS",BIT(7)},
+	{"AUDIO_ROSC_OFF_STS",	BIT(8)},
+	{"HPET_XOSC_CLKREQ_STS",BIT(9)},
+	{"PMC_ROSC_SWITCH_STS",	BIT(10)},
+	{"AON2_ROSC_GATED_STS",	BIT(11)},
+	{"CLKACK_STS",		BIT(12)},
+};
+
+static const struct pmc_bit_map cnp_slps0_dbg2_map[] = {
+	{"MPHY_CORE_PG_STS",	BIT(0)},
+	{"CSME_PG_STS",		BIT(1)},
+	{"USB2_SUS_PG_STS",	BIT(2)},
+	{"DYNAMIC_FLEX_IO_STS",	BIT(3)},
+	{"GBE_NO_LINK_STS",	BIT(4)},
+	{"TS_DIS_STS",		BIT(5)},
+	{"PCIE_LP_STS",		BIT(6)},
+	{"ISH_VNNAON_REQ_STS",	BIT(7)},
+	{"ISH_VNN_REQ_STS",	BIT(8)},
+	{"CNV_VNNAON_REQ_STS",	BIT(9)},
+	{"CNV_VNN_REQ_STS",	BIT(10)},
+	{"NPK_VNNON_REQ_STS",	BIT(11)},
+	{"PMSYNC_STATE_IDLE_STS",BIT(12)},
+	{"ALST_GT_THRES_STS",	BIT(13)},
+	{"PMC_ARC_IDLE_STS",	BIT(14)},
+};
+
+static const struct slps0_dbg_map cnp_slps0_dbg_maps[] = {
+	{cnp_slps0_dbg0_map, ARRAY_SIZE(cnp_slps0_dbg0_map)},
+	{cnp_slps0_dbg1_map, ARRAY_SIZE(cnp_slps0_dbg1_map)},
+	{cnp_slps0_dbg2_map, ARRAY_SIZE(cnp_slps0_dbg2_map)},
+};
+
 static const struct pmc_reg_map cnp_reg_map = {
 	.pfear_sts = cnp_pfear_map,
 	.slp_s0_offset = CNP_PMC_SLP_S0_RES_COUNTER_OFFSET,
+	.slps0_dbg_maps = cnp_slps0_dbg_maps,
+	.slps0_dbg_offset = CNP_PMC_SLPS0_DBG_OFFSET,
+	.slps0_dbg_num = ARRAY_SIZE(cnp_slps0_dbg_maps),
 	.ltr_ignore_offset = CNP_PMC_LTR_IGNORE_OFFSET,
 	.regmap_length = CNP_PMC_MMIO_REG_LEN,
 	.ppfear0_offset = CNP_PMC_HOST_PPFEAR0A,
@@ -481,10 +536,47 @@ static const struct file_operations pmc_core_ltr_ignore_ops = {
 	.release        = single_release,
 };
 
+static int pmc_core_slps0_dbg_show(struct seq_file *s, void *unused)
+{
+	struct pmc_dev *pmcdev = s ? s->private : &pmc;
+	const struct slps0_dbg_map *maps = pmcdev->map->slps0_dbg_maps;
+	int num_slps0_dbg_regs = pmcdev->map->slps0_dbg_num;
+	int i, offset;
+	u32 data;
+
+	offset = pmcdev->map->slps0_dbg_offset;
+	while (num_slps0_dbg_regs--) {
+		/* Get slp_s0 debug info */
+		data = readb(pmcdev->regbase + (offset += 4));
+		/* Print debug info from each slp_s0_debug register */
+		for (i = 0; i < maps->size; i++)
+			seq_printf(s, "SLP_S0_DBG: %-32s\tState: %s\n",
+				   maps->slps0_dbg_sts[i].name,
+				   data & maps->slps0_dbg_sts[i].bit_mask ?
+				   "On" : "Off");
+		maps++;
+	}
+	return 0;
+}
+
+static int pmc_core_slps0_dbg_latch_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, pmc_core_slps0_dbg_show, inode->i_private);
+}
+
+static const struct file_operations pmc_core_slps0_dbg_ops = {
+	.open           = pmc_core_slps0_dbg_latch_open,
+	.read           = seq_read,
+	.llseek         = seq_lseek,
+	.release        = single_release,
+};
+
 static void pmc_core_dbgfs_unregister(struct pmc_dev *pmcdev)
 {
 	debugfs_remove_recursive(pmcdev->dbgfs_dir);
 }
+
+static bool latch_slps0_events;
 
 static int pmc_core_dbgfs_register(struct pmc_dev *pmcdev)
 {
@@ -514,6 +606,14 @@ static int pmc_core_dbgfs_register(struct pmc_dev *pmcdev)
 				    0444, dir, pmcdev,
 				    &pmc_core_mphy_pg_ops);
 
+	if (pmcdev->map->slps0_dbg_maps) {
+		debugfs_create_file("slp_s0_debug_status", 0444,
+				    pmcdev->dbgfs_dir, pmcdev,
+				    &pmc_core_slps0_dbg_ops);
+		debugfs_create_bool("latch_slps0_events", 0644,
+				    pmcdev->dbgfs_dir, &latch_slps0_events);
+	}
+
 	return 0;
 }
 #else
@@ -533,6 +633,8 @@ static const struct x86_cpu_id intel_pmc_core_ids[] = {
 	ICPU(INTEL_FAM6_KABYLAKE_MOBILE, &spt_reg_map),
 	ICPU(INTEL_FAM6_KABYLAKE_DESKTOP, &spt_reg_map),
 	ICPU(INTEL_FAM6_CANNONLAKE_MOBILE, &cnp_reg_map),
+	ICPU(INTEL_FAM6_CANNONLAKE_DESKTOP, &cnp_reg_map),
+	ICPU(INTEL_FAM6_ICELAKE_MOBILE, &cnp_reg_map),
 	{}
 };
 

@@ -1,0 +1,221 @@
+[
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x71",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "TOPDOWN_FE_BOUND.ALL",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of retirement slots not consumed due to front end stalls.Simliar to UOPS_NOT_DELIVERED.ANY  (See above for details)"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x71",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "TOPDOWN_FE_BOUND.CISC",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not delivered by the frontend due to ms"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x71",
+        "Counter": "0,1,2,3",
+        "UMask": "0x10",
+        "EventName": "TOPDOWN_FE_BOUND.ITLB",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not delivered by the frontend due to itlb miss"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x71",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "TOPDOWN_FE_BOUND.BRANCH_DETECT",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not delivered by the frontend due to BAClear"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x71",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "TOPDOWN_FE_BOUND.PREDECODE",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not delivered by the frontend due to predecode wrong"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x71",
+        "Counter": "0,1,2,3",
+        "UMask": "0x40",
+        "EventName": "TOPDOWN_FE_BOUND.BRANCH_RESTEER",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not delivered by the frontend due to BTClear"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x71",
+        "Counter": "0,1,2,3",
+        "UMask": "0x8",
+        "EventName": "TOPDOWN_FE_BOUND.DECODE",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not delivered by the frontend due to decode stall"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x71",
+        "Counter": "0,1,2,3",
+        "UMask": "0x80",
+        "EventName": "TOPDOWN_FE_BOUND.OTHER",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not delivered by the frontend that do not categorize into any other common frontend stall"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0x72",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "TOPDOWN_RETIRING.ALL",
+        "BriefDescription": "Counts the number of consumed retirement slots.Similar to UOPS_RETIRED.ALL  (See above for details)"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x73",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "TOPDOWN_BAD_SPECULATION.ALL",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of retirement slots not consumed due to bad speculation .Similar to ISSUE_SLOTS_NOT_CONSUMED.RECOVERY (See above for details) plus number of ROB entries thrown away"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x73",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "TOPDOWN_BAD_SPECULATION.NUKE",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not consumed by the backend due to a Machine Clear"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x73",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "TOPDOWN_BAD_SPECULATION.MONUKE",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not consumed by the backend due to Memory Ordering Machine clears"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x73",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "TOPDOWN_BAD_SPECULATION.MISPREDICT",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not consumed by the backend due to Branch Mispredict"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x74",
+        "Counter": "0,1,2,3",
+        "UMask": "0x0",
+        "EventName": "TOPDOWN_BE_BOUND.ALL",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of retirement slots not consumed due to backend stalls.Similar to ISSUE_SLOTS_NOT_CONSUMED.RESOURCE_FULL (See above for details)"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x74",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "TOPDOWN_BE_BOUND.ALLOC_RESTRICTIONS",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts every cycle when a rob entry is wasted due to alloc restrictions such as dual dest/dual exec/sync_uop/alloc_by_itself"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x74",
+        "Counter": "0,1,2,3",
+        "UMask": "0x10",
+        "EventName": "TOPDOWN_BE_BOUND.SERIALIZATION",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots every cycle that were not consumed by the backend due to iq/jeu scoreboards or ms scb"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x75",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "SERIALIZATION.IQ_JEU_SCB",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots that are not consumed during a microcode specified allocation stalls .Counts the number of issue slots where no uop could issue due to an IQ scoreboard that stalls allocation until a specified older uop retires or (in the cae of jump scoreboard) executes. Commonly executed instructions with iq scoreboards include LFENCE and"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x75",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "SERIALIZATION.NON_C01_MS_SCB",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots that are not consumed during a microcode specified front-end stall.Counts the number of issue slots where no uop could issue due to an MS scoreboard. An MS scoreboard stalls front-end issuing of uops from the UROM until a specified older uop retires. Relatively few instructions do an MS scoreboard. The most commonly exec"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x75",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "SERIALIZATION.C01_MS_SCB",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the number of issue slots that are not consumed due to UMWAIT or TPAUSE instructions entering C0.1 activity state. .Counts the number of issue slots in a UMWAIT or TPAUSE instruction where no uop issues due to the instruction putting the CPU into the C0.1 activity state. For Tremont, UMWAIT and TPAUSE will only put the CPU into C0.1 activity state (not C0.2 activity st"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xB7",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "OFFCORE_RESP.MSR_OFFCORE_RESP0",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the matrix events specified by MSR_OFFCORE_RESPx .Counts the transactions of request type and response type specified in MSR_OFFCORE_RESP0"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xB7",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "OFFCORE_RESP.MSR_OFFCORE_RESP1",
+        "PDIR_COUNTER": "na",
+        "BriefDescription": "Counts the transactions of request type and response type specified in MSR_OFFCORE_RESP1"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xCB",
+        "Counter": "0,1,2,3",
+        "UMask": "0x1",
+        "EventName": "HW_INTERRUPTS.RECEIVED",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "203",
+        "BriefDescription": "Counts Hardware Interrupt occurances.Counts the number of hardware interrupts received by the processor."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xCB",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "HW_INTERRUPTS.MASKED",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of core cycles during which interrupts are masked (disabled). Increments by 1 each core cycle that EFLAGS.IF is 0, regardless of whether interrupts are pending or not."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xCB",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "HW_INTERRUPTS.PENDING_AND_MASKED",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of core cycles during which there are pending interrupts but interrupts are masked (disabled). Increments by 1 each core cycle that both EFLAGS.IF is 0 and an INTR is pending (which means the APIC is telling the ROB to cause an INTR). Th"
+    }
+]

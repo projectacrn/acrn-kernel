@@ -9,7 +9,7 @@
 #include <asm/perf_regs.h>
 #include <asm/ptrace.h>
 
-u64 perf_reg_value(struct pt_regs *regs, int idx)
+u64 perf_reg_value(struct pt_regs *regs, u64 *extra_regs, int idx)
 {
 	if (WARN_ON_ONCE((u32)idx >= PERF_REG_ARM64_MAX))
 		return 0;

@@ -127,11 +127,14 @@ struct hw_perf_event {
 			unsigned long	event_base;
 			int		event_base_rdpmc;
 			int		idx;
+			int		reg_idx;
 			int		last_cpu;
 			int		flags;
 
 			struct hw_perf_event_extra extra_reg;
 			struct hw_perf_event_extra branch_reg;
+
+			unsigned long	saved_metric;
 		};
 		struct { /* software */
 			struct hrtimer	hrtimer;
@@ -233,6 +236,7 @@ struct perf_event;
  */
 #define PERF_PMU_TXN_ADD  0x1		/* txn to add/schedule event on PMU */
 #define PERF_PMU_TXN_READ 0x2		/* txn to read event group from PMU */
+#define PERF_PMU_TXN_REMOVE 0x4		/* txn to remove event on PMU */
 
 /**
  * pmu::capabilities flags
@@ -405,6 +409,11 @@ struct pmu {
 	 */
 	size_t				task_ctx_size;
 
+
+	/*
+	 * Reset the underlying counter.
+	 */
+	void (*reset)			(struct perf_event *event); /*optional*/
 
 	/*
 	 * Set up pmu-private data structures for an AUX area
@@ -936,6 +945,7 @@ struct perf_sample_data {
 	u64				stack_user_size;
 
 	u64				phys_addr;
+	u64				*extra_regs;
 } ____cacheline_aligned;
 
 /* default value for data source */
@@ -956,6 +966,7 @@ static inline void perf_sample_data_init(struct perf_sample_data *data,
 	data->weight = 0;
 	data->data_src.val = PERF_MEM_NA;
 	data->txn = 0;
+	data->extra_regs = NULL;
 }
 
 extern void perf_output_sample(struct perf_output_handle *handle,

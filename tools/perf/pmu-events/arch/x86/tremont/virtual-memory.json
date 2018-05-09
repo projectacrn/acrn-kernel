@@ -1,0 +1,142 @@
+[
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x08",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "DTLB_LOAD_MISSES.WALK_COMPLETED_4K",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Page Walk Successfully Completed - 4K"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x08",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "DTLB_LOAD_MISSES.WALK_COMPLETED_2M_4M",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Page Walk Successfully Completed - 2M/4M"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x08",
+        "Counter": "0,1,2,3",
+        "UMask": "0x10",
+        "EventName": "DTLB_LOAD_MISSES.WALK_PENDING",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Number of page walks outstanding for LOAD (demand loads or SW prefetch) in PMH every cycle. (Can only count 1 per cycle on Atom).  A PMH page walk is outstanding from page walk start till PMH becomes idle again (ready to serve next walk). Includes EPT-wal"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x49",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "DTLB_STORE_MISSES.WALK_COMPLETED_4K",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Page Walk Successfully Completed - 4K"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x49",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "DTLB_STORE_MISSES.WALK_COMPLETED_2M_4M",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Page Walk Successfully Completed - 2M/4M"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x49",
+        "Counter": "0,1,2,3",
+        "UMask": "0x10",
+        "EventName": "DTLB_STORE_MISSES.WALK_PENDING",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Number of page walks outstanding for LOAD (demand loads or SW prefetch) in PMH every cycle. (Can only count 1 per cycle on Atom).  A PMH page walk is outstanding from page walk start till PMH becomes idle again (ready to serve next walk). Includes EPT-wal"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x4F",
+        "Counter": "0,1,2,3",
+        "UMask": "0x10",
+        "EventName": "EPT.WALK_PENDING",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Cycle count for an Extended Page table walk including GTLB hits.  The Extended Page Directory cache is used by Virtual Machine operating systems while the guest operating systems use the standard TLB caches."
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x85",
+        "Counter": "0,1,2,3",
+        "UMask": "0x2",
+        "EventName": "ITLB_MISSES.WALK_COMPLETED_4K",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Counts the page translation requests for iside operations that are serviced by the L2TLB or the Page Walker..Page Walk Successfully Completed - 4K"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x85",
+        "Counter": "0,1,2,3",
+        "UMask": "0x4",
+        "EventName": "ITLB_MISSES.WALK_COMPLETED_2M_4M",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "2000003",
+        "BriefDescription": "Page Walk Successfully Completed - 2M/4M"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0x85",
+        "Counter": "0,1,2,3",
+        "UMask": "0x10",
+        "EventName": "ITLB_MISSES.WALK_PENDING",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Number of page walks outstanding for LOAD (demand loads or SW prefetch) in PMH every cycle. (Can only count 1 per cycle on Atom).  A PMH page walk is outstanding from page walk start till PMH becomes idle again (ready to serve next walk). Includes EPT-wal"
+    },
+    {
+        "CollectPEBSRecord": "1",
+        "EventCode": "0xBD",
+        "Counter": "0,1,2,3",
+        "UMask": "0x20",
+        "EventName": "TLB_FLUSHES.STLB_ANY",
+        "PDIR_COUNTER": "na",
+        "SampleAfterValue": "20003",
+        "BriefDescription": "Count number of any STLB flush attempts (Entire, PCID, InvPage, CR3 write, etc)"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x11",
+        "EventName": "MEM_UOPS_RETIRED.DTLB_MISS_LOADS",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of load ops retired that filled the STLB - includes those in DTLB_LOAD_MISSES submasks"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x12",
+        "EventName": "MEM_UOPS_RETIRED.DTLB_MISS_STORES",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts the number of store ops retired (store STLB miss)"
+    },
+    {
+        "PEBS": "2",
+        "CollectPEBSRecord": "2",
+        "EventCode": "0xD0",
+        "Counter": "0,1,2,3",
+        "UMask": "0x13",
+        "EventName": "MEM_UOPS_RETIRED.DTLB_MISS",
+        "SampleAfterValue": "200003",
+        "BriefDescription": "Counts all retired STLB misses."
+    }
+]
