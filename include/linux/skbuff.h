@@ -789,6 +789,9 @@ struct sk_buff {
 	__u8			tc_redirected:1;
 	__u8			tc_from_ingress:1;
 #endif
+	__u8			tc_drop_if_late:1;
+
+	clockid_t		txtime_clockid;
 
 #ifdef CONFIG_NET_SCHED
 	__u16			tc_index;	/* traffic control index */

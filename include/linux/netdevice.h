@@ -791,6 +791,7 @@ enum tc_setup_type {
 	TC_SETUP_QDISC_CBS,
 	TC_SETUP_QDISC_RED,
 	TC_SETUP_QDISC_PRIO,
+	TC_SETUP_QDISC_TBS,
 };
 
 /* These structures hold the attributes of bpf state that are being passed
@@ -3394,6 +3395,7 @@ static __always_inline int ____dev_forward_skb(struct net_device *dev,
 
 	skb_scrub_packet(skb, true);
 	skb->priority = 0;
+	skb->tstamp = 0;
 	return 0;
 }
 

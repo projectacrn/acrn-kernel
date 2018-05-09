@@ -123,4 +123,9 @@
 
 #define SO_ZEROCOPY		60
 
+#define SO_TXTIME		61
+#define SCM_TXTIME		SO_TXTIME
+#define SCM_DROP_IF_LATE	62
+#define SCM_CLOCKID		63
+
 #endif /* _UAPI_ASM_SOCKET_H */

@@ -183,6 +183,17 @@ config NET_SCH_CBS
 	  To compile this code as a module, choose M here: the
 	  module will be called sch_cbs.
 
+config NET_SCH_TBS
+	tristate "Time Based Scheduler (TBS)"
+	---help---
+	  Say Y here if you want to use the Time Based Scheduler (TBS) packet
+	  scheduling algorithm.
+
+	  See the top of <file:net/sched/sch_tbs.c> for more details.
+
+	  To compile this code as a module, choose M here: the
+	  module will be called sch_tbs.
+
 config NET_SCH_GRED
 	tristate "Generic Random Early Detection (GRED)"
 	---help---

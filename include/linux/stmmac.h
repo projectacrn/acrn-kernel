@@ -109,6 +109,7 @@ struct stmmac_dma_cfg {
 	int fixed_burst;
 	int mixed_burst;
 	bool aal;
+	bool osf;
 };
 
 #define AXI_BLEN	7
@@ -147,6 +148,7 @@ struct stmmac_txq_cfg {
 struct plat_stmmacenet_data {
 	int bus_id;
 	int phy_addr;
+	int xpcs_phy_addr;
 	int interface;
 	struct stmmac_mdio_bus_data *mdio_bus_data;
 	struct device_node *phy_node;
@@ -186,9 +188,18 @@ struct plat_stmmacenet_data {
 	struct reset_control *stmmac_rst;
 	struct stmmac_axi *axi;
 	int has_gmac4;
+	int has_xpcs;
+	int has_tbs;
+	int pcs_mode;
 	bool has_sun8i;
 	bool tso_en;
 	int mac_port_sel_speed;
 	bool en_tx_lpi_clockgating;
+	int no_msi;
+	bool tsn_est_en;
+	bool tsn_fpe_en;
+	u32 fprq;
+	bool vlan_fail_q_en;
+	u8 vlan_fail_q;
 };
 #endif
