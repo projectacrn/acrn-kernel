@@ -269,18 +269,11 @@ intel_virt_detect_pch(const struct drm_i915_private *dev_priv)
 	return id;
 }
 
-static void simulator_detect_pch(struct drm_i915_private *dev_priv)
+static void simulator_set_pch(struct drm_i915_private *dev_priv)
 {
 	dev_priv->__is_simulator = true;
-	dev_priv->pch_type = intel_virt_detect_pch(dev_priv);
-}
-
-void intel_init_simulator(struct drm_i915_private *dev_priv)
-{
-	if (i915_modparams.is_simulator == 1) {
-		DRM_DEBUG_KMS("Forcing Simulator mode\n");
-		simulator_detect_pch(dev_priv);
-	}
+	dev_priv->pch_id = intel_virt_detect_pch(dev_priv);
+	dev_priv->pch_type = intel_pch_type(dev_priv, dev_priv->pch_id);
 }
 
 static void intel_detect_pch(struct drm_i915_private *dev_priv)
@@ -292,6 +285,12 @@ static void intel_detect_pch(struct drm_i915_private *dev_priv)
 	 */
 	if (INTEL_INFO(dev_priv)->num_pipes == 0) {
 		dev_priv->pch_type = PCH_NOP;
+		return;
+	}
+
+	if (i915_modparams.is_simulator == 1) {
+		DRM_DEBUG_KMS("Forcing Simulator mode\n");
+		simulator_set_pch(dev_priv);
 		return;
 	}
 
@@ -317,8 +316,7 @@ static void intel_detect_pch(struct drm_i915_private *dev_priv)
 
 		pch_type = intel_pch_type(dev_priv, id);
 		if (pch_type == PCH_SIM) {
-			simulator_detect_pch(dev_priv);
-			dev_priv->pch_id = id;
+			simulator_set_pch(dev_priv);
 			break;
 		} else if (pch_type != PCH_NONE) {
 			dev_priv->pch_type = pch_type;
@@ -981,15 +979,6 @@ static int i915_driver_init_early(struct drm_i915_private *dev_priv,
 	ret = i915_gem_init_early(dev_priv);
 	if (ret < 0)
 		goto err_workqueues;
-
-	/*
-	 * Unconditionally call before detecting the PCH, as we currently can't
-	 * determine we're in simulation when using full platform simulation.
-	 * This allows us to actually use the i915.is_simulator parameter when
-	 * we can't already tell we're in a simulator - i.e. exactly when we
-	 * need it! :)
-	 */
-	intel_init_simulator(dev_priv);
 
 	/* This must be called before any calls to HAS_PCH_* */
 	intel_detect_pch(dev_priv);
