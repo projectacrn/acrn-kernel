@@ -1683,13 +1683,23 @@ static inline unsigned int hcd_index(struct usb_hcd *hcd)
 	else
 		return 1;
 }
+struct xhci_port {
+	__le32 __iomem		*addr;
+	int			hw_portnum;
+	int			hcd_portnum;
+	struct xhci_hub		*rhub;
+};
 
 struct xhci_hub {
-	u8	maj_rev;
-	u8	min_rev;
-	u32	*psi;		/* array of protocol speed ID entries */
-	u8	psi_count;
-	u8	psi_uid_count;
+	struct xhci_port	**ports;
+	unsigned int		num_ports;
+	struct usb_hcd		*hcd;
+	/* supported prococol extended capabiliy values */
+	u8			maj_rev;
+	u8			min_rev;
+	u32			*psi;	/* array of protocol speed ID entries */
+	u8			psi_count;
+	u8			psi_uid_count;
 };
 
 /* There is one xhci_hcd structure per controller */
@@ -1836,16 +1846,9 @@ struct xhci_hcd {
 	unsigned int		limit_active_eps;
 	/* There are two roothubs to keep track of bus suspend info for */
 	struct xhci_bus_state   bus_state[2];
-	/* Is each xHCI roothub port a USB 3.0, USB 2.0, or USB 1.1 port? */
-	u8			*port_array;
-	/* Array of pointers to USB 3.0 PORTSC registers */
-	__le32 __iomem		**usb3_ports;
-	unsigned int		num_usb3_ports;
-	/* Array of pointers to USB 2.0 PORTSC registers */
-	__le32 __iomem		**usb2_ports;
+	struct xhci_port	*hw_ports;
 	struct xhci_hub		usb2_rhub;
 	struct xhci_hub		usb3_rhub;
-	unsigned int		num_usb2_ports;
 	/* support xHCI 0.96 spec USB2 software LPM */
 	unsigned		sw_lpm_support:1;
 	/* support xHCI 1.0 spec USB2 hardware LPM */
@@ -2091,14 +2094,16 @@ void inc_deq(struct xhci_hcd *xhci, struct xhci_ring *ring);
 unsigned int count_trbs(u64 addr, u64 len);
 
 /* xHCI roothub code */
-void xhci_set_link_state(struct xhci_hcd *xhci, __le32 __iomem **port_array,
-				int port_id, u32 link_state);
-void xhci_test_and_clear_bit(struct xhci_hcd *xhci, __le32 __iomem **port_array,
-				int port_id, u32 port_bit);
+void xhci_set_link_state(struct xhci_hcd *xhci, struct xhci_port *port,
+				u32 link_state);
+void xhci_test_and_clear_bit(struct xhci_hcd *xhci, struct xhci_port *port,
+				u32 port_bit);
 int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue, u16 wIndex,
 		char *buf, u16 wLength);
 int xhci_hub_status_data(struct usb_hcd *hcd, char *buf);
 int xhci_find_raw_port_number(struct usb_hcd *hcd, int port1);
+struct xhci_hub *xhci_get_rhub(struct usb_hcd *hcd);
+
 void xhci_hc_died(struct xhci_hcd *xhci);
 
 #ifdef CONFIG_PM

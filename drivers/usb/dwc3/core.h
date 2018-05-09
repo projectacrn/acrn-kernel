@@ -639,8 +639,6 @@ struct dwc3_event_buffer {
  * @resource_index: Resource transfer index
  * @frame_number: set to the frame number we want this transfer to start (ISOC)
  * @interval: the interval on which the ISOC transfer is started
- * @allocated_requests: number of requests allocated
- * @queued_requests: number of requests queued for transfer
  * @name: a human readable name e.g. ep1out-bulk
  * @direction: true for TX, false for RX
  * @stream_capable: true when streams are enabled
@@ -664,11 +662,9 @@ struct dwc3_ep {
 #define DWC3_EP_ENABLED		BIT(0)
 #define DWC3_EP_STALL		BIT(1)
 #define DWC3_EP_WEDGE		BIT(2)
-#define DWC3_EP_BUSY		BIT(4)
+#define DWC3_EP_TRANSFER_STARTED BIT(3)
 #define DWC3_EP_PENDING_REQUEST	BIT(5)
-#define DWC3_EP_MISSED_ISOC	BIT(6)
 #define DWC3_EP_END_TRANSFER_PENDING	BIT(7)
-#define DWC3_EP_TRANSFER_STARTED BIT(8)
 
 	/* This last one is specific to EP0 */
 #define DWC3_EP0_DIR_IN		BIT(31)
@@ -688,8 +684,6 @@ struct dwc3_ep {
 	u8			number;
 	u8			type;
 	u8			resource_index;
-	u32			allocated_requests;
-	u32			queued_requests;
 	u32			frame_number;
 	u32			interval;
 
@@ -1197,11 +1191,12 @@ struct dwc3_event_depevt {
 /* Within XferNotReady */
 #define DEPEVT_STATUS_TRANSFER_ACTIVE	BIT(3)
 
-/* Within XferComplete */
+/* Within XferComplete or XferInProgress */
 #define DEPEVT_STATUS_BUSERR	BIT(0)
 #define DEPEVT_STATUS_SHORT	BIT(1)
 #define DEPEVT_STATUS_IOC	BIT(2)
-#define DEPEVT_STATUS_LST	BIT(3)
+#define DEPEVT_STATUS_LST	BIT(3) /* XferComplete */
+#define DEPEVT_STATUS_MISSED_ISOC BIT(3) /* XferInProgress */
 
 /* Stream event only */
 #define DEPEVT_STREAMEVT_FOUND		1
