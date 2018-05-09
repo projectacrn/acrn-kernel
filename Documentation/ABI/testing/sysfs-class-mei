@@ -54,3 +54,14 @@ Description:	Configure tx queue limit
 
 		Set maximal number of pending writes
 		per opened session.
+
+What:		/sys/class/mei/meiN/fw_ver
+Date:		Apr 2018
+KernelVersion:	4.17
+Contact:	Tomas Winkler <tomas.winkler@intel.com>
+Description:	Display the ME firmware version.
+
+		The version of the platform ME firmware in format
+		<platform>:<major>.<minor>.<milestone>.<build>.
+		There can be up to three such blocks for different
+		FW components.
