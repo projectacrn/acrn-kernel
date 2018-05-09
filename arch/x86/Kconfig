@@ -2956,3 +2956,66 @@ source "crypto/Kconfig"
 source "arch/x86/kvm/Kconfig"
 
 source "lib/Kconfig"
+
+config X86_PRESI_ICL_SIMICS
+	bool "workaround for icelake simics model"
+	depends on X86_64
+	default n
+	---help---
+	  Enable workarounds needed for ICL Simics model.
+
+config X86_PRESI_ICL_FPGA
+	bool "workaround for icelake FPGA"
+	depends on X86_64
+	default n
+	---help---
+	  Enable workarounds needed for ICL FPGA platform.
+
+config X86_PRESI_ICL_SLE
+	bool "workaround for icelake SLE"
+	depends on X86_64
+	default n
+	---help---
+	  Enable workarounds needed for ICL SLE platform.
+
+config X86_PRESI_TGL_SIMICS
+	bool "workaround for tigerlake simics model"
+	depends on X86_64
+	default n
+	---help---
+	  Enable workarounds needed for TGL Simics model.
+
+config X86_PRESI_TGL_FPGA
+	bool "workaround for tigerlake FPGA"
+	depends on X86_64
+	default n
+	---help---
+	  Enable workarounds needed for TGL FPGA platform.
+
+config X86_PRESI_TGL_SLE
+	bool "workaround for tigerlake SLE"
+	depends on X86_64
+	default n
+	---help---
+	  Enable workarounds needed for TGL SLE platform.
+
+config X86_PRESI_EHL_SIMICS
+	bool "workaround for elkhartlake simics model"
+	depends on X86_64
+	default n
+	---help---
+	  Enable workarounds needed for EHL Simics model.
+
+config X86_PRESI_EHL_FPGA
+	bool "workaround for elkhartlake FPGA"
+	depends on X86_64
+	default n
+	---help---
+	  Enable workarounds needed for EHL FPGA platform.
+
+config X86_PRESI_EHL_SLE
+	bool "workaround for elkhartlake SLE"
+	depends on X86_64
+	default n
+	---help---
+	  Enable workarounds needed for EHL SLE platform.
