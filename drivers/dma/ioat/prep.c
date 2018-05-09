@@ -466,7 +466,6 @@ __ioat_prep_pq_lock(struct dma_chan *c, enum sum_check_flags *result,
 		dump_desc_dbg(ioat_chan, compl_desc);
 	}
 
-
 	/* we leave the channel locked to ensure in order submission */
 	return &compl_desc->txd;
 }
@@ -747,3 +746,62 @@ ioat_prep_interrupt_lock(struct dma_chan *c, unsigned long flags)
 	return &desc->txd;
 }
 
+struct dma_async_tx_descriptor *
+ioat_dma_prep_pgcmp_lock(struct dma_chan *c, dma_addr_t dma_dest,
+			 dma_addr_t dma_src, size_t len,
+			 enum sum_check_flags *result, unsigned long flags)
+{
+	struct ioatdma_chan *ioat_chan = to_ioat_chan(c);
+	struct ioatdma_device *ioat_dma = ioat_chan->ioat_dma;
+	struct ioat_pgcmp_descriptor *hw;
+	struct ioat_ring_ent *desc;
+	dma_addr_t dst = dma_dest;
+	dma_addr_t src = dma_src;
+	size_t total_len = len;
+	int num_descs, idx, i;
+
+	if (test_bit(IOAT_CHAN_DOWN, &ioat_chan->state))
+		return NULL;
+
+	num_descs = ioat_xferlen_to_descs(ioat_chan, len);
+	if (likely(num_descs) &&
+	    ioat_check_space_lock(ioat_chan, num_descs) == 0)
+		idx = ioat_chan->head;
+	else
+		return NULL;
+	i = 0;
+	do {
+		size_t copy = min_t(size_t, len, 1 << ioat_chan->xfercap_log);
+
+		desc = ioat_get_ring_ent(ioat_chan, idx + i);
+		hw = desc->pgcmp;
+
+		hw->size = copy;
+		hw->ctl = 0;
+		hw->ctl_f.op = IOAT_OP_PGCMP;
+		if (ioat_dma->cap & IOAT_CAP_DWBES)
+			hw->ctl_f.wb_en = result ? 1 : 0;
+		hw->src_addr = src;
+		hw->dst_addr = dst;
+
+		len -= copy;
+		dst += copy;
+		src += copy;
+		dump_desc_dbg(ioat_chan, desc);
+	} while (++i < num_descs);
+
+	if (result) {
+		*result = 0;
+		desc->result = result;
+	}
+
+	desc->txd.flags = flags;
+	desc->len = total_len;
+	hw->ctl_f.int_en = !!(flags & DMA_PREP_INTERRUPT);
+	hw->ctl_f.fence = !!(flags & DMA_PREP_FENCE);
+	hw->ctl_f.compl_write = 1;
+	dump_desc_dbg(ioat_chan, desc);
+	/* we leave the channel locked to ensure in order submission */
+
+	return &desc->txd;
+}
