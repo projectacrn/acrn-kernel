@@ -941,6 +941,7 @@ int security_inode_init_security(struct inode *inode, struct inode *dir,
 							&lsm_xattr->value_len);
 		if (rc == 0) {
 			lsm_xattr++;
+			evm_xattr = lsm_xattr;
 			if (ret == -EOPNOTSUPP)
 				ret = 0;
 		} else if (rc != -EOPNOTSUPP) {
@@ -950,7 +951,7 @@ int security_inode_init_security(struct inode *inode, struct inode *dir,
 	}
 
 	if (ret == 0) {
-		rc = evm_inode_init_security(inode, lsm_xattr, evm_xattr);
+		rc = evm_inode_init_security(inode, new_xattrs, evm_xattr);
 		if (rc == 0)
 			rc = initxattrs(inode, new_xattrs, fs_data);
 	}
