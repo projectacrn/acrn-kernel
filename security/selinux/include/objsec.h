@@ -174,4 +174,10 @@ static inline struct inode_security_struct *selinux_inode(const struct inode *in
 	return inode->i_security;
 }
 
+static inline struct superblock_security_struct *selinux_superblock(
+					const struct super_block *superblock)
+{
+	return superblock->s_security;
+}
+
 #endif /* _SELINUX_OBJSEC_H_ */
