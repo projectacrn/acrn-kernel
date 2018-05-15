@@ -1287,7 +1287,7 @@ static u8 map_ddc_pin(struct drm_i915_private *dev_priv, u8 vbt_pin)
 	const u8 *ddc_pin_map;
 	int n_entries;
 
-	if (HAS_PCH_ICP_H(dev_priv)) {
+	if (HAS_PCH_ICP_H(dev_priv) || HAS_PCH_TGP(dev_priv)) {
 		ddc_pin_map = icph_ddc_pin_map;
 		n_entries = ARRAY_SIZE(icph_ddc_pin_map);
 	} else if (HAS_PCH_ICP(dev_priv)) {
