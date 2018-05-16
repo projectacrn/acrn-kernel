@@ -1907,6 +1907,16 @@ static void enable_execlists(struct intel_engine_cs *engine)
 	I915_WRITE(RING_HWSTAM(engine->mmio_base), 0xffffffff);
 
 	/*
+	 * HACK: advanced pre-fetch breaks the relocation logic. There is a bit
+	 * of unclearness regarding how to disable the pre-fetcher around the
+	 * relocation batch only, so disable it globally until the specs are
+	 * clarified.
+	 */
+	if (IS_GEN12(dev_priv))
+		I915_WRITE(RING_MODE_GEN7(engine),
+			   _MASKED_BIT_ENABLE(GEN12_GFX_DISABLE_PREFETCH));
+
+	/*
 	 * Make sure we're not enabling the new 12-deep CSB
 	 * FIFO as that requires a slightly updated handling
 	 * in the ctx switch irq. Since we're currently only
