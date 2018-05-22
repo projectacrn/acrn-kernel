@@ -2693,6 +2693,7 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 	intel_display_power_get(dev_priv, dig_port->ddi_io_power_domain);
 
 	icl_program_mg_dp_mode(intel_dp);
+	icl_disable_phy_clock_gating(dig_port);
 
 	if (IS_ICELAKE(dev_priv))
 		icl_ddi_vswing_sequence(encoder, level, encoder->type);
@@ -2709,6 +2710,8 @@ static void intel_ddi_pre_enable_dp(struct intel_encoder *encoder,
 	intel_dp_start_link_train(intel_dp);
 	if (port != PORT_A || INTEL_GEN(dev_priv) >= 9)
 		intel_dp_stop_link_train(intel_dp);
+
+	icl_enable_phy_clock_gating(dig_port);
 
 	intel_ddi_enable_pipe_clock(crtc_state);
 }
