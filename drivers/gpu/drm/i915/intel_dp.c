@@ -4626,6 +4626,56 @@ static void icl_update_tc_port_type(struct drm_i915_private *dev_priv,
 			      type_str);
 }
 
+static bool icl_tc_phy_mode_status_connect(struct drm_i915_private *dev_priv,
+					   struct intel_digital_port *dig_port)
+{
+	enum tc_port tc_port = intel_port_to_tc(dev_priv, dig_port->base.port);
+	u32 val;
+
+	if (dig_port->tc_type != TC_PORT_LEGACY &&
+	    dig_port->tc_type != TC_PORT_TYPEC)
+		return true;
+
+	val = I915_READ(PORT_TX_DFLEXDPPMS);
+	if (!(val & DP_PHY_MODE_STATUS_COMPLETED(tc_port))) {
+		DRM_ERROR("DP PHY for TC port %d not ready\n", tc_port);
+		return false;
+	}
+
+	/*
+	 * This function may be called many times in a row without an HPD event
+	 * in between, so try to avoid the write when we can.
+	 */
+	val = I915_READ(PORT_TX_DFLEXDPCSSS);
+	if (!(val & DP_PHY_MODE_STATUS_NOT_SAFE(tc_port))) {
+		val |= DP_PHY_MODE_STATUS_NOT_SAFE(tc_port);
+		I915_WRITE(PORT_TX_DFLEXDPCSSS, val);
+	}
+
+	return true;
+}
+
+static void icl_tc_phy_mode_status_disconnect(struct drm_i915_private *dev_priv,
+					      struct intel_digital_port *dig_port)
+{
+	enum tc_port tc_port = intel_port_to_tc(dev_priv, dig_port->base.port);
+	u32 val;
+
+	if (dig_port->tc_type != TC_PORT_LEGACY &&
+	    dig_port->tc_type != TC_PORT_TYPEC)
+		return;
+
+	/*
+	 * This function may be called many times in a row without an HPD event
+	 * in between, so try to avoid the write when we can.
+	 */
+	val = I915_READ(PORT_TX_DFLEXDPCSSS);
+	if (val & DP_PHY_MODE_STATUS_NOT_SAFE(tc_port)) {
+		val &= ~DP_PHY_MODE_STATUS_NOT_SAFE(tc_port);
+		I915_WRITE(PORT_TX_DFLEXDPCSSS, val);
+	}
+}
+
 static bool icl_tc_port_connected(struct drm_i915_private *dev_priv,
 				  struct intel_digital_port *intel_dig_port)
 {
@@ -4646,11 +4696,16 @@ static bool icl_tc_port_connected(struct drm_i915_private *dev_priv,
 	if (cpu_isr & tbt_bit)
 		is_tbt = true;
 
-	if (!is_legacy && !is_typec && !is_tbt)
+	if (!is_legacy && !is_typec && !is_tbt) {
+		icl_tc_phy_mode_status_disconnect(dev_priv, intel_dig_port);
 		return false;
+	}
 
 	icl_update_tc_port_type(dev_priv, intel_dig_port, is_legacy, is_typec,
 				is_tbt);
+
+	if (!icl_tc_phy_mode_status_connect(dev_priv, intel_dig_port))
+		return false;
 
 	return true;
 }
