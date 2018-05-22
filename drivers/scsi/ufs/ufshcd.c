@@ -241,6 +241,13 @@ static struct ufs_dev_fix ufs_fixups[] = {
 	END_FIX
 };
 
+static int max_gear;
+static int max_lines;
+static int dflt_hs_rate;
+static int dflt_hs_mode;
+static int no_pwr_mode_chg;
+static int no_auto_hibern8;
+
 static void ufshcd_tmc_handler(struct ufs_hba *hba);
 static void ufshcd_async_scan(void *data, async_cookie_t cookie);
 static int ufshcd_reset_and_restore(struct ufs_hba *hba);
@@ -4027,7 +4034,8 @@ static void __ufshcd_auto_hibern8_disable(struct ufs_hba *hba, bool disable)
 	unsigned long flags;
 	u32 val;
 
-	if (!ufshcd_is_auto_hibern8_supported(hba))
+	//if (!ufshcd_is_auto_hibern8_supported(hba))
+	if (no_auto_hibern8 || !ufshcd_is_auto_hibern8_supported(hba) || !hba->ahit)
 		return;
 
 	spin_lock_irqsave(hba->host->host_lock, flags);
@@ -4076,9 +4084,15 @@ static int ufshcd_get_max_pwr_mode(struct ufs_hba *hba)
 	if (hba->max_pwr_info.is_valid)
 		return 0;
 
-	pwr_info->pwr_tx = FAST_MODE;
-	pwr_info->pwr_rx = FAST_MODE;
-	pwr_info->hs_rate = PA_HS_MODE_B;
+	if (dflt_hs_mode != FAST_MODE && dflt_hs_mode != FASTAUTO_MODE)
+		dflt_hs_mode = FAST_MODE;
+
+	if (dflt_hs_rate != PA_HS_MODE_A && dflt_hs_rate != PA_HS_MODE_B)
+		dflt_hs_rate = PA_HS_MODE_B;
+
+	pwr_info->pwr_tx = dflt_hs_mode;
+	pwr_info->pwr_rx = dflt_hs_mode;
+	pwr_info->hs_rate = dflt_hs_rate;
 
 	/* Get the connected lane count */
 	ufshcd_dme_get(hba, UIC_ARG_MIB(PA_CONNECTEDRXDATALANES),
@@ -4092,6 +4106,12 @@ static int ufshcd_get_max_pwr_mode(struct ufs_hba *hba)
 				pwr_info->lane_rx,
 				pwr_info->lane_tx);
 		return -EINVAL;
+	}
+
+	if (max_lines > 0 &&
+	    (pwr_info->lane_rx > max_lines || pwr_info->lane_tx > max_lines)) {
+		pwr_info->lane_rx = max_lines;
+		pwr_info->lane_tx = max_lines;
 	}
 
 	/*
@@ -4124,6 +4144,12 @@ static int ufshcd_get_max_pwr_mode(struct ufs_hba *hba)
 		pwr_info->pwr_tx = SLOW_MODE;
 	}
 
+	if (max_gear > 0 &&
+	    (pwr_info->gear_rx > max_gear || pwr_info->gear_tx > max_gear)) {
+		pwr_info->gear_rx = max_gear;
+		pwr_info->gear_tx = max_gear;
+	}
+
 	hba->max_pwr_info.is_valid = true;
 	return 0;
 }
@@ -4132,6 +4158,9 @@ static int ufshcd_change_power_mode(struct ufs_hba *hba,
 			     struct ufs_pa_layer_attr *pwr_mode)
 {
 	int ret;
+
+	if (no_pwr_mode_chg)
+		return 0;
 
 	/* if already configured to the requested pwr_mode */
 	if (pwr_mode->gear_rx == hba->pwr_info.gear_rx &&
@@ -8912,6 +8941,20 @@ out_error:
 	return err;
 }
 EXPORT_SYMBOL_GPL(ufshcd_init);
+
+module_param(max_gear, int, 0444);
+module_param(max_lines, int, 0444);
+module_param(dflt_hs_rate, int, 0444);
+module_param(dflt_hs_mode, int, 0444);
+module_param(no_pwr_mode_chg, int, 0444);
+module_param(no_auto_hibern8, int, 0444);
+
+MODULE_PARM_DESC(max_gear, "Maximum gear: 1, 2 , 3 ...");
+MODULE_PARM_DESC(max_lines, "Maximum lines: 1 or 2");
+MODULE_PARM_DESC(dflt_hs_rate, "Default high speed rate series : 1 (= rate A), 2 (= rate B)");
+MODULE_PARM_DESC(dflt_hs_mode, "Default high speed power mode: 1 (= FAST), 4 (= FASTAUTO)");
+MODULE_PARM_DESC(no_pwr_mode_chg, "Do not change power mode i.e. continue to use initial power mode");
+MODULE_PARM_DESC(no_auto_hibern8, "Disable auto-hibernate");
 
 MODULE_AUTHOR("Santosh Yaragnavi <santosh.sy@samsung.com>");
 MODULE_AUTHOR("Vinayak Holikatti <h.vinayak@samsung.com>");
