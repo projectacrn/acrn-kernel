@@ -44,4 +44,7 @@
 #define VIRTIO_ID_VSOCK        19 /* virtio vsock transport */
 #define VIRTIO_ID_CRYPTO       20 /* virtio crypto */
 
+/* ACRN virtio device types */
+#define VIRTIO_ID_MEI          0xFFFE /* virtio mei */
+
 #endif /* _LINUX_VIRTIO_IDS_H */
