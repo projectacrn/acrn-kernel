@@ -1617,6 +1617,7 @@ void bxt_enable_dc9(struct drm_i915_private *dev_priv);
 void bxt_disable_dc9(struct drm_i915_private *dev_priv);
 void gen9_enable_dc5(struct drm_i915_private *dev_priv);
 unsigned int skl_cdclk_get_vco(unsigned int freq);
+void skl_enable_dc6(struct drm_i915_private *dev_priv);
 void intel_dp_get_m_n(struct intel_crtc *crtc,
 		      struct intel_crtc_state *pipe_config);
 void intel_dp_set_m_n(struct intel_crtc *crtc, enum link_m_n_set m_n);
@@ -1955,6 +1956,8 @@ void intel_power_domains_fini(struct drm_i915_private *);
 void intel_power_domains_init_hw(struct drm_i915_private *dev_priv, bool resume);
 void intel_power_domains_suspend(struct drm_i915_private *dev_priv);
 void intel_power_domains_verify_state(struct drm_i915_private *dev_priv);
+void icl_display_core_init(struct drm_i915_private *dev_priv, bool resume);
+void icl_display_core_uninit(struct drm_i915_private *dev_priv);
 void bxt_display_core_init(struct drm_i915_private *dev_priv, bool resume);
 void bxt_display_core_uninit(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_enable(struct drm_i915_private *dev_priv);
