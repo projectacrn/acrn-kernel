@@ -13516,15 +13516,16 @@ intel_skl_plane_create(struct drm_i915_private *dev_priv, enum pipe pipe,
 			|| plane >= 2)
 		num_formats--;
 
-
-	possible_crtcs = (1 << dev_priv->drm.mode_config.num_crtc);
+	if (is_primary)
+		possible_crtcs = 0;
+	else
+		possible_crtcs = (1 << dev_priv->drm.mode_config.num_crtc);
 	ret = drm_universal_plane_init(&dev_priv->drm, &intel_plane->base,
 			possible_crtcs, &intel_plane_funcs,
 			plane_formats, num_formats,
 			modifiers,
 			plane_type,
 			"plane %d%c", plane+1, pipe_name(pipe));
-
 	if (ret)
 		goto fail;
 
