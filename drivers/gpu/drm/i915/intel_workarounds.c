@@ -768,7 +768,7 @@ static void wa_init_mcr(struct drm_i915_private *dev_priv)
 	 * something more complex that requires checking the range of every
 	 * MMIO read).
 	 */
-	if (INTEL_GEN(dev_priv) >= 10 &&
+	if (IS_GEN(dev_priv, 10, 11) &&
 	    is_power_of_2(sseu->slice_mask)) {
 		/*
 		 * read FUSE3 for enabled L3 Bank IDs, if L3 Bank matches
@@ -798,7 +798,7 @@ static void wa_init_mcr(struct drm_i915_private *dev_priv)
 		mcr_slice_subslice_mask = GEN8_MCR_SLICE_MASK |
 					  GEN8_MCR_SUBSLICE_MASK;
 	/*
-	 * WaProgramMgsrForCorrectSliceSpecificMmioReads:cnl,icl
+	 * WaProgramMgsrForCorrectSliceSpecificMmioReads:cnl,icl,tgl
 	 * Before any MMIO read into slice/subslice specific registers, MCR
 	 * packet control register needs to be programmed to point to any
 	 * enabled s/ss pair. Otherwise, incorrect values will be returned.
@@ -938,6 +938,8 @@ static void icl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 
 static void tgl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 {
+	wa_init_mcr(dev_priv);
+
 	/* WaPipelineFlushCoherentLines:tgl */
 	I915_WRITE(GEN12_L3SQCREG2, (I915_READ(GEN12_L3SQCREG2) |
 				     GEN12_LQSC_FLUSH_COHERENT_LINES));
