@@ -16096,11 +16096,22 @@ intel_display_capture_error_state(struct drm_i915_private *dev_priv)
 
 	/* Note: this does not include DSI transcoders. */
 	error->num_transcoders = INTEL_INFO(dev_priv)->num_pipes;
-	if (HAS_DDI(dev_priv))
-		error->num_transcoders++; /* Account for eDP. */
+
+	/*
+	 * Account for eDP - GEN 11.5 onwards have
+	 * num_transcoders == num_pipes (not counting DSI).
+	 */
+	if (!(IS_ICL_11_5(dev_priv) || INTEL_GEN(dev_priv) > 11) &&
+	    HAS_DDI(dev_priv))
+		error->num_transcoders++;
 
 	for (i = 0; i < error->num_transcoders; i++) {
-		enum transcoder cpu_transcoder = transcoders[i];
+		enum transcoder cpu_transcoder;
+
+		if (WARN_ON_ONCE(i >= ARRAY_SIZE(transcoders)))
+		    break;
+
+		cpu_transcoder = transcoders[i];
 
 		error->transcoder[i].power_domain_on =
 			__intel_display_power_is_enabled(dev_priv,
