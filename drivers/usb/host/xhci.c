@@ -1078,10 +1078,10 @@ int xhci_resume(struct xhci_hcd *xhci, bool hibernated)
 		command = readl(&xhci->op_regs->command);
 		command |= CMD_CRS;
 		writel(command, &xhci->op_regs->command);
-		/*
-		 * Some controllers take up to 55+ ms to complete the controller
-		 * restore so setting the timeout to 100ms. Xhci specification
-		 * doesn't mention any timeout value.
+		/* Some controllers take upto 55+ ms to complete
+		 * the controller restore so setting the timeout to
+		 * 100ms. Xhci specification doesn't mention any
+		 * timeout value.
 		 */
 		if (xhci_handshake(&xhci->op_regs->status,
 			      STS_RESTORE, 0, 100 * 1000)) {
