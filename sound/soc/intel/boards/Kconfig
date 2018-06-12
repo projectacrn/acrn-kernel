@@ -283,4 +283,14 @@ config SND_SOC_INTEL_KBL_DA7219_MAX98357A_MACH
 
 endif ## SND_SOC_INTEL_SKYLAKE
 
+if SND_SOC_INTEL_KEEMBAY
+
+config SND_SOC_INTEL_KEEMBAY_MACH
+	tristate "Keembay with dummy codec"
+	depends on X86_INTEL_LPSS && I2C
+	help
+	  This adds audio driver for Intel Keembay platform based boards.
+
+endif ## SND_SOC_INTEL_KEEMBAY
+
 endif ## SND_SOC_INTEL_MACH
