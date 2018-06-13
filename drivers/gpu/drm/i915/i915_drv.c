@@ -128,6 +128,11 @@ __i915_printk(struct drm_i915_private *dev_priv, const char *level,
 static enum intel_pch
 intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 {
+	if (i915_modparams.force_pch >= 0) {
+		DRM_DEBUG_KMS("Forcing PCH type to %i\n",
+			      i915_modparams.force_pch);
+		return i915_modparams.force_pch;
+	}
 	switch (id) {
 	case INTEL_PCH_IBX_DEVICE_ID_TYPE:
 		DRM_DEBUG_KMS("Found Ibex Peak PCH\n");
