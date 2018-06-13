@@ -47,4 +47,9 @@ void intel_presi_init(struct drm_i915_private *i915);
 void intel_detect_presi_env(struct drm_i915_private *i915, unsigned short id);
 void intel_detect_presi_mode(struct drm_i915_private *i915);
 
+int intel_mark_page_as_mop(struct drm_i915_private *dev_priv,
+			   u64 address, bool owned);
+int intel_mark_all_pages_as_mop(struct drm_i915_private *dev_priv,
+				struct sg_table *pages, bool owned);
+
 #endif
