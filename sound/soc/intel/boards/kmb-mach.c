@@ -30,16 +30,16 @@
 #define I2S_MONO_CHANNEL 1
 #define I2S_STEREO_CHANNEL 2
 
-#define I2S_MIN_RATE 		8000
-#define I2S_MAX_RATE 		48000
+#define I2S_MIN_RATE		8000
+#define I2S_MAX_RATE		48000
 #define I2S_MIN_PERIODS		10
 #define I2S_MAX_PERIODS		50
-#define I2S_FIFO_SIZE 		8
+#define I2S_FIFO_SIZE		8
 
-#define I2S_MAX_BUFFER 			96000
-#define I2S_MIN_BUFFER 			96000
-#define I2S_MIN_PERIOD_BYTES 	640
-#define I2S_MAX_PERIOD_BYTES 	48000
+#define I2S_MAX_BUFFER		96000
+#define I2S_MIN_BUFFER		96000
+#define I2S_MIN_PERIOD_BYTES	640
+#define I2S_MAX_PERIOD_BYTES	48000
 
 static struct snd_pcm_hardware kmb_pcm_hw_stereo = {
 	.info =	(SNDRV_PCM_INFO_INTERLEAVED |
@@ -87,8 +87,9 @@ static int kmb_mach_dai_link_prepare(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_card *card = rtd->card;
+
 	return 0;
-}/*kmb_mach_dai_link_prepare*/
+} /*kmb_mach_dai_link_prepare*/
 
 static int kmb_mach_dai_link_hw_params(struct snd_pcm_substream *substream,
 				      struct snd_pcm_hw_params *params)
@@ -98,6 +99,7 @@ static int kmb_mach_dai_link_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_card *card = rtd->card;
 	int ret = 0;
 	unsigned int fmt;
+
 	fmt =   SND_SOC_DAIFMT_I2S |
 			SND_SOC_DAIFMT_NB_NF |
 			SND_SOC_DAIFMT_CBS_CFS; //Codec Slave, SSP Master
@@ -128,7 +130,7 @@ static int kmb_mach_dai_link_startup(struct snd_pcm_substream *substream)
 	return snd_pcm_hw_constraint_list(str_runtime, 0,
 					   SNDRV_PCM_HW_PARAM_RATE,
 					   &constraints_48000);
-}/*kmb_mach_dai_link_startup*/
+} /*kmb_mach_dai_link_startup*/
 
 static struct snd_soc_ops kmb_mach_dai_link_ops = {
 	.startup = kmb_mach_dai_link_startup,
@@ -165,7 +167,7 @@ static int kmb_mach_audio_probe(struct platform_device *pdev)
 
 	card->dev = &pdev->dev;
 	kmb_mach.dev = &pdev->dev;
-	
+
 	ret = snd_soc_register_card(card);
 	if (ret) {
 		dev_err(&pdev->dev, "snd_soc_register_card failed (%d)\n",
@@ -178,6 +180,7 @@ static int kmb_mach_audio_probe(struct platform_device *pdev)
 static int kmb_mach_audio_remove(struct platform_device *pdev)
 {
 	struct snd_soc_card *soc_card = platform_get_drvdata(pdev);
+
 	snd_soc_card_set_drvdata(soc_card, NULL);
 	snd_soc_unregister_card(soc_card);
 	platform_set_drvdata(pdev, NULL);
@@ -204,5 +207,5 @@ module_platform_driver(kmb_mach_audio)
 MODULE_DESCRIPTION("Intel Audio machine driver for KeemBay");
 MODULE_AUTHOR("Sia Jee Heng <jee.heng.sia@intel.com>");
 MODULE_AUTHOR("Sit, Michael Wei Hong <michael.wei.hong.sit@intel.com>");
-MODULE_LICENSE("GPLV2");
+MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("platform:kmb_mach");

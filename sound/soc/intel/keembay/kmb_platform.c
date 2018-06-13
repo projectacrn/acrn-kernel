@@ -47,7 +47,7 @@ static unsigned int dw_pcm_tx_##sample_bits(struct kmb_i2s_info *dev, \
 		struct snd_pcm_runtime *runtime, unsigned int tx_ptr, \
 		bool *period_elapsed) \
 { \
-	const u##sample_bits (*p)[2] = (void *)runtime->dma_area; \
+	const u##sample_bits(*p)[2] = (void *)runtime->dma_area; \
 	unsigned int period_pos = tx_ptr % runtime->period_size; \
 	int i; \
 \
@@ -68,7 +68,7 @@ static unsigned int dw_pcm_rx_##sample_bits(struct kmb_i2s_info *dev, \
 		struct snd_pcm_runtime *runtime, unsigned int rx_ptr, \
 		bool *period_elapsed) \
 { \
-	u##sample_bits (*p)[2] = (void *)runtime->dma_area; \
+	u##sample_bits(*p)[2] = (void *)runtime->dma_area; \
 	unsigned int period_pos = rx_ptr % runtime->period_size; \
 	int i; \
 \
@@ -189,7 +189,7 @@ static inline void i2s_clear_irqs(struct kmb_i2s_info *dev, u32 stream)
 static inline void i2s_disable_irqs(struct kmb_i2s_info *dev, u32 stream,
 				    int chan_nr)
 {
-	u32 i=0, irq;
+	u32 i = 0, irq;
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		for (i = 0; i < (chan_nr / 2); i++) {
@@ -207,7 +207,7 @@ static inline void i2s_disable_irqs(struct kmb_i2s_info *dev, u32 stream,
 static inline void i2s_enable_irqs(struct kmb_i2s_info *dev, u32 stream,
 				   int chan_nr)
 {
-	u32 i=0, irq;
+	u32 i = 0, irq;
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		for (i = 0; i < (chan_nr / 2); i++) {
@@ -249,7 +249,7 @@ static void kmb_pcm_transfer(struct kmb_i2s_info *dev, bool push)
 			cmpxchg(&dev->rx_ptr, ptr, new_ptr);
 		}
 
-		if (period_elapsed){
+		if (period_elapsed) {
 			snd_pcm_period_elapsed(substream);
 		}
 	}
@@ -259,6 +259,7 @@ static void kmb_pcm_transfer(struct kmb_i2s_info *dev, bool push)
 void kmb_pcm_push_tx(struct kmb_i2s_info *dev)
 {
 	int i;
+
 	kmb_pcm_transfer(dev, true);
 }
 
@@ -329,8 +330,8 @@ static irqreturn_t i2s_irq_handler(int irq, void *dev_id)
 {
 	struct kmb_i2s_info *dev = dev_id;
 	bool irq_valid = false;
-	u32 isr[4],regval;
-	int i=0;
+	u32 isr[4], regval;
+	int i = 0;
 
 //	for (i = 0; i < 4; i++){// Commented out for single I2S port on PSS
 		isr[i] = i2s_read_reg(dev->i2s_base, ISR(i));
@@ -366,7 +367,7 @@ static irqreturn_t i2s_irq_handler(int irq, void *dev_id)
 
 		/* Error Handling: RX */
 		if (isr[i] & ISR_RXFO) {
-			
+
 			dev_err(dev->dev, "RX overrun (ch_id=%d)\n", i);
 			irq_valid = true;
 		}
@@ -379,7 +380,7 @@ static irqreturn_t i2s_irq_handler(int irq, void *dev_id)
 }
 
 static const struct snd_soc_component_driver kmb_component = {
-        .name           = "kmb",
+	.name           = "kmb",
 };
 
 /*
@@ -638,7 +639,7 @@ static int kmb_dai_trigger(struct snd_pcm_substream *substream,
 
 static void i2s_config(struct kmb_i2s_info *dev, int stream)
 {
-	u32 ch_reg,regval;
+	u32 ch_reg, regval;
 	struct i2s_clk_config_data *config = &dev->config;
 
 	i2s_disable_channels(dev, stream);
@@ -772,9 +773,9 @@ static struct snd_soc_dai_ops kmb_dai_ops = {
 			SNDRV_PCM_RATE_16000 | SNDRV_PCM_RATE_22050 | \
 			SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000)
 
-#define I2S_SAMPLE_RATES ( SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_CONTINUOUS)
+#define I2S_SAMPLE_RATES (SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_CONTINUOUS)
 
-#define I2S_SUPPORTED_FORMATS ( SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S24_3LE | \
+#define I2S_SUPPORTED_FORMATS (SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S24_3LE | \
 			SNDRV_PCM_FMTBIT_S16_LE | \
 			SNDRV_PCM_FMTBIT_U16_LE | \
 			SNDRV_PCM_FMTBIT_S8 | \
@@ -919,15 +920,15 @@ static int kmb_plat_dai_probe(struct platform_device *pdev)
 
 	cpr_base = ioremap(CPR_PHY_ADDRESS, 0x200);
 
-	write_cpr_reg(cpr_base,0x010,0xFFFFFFFF);
-	write_cpr_reg(cpr_base,0x014,0xFFFFFFF8);
-	write_cpr_reg(cpr_base,0x0,0xFFFFFFFF);
-	write_cpr_reg(cpr_base,0x0100,0xFFFFFFFF);
-	write_cpr_reg(cpr_base,0x0,0xE3FFFFFF);
-	write_cpr_reg(cpr_base,0x070,0x000A001E);
-	write_cpr_reg(cpr_base,0x0,0xFFFFFFFF);
-	write_cpr_reg(cpr_base,0x0,0xE3FFFFFF);
-	write_cpr_reg(cpr_base,0x11C,0x1FF8000F);
+	write_cpr_reg(cpr_base, 0x010, 0xFFFFFFFF);
+	write_cpr_reg(cpr_base, 0x014, 0xFFFFFFF8);
+	write_cpr_reg(cpr_base, 0x0, 0xFFFFFFFF);
+	write_cpr_reg(cpr_base, 0x0100, 0xFFFFFFFF);
+	write_cpr_reg(cpr_base, 0x0, 0xE3FFFFFF);
+	write_cpr_reg(cpr_base, 0x070, 0x000A001E);
+	write_cpr_reg(cpr_base, 0x0, 0xFFFFFFFF);
+	write_cpr_reg(cpr_base, 0x0, 0xE3FFFFFF);
+	write_cpr_reg(cpr_base, 0x11C, 0x1FF8000F);
 
 	i2s_info = devm_kzalloc(&pdev->dev, sizeof(struct kmb_i2s_info), GFP_KERNEL);
 	if (!i2s_info)
@@ -965,7 +966,7 @@ static int kmb_plat_dai_probe(struct platform_device *pdev)
 
 	if (i2s_info->capability & DW_I2S_MASTER) {
 		i2s_info->clk_i2s = devm_clk_get(&pdev->dev, clk_id);
-		if (IS_ERR(i2s_info->clk_i2s)){
+		if (IS_ERR(i2s_info->clk_i2s)) {
 			dev_err(&pdev->dev, "no clock configure method\n");
 			return PTR_ERR(i2s_info->clk_i2s);
 		}
@@ -981,7 +982,7 @@ static int kmb_plat_dai_probe(struct platform_device *pdev)
 		snd_soc_unregister_component(&pdev->dev);
 		return -EBUSY;
 	}
-	
+
 	ret = devm_snd_soc_register_component(&pdev->dev, &kmb_component,
 				intel_kmb_platform_dai,
 				ARRAY_SIZE(intel_kmb_platform_dai));

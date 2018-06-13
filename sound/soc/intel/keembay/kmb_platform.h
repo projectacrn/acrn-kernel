@@ -38,21 +38,21 @@
 #include <sound/soc-dai.h>
 #include <sound/dmaengine_pcm.h>
 
-#define I2S_MIN_RATE 		8000
-#define I2S_MAX_RATE 		48000
+#define I2S_MIN_RATE		8000
+#define I2S_MAX_RATE		48000
 #define I2S_MIN_PERIODS		10
 #define I2S_MAX_PERIODS		50
-#define I2S_FIFO_SIZE 		0
+#define I2S_FIFO_SIZE		0
 
 #define NUMBER_OF_I2S_PORT      4
 /* I2S support */
 #define I2S_MONO_CHANNEL 1
 #define I2S_STEREO_CHANNEL 2
 
-#define I2S_MAX_BUFFER 			96000
-#define I2S_MIN_BUFFER 			96000
-#define I2S_MIN_PERIOD_BYTES 	640
-#define I2S_MAX_PERIOD_BYTES 	48000
+#define I2S_MAX_BUFFER		96000
+#define I2S_MIN_BUFFER		96000
+#define I2S_MIN_PERIOD_BYTES	640
+#define I2S_MAX_PERIOD_BYTES	48000
 
 /* TDM 8 support */
 #define I2S_TDM8_CHANNEL 8
