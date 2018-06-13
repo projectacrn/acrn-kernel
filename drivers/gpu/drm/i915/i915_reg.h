@@ -7676,11 +7676,14 @@ enum {
 				 SDE_FDI_RXA_CPT)
 
 /* south display engine interrupt: ICP */
+#define   ICP_TC6_HOTPLUG		(1 << 29)
+#define   ICP_TC5_HOTPLUG		(1 << 28)
 #define SDE_TC4_HOTPLUG_ICP		(1 << 27)
 #define SDE_TC3_HOTPLUG_ICP		(1 << 26)
 #define SDE_TC2_HOTPLUG_ICP		(1 << 25)
 #define SDE_TC1_HOTPLUG_ICP		(1 << 24)
 #define SDE_GMBUS_ICP			(1 << 23)
+#define   ICP_DDIC_HOTPLUG		(1 << 18)
 #define SDE_DDIB_HOTPLUG_ICP		(1 << 17)
 #define SDE_DDIA_HOTPLUG_ICP		(1 << 16)
 #define SDE_TC_HOTPLUG_ICP(tc_port)	(1 << ((tc_port) + 24))
@@ -7756,8 +7759,19 @@ enum {
  * functionality covered in PCH_PORT_HOTPLUG is split into
  * SHOTPLUG_CTL_DDI and SHOTPLUG_CTL_TC.
  */
+#define ICP_11_5_SDE_DDI_MASK		(SDE_DDI_MASK_ICP |	\
+					 SDE_DDI_MASK_ICP)
+#define ICP_11_5_SDE_TC_MASK		(ICP_TC6_HOTPLUG |	\
+					 ICP_TC5_HOTPLUG |	\
+					 SDE_TC_MASK_ICP)
 
 #define SHOTPLUG_CTL_DDI			_MMIO(0xc4030)
+#define   ICP_DDIC_HPD_ENABLE			(1 << 11)
+#define   ICP_DDIC_HPD_STATUS_MASK		(3 << 8)
+#define   ICP_DDIC_HPD_NO_DETECT		(0 << 8)
+#define   ICP_DDIC_HPD_SHORT_DETECT		(1 << 8)
+#define   ICP_DDIC_HPD_LONG_DETECT		(2 << 8)
+#define   ICP_DDIC_HPD_SHORT_LONG_DETECT	(3 << 8)
 #define   ICP_DDIB_HPD_ENABLE			(1 << 7)
 #define   ICP_DDIB_HPD_STATUS_MASK		(3 << 4)
 #define   ICP_DDIB_HPD_NO_DETECT		(0 << 4)
@@ -7879,6 +7893,18 @@ enum {
 
 #define   ICP_TC_HPD_LONG_DETECT(tc_port)	(2 << (tc_port) * 4)
 #define   ICP_TC_HPD_SHORT_DETECT(tc_port)	(1 << (tc_port) * 4)
+
+#define ICP_DDI_HPD_ENABLE_MASK		(ICP_DDIB_HPD_ENABLE |	\
+					 ICP_DDIA_HPD_ENABLE)
+#define ICP_TC_HPD_ENABLE_MASK		(ICP_TC_HPD_ENABLE(PORT_TC4) | \
+					 ICP_TC_HPD_ENABLE(PORT_TC3) | \
+					 ICP_TC_HPD_ENABLE(PORT_TC2) | \
+					 ICP_TC_HPD_ENABLE(PORT_TC1))
+#define ICP_11_5_DDI_HPD_ENABLE_MASK	(ICP_DDIC_HPD_ENABLE |	\
+					 ICP_DDI_HPD_ENABLE_MASK)
+#define ICP_11_5_TC_HPD_ENABLE_MASK	(ICP_TC_HPD_ENABLE(PORT_TC6) | \
+					 ICP_TC_HPD_ENABLE(PORT_TC5) | \
+					 ICP_TC_HPD_ENABLE_MASK)
 
 #define PCH_GPIOA               _MMIO(0xc5010)
 #define PCH_GPIOB               _MMIO(0xc5014)
