@@ -2305,6 +2305,9 @@ static reset_func intel_get_gpu_reset(struct drm_i915_private *dev_priv)
 	if (!i915_modparams.reset)
 		return NULL;
 
+	if (IS_PRESILICON(dev_priv) && !IS_PIPEGT_EMULATOR(dev_priv))
+		return NULL;
+
 	if (INTEL_GEN(dev_priv) >= 8)
 		return gen8_reset_engines;
 	else if (INTEL_GEN(dev_priv) >= 6)
