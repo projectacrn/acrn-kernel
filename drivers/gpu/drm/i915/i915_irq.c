@@ -2853,7 +2853,7 @@ static u32 de_port_iir_aux_mask(struct drm_i915_private *dev_priv)
 {
 	u32 mask;
 
-	if (IS_ICL_11_5(dev_priv))
+	if (IS_ICL_11_5(dev_priv) || INTEL_GEN(dev_priv) >= 12)
 		/* TODO: Add AUX entries for USBC */
 		return ICL_11_5_DE_PORT_AUX_DDIA |
 			ICL_11_5_DE_PORT_AUX_DDIB |
