@@ -3010,7 +3010,7 @@ gen8_de_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 			I915_WRITE(SDEIIR, iir);
 			ret = IRQ_HANDLED;
 
-			if (HAS_PCH_ICP_H(dev_priv))
+			if (HAS_PCH_ICP_H(dev_priv) || HAS_PCH_TGP(dev_priv))
 				icp_11_5_irq_handler(dev_priv, iir);
 			if (HAS_PCH_ICP(dev_priv))
 				icp_irq_handler(dev_priv, iir);
