@@ -2851,19 +2851,25 @@ static void gen11_hpd_irq_handler(struct drm_i915_private *dev_priv, u32 iir)
 
 static u32 de_port_iir_aux_mask(struct drm_i915_private *dev_priv)
 {
-	u32 mask = GEN8_AUX_CHANNEL_A;
+	u32 mask;
 
+	if (IS_ICL_11_5(dev_priv))
+		/* TODO: Add AUX entries for USBC */
+		return ICL_11_5_DE_PORT_AUX_DDIA |
+			ICL_11_5_DE_PORT_AUX_DDIB |
+			ICL_11_5_DE_PORT_AUX_DDIC;
+
+	mask = GEN8_AUX_CHANNEL_A;
 	if (INTEL_GEN(dev_priv) >= 9)
 		mask |= GEN9_AUX_CHANNEL_B |
 			GEN9_AUX_CHANNEL_C |
 			GEN9_AUX_CHANNEL_D;
 
-	if (INTEL_GEN(dev_priv) >= 11)
-		mask |= ICL_AUX_CHANNEL_E;
-
-	if (IS_CNL_WITH_PORT_F(dev_priv) ||
-	    INTEL_GEN(dev_priv) >= 11)
+	if (IS_CNL_WITH_PORT_F(dev_priv) || IS_GEN11(dev_priv))
 		mask |= CNL_AUX_CHANNEL_F;
+
+	if (IS_GEN11(dev_priv))
+		mask |= ICL_AUX_CHANNEL_E;
 
 	return mask;
 }
