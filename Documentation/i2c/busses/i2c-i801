@@ -40,6 +40,7 @@ Supported adapters:
   * Intel Cannon Lake-LP (PCH)
   * Intel Cedar Fork (PCH)
   * Intel Tiger Lake-LP (PCH)
+  * Intel Elkhart Lake (PCH)
    Datasheets: Publicly available at the Intel website
 
 On Intel Patsburg and later chipsets, both the normal host SMBus controller
