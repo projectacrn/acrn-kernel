@@ -132,6 +132,7 @@ config I2C_I801
 	    Cedar Fork (PCH)
 	    Ice Lake (PCH)
 	    Tiger Lake-LP (PCH)
+	    Elkhart Lake (PCH)
 
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-i801.
