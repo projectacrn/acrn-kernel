@@ -214,6 +214,10 @@ static void dal_recv_cb(struct mei_cl_device *cldev)
 
 	/* save the current read client */
 	ddev->current_read_client = dc;
+	/* In case of INTF_CDEV is not connected, dc might be NULL */
+	if (!dc)
+		goto out;
+
 	dev_dbg(&cldev->dev, "read client type %d data from mei client seq =  %llu\n",
 		dc->intf, dc->seq);
 
@@ -237,8 +241,10 @@ static void dal_recv_cb(struct mei_cl_device *cldev)
 		dev_dbg(&ddev->dev, "recv_cb(): setting CURRENT_READER to NULL\n");
 		ddev->current_read_client = NULL;
 	}
+out:
 	/* wake up all clients waiting for read or write */
-	wake_up_interruptible(&ddev->wq);
+	if (wq_has_sleeper(&ddev->wq))
+		wake_up_interruptible(&ddev->wq);
 
 	mutex_unlock(&ddev->context_lock);
 	dev_dbg(&cldev->dev, "recv_cb(): unlock\n");
