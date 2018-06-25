@@ -2391,12 +2391,31 @@ static int smack_netlabel(struct sock *sk, int labeled)
 	bh_lock_sock_nested(sk);
 
 	if (ssp->smk_out == smack_net_ambient ||
-	    labeled == SMACK_UNLABELED_SOCKET)
+	    labeled == SMACK_UNLABELED_SOCKET) {
+#ifdef CONFIG_SECURITY_STACKING
+		rc = lsm_sock_vet_attr(sk, NULL, LSM_SOCK_SMACK);
+		if (!rc)
+			netlbl_sock_delattr(sk);
+#else
 		netlbl_sock_delattr(sk);
-	else {
+#endif
+	} else {
 		skp = ssp->smk_out;
+#ifdef CONFIG_SECURITY_STACKING
+		rc = lsm_sock_vet_attr(sk, &skp->smk_netlabel, LSM_SOCK_SMACK);
+		if (rc)
+			goto unlock_out;
+#endif
 		rc = netlbl_sock_setattr(sk, sk->sk_family, &skp->smk_netlabel);
+		if (rc == -EDESTADDRREQ) {
+			pr_info("Smack: %s set socket deferred\n", __func__);
+			rc = 0;
+		}
 	}
+
+#ifdef CONFIG_SECURITY_STACKING
+unlock_out:
+#endif
 
 	bh_unlock_sock(sk);
 	local_bh_enable();
@@ -3827,7 +3846,7 @@ static int smack_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 		netlbl_secattr_init(&secattr);
 
 		rc = netlbl_skbuff_getattr(skb, sk->sk_family, &secattr);
-		if (rc == 0)
+		if (rc == 0 && secattr.flags != NETLBL_SECATTR_NONE)
 			skp = smack_from_secattr(&secattr, ssp);
 		else
 			skp = smack_net_ambient;
