@@ -193,6 +193,9 @@ struct intel_vgpu {
 #endif
 
 	bool entire_nonctxmmio_checked;
+	unsigned long long *cached_guest_entry;
+	bool ge_cached;
+	bool cache_enabled;
 };
 
 struct intel_gvt_gm {
