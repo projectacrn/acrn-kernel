@@ -18,6 +18,7 @@
 #include <linux/ethtool.h>
 #include <linux/io.h>
 #include <net/dsa.h>
+#include <linux/if_vlan.h>
 #include "stmmac.h"
 #include "stmmac_pcs.h"
 #include "dwmac4.h"
@@ -701,6 +702,39 @@ static void dwmac4_debug(void __iomem *ioaddr, struct stmmac_extra_stats *x,
 		x->mac_gmii_rx_proto_engine++;
 }
 
+static void dwmac4_rx_hw_vlan(struct net_device *dev,
+			      struct mac_device_info *hw,
+			      struct dma_desc *rx_desc, struct sk_buff *skb)
+{
+	if ((dev->features & NETIF_F_HW_VLAN_CTAG_RX) &&
+	    hw->desc->get_rx_vlan_valid(rx_desc)) {
+		u16 vid = (u16)hw->desc->get_rx_vlan_tci(rx_desc);
+
+		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vid);
+	}
+}
+
+static void dwmac4_set_hw_vlan_mode(void __iomem *ioaddr,
+				    netdev_features_t features)
+{
+	u32 val;
+
+	val = readl(ioaddr + GMAC_VLAN_TAG_CTRL);
+	val &= ~GMAC_VLAN_TAG_CTRL_EVLS_MASK;
+
+	if (features & NETIF_F_HW_VLAN_CTAG_RX)
+		/* Always strip VLAN on Receive */
+		val |= GMAC_VLAN_TAG_STRIP_ALL;
+	else
+		/* Do not strip VLAN on Receive */
+		val |= GMAC_VLAN_TAG_STRIP_NONE;
+
+	/* Enable outer VLAN Tag in Rx DMA descriptor */
+	val |= GMAC_VLAN_TAG_CTRL_EVLRXS;
+
+	writel(val, ioaddr + GMAC_VLAN_TAG_CTRL);
+}
+
 const struct stmmac_ops dwmac4_ops = {
 	.core_init = dwmac4_core_init,
 	.set_mac = stmmac_set_mac,
@@ -730,6 +764,8 @@ const struct stmmac_ops dwmac4_ops = {
 	.pcs_get_adv_lp = dwmac4_get_adv_lp,
 	.debug = dwmac4_debug,
 	.set_filter = dwmac4_set_filter,
+	.rx_hw_vlan = dwmac4_rx_hw_vlan,
+	.set_hw_vlan_mode = dwmac4_set_hw_vlan_mode,
 };
 
 const struct stmmac_ops dwmac410_ops = {
@@ -761,6 +797,8 @@ const struct stmmac_ops dwmac410_ops = {
 	.pcs_get_adv_lp = dwmac4_get_adv_lp,
 	.debug = dwmac4_debug,
 	.set_filter = dwmac4_set_filter,
+	.rx_hw_vlan = dwmac4_rx_hw_vlan,
+	.set_hw_vlan_mode = dwmac4_set_hw_vlan_mode,
 };
 
 const struct stmmac_ops dwmac510_ops = {
@@ -792,6 +830,8 @@ const struct stmmac_ops dwmac510_ops = {
 	.pcs_get_adv_lp = dwmac4_get_adv_lp,
 	.debug = dwmac4_debug,
 	.set_filter = dwmac4_set_filter,
+	.rx_hw_vlan = dwmac4_rx_hw_vlan,
+	.set_hw_vlan_mode = dwmac4_set_hw_vlan_mode,
 	.safety_feat_config = dwmac5_safety_feat_config,
 	.safety_feat_irq_status = dwmac5_safety_feat_irq_status,
 	.safety_feat_dump = dwmac5_safety_feat_dump,
