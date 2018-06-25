@@ -3745,7 +3745,7 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 	queues_count = (rx_cnt > tx_cnt) ? rx_cnt : tx_cnt;
 
 	if (priv->irq_wake)
-		pm_wakeup_event(priv->device, 0);
+		pm_wakeup_hard_event(priv->device);
 
 	if (unlikely(!dev)) {
 		netdev_err(priv->dev, "%s: invalid dev pointer\n", __func__);
