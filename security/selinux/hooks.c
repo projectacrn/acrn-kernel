@@ -4990,7 +4990,7 @@ static int selinux_socket_sock_rcv_skb(struct sock *sk, struct sk_buff *skb)
 static int selinux_socket_getpeersec_stream(struct socket *sock, char **optval,
 					    int *optlen, unsigned int len)
 {
-	int err = 0;
+	int err;
 	char *scontext;
 	u32 scontext_len;
 	struct sk_security_struct *sksec = selinux_sock(sock->sk);
@@ -5010,11 +5010,12 @@ static int selinux_socket_getpeersec_stream(struct socket *sock, char **optval,
 
 	if (scontext_len > len) {
 		kfree(scontext);
-		return -ERANGE;
-	}
-	*optval = scontext;
+		err = -ERANGE;
+	} else
+		*optval = scontext;
+
 	*optlen = scontext_len;
-	return 0;
+	return err;
 }
 
 static int selinux_socket_getpeersec_dgram(struct socket *sock, struct sk_buff *skb, struct secids *secid)

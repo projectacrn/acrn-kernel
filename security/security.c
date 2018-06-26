@@ -2181,13 +2181,12 @@ int security_socket_getpeersec_stream(struct socket *sock, char __user *optval,
 #endif
 
 	if (rc == 0) {
-		tlen = strlen(tval) + 1;
-		if (put_user(tlen, optlen))
-			rc = -EFAULT;
-		else if (copy_to_user(optval, tval, tlen))
+		if (copy_to_user(optval, tval, tlen))
 			rc = -EFAULT;
 		kfree(tval);
 	}
+	if (put_user(tlen, optlen))
+		rc = -EFAULT;
 	return rc;
 }
 
