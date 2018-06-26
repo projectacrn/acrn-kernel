@@ -183,8 +183,13 @@ static void ct_show_secctx(struct seq_file *s, const struct nf_conn *ct)
 	char *secctx;
 	struct secids secid;
 
+#ifdef CONFIG_SECURITY_STACKING
 	secid_init(&secid);
+	secid.selinux = ct->secmark;
+	secid.smack = ct->secmark;
+#else
 	secid.secmark = ct->secmark;
+#endif
 
 	ret = security_secid_to_secctx(&secid, &secctx, &len);
 	if (ret)
