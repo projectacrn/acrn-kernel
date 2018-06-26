@@ -315,6 +315,13 @@ struct stmmac_ops {
 			     bool loopback);
 	void (*pcs_rane)(void __iomem *ioaddr, bool restart);
 	void (*pcs_get_adv_lp)(void __iomem *ioaddr, struct rgmii_adv *adv);
+	/* xPCS calls */
+	void (*xpcs_init)(struct net_device *ndev, int pcs_mode);
+	void (*xpcs_ctrl_ane)(struct net_device *ndev, bool ane, bool loopback);
+	void (*xpcs_rane)(struct net_device *ndev, bool restart);
+	void (*xpcs_get_adv_lp)(struct net_device *ndev, struct rgmii_adv *adv);
+	int (*xpcs_irq_status)(struct net_device *ndev,
+			       struct stmmac_extra_stats *x);
 	/* VLAN calls */
 	void (*rx_hw_vlan)(struct net_device *dev, struct mac_device_info *hw,
 			   struct dma_desc *rx_desc, struct sk_buff *skb);
@@ -402,6 +409,16 @@ struct stmmac_ops {
 	stmmac_do_void_callback(__priv, mac, pcs_rane, __args)
 #define stmmac_pcs_get_adv_lp(__priv, __args...) \
 	stmmac_do_void_callback(__priv, mac, pcs_get_adv_lp, __args)
+#define stmmac_xpcs_init(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, xpcs_init, __args)
+#define stmmac_xpcs_ctrl_ane(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, xpcs_ctrl_ane, __args)
+#define stmmac_xpcs_rane(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, xpcs_rane, __args)
+#define stmmac_xpcs_get_adv_lp(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, xpcs_get_adv_lp, __args)
+#define stmmac_xpcs_irq_status(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, xpcs_irq_status, __args)
 #define stmmac_rx_hw_vlan(__priv, __args...) \
 	stmmac_do_void_callback(__priv, mac, rx_hw_vlan, __args)
 #define stmmac_set_hw_vlan_mode(__priv, __args...) \
