@@ -1236,9 +1236,9 @@ static int smack_inode_setxattr(struct dentry *dentry, const char *name,
 {
 	struct smk_audit_info ad;
 	struct smack_known *skp;
-	int check_priv = 0;
-	int check_import = 0;
-	int check_star = 0;
+	bool check_priv = false;
+	bool check_import = false;
+	bool check_star = false;
 	int rc = 0;
 
 	/*
@@ -1247,20 +1247,20 @@ static int smack_inode_setxattr(struct dentry *dentry, const char *name,
 	if (strcmp(name, XATTR_NAME_SMACK) == 0 ||
 	    strcmp(name, XATTR_NAME_SMACKIPIN) == 0 ||
 	    strcmp(name, XATTR_NAME_SMACKIPOUT) == 0) {
-		check_priv = 1;
-		check_import = 1;
+		check_priv = true;
+		check_import = true;
 	} else if (strcmp(name, XATTR_NAME_SMACKEXEC) == 0 ||
 		   strcmp(name, XATTR_NAME_SMACKMMAP) == 0) {
-		check_priv = 1;
-		check_import = 1;
-		check_star = 1;
+		check_priv = true;
+		check_import = true;
+		check_star = true;
 	} else if (strcmp(name, XATTR_NAME_SMACKTRANSMUTE) == 0) {
-		check_priv = 1;
+		check_priv = true;
 		if (size != TRANS_TRUE_SIZE ||
 		    strncmp(value, TRANS_TRUE, TRANS_TRUE_SIZE) != 0)
 			rc = -EINVAL;
 	} else
-		rc = cap_inode_setxattr(dentry, name, value, size, flags);
+		rc = -ENOSYS;
 
 	if (check_priv && !smack_privileged(CAP_MAC_ADMIN))
 		rc = -EPERM;
@@ -1274,11 +1274,11 @@ static int smack_inode_setxattr(struct dentry *dentry, const char *name,
 			rc = -EINVAL;
 	}
 
-	smk_ad_init(&ad, __func__, LSM_AUDIT_DATA_DENTRY);
-	smk_ad_setfield_u_fs_path_dentry(&ad, dentry);
-
 	if (rc == 0) {
-		rc = smk_curacc(smk_of_inode(d_backing_inode(dentry)), MAY_WRITE, &ad);
+		smk_ad_init(&ad, __func__, LSM_AUDIT_DATA_DENTRY);
+		smk_ad_setfield_u_fs_path_dentry(&ad, dentry);
+		rc = smk_curacc(smk_of_inode(d_backing_inode(dentry)),
+				MAY_WRITE, &ad);
 		rc = smk_bu_inode(d_backing_inode(dentry), MAY_WRITE, rc);
 	}
 
