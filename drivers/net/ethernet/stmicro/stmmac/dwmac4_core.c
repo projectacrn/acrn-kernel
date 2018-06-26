@@ -934,6 +934,19 @@ static void dwmac4_set_hw_vlan_mode(void __iomem *ioaddr,
 	writel(val, ioaddr + GMAC_VLAN_TAG_CTRL);
 }
 
+static void dwmac4_set_loopback_mode(struct mac_device_info *hw, bool mode)
+{
+	void __iomem *ioaddr = hw->pcsr;
+	u32 value = readl(ioaddr + GMAC_CONFIG);
+
+	if (mode)
+		value |= GMAC_CONFIG_LM;
+	else
+		value &= ~GMAC_CONFIG_LM;
+
+	writel(value, ioaddr + GMAC_CONFIG);
+}
+
 const struct stmmac_ops dwmac4_ops = {
 	.core_init = dwmac4_core_init,
 	.set_mac = stmmac_set_mac,
@@ -968,6 +981,7 @@ const struct stmmac_ops dwmac4_ops = {
 	.add_hw_vlan_rx_fltr = dwmac4_add_hw_vlan_rx_fltr,
 	.del_hw_vlan_rx_fltr = dwmac4_del_hw_vlan_rx_fltr,
 	.restore_hw_vlan_rx_fltr = dwmac4_restore_hw_vlan_rx_fltr,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
 };
 
 const struct stmmac_ops dwmac410_ops = {
@@ -1004,6 +1018,7 @@ const struct stmmac_ops dwmac410_ops = {
 	.add_hw_vlan_rx_fltr = dwmac4_add_hw_vlan_rx_fltr,
 	.del_hw_vlan_rx_fltr = dwmac4_del_hw_vlan_rx_fltr,
 	.restore_hw_vlan_rx_fltr = dwmac4_restore_hw_vlan_rx_fltr,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
 };
 
 const struct stmmac_ops dwmac510_ops = {
@@ -1040,6 +1055,7 @@ const struct stmmac_ops dwmac510_ops = {
 	.add_hw_vlan_rx_fltr = dwmac4_add_hw_vlan_rx_fltr,
 	.del_hw_vlan_rx_fltr = dwmac4_del_hw_vlan_rx_fltr,
 	.restore_hw_vlan_rx_fltr = dwmac4_restore_hw_vlan_rx_fltr,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
 	.safety_feat_config = dwmac5_safety_feat_config,
 	.safety_feat_irq_status = dwmac5_safety_feat_irq_status,
 	.safety_feat_dump = dwmac5_safety_feat_dump,

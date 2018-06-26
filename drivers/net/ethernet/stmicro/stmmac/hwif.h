@@ -328,6 +328,8 @@ struct stmmac_ops {
 				   __be16 proto, u16 vid);
 	void (*restore_hw_vlan_rx_fltr)(struct net_device *dev,
 					struct mac_device_info *hw);
+	/* Self-test */
+	void (*set_loopback_mode)(struct mac_device_info *hw, bool mode);
 	/* Safety Features */
 	int (*safety_feat_config)(void __iomem *ioaddr, unsigned int asp);
 	int (*safety_feat_irq_status)(struct net_device *ndev,
@@ -410,6 +412,8 @@ struct stmmac_ops {
 	stmmac_do_callback(__priv, mac, del_hw_vlan_rx_fltr, __args)
 #define stmmac_restore_hw_vlan_rx_fltr(__priv, __args...) \
 	stmmac_do_void_callback(__priv, mac, restore_hw_vlan_rx_fltr, __args)
+#define stmmac_set_loopback_mode(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, set_loopback_mode, __args)
 #define stmmac_safety_feat_config(__priv, __args...) \
 	stmmac_do_callback(__priv, mac, safety_feat_config, __args)
 #define stmmac_safety_feat_irq_status(__priv, __args...) \

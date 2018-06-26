@@ -25,6 +25,9 @@
 #include <linux/phy.h>
 #include <linux/net_tstamp.h>
 #include <asm/io.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
+#include <net/udp.h>
 
 #include "stmmac.h"
 #include "dwmac_dma.h"
@@ -258,6 +261,7 @@ static const struct stmmac_stats stmmac_mmc[] = {
 
 /* All test entries will be added before MAX_TEST_CASES */
 enum stmmac_diagnostics_cases {
+	TEST_MAC_LOOP,
 	MAX_TEST_CASES,
 	TOTAL_PASSED,
 	TOTAL_FAILED,
@@ -265,6 +269,7 @@ enum stmmac_diagnostics_cases {
 };
 
 static const char stmmac_gstrings_test[][ETH_GSTRING_LEN] = {
+	[TEST_MAC_LOOP]    = "MAC loopback test     (online)",
 	[MAX_TEST_CASES]   = "8888888888888888888888888888888",
 	[TOTAL_PASSED]     = "Total test passed             ",
 	[TOTAL_FAILED]     = "Total test failed             ",
@@ -527,14 +532,221 @@ stmmac_set_pauseparam(struct net_device *netdev,
 	return 0;
 }
 
+struct stmmac_lbst_priv {
+	struct packet_type pt;
+	struct completion comp;
+};
+
+static const char test_text[] = "STMMAC LOOPBACK SELF TEST";
+
+#define STMMAC_LB_TIMEOUT (msecs_to_jiffies(200))
+
+static struct sk_buff *stmmac_lb_create_udp_skb(struct net_device *netdev)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+	struct sk_buff *skb;
+	struct ethhdr *ethh;
+	struct udphdr *udph;
+	struct iphdr *iph;
+	int datalen, iplen;
+
+	datalen = sizeof(test_text);
+	iplen = sizeof(*iph) + sizeof(*udph) + datalen;
+	skb = netdev_alloc_skb_ip_align(netdev, iplen);
+	if (!skb)
+		return NULL;
+
+	/* Reserve for ethernet and IP header */
+	ethh = (struct ethhdr *)skb_push(skb, ETH_HLEN);
+	skb_reset_mac_header(skb);
+
+	skb_set_network_header(skb, skb->len);
+	iph = (struct iphdr *)skb_put(skb, sizeof(*iph));
+
+	skb_set_transport_header(skb, skb->len);
+	udph = (struct udphdr *)skb_put(skb, sizeof(*udph));
+
+	/* Fill ETH header */
+	ether_addr_copy(ethh->h_dest, priv->dev->dev_addr);
+	eth_zero_addr(ethh->h_source);
+	ethh->h_proto = htons(ETH_P_IP);
+
+	/* Fill IP header */
+	iph->ihl = 5;
+	iph->ttl = 32;
+	iph->version = 4;
+	iph->protocol = IPPROTO_UDP;
+	iph->tot_len = htons(iplen);
+	iph->frag_off = 0;
+	iph->saddr = 0;
+	iph->daddr = 0;
+	iph->tos = 0;
+	iph->id = 0;
+	ip_send_check(iph);
+
+	/* Fill UDP header */
+	udph->source = htons(9);
+	udph->dest = htons(9); /* Discard Protocol Port */
+	udph->len = htons(datalen + sizeof(*udph));
+	udph->check = 0;
+
+	/* Fill UDP data - test string */
+	memcpy(skb_put(skb, sizeof(test_text)), test_text, sizeof(test_text));
+
+	skb->csum = 0;
+	skb->ip_summed = CHECKSUM_PARTIAL;
+	udp4_hwcsum(skb, iph->saddr, iph->daddr);
+
+	skb->protocol = htons(ETH_P_IP);
+	skb->pkt_type = PACKET_HOST;
+
+	return skb;
+}
+
+static int stmmac_lb_validate_udp_skb(struct sk_buff *skb,
+				      struct net_device *netdev,
+				      struct packet_type *pt,
+				      struct net_device *orig_netdev)
+{
+	struct stmmac_lbst_priv *lbstp = pt->af_packet_priv;
+	struct ethhdr *ethh;
+	struct udphdr *udph;
+	struct iphdr *iph;
+	char *rx_text;
+
+	if (skb->protocol != htons(ETH_P_IP))
+		goto out;
+
+	ethh = (struct ethhdr *)skb_mac_header(skb);
+	if (!ether_addr_equal(ethh->h_dest, orig_netdev->dev_addr))
+		goto out;
+
+	iph = ip_hdr(skb);
+	if (iph->protocol != IPPROTO_UDP)
+		goto out;
+
+	udph = udp_hdr(skb);
+	if (udph->dest != htons(9))
+		goto out;
+
+	rx_text = ((char *)udph + sizeof(*udph));
+	if (strncmp(rx_text, test_text, sizeof(test_text)))
+		goto out;
+
+	complete(&lbstp->comp);
+out:
+	kfree_skb(skb);
+	return 0;
+}
+
+static void stmmac_lb_set_mode(struct stmmac_priv *priv, bool mode)
+{
+	mutex_lock(&priv->lock);
+	stmmac_set_loopback_mode(priv, priv->hw, mode);
+	mutex_unlock(&priv->lock);
+}
+
+static void stmmac_lb_setup(struct stmmac_priv *priv,
+			    struct stmmac_lbst_priv *lbstp)
+{
+	init_completion(&lbstp->comp);
+
+	lbstp->pt.type = htons(ETH_P_ALL);
+	lbstp->pt.func = stmmac_lb_validate_udp_skb;
+	lbstp->pt.dev = priv->dev;
+	lbstp->pt.af_packet_priv = lbstp;
+	dev_add_pack(&lbstp->pt);
+
+	stmmac_lb_set_mode(priv, true);
+}
+
+static void stmmac_lb_clean(struct stmmac_priv *priv,
+			    struct stmmac_lbst_priv *lbstp)
+{
+	dev_remove_pack(&lbstp->pt);
+	stmmac_lb_set_mode(priv, false);
+}
+
+static int stmmac_loopback_test(struct net_device *netdev, u64 *data)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+	const struct stmmac_ops *mac_dev_ops = priv->hw->mac;
+	struct sk_buff *skb;
+	struct stmmac_lbst_priv *lbstp;
+	int err;
+
+	if (!mac_dev_ops->set_loopback_mode) {
+		netdev_err(priv->dev, "MAC loopback self test function %s\n",
+			   "is not supported");
+		return 0;
+	}
+
+	/* Dwmac MAC level loopback hw limitaion:
+	 * 1.) only work in full duplex mode
+	 * 2.) link partner is required to supply rx clk
+	 * 3.) big packet loopback is not supported
+	 */
+	if (!netdev->phydev->duplex) {
+		netdev_err(priv->dev, "Cannot perform MAC loopback test %s\n",
+			   "while not in full duplex mode");
+		return 0;
+	}
+
+	data[TOTAL_NOT_TESTED]--;
+
+	lbstp = kzalloc(sizeof(*lbstp), GFP_KERNEL);
+	if (!lbstp)
+		return -ENOMEM;
+
+	skb = stmmac_lb_create_udp_skb(netdev);
+	if (!skb) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	stmmac_lb_setup(priv, lbstp);
+
+	err = dev_queue_xmit(skb);
+	if (err)
+		goto cleanup;
+
+	err = wait_for_completion_interruptible_timeout(&lbstp->comp,
+							STMMAC_LB_TIMEOUT);
+	if (!err) {
+		err = -ETIME;
+		goto cleanup;
+	} else if (err == -ERESTARTSYS) {
+		goto cleanup;
+	} else {
+		err = 0;
+	}
+
+	data[TOTAL_PASSED]++;
+
+cleanup:
+	stmmac_lb_clean(priv, lbstp);
+out:
+	kfree(lbstp);
+	data[TEST_MAC_LOOP] = err;
+	return err;
+}
+
 static void stmmac_diag_test(struct net_device *netdev,
 			     struct ethtool_test *eth_test, u64 *data)
 {
 	/* ToDo: self-test mechanism */
+	data[TEST_MAC_LOOP] = 0;
 	data[MAX_TEST_CASES] = 888888;
 	data[TOTAL_PASSED] = 0;
 	data[TOTAL_FAILED] = 0;
 	data[TOTAL_NOT_TESTED] = MAX_TEST_CASES;
+
+	if (!(eth_test->flags & ETH_TEST_FL_OFFLINE)) {
+		if (stmmac_loopback_test(netdev, data)) {
+			eth_test->flags |= ETH_TEST_FL_FAILED;
+			data[TOTAL_FAILED]++;
+		}
+	}
 }
 
 static void stmmac_get_ethtool_stats(struct net_device *dev,
