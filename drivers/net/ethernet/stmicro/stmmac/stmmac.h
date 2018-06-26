@@ -35,6 +35,7 @@ struct stmmac_resources {
 	const char *mac;
 	int wol_irq;
 	int lpi_irq;
+	int xpcs_irq;
 	int irq;
 };
 
@@ -159,6 +160,7 @@ struct stmmac_priv {
 	int clk_csr;
 	struct timer_list eee_ctrl_timer;
 	int lpi_irq;
+	int xpcs_irq;
 	int eee_enabled;
 	int eee_active;
 	int tx_lpi_timer;

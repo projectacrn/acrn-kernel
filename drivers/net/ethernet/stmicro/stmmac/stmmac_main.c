@@ -111,6 +111,7 @@ module_param(chain_mode, int, 0444);
 MODULE_PARM_DESC(chain_mode, "To use chain instead of ring mode");
 
 static irqreturn_t stmmac_interrupt(int irq, void *dev_id);
+static irqreturn_t xpcs_interrupt(int irq, void *dev_id);
 
 #ifdef CONFIG_DEBUG_FS
 static int stmmac_init_fs(struct net_device *dev);
@@ -2481,6 +2482,9 @@ static int stmmac_hw_setup(struct net_device *dev, bool init_ptp)
 	/* Initialize MTL*/
 	stmmac_mtl_configuration(priv);
 
+	/* Initialize the xPCS PHY */
+	stmmac_xpcs_init(priv, dev, priv->plat->pcs_mode);
+
 	/* Initialize Safety Features */
 	stmmac_safety_feat_configuration(priv);
 
@@ -2524,6 +2528,9 @@ static int stmmac_hw_setup(struct net_device *dev, bool init_ptp)
 
 	if (priv->hw->pcs)
 		stmmac_pcs_ctrl_ane(priv, priv->hw, 1, priv->hw->ps, 0);
+
+	if (priv->plat->has_xpcs)
+		stmmac_xpcs_ctrl_ane(priv, dev, 1, 0);
 
 	/* set TX and RX rings length */
 	stmmac_set_rings_length(priv);
@@ -2647,10 +2654,26 @@ static int stmmac_open(struct net_device *dev)
 		}
 	}
 
+	/* xPCS IRQ line */
+	if (priv->xpcs_irq > 0) {
+		ret = request_irq(priv->xpcs_irq, xpcs_interrupt, IRQF_SHARED,
+				  dev->name, dev);
+		if (unlikely(ret < 0)) {
+			netdev_err(priv->dev,
+				   "%s: ERROR: allocating the xPCS IRQ %d (%d)\n",
+				   __func__, priv->xpcs_irq, ret);
+			goto xpcsirq_error;
+		}
+	}
+
 	stmmac_enable_all_queues(priv);
 	stmmac_start_all_queues(priv);
 
 	return 0;
+
+xpcsirq_error:
+	if (priv->lpi_irq > 0)
+		free_irq(priv->lpi_irq, dev);
 
 lpiirq_error:
 	if (priv->wol_irq != dev->irq)
@@ -3716,6 +3739,31 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
+/**
+ *  xPCS_interrupt - xPCS ISR
+ *  @irq: interrupt number.
+ *  @dev_id: to pass the net device pointer.
+ *  Description: this is the xPCS interrupt service routine.
+ */
+static irqreturn_t xpcs_interrupt(int irq, void *dev_id)
+{
+	irqreturn_t ret = IRQ_NONE;
+	struct net_device *ndev = (struct net_device *)dev_id;
+	struct stmmac_priv *priv = netdev_priv(ndev);
+
+	if (unlikely(!ndev)) {
+		netdev_err(priv->dev, "%s: invalid dev pointer\n",
+			   __func__);
+		return ret;
+	}
+
+	/* To handle xPCS interrupts */
+	if (priv->plat->has_xpcs)
+		ret = stmmac_xpcs_irq_status(priv, ndev, &priv->xstats);
+
+	return ret;
+}
+
 #ifdef CONFIG_NET_POLL_CONTROLLER
 /* Polling receive - used by NETCONSOLE and other diagnostic tools
  * to allow network I/O with interrupts disabled.
@@ -4235,6 +4283,7 @@ int stmmac_dvr_probe(struct device *device,
 	priv->dev->irq = res->irq;
 	priv->wol_irq = res->wol_irq;
 	priv->lpi_irq = res->lpi_irq;
+	priv->xpcs_irq = res->xpcs_irq;
 
 	if (res->mac)
 		memcpy(priv->dev->dev_addr, res->mac, ETH_ALEN);
