@@ -44,6 +44,10 @@ i915_param_named(modeset, int, 0400,
 	"Use kernel modesetting [KMS] (0=disable, "
 	"1=on, -1=force vga console preference [default])");
 
+i915_param_named_unsafe(presi_mode, int, 0400,
+	"Override pre-si mode (0=none/silicon [default], "
+	"1=simulator, 2=pipeGT emulator, 3=pipe2D emulator)");
+
 i915_param_named_unsafe(enable_dc, int, 0400,
 	"Enable power-saving display C-states. "
 	"(-1=auto [default]; 0=disable; 1=up to DC5; 2=up to DC6)");

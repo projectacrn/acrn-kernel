@@ -36,6 +36,7 @@ struct drm_printer;
 #define I915_PARAMS_FOR_EACH(param) \
 	param(char *, vbt_firmware, NULL) \
 	param(int, modeset, -1) \
+	param(int, presi_mode, 0) \
 	param(int, lvds_channel_mode, 0) \
 	param(int, panel_use_ssc, -1) \
 	param(int, vbt_sdvo_panel_type, -1) \

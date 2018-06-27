@@ -284,7 +284,8 @@ static void intel_detect_pch(struct drm_i915_private *dev_priv)
 			dev_priv->pch_type = pch_type;
 			dev_priv->pch_id = id;
 			break;
-		} else if (intel_is_virt_pch(id, pch->subsystem_vendor,
+		} else if (intel_presi_need_virt_pch(dev_priv) ||
+			   intel_is_virt_pch(id, pch->subsystem_vendor,
 					 pch->subsystem_device)) {
 			id = intel_virt_detect_pch(dev_priv);
 			pch_type = intel_pch_type(dev_priv, id);
@@ -922,6 +923,8 @@ static int i915_driver_init_early(struct drm_i915_private *dev_priv,
 	mutex_init(&dev_priv->av_mutex);
 	mutex_init(&dev_priv->wm.wm_mutex);
 	mutex_init(&dev_priv->pps_mutex);
+
+	intel_presi_init(dev_priv);
 
 	i915_memcpy_init_early(dev_priv);
 
