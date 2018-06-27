@@ -284,9 +284,11 @@ static void intel_detect_pch(struct drm_i915_private *dev_priv)
 			dev_priv->pch_type = pch_type;
 			dev_priv->pch_id = id;
 			break;
-		} else if (intel_presi_need_virt_pch(dev_priv) ||
+		} else if (intel_presi_need_virt_pch(dev_priv, id) ||
 			   intel_is_virt_pch(id, pch->subsystem_vendor,
 					 pch->subsystem_device)) {
+			intel_detect_presi_env(dev_priv, id);
+
 			id = intel_virt_detect_pch(dev_priv);
 			pch_type = intel_pch_type(dev_priv, id);
 
@@ -1037,6 +1039,12 @@ static int i915_driver_init_mmio(struct drm_i915_private *dev_priv)
 	ret = i915_mmio_setup(dev_priv);
 	if (ret < 0)
 		goto err_bridge;
+
+	/*
+	 * detect sim vs emu. Detection requires MMIO and needs to be done ASAP.
+	 * Need to call this on silicon as well to mark the detection as done.
+	 */
+	intel_detect_presi_mode(dev_priv);
 
 	intel_uncore_init(dev_priv);
 

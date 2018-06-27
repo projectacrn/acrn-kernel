@@ -17,6 +17,7 @@ struct drm_i915_private;
  */
 struct intel_presi_info {
 	enum {
+		I915_PRESI_MODE_AUTODETECT = -1,
 		I915_PRESI_MODE_UNKNOWN = 0, /* aka not detected yet */
 		I915_PRESI_MODE_NONE = 1, /* aka SILICON */
 		I915_PRESI_MODE_SIMULATOR = 2,
@@ -25,7 +26,10 @@ struct intel_presi_info {
 		I915_MAX_PRESI_MODE = I915_PRESI_MODE_EMULATOR_PIPE2D
 	} mode;
 };
-#define MODPARAM_TO_PRESI_MODE(x) ((x) + 1)
+#define MODPARAM_TO_PRESI_MODE(x) ({ \
+	int val__ = (x); \
+	val__ > 0 ? val__ + 1 : val__; \
+})
 
 #define IS_PRESI_MODE(i915, x) ({ \
 	GEM_BUG_ON((i915)->presi_info.mode == I915_PRESI_MODE_UNKNOWN); \
@@ -38,7 +42,9 @@ struct intel_presi_info {
 #define IS_PIPE2D_EMULATOR(i915) (IS_PRESI_MODE(i915, EMULATOR_PIPE2D))
 #define IS_EMULATOR(i915) (IS_PIPEGT_EMULATOR(i915) || IS_PIPE2D_EMULATOR(i915))
 
-bool intel_presi_need_virt_pch(struct drm_i915_private *i915);
+bool intel_presi_need_virt_pch(struct drm_i915_private *i915, unsigned short id);
 void intel_presi_init(struct drm_i915_private *i915);
+void intel_detect_presi_env(struct drm_i915_private *i915, unsigned short id);
+void intel_detect_presi_mode(struct drm_i915_private *i915);
 
 #endif
