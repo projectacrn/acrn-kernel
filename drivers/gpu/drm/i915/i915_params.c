@@ -45,7 +45,7 @@ i915_param_named(modeset, int, 0400,
 	"1=on, -1=force vga console preference [default])");
 
 i915_param_named_unsafe(presi_mode, int, 0400,
-	"Override pre-si mode (0=none/silicon [default], "
+	"Override pre-si mode (-1=autodetect [default], 0=none/silicon, "
 	"1=simulator, 2=pipeGT emulator, 3=pipe2D emulator)");
 
 i915_param_named_unsafe(enable_dc, int, 0400,
