@@ -179,3 +179,11 @@ stricter than Hardware LRO.  A packet stream merged by Hardware GRO must
 be re-segmentable by GSO or TSO back to the exact original packet stream.
 Hardware GRO is dependent on RXCSUM since every packet successfully merged
 by hardware must also have the checksum verified by hardware.
+
+* Time-Sensitive Networking
+
+NETIF_F_HW_EST is meant to be used by drivers that support IEEE802.1 Qbv
+Enhancements for Scheduled Traffics. NETIF_F_HW_FPE is for IEEE802.1 Qbu
+Frame Preemption. These two hardware capabilities in network device are
+part of the many protocols covered under IEEE802.1 Time-Sensitive
+Networking (TSN) Task Group.
