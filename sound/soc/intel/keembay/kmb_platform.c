@@ -123,13 +123,13 @@ static const struct snd_pcm_hardware kmb_pcm_hardware = {
 		SNDRV_PCM_INFO_MMAP_VALID |
 		SNDRV_PCM_INFO_BLOCK_TRANSFER,
 	.rates = SNDRV_PCM_RATE_32000 |
-		SNDRV_PCM_RATE_44100 |
-		SNDRV_PCM_RATE_48000,
+		 SNDRV_PCM_RATE_44100 |
+		 SNDRV_PCM_RATE_48000,
 	.rate_min = 16000,
 	.rate_max = 48000,
 	.formats = SNDRV_PCM_FMTBIT_S16_LE |
-		SNDRV_PCM_FMTBIT_S24_LE |
-		SNDRV_PCM_FMTBIT_S32_LE,
+		   SNDRV_PCM_FMTBIT_S24_LE |
+		   SNDRV_PCM_FMTBIT_S32_LE,
 	.channels_min = 2,
 	.channels_max = 2,
 	.buffer_bytes_max = BUFFER_BYTES_MAX,
@@ -165,11 +165,11 @@ static inline void i2s_disable_channels(struct kmb_i2s_info *dev, u32 stream)
 	u32 i = 0;
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
-//		for (i = 0; i < 4; i++) // Commented out for single I2S port on PSS
-			i2s_write_reg(dev->i2s_base, TER(i), 0);
+//	for (i = 0; i < 4; i++) // Commented out for single I2S port on PSS
+		i2s_write_reg(dev->i2s_base, TER(i), 0);
 	} else {
-//		for (i = 0; i < 4; i++) // Commented out for single I2S port on PSS
-			i2s_write_reg(dev->i2s_base, RER(i), 0);
+//	for (i = 0; i < 4; i++) // Commented out for single I2S port on PSS
+		i2s_write_reg(dev->i2s_base, RER(i), 0);
 	}
 }
 
@@ -178,11 +178,11 @@ static inline void i2s_clear_irqs(struct kmb_i2s_info *dev, u32 stream)
 	u32 i = 0;
 
 	if (stream == SNDRV_PCM_STREAM_PLAYBACK) {
-//		for (i = 0; i < 4; i++) // Commented out for single I2S port on PSS
-			i2s_read_reg(dev->i2s_base, TOR(i));
+//	for (i = 0; i < 4; i++) // Commented out for single I2S port on PSS
+		i2s_read_reg(dev->i2s_base, TOR(i));
 	} else {
-//		for (i = 0; i < 4; i++) // Commented out for single I2S port on PSS
-			i2s_read_reg(dev->i2s_base, ROR(i));
+//	for (i = 0; i < 4; i++) // Commented out for single I2S port on PSS
+		i2s_read_reg(dev->i2s_base, ROR(i));
 	}
 }
 
@@ -249,9 +249,8 @@ static void kmb_pcm_transfer(struct kmb_i2s_info *dev, bool push)
 			cmpxchg(&dev->rx_ptr, ptr, new_ptr);
 		}
 
-		if (period_elapsed) {
+		if (period_elapsed)
 			snd_pcm_period_elapsed(substream);
-		}
 	}
 	rcu_read_unlock();
 }
@@ -561,10 +560,6 @@ static int kmb_dai_startup(struct snd_pcm_substream *substream,
 static void kmb_dai_shutdown(struct snd_pcm_substream *substream,
 			     struct snd_soc_dai *cpu_dai)
 {
-/*
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *card = rtd->card;
-*/
 	snd_soc_dai_set_dma_data(cpu_dai, substream, NULL);
 } /* kmb_dai_shutdown */
 
@@ -773,13 +768,15 @@ static struct snd_soc_dai_ops kmb_dai_ops = {
 			SNDRV_PCM_RATE_16000 | SNDRV_PCM_RATE_22050 | \
 			SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000)
 
-#define I2S_SAMPLE_RATES (SNDRV_PCM_RATE_8000_192000 | SNDRV_PCM_RATE_CONTINUOUS)
+#define I2S_SAMPLE_RATES (SNDRV_PCM_RATE_8000_192000 | \
+			SNDRV_PCM_RATE_CONTINUOUS)
 
-#define I2S_SUPPORTED_FORMATS (SNDRV_PCM_FMTBIT_S24_LE | SNDRV_PCM_FMTBIT_S24_3LE | \
-			SNDRV_PCM_FMTBIT_S16_LE | \
-			SNDRV_PCM_FMTBIT_U16_LE | \
-			SNDRV_PCM_FMTBIT_S8 | \
-			SNDRV_PCM_FMTBIT_U8)
+#define I2S_SUPPORTED_FORMATS (SNDRV_PCM_FMTBIT_S24_LE | \
+			       SNDRV_PCM_FMTBIT_S24_3LE | \
+			       SNDRV_PCM_FMTBIT_S16_LE | \
+			       SNDRV_PCM_FMTBIT_U16_LE | \
+			       SNDRV_PCM_FMTBIT_S8 | \
+			       SNDRV_PCM_FMTBIT_U8)
 
 
 static struct snd_soc_dai_driver intel_kmb_platform_dai[] = {
@@ -792,7 +789,9 @@ static struct snd_soc_dai_driver intel_kmb_platform_dai[] = {
 			.rate_min = I2S_MIN_RATE,
 			.rate_max = I2S_MAX_RATE,
 			/*FIXME: Used constraint list for i2s vs tdm8*/
-			.formats = (SNDRV_PCM_FMTBIT_S32_LE | SNDRV_PCM_FMTBIT_S24_LE),
+			.formats = (SNDRV_PCM_FMTBIT_S32_LE |
+				    SNDRV_PCM_FMTBIT_S24_LE |
+				    SNDRV_PCM_FMTBIT_S16_LE),
 		},
 		.capture = {
 			.channels_min = I2S_STEREO_CHANNEL,
@@ -801,7 +800,9 @@ static struct snd_soc_dai_driver intel_kmb_platform_dai[] = {
 			.rate_min = I2S_MIN_RATE,
 			.rate_max = I2S_MAX_RATE,
 			/*FIXME: Used constraint list for i2s vs tdm8*/
-			.formats = (SNDRV_PCM_FMTBIT_S32_LE | SNDRV_PCM_FMTBIT_S24_LE),
+			.formats = (SNDRV_PCM_FMTBIT_S32_LE |
+				    SNDRV_PCM_FMTBIT_S24_LE |
+				    SNDRV_PCM_FMTBIT_S16_LE),
 		},
 		.ops = &kmb_dai_ops,
 		.probe = kmb_probe,
@@ -930,11 +931,13 @@ static int kmb_plat_dai_probe(struct platform_device *pdev)
 	write_cpr_reg(cpr_base, 0x0, 0xE3FFFFFF);
 	write_cpr_reg(cpr_base, 0x11C, 0x1FF8000F);
 
-	i2s_info = devm_kzalloc(&pdev->dev, sizeof(struct kmb_i2s_info), GFP_KERNEL);
+	i2s_info = devm_kzalloc(&pdev->dev, sizeof(struct kmb_i2s_info),
+				GFP_KERNEL);
 	if (!i2s_info)
 		return -ENOMEM;
 
-	kmb_i2s_dai = devm_kzalloc(&pdev->dev, sizeof(*kmb_i2s_dai), GFP_KERNEL);
+	kmb_i2s_dai = devm_kzalloc(&pdev->dev, sizeof(*kmb_i2s_dai),
+				GFP_KERNEL);
 	if (!kmb_i2s_dai)
 		return -ENOMEM;
 

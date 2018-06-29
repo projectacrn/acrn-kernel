@@ -44,10 +44,10 @@
 #define I2S_MAX_PERIODS		50
 #define I2S_FIFO_SIZE		0
 
-#define NUMBER_OF_I2S_PORT      4
+#define NUMBER_OF_I2S_PORT	4
 /* I2S support */
-#define I2S_MONO_CHANNEL 1
-#define I2S_STEREO_CHANNEL 2
+#define I2S_MONO_CHANNEL	1
+#define I2S_STEREO_CHANNEL	2
 
 #define I2S_MAX_BUFFER		96000
 #define I2S_MIN_BUFFER		96000
@@ -55,24 +55,27 @@
 #define I2S_MAX_PERIOD_BYTES	48000
 
 /* TDM 8 support */
-#define I2S_TDM8_CHANNEL 8
+#define I2S_TDM8_CHANNEL	8
 
-#define I2S_MAX_BUFFER_TDM		768000 /*500ms@48,4bytes,8ch - BYT*/
-#define I2S_MIN_PERIOD_BYTES_TDM	2560  /*10ms@8kHz,4bytes,8ch - BYT*/
-#define I2S_MAX_PERIOD_BYTES_TDM	76800 /*Use DMA transfer limit or 50ms@48,4bytes,8ch - BYT*/
+/*500ms@48,4bytes,8ch - BYT*/
+#define I2S_MAX_BUFFER_TDM		768000
+/*10ms@8kHz,4bytes,8ch - BYT*/
+#define I2S_MIN_PERIOD_BYTES_TDM	2560
+/*Use DMA transfer limit or 50ms@48,4bytes,8ch - BYT*/
+#define I2S_MAX_PERIOD_BYTES_TDM	76800
 
 #define TRISTATE_BIT			0
 #define FRAME_SYNC_RELATIVE_TIMING_BIT	1
 #define DUMMY_START_ONE_PERIOD_OFFSET	2
-#define DUMMY_START_ONE_PERIOD_MASK     0x3
+#define DUMMY_START_ONE_PERIOD_MASK	0x3
 
 #define IS_TRISTATE_ENABLED(x) (x & BIT(TRISTATE_BIT))
 #define IS_NEXT_FRMS_ASSERTED_WITH_LSB_PREVIOUS_FRM(x) \
 			((x & BIT(FRAME_SYNC_RELATIVE_TIMING_BIT)) \
-					>> FRAME_SYNC_RELATIVE_TIMING_BIT)
+				>> FRAME_SYNC_RELATIVE_TIMING_BIT)
 #define IS_DUMMY_START_ONE_PERIOD_OFFSET(x) \
 			((x >> DUMMY_START_ONE_PERIOD_OFFSET) \
-					& DUMMY_START_ONE_PERIOD_MASK)
+				& DUMMY_START_ONE_PERIOD_MASK)
 
 #define I2S_RX_FIFO_THRESHOLD 8
 #define I2S_TX_FIFO_THRESHOLD 8
@@ -120,17 +123,17 @@
  * Component parameter register fields - define the I2S block's
  * configuration.
  */
-#define	COMP1_TX_WORDSIZE_3(r)	(((r) & GENMASK(27, 25)) >> 25)
-#define	COMP1_TX_WORDSIZE_2(r)	(((r) & GENMASK(24, 22)) >> 22)
-#define	COMP1_TX_WORDSIZE_1(r)	(((r) & GENMASK(21, 19)) >> 19)
-#define	COMP1_TX_WORDSIZE_0(r)	(((r) & GENMASK(18, 16)) >> 16)
-#define	COMP1_TX_CHANNELS(r)	(((r) & GENMASK(10, 9)) >> 9)
-#define	COMP1_RX_CHANNELS(r)	(((r) & GENMASK(8, 7)) >> 7)
-#define	COMP1_RX_ENABLED(r)	(((r) & BIT(6)) >> 6)
-#define	COMP1_TX_ENABLED(r)	(((r) & BIT(5)) >> 5)
-#define	COMP1_MODE_EN(r)	(((r) & BIT(4)) >> 4)
+#define	COMP1_TX_WORDSIZE_3(r)		(((r) & GENMASK(27, 25)) >> 25)
+#define	COMP1_TX_WORDSIZE_2(r)		(((r) & GENMASK(24, 22)) >> 22)
+#define	COMP1_TX_WORDSIZE_1(r)		(((r) & GENMASK(21, 19)) >> 19)
+#define	COMP1_TX_WORDSIZE_0(r)		(((r) & GENMASK(18, 16)) >> 16)
+#define	COMP1_TX_CHANNELS(r)		(((r) & GENMASK(10, 9)) >> 9)
+#define	COMP1_RX_CHANNELS(r)		(((r) & GENMASK(8, 7)) >> 7)
+#define	COMP1_RX_ENABLED(r)		(((r) & BIT(6)) >> 6)
+#define	COMP1_TX_ENABLED(r)		(((r) & BIT(5)) >> 5)
+#define	COMP1_MODE_EN(r)		(((r) & BIT(4)) >> 4)
 #define	COMP1_FIFO_DEPTH_GLOBAL(r)	(((r) & GENMASK(3, 2)) >> 2)
-#define	COMP1_APB_DATA_WIDTH(r)	(((r) & GENMASK(1, 0)) >> 0)
+#define	COMP1_APB_DATA_WIDTH(r)		(((r) & GENMASK(1, 0)) >> 0)
 
 #define	COMP2_RX_WORDSIZE_3(r)	(((r) & GENMASK(12, 10)) >> 10)
 #define	COMP2_RX_WORDSIZE_2(r)	(((r) & GENMASK(9, 7)) >> 7)
@@ -144,23 +147,23 @@
 #define MAX_CHANNEL_NUM		8
 #define MIN_CHANNEL_NUM		2
 
-#define DW_I2S_MASTER	(1 << 3)
+#define DW_I2S_MASTER		(1 << 3)
 #define TWO_CHANNEL_SUPPORT	2	/* up to 2.0 */
 #define FOUR_CHANNEL_SUPPORT	4	/* up to 3.1 */
 #define SIX_CHANNEL_SUPPORT	6	/* up to 5.1 */
 #define EIGHT_CHANNEL_SUPPORT	8	/* up to 7.1 */
 
-	#define DWC_I2S_PLAY	(1 << 0)
-	#define DWC_I2S_RECORD	(1 << 1)
-	#define DW_I2S_SLAVE	(1 << 2)
-	#define DW_I2S_MASTER	(1 << 3)
+#define DWC_I2S_PLAY	(1 << 0)
+#define DWC_I2S_RECORD	(1 << 1)
+#define DW_I2S_SLAVE	(1 << 2)
+#define DW_I2S_MASTER	(1 << 3)
 
-#define I2S_RXDMA		0x01C0
-#define I2S_TXDMA		0x01C8
+#define I2S_RXDMA	0x01C0
+#define I2S_TXDMA	0x01C8
 
-	#define DW_I2S_QUIRK_COMP_REG_OFFSET	(1 << 0)
-	#define DW_I2S_QUIRK_COMP_PARAM1	(1 << 1)
-	#define DW_I2S_QUIRK_16BIT_IDX_OVERRIDE (1 << 2)
+#define DW_I2S_QUIRK_COMP_REG_OFFSET	(1 << 0)
+#define DW_I2S_QUIRK_COMP_PARAM1	(1 << 1)
+#define DW_I2S_QUIRK_16BIT_IDX_OVERRIDE	(1 << 2)
 
 /*
  * Structures Definition
@@ -234,7 +237,6 @@ struct  kmb_alsa_i2s_stream_info {
 	int length;
 };
 
-
 /*
  * Enum Definition
  */
@@ -246,6 +248,5 @@ enum kmb_alsa_i2s_stream_status {
 	KMB_ALSA_i2s_STREAM_PAUSED,
 	KMB_ALSA_i2s_STREAM_DROPPED,
 };
-
 
 #endif /* KMB_PLATFORM_H_ */

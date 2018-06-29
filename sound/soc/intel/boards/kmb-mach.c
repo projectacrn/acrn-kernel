@@ -27,8 +27,8 @@
 #include <sound/pcm_params.h>
 
 /* I2S support */
-#define I2S_MONO_CHANNEL 1
-#define I2S_STEREO_CHANNEL 2
+#define I2S_MONO_CHANNEL	1
+#define I2S_STEREO_CHANNEL	2
 
 #define I2S_MIN_RATE		8000
 #define I2S_MAX_RATE		48000
@@ -43,19 +43,21 @@
 
 static struct snd_pcm_hardware kmb_pcm_hw_stereo = {
 	.info =	(SNDRV_PCM_INFO_INTERLEAVED |
-			SNDRV_PCM_INFO_DOUBLE |
-			SNDRV_PCM_INFO_PAUSE |
-			SNDRV_PCM_INFO_RESUME |
-			SNDRV_PCM_INFO_MMAP|
-			SNDRV_PCM_INFO_MMAP_VALID |
-			SNDRV_PCM_INFO_BLOCK_TRANSFER |
-			SNDRV_PCM_INFO_SYNC_START),
-	.formats = (SNDRV_PCM_FMTBIT_S32_LE),
+		 SNDRV_PCM_INFO_DOUBLE |
+		 SNDRV_PCM_INFO_PAUSE |
+		 SNDRV_PCM_INFO_RESUME |
+		 SNDRV_PCM_INFO_MMAP|
+		 SNDRV_PCM_INFO_MMAP_VALID |
+		 SNDRV_PCM_INFO_BLOCK_TRANSFER |
+		 SNDRV_PCM_INFO_SYNC_START),
+	.formats = SNDRV_PCM_FMTBIT_S16_LE |
+		   SNDRV_PCM_FMTBIT_S24_LE |
+		   SNDRV_PCM_FMTBIT_S32_LE,
 	.rates = (SNDRV_PCM_RATE_CONTINUOUS),
 	.rate_min = I2S_MIN_RATE,
 	.rate_max = I2S_MAX_RATE,
-	.channels_min =	I2S_MONO_CHANNEL,
-	.channels_max =	I2S_STEREO_CHANNEL,
+	.channels_min = I2S_MONO_CHANNEL,
+	.channels_max = I2S_STEREO_CHANNEL,
 	.buffer_bytes_max = I2S_MAX_BUFFER,
 	.period_bytes_min = I2S_MIN_PERIOD_BYTES,
 	.period_bytes_max = I2S_MAX_PERIOD_BYTES,
@@ -101,8 +103,8 @@ static int kmb_mach_dai_link_hw_params(struct snd_pcm_substream *substream,
 	unsigned int fmt;
 
 	fmt =   SND_SOC_DAIFMT_I2S |
-			SND_SOC_DAIFMT_NB_NF |
-			SND_SOC_DAIFMT_CBS_CFS; //Codec Slave, SSP Master
+		SND_SOC_DAIFMT_NB_NF |
+		SND_SOC_DAIFMT_CBS_CFS; //Codec Slave, SSP Master
 	return 0;
 } /* kmb_mach_dai_link_hw_params*/
 
@@ -120,10 +122,14 @@ static int kmb_mach_dai_link_startup(struct snd_pcm_substream *substream)
 						&constraints_2ch);
 
 	ret |= snd_pcm_hw_constraint_mask64(str_runtime,
-						SNDRV_PCM_HW_PARAM_FORMAT, SNDRV_PCM_FMTBIT_S32_LE);
+						SNDRV_PCM_HW_PARAM_FORMAT,
+						SNDRV_PCM_FMTBIT_S16_LE |
+						SNDRV_PCM_FMTBIT_S24_LE |
+						SNDRV_PCM_FMTBIT_S32_LE);
 
 	if (ret) {
-		pr_debug("%s : Fail to set channel constraint for stereo\n", __func__);
+		pr_debug("%s : Fail to set channel constraint for stereo\n",
+				__func__);
 		return ret;
 	}
 
