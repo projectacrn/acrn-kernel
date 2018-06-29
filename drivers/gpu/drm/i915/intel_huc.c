@@ -95,8 +95,12 @@ int intel_huc_auth(struct intel_huc *huc)
 					status_ok,
 					2, 50, &status);
 	if (ret) {
-		DRM_ERROR("HuC: Firmware not verified %#x\n", status);
-		goto fail_unpin;
+		if (!IS_PRESILICON(i915)) {
+			DRM_ERROR("HuC: Firmware not verified %#x\n", status);
+			goto fail_unpin;
+		}
+
+		DRM_NOTE("HuC fw not verified %#x, continue init\n", status);
 	}
 
 	i915_vma_unpin(vma);
