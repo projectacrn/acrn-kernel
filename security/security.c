@@ -1875,6 +1875,7 @@ int security_getprocattr(struct task_struct *p, const char *lsm, char *name,
 				char **value)
 {
 	struct security_hook_list *hp;
+#ifdef CONFIG_SECURITY_STACKING
 	char dlsm[SECURITY_NAME_MAX + 1];
 	const char *use;
 
@@ -1883,9 +1884,14 @@ int security_getprocattr(struct task_struct *p, const char *lsm, char *name,
 		use = dlsm;
 	} else
 		use = lsm;
+#endif
 
 	hlist_for_each_entry(hp, &security_hook_heads.getprocattr, list) {
+#ifdef CONFIG_SECURITY_STACKING
 		if (use[0] && strcmp(use, hp->lsm))
+#else
+		if (lsm != NULL && strcmp(lsm, hp->lsm))
+#endif
 			continue;
 		return hp->hook.getprocattr(p, name, value);
 	}
@@ -1896,6 +1902,7 @@ int security_setprocattr(const char *lsm, const char *name, void *value,
 			 size_t size)
 {
 	struct security_hook_list *hp;
+#ifdef CONFIG_SECURITY_STACKING
 	char dlsm[SECURITY_NAME_MAX + 1];
 	const char *use;
 
@@ -1904,9 +1911,14 @@ int security_setprocattr(const char *lsm, const char *name, void *value,
 		use = dlsm;
 	} else
 		use = lsm;
+#endif
 
 	hlist_for_each_entry(hp, &security_hook_heads.setprocattr, list) {
+#ifdef CONFIG_SECURITY_STACKING
 		if (use[0] && strcmp(use, hp->lsm))
+#else
+		if (lsm != NULL && strcmp(lsm, hp->lsm))
+#endif
 			continue;
 		return hp->hook.setprocattr(name, value, size);
 	}
