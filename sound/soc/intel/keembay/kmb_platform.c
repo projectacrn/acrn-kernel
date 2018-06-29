@@ -30,7 +30,7 @@
 #include <linux/delay.h>
 #include <linux/io.h>
 
-#include <linux/io.h>
+#include <linux/interrupt.h>
 #include <linux/rcupdate.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -952,7 +952,7 @@ static int kmb_plat_dai_probe(struct platform_device *pdev)
 
 	irq = platform_get_irq(pdev, 0);
 	if (irq >= 0) {
-		ret = devm_request_irq(&pdev->dev, irq, i2s_irq_handler, 0,
+		ret = devm_request_irq(&pdev->dev, irq, i2s_irq_handler, IRQF_SHARED,
 				pdev->name, i2s_info);
 		if (ret < 0) {
 			dev_err(&pdev->dev, "failed to request irq\n");
