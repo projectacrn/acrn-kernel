@@ -469,7 +469,7 @@ static void bdw_load_gamma_lut(struct drm_crtc_state *state, u32 offset)
 		I915_WRITE(PREC_PAL_GC_MAX(pipe, 2), (1 << 16) - 1);
 	}
 
-	if (IS_ICELAKE(dev_priv)) {
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		tmp = I915_READ(GAMMA_MODE(pipe));
 		I915_WRITE(GAMMA_MODE(pipe), tmp | (1 << 30));
 	}
@@ -738,7 +738,7 @@ void intel_color_init(struct drm_crtc *crtc)
 	} else if (IS_GEMINILAKE(dev_priv) || IS_CANNONLAKE(dev_priv)) {
 		dev_priv->display.load_csc_matrix = ilk_load_csc_matrix;
 		dev_priv->display.load_luts = glk_load_luts;
-	} else if (IS_ICELAKE(dev_priv)) {
+	} else if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		dev_priv->display.load_csc_matrix = ilk_load_csc_matrix;
 		dev_priv->display.load_luts = icl_load_luts;
 	} else {
