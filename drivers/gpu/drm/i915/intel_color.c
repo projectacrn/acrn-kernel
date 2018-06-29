@@ -238,7 +238,11 @@ static void ilk_load_csc_matrix(struct drm_crtc_state *crtc_state)
 		I915_WRITE(PIPE_CSC_POSTOFF_ME(pipe), postoff);
 		I915_WRITE(PIPE_CSC_POSTOFF_LO(pipe), postoff);
 
-		I915_WRITE(PIPE_CSC_MODE(pipe), 0);
+		if (INTEL_GEN(dev_priv) >= 11)
+			I915_WRITE(PIPE_CSC_MODE(pipe),
+				I915_READ(PIPE_CSC_MODE(pipe)) | CSC_ENABLE);
+		else
+			I915_WRITE(PIPE_CSC_MODE(pipe), 0);
 	} else {
 		uint32_t mode = CSC_MODE_YUV_TO_RGB;
 
@@ -735,6 +739,7 @@ void intel_color_init(struct drm_crtc *crtc)
 		dev_priv->display.load_csc_matrix = ilk_load_csc_matrix;
 		dev_priv->display.load_luts = glk_load_luts;
 	} else if (IS_ICELAKE(dev_priv)) {
+		dev_priv->display.load_csc_matrix = ilk_load_csc_matrix;
 		dev_priv->display.load_luts = icl_load_luts;
 	} else {
 		dev_priv->display.load_luts = i9xx_load_luts;
