@@ -268,6 +268,7 @@ int dal_kdi_recv(unsigned int dev_idx, unsigned char *buf, size_t *count)
 		dev_err(&ddev->dev, "could not copy buffer: src size = %zd, dest size = %d\n",
 			len, ret);
 		ret = -EFAULT;
+		goto out;
 	}
 
 	*count = len;
