@@ -128,6 +128,9 @@ tunable_strings[__ETHTOOL_TUNABLE_COUNT][ETH_GSTRING_LEN] = {
 	[ETHTOOL_RX_COPYBREAK]	= "rx-copybreak",
 	[ETHTOOL_TX_COPYBREAK]	= "tx-copybreak",
 	[ETHTOOL_PFC_PREVENTION_TOUT] = "pfc-prevention-tout",
+	[ETHTOOL_TX_EST_TILS]	= "tx-est-tils",
+	[ETHTOOL_TX_EST_PTOV]	= "tx-est-ptov",
+	[ETHTOOL_TX_EST_CTOV]	= "tx-est-ctov",
 };
 
 static const char
@@ -2308,6 +2311,9 @@ static int ethtool_tunable_valid(const struct ethtool_tunable *tuna)
 	switch (tuna->id) {
 	case ETHTOOL_RX_COPYBREAK:
 	case ETHTOOL_TX_COPYBREAK:
+	case ETHTOOL_TX_EST_TILS:
+	case ETHTOOL_TX_EST_PTOV:
+	case ETHTOOL_TX_EST_CTOV:
 		if (tuna->len != sizeof(u32) ||
 		    tuna->type_id != ETHTOOL_TUNABLE_U32)
 			return -EINVAL;
