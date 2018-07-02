@@ -170,6 +170,7 @@ static inline __u32 ethtool_cmd_speed(const struct ethtool_cmd *ep)
  *	and %ETHTOOL_SEEPROM commands, in bytes
  * @regdump_len: Size of register dump returned by the %ETHTOOL_GREGS
  *	command, in bytes
+ * @gcl_depth: Maximum length/depth of (IEEE802.1 Qbv) Gate Control List
  *
  * Users can use the %ETHTOOL_GSSET_INFO command to get the number of
  * strings in any string set (from Linux 2.6.34).
@@ -191,6 +192,7 @@ struct ethtool_drvinfo {
 	__u32	testinfo_len;
 	__u32	eedump_len;
 	__u32	regdump_len;
+	__u32	gcl_depth;
 };
 
 #define SOPASS_MAX	6
@@ -1302,6 +1304,110 @@ enum ethtool_fec_config_bits {
 #define ETHTOOL_FEC_RS			(1 << ETHTOOL_FEC_RS_BIT)
 #define ETHTOOL_FEC_BASER		(1 << ETHTOOL_FEC_BASER_BIT)
 
+/*
+ * enum ethtool_gate_op - gate operation ID
+ * @ETH_GATEOP_SET_GATE_STATES: Set gate states only.
+ */
+enum ethtool_gate_op {
+	ETH_GATEOP_SET_GATE_STATES	= 0,
+};
+
+/**
+ * struct ethtool_gc_entry - basic gate control entity
+ * @opid: gate operation ID %ethtool_gate_op
+ * @gates: gate states
+ *         0 : Closed.
+ *         1 : Open.
+ *         Where least significant bit represents traffic class-0.
+ *         So, 0x31 means TC5, TC4 & TC0 are open.
+ * @ti_ns: time interval of GC entry in nano-seconds.
+ */
+struct ethtool_gc_entry {
+	__u8	opid;
+	__u8	gates;
+	__u8	reserved[2];
+	__u32	ti_ns;
+};
+
+/**
+ * struct ethtool_gce - Gate Control Entry.
+ * @cmd: Command number - %ETHTOOL_{G,S}GCE.
+ * @own: Ownership of GC entry.
+ *        0: Operational.
+ *        1: Admin.
+ *        Note: Operational means the configuration is owned by hardware.
+ * @row: On entry, this field specifies which row in GCL read or written.
+ * @gce: gate control entry read or write.
+ */
+struct ethtool_gce {
+	__u32	cmd;
+	__u32	own;
+	__u32	row;
+	struct ethtool_gc_entry gce;
+};
+
+/**
+ * struct ethtool_gcl - Gate Control List.
+ * @cmd: Command number - %ETHTOOL_{G,S}GCL.
+ * @own: Ownership of GCL.
+ *        0: Operational.
+ *        1: Admin.
+ *        Note: Operational means the configuration is owned by hardware.
+ * @len: For %ETHTOOL_SGC{E,L}, on entry, this specifies the length
+ *       of GC entries list to write. In success return, this field
+ *       specifies the length of GCL read or written.
+ *       On fail return, this field should be ignored by caller.
+ * @gcl: Array that contains GC read or written.
+ */
+struct ethtool_gcl {
+	__u32	cmd;
+	__u32	own;
+	__u32	len;
+	struct ethtool_gc_entry gcl[0];
+};
+
+/**
+ * struct ethtool_lgcl - Length of GCL.
+ * @cmd: Command number - %ETHTOOL_GLGCL.
+ * @own: Ownership of GCL.
+ *        0: Operational.
+ *        1: Admin.
+ *        Note: Operational means the configuration is owned by hardware.
+ * @len: In success return, this field specifies the length of GCL to read.
+ *       On fail return, this field should be ignored by caller.
+ */
+struct ethtool_lgcl {
+	__u32	cmd;
+	__u32	own;
+	__u32	len;
+};
+
+/**
+ * struct ethtool_est_info - configuring IEEE802.1 Qbv Enhancements for
+ * Scheduled Traffic (EST).
+ * @cmd: Command number - %ETHTOOL_{G,S}ESTINFO.
+ * @own: Ownership of EST info.
+ *        0: Operational.
+ *        1: Admin.
+ *        Note: Operational means the configuration owned by hardware.
+ * @cycle_s: Numerator of cycle time in seconds.
+ * @cycle_ns: Denominator of cycle time in nano-seconds.
+ * @extension_s: Numerator of cycle time extension in seconds.
+ * @extension_ns: Denominator of cycle time extension in nano-seconds.
+ * @base_s: Numerator of base time in seconds.
+ * @base_ns: Denominator of base time in nano-seconds.
+ */
+struct ethtool_est_info {
+	__u32	cmd;
+	__u32	own;
+	__u32	cycle_s;
+	__u32	cycle_ns;
+	__u32	extension_s;
+	__u32	extension_ns;
+	__u32	base_s;
+	__u32	base_ns;
+};
+
 /* CMDs currently supported */
 #define ETHTOOL_GSET		0x00000001 /* DEPRECATED, Get settings.
 					    * Please use ETHTOOL_GLINKSETTINGS
@@ -1396,6 +1502,14 @@ enum ethtool_fec_config_bits {
 #define ETHTOOL_PHY_STUNABLE	0x0000004f /* Set PHY tunable configuration */
 #define ETHTOOL_GFECPARAM	0x00000050 /* Get FEC settings */
 #define ETHTOOL_SFECPARAM	0x00000051 /* Set FEC settings */
+
+#define ETHTOOL_GLGCL		0x00000052 /* Get Length of EST GCL */
+#define ETHTOOL_GGCL		0x00000053 /* Get EST Gate Control List */
+#define ETHTOOL_SGCL		0x00000054 /* Set EST Gate Control List */
+#define ETHTOOL_GGCE		0x00000055 /* Get EST Gate Control Entry */
+#define ETHTOOL_SGCE		0x00000056 /* Set EST Gate Control Entry */
+#define ETHTOOL_GESTINFO	0x00000057 /* Get EST Info */
+#define ETHTOOL_SESTINFO	0x00000058 /* Set EST Info */
 
 /* compatibility with older code */
 #define SPARC_ETH_GSET		ETHTOOL_GSET
