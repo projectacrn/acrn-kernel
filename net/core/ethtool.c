@@ -2370,6 +2370,8 @@ static int ethtool_set_tunable(struct net_device *dev, void __user *useraddr)
 	ret = ethtool_tunable_valid(&tuna);
 	if (ret)
 		return ret;
+	if (tuna.len > ETHTOOL_TUNABLE_STRING_MAX)
+		return -EINVAL;
 	useraddr += sizeof(tuna);
 	data = memdup_user(useraddr, tuna.len);
 	if (IS_ERR(data))
@@ -2546,6 +2548,8 @@ static int set_phy_tunable(struct net_device *dev, void __user *useraddr)
 	ret = ethtool_phy_tunable_valid(&tuna);
 	if (ret)
 		return ret;
+	if (tuna.len > ETHTOOL_TUNABLE_STRING_MAX)
+		return -EINVAL;
 	useraddr += sizeof(tuna);
 	data = memdup_user(useraddr, tuna.len);
 	if (IS_ERR(data))
