@@ -234,6 +234,8 @@ enum tunable_id {
 	__ETHTOOL_TUNABLE_COUNT,
 };
 
+#define ETHTOOL_TUNABLE_STRING_MAX	20
+
 enum tunable_type_id {
 	ETHTOOL_TUNABLE_UNSPEC,
 	ETHTOOL_TUNABLE_U8,
