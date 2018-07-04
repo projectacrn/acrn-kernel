@@ -75,13 +75,14 @@ static struct snd_pcm_hw_constraint_list constraints_2ch = {
 	.list	= channels_2,
 };
 
-static unsigned int rates_48000[] = {
+static unsigned int rates[] = {
+	16000,
 	48000,
 };
 
-static struct snd_pcm_hw_constraint_list constraints_48000 = {
-	.count	= ARRAY_SIZE(rates_48000),
-	.list	= rates_48000,
+static struct snd_pcm_hw_constraint_list constraints_rates = {
+	.count	= ARRAY_SIZE(rates),
+	.list	= rates,
 };
 
 static int kmb_mach_dai_link_prepare(struct snd_pcm_substream *substream)
@@ -135,7 +136,7 @@ static int kmb_mach_dai_link_startup(struct snd_pcm_substream *substream)
 
 	return snd_pcm_hw_constraint_list(str_runtime, 0,
 					   SNDRV_PCM_HW_PARAM_RATE,
-					   &constraints_48000);
+					   &constraints_rates);
 } /*kmb_mach_dai_link_startup*/
 
 static struct snd_soc_ops kmb_mach_dai_link_ops = {

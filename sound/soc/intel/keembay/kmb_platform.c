@@ -122,8 +122,7 @@ static const struct snd_pcm_hardware kmb_pcm_hardware = {
 		SNDRV_PCM_INFO_MMAP |
 		SNDRV_PCM_INFO_MMAP_VALID |
 		SNDRV_PCM_INFO_BLOCK_TRANSFER,
-	.rates = SNDRV_PCM_RATE_32000 |
-		 SNDRV_PCM_RATE_44100 |
+	.rates = SNDRV_PCM_RATE_16000 |
 		 SNDRV_PCM_RATE_48000,
 	.rate_min = 16000,
 	.rate_max = 48000,
