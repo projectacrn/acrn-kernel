@@ -195,5 +195,6 @@ struct plat_stmmacenet_data {
 	bool en_tx_lpi_clockgating;
 	int has_xgmac;
 	int no_msi;
+	bool tsn_est_en;
 };
 #endif
