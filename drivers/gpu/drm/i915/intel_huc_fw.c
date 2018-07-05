@@ -63,6 +63,7 @@ MODULE_FIRMWARE(I915_KBL_HUC_UCODE);
 
 #define I915_TGL_HUC_UCODE HUC_FW_PATH(tgl, TGL_HUC_FW_MAJOR, \
 	TGL_HUC_FW_MINOR, TGL_BLD_NUM)
+MODULE_FIRMWARE(I915_TGL_HUC_UCODE);
 
 static void huc_fw_select(struct intel_uc_fw *huc_fw)
 {
