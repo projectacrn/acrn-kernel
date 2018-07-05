@@ -6,6 +6,7 @@
 #define __STMMAC_HWIF_H__
 
 #include <linux/netdevice.h>
+#include "dw_tsn_lib.h"
 
 #define stmmac_do_void_callback(__priv, __module, __cname,  __arg0, __args...) \
 ({ \
@@ -337,6 +338,31 @@ struct stmmac_ops {
 					struct mac_device_info *hw);
 	/* Self-test */
 	void (*set_loopback_mode)(struct mac_device_info *hw, bool mode);
+	/* TSN functions */
+	void (*tsn_init)(void __iomem *ioaddr);
+	void (*get_tsn_hwcap)(struct tsn_hw_cap **tsn_hwcap);
+	void (*set_est_gcb)(struct est_gc_entry *gcl,
+			    u32 bank);
+	void (*set_tsn_feat)(enum tsn_feat_id featid, bool enable);
+	int (*set_tsn_hwtunable)(void __iomem *ioaddr,
+				 enum tsn_hwtunable_id id,
+				 const unsigned int *data);
+	int (*get_tsn_hwtunable)(enum tsn_hwtunable_id id,
+				 unsigned int *data);
+	int (*get_est_bank)(void __iomem *ioaddr, u32 own);
+	int (*set_est_gce)(void __iomem *ioaddr,
+			   struct est_gc_entry *gce, u32 row,
+			   u32 dbgb, u32 dbgm);
+	int (*get_est_gcrr_llr)(void __iomem *ioaddr, u32 *gcl_len,
+				u32 dbgb, u32 dbgm);
+	int (*set_est_gcrr_llr)(void __iomem *ioaddr, u32 gcl_len,
+				u32 dbgb, u32 dbgm);
+	int (*set_est_gcrr_times)(void __iomem *ioaddr,
+				  struct est_gcrr *gcrr,
+				  u32 dbgb, u32 dbgm);
+	int (*set_est_enable)(void __iomem *ioaddr, bool enable);
+	int (*get_est_gcc)(void __iomem *ioaddr,
+			   struct est_gc_config **gcc, bool frmdrv);
 	/* Safety Features */
 	int (*safety_feat_config)(void __iomem *ioaddr, unsigned int asp);
 	int (*safety_feat_irq_status)(struct net_device *ndev,
@@ -431,6 +457,32 @@ struct stmmac_ops {
 	stmmac_do_void_callback(__priv, mac, restore_hw_vlan_rx_fltr, __args)
 #define stmmac_set_loopback_mode(__priv, __args...) \
 	stmmac_do_void_callback(__priv, mac, set_loopback_mode, __args)
+#define stmmac_tsn_init(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, tsn_init, __args)
+#define stmmac_get_tsn_hwcap(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, get_tsn_hwcap, __args)
+#define stmmac_set_est_gcb(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, set_est_gcb, __args)
+#define stmmac_set_tsn_feat(__priv, __args...) \
+	stmmac_do_void_callback(__priv, mac, set_tsn_feat, __args)
+#define stmmac_set_tsn_hwtunable(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, set_tsn_hwtunable, __args)
+#define stmmac_get_tsn_hwtunable(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, get_tsn_hwtunable, __args)
+#define stmmac_get_est_bank(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, get_est_bank, __args)
+#define stmmac_set_est_gce(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, set_est_gce, __args)
+#define stmmac_get_est_gcrr_llr(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, get_est_gcrr_llr, __args)
+#define stmmac_set_est_gcrr_llr(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, set_est_gcrr_llr, __args)
+#define stmmac_set_est_gcrr_times(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, set_est_gcrr_times, __args)
+#define stmmac_set_est_enable(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, set_est_enable, __args)
+#define stmmac_get_est_gcc(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, get_est_gcc, __args)
 #define stmmac_safety_feat_config(__priv, __args...) \
 	stmmac_do_callback(__priv, mac, safety_feat_config, __args)
 #define stmmac_safety_feat_irq_status(__priv, __args...) \
