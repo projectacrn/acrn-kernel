@@ -2567,7 +2567,11 @@ static irqreturn_t gen8_irq_handler(int irq, void *arg)
 	if (!master_ctl)
 		return IRQ_NONE;
 
-	I915_WRITE_FW(GEN8_MASTER_IRQ, 0);
+	if (intel_vgpu_active(dev_priv) &&
+		i915_modparams.enable_pvmmio & PVMMIO_MASTER_IRQ)
+		dev_priv->shared_page->disable_irq = 1;
+	else
+		I915_WRITE_FW(GEN8_MASTER_IRQ, 0);
 
 	/* IRQs are synced during runtime_suspend, we don't require a wakeref */
 	disable_rpm_wakeref_asserts(dev_priv);
@@ -2577,8 +2581,14 @@ static irqreturn_t gen8_irq_handler(int irq, void *arg)
 	gen8_gt_irq_handler(dev_priv, gt_iir);
 	gen8_de_irq_handler(dev_priv, master_ctl);
 
-	I915_WRITE_FW(GEN8_MASTER_IRQ, GEN8_MASTER_IRQ_CONTROL);
-	POSTING_READ_FW(GEN8_MASTER_IRQ);
+	if (intel_vgpu_active(dev_priv) &&
+		i915_modparams.enable_pvmmio & PVMMIO_MASTER_IRQ) {
+		dev_priv->shared_page->disable_irq = 0;
+		__raw_i915_write32(dev_priv, vgtif_reg(check_pending_irq), 1);
+	} else {
+		I915_WRITE_FW(GEN8_MASTER_IRQ, GEN8_MASTER_IRQ_CONTROL);
+		POSTING_READ_FW(GEN8_MASTER_IRQ);
+	}
 
 	enable_rpm_wakeref_asserts(dev_priv);
 
@@ -3037,8 +3047,13 @@ static void gen8_irq_reset(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = to_i915(dev);
 	int pipe;
 
-	I915_WRITE(GEN8_MASTER_IRQ, 0);
-	POSTING_READ(GEN8_MASTER_IRQ);
+	if (intel_vgpu_active(dev_priv) &&
+		i915_modparams.enable_pvmmio & PVMMIO_MASTER_IRQ) {
+		dev_priv->shared_page->disable_irq = 1;
+	} else {
+		I915_WRITE(GEN8_MASTER_IRQ, 0);
+		POSTING_READ(GEN8_MASTER_IRQ);
+	}
 
 	gen8_gt_irq_reset(dev_priv);
 
@@ -3540,8 +3555,14 @@ static int gen8_irq_postinstall(struct drm_device *dev)
 	if (HAS_PCH_SPLIT(dev_priv))
 		ibx_irq_postinstall(dev);
 
-	I915_WRITE(GEN8_MASTER_IRQ, GEN8_MASTER_IRQ_CONTROL);
-	POSTING_READ(GEN8_MASTER_IRQ);
+	if (intel_vgpu_active(dev_priv) &&
+		i915_modparams.enable_pvmmio & PVMMIO_MASTER_IRQ) {
+		dev_priv->shared_page->disable_irq = 0;
+		__raw_i915_write32(dev_priv, vgtif_reg(check_pending_irq), 1);
+	} else {
+		I915_WRITE(GEN8_MASTER_IRQ, GEN8_MASTER_IRQ_CONTROL);
+		POSTING_READ(GEN8_MASTER_IRQ);
+	}
 
 	return 0;
 }

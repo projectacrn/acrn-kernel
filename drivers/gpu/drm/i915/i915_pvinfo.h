@@ -93,7 +93,8 @@ struct gvt_shared_page {
 	u32 reg_addr;
 	struct pv_plane_update pv_plane;
 	struct pv_plane_wm_update pv_plane_wm;
-	u32 rsvd2[0x400 - 32];
+	u32 disable_irq;
+	u32 rsvd2[0x400 - 33];
 };
 
 #define VGPU_PVMMIO(vgpu) vgpu_vreg(vgpu, vgtif_reg(enable_pvmmio))
@@ -110,6 +111,7 @@ enum pvmmio_levels {
 	PVMMIO_ELSP_SUBMIT = 0x1,
 	PVMMIO_PLANE_UPDATE = 0X2,
 	PVMMIO_PLANE_WM_UPATE = 0x4,
+	PVMMIO_MASTER_IRQ = 0x8,
 };
 
 struct vgt_if {
@@ -162,8 +164,9 @@ struct vgt_if {
 	u32 enable_pvmmio;
 	u32 pv_mmio; /* vgpu trapped mmio read will be redirected here */
 	u32 scaler_owned;
+	u32 check_pending_irq;
 
-	u32  rsv7[0x200 - 27];    /* pad to one page */
+	u32  rsv7[0x200 - 28];    /* pad to one page */
 } __packed;
 
 #define vgtif_reg(x) \
