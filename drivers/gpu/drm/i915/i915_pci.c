@@ -642,6 +642,15 @@ static const struct intel_device_info intel_tigerlake_12_info = {
 		     BSD3_RING | CCS_RING,
 };
 
+static const struct intel_device_info intel_articsound_info = {
+	GEN12_FEATURES,
+	PLATFORM(INTEL_ARTICSOUND),
+	.num_pipes = 0,
+	.is_alpha_support = 1,
+	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING |
+		     BSD3_RING | CCS_RING,
+};
+
 #undef GEN
 #undef PLATFORM
 
