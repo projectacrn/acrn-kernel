@@ -73,6 +73,7 @@ enum intel_platform {
 	INTEL_ICELAKE,
 	/* gen12 */
 	INTEL_TIGERLAKE,
+	INTEL_ARTICSOUND,
 	INTEL_MAX_PLATFORMS
 };
 
