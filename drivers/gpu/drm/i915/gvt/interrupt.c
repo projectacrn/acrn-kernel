@@ -467,9 +467,14 @@ static void gen8_check_pending_irq(struct intel_vgpu *vgpu)
 	struct intel_gvt_irq *irq = &vgpu->gvt->irq;
 	int i;
 
-	if (!(vgpu_vreg(vgpu, i915_mmio_reg_offset(GEN8_MASTER_IRQ)) &
-				GEN8_MASTER_IRQ_CONTROL))
-		return;
+	if (VGPU_PVMMIO(vgpu) & PVMMIO_MASTER_IRQ) {
+		if (vgpu->mmio.shared_page->disable_irq)
+			return;
+	} else {
+		if (!(vgpu_vreg(vgpu, i915_mmio_reg_offset(GEN8_MASTER_IRQ)) &
+		       GEN8_MASTER_IRQ_CONTROL))
+			return;
+	}
 
 	for_each_set_bit(i, irq->irq_info_bitmap, INTEL_GVT_IRQ_INFO_MAX) {
 		struct intel_gvt_irq_info *info = irq->info[i];
