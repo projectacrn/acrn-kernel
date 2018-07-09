@@ -60,6 +60,7 @@ static struct tsn_hw_cap dw_tsn_hwcap;
 static bool dw_tsn_feat_en[TSN_FEAT_ID_MAX];
 static unsigned int dw_tsn_hwtunable[TSN_HWTUNA_MAX];
 static struct est_gc_config dw_est_gc_config;
+static struct tsn_err_stat dw_err_stat;
 
 static unsigned int est_get_gcl_depth(unsigned int hw_cap)
 {
@@ -340,6 +341,24 @@ void dwmac_tsn_init(void *ioaddr)
 
 	TSN_INFO("EST: depth=%u, ti_wid=%u, tils_max=%u tqcnt=%u\n",
 		 gcl_depth, ti_wid, tils_max, cap->txqcnt);
+}
+
+/* dwmac_tsn_setup is called within stmmac_hw_setup() after
+ * stmmac_init_dma_engine() which resets MAC controller.
+ * This is so-that MAC registers are not cleared.
+ */
+void dwmac_tsn_setup(void *ioaddr)
+{
+	struct tsn_hw_cap *cap = &dw_tsn_hwcap;
+	unsigned int value;
+
+	if (cap->est_support) {
+		/* Enable EST interrupts */
+		value = (MTL_EST_INT_EN_CGCE | MTL_EST_INT_EN_IEHS |
+			 MTL_EST_INT_EN_IEHF | MTL_EST_INT_EN_IEBE |
+			 MTL_EST_INT_EN_IECC);
+		TSN_WR32(value, ioaddr + MTL_EST_INT_EN);
+	}
 }
 
 void dwmac_get_tsn_hwcap(struct tsn_hw_cap **tsn_hwcap)
@@ -832,6 +851,109 @@ int dwmac_get_est_gcc(void *ioaddr,
 
 	*gcc = pgcc;
 	TSN_INFO_NA("EST: read GCL from HW done.\n");
+
+	return 0;
+}
+
+int dwmac_est_irq_status(void *ioaddr)
+{
+	struct tsn_hw_cap *cap = &dw_tsn_hwcap;
+	struct tsn_err_stat *err_stat = &dw_err_stat;
+	unsigned int txqcnt_mask = (1 << cap->txqcnt) - 1;
+	unsigned int status;
+	unsigned int value = 0;
+	unsigned int feqn = 0;
+	unsigned int hbfq = 0;
+	unsigned int hbfs = 0;
+
+	status = TSN_RD32(ioaddr + MTL_EST_STATUS);
+
+	value = (MTL_EST_STATUS_CGCE | MTL_EST_STATUS_HLBS |
+		 MTL_EST_STATUS_HLBF | MTL_EST_STATUS_BTRE |
+		 MTL_EST_STATUS_SWLC);
+
+	/* Return if there is no error */
+	if (!(status & value))
+		return 0;
+
+	/* spin_lock() is not needed here because of BTRE and SWLC
+	 * bit will not be altered. Both of the bit will be
+	 * polled in dwmac_set_est_gcrr_times()
+	 */
+	if (status & MTL_EST_STATUS_CGCE) {
+		/* Clear Interrupt */
+		TSN_WR32(MTL_EST_STATUS_CGCE, ioaddr + MTL_EST_STATUS);
+
+		err_stat->cgce_n++;
+	}
+
+	if (status & MTL_EST_STATUS_HLBS) {
+		value = TSN_RD32(ioaddr + MTL_EST_SCH_ERR);
+		value &= txqcnt_mask;
+
+		/* Clear Interrupt */
+		TSN_WR32(value, ioaddr + MTL_EST_SCH_ERR);
+
+		/* Collecting info to shows all the queues that has HLBS */
+		/* issue. The only way to clear this is to clear the     */
+		/* statistic  */
+		err_stat->hlbs_q |= value;
+	}
+
+	if (status & MTL_EST_STATUS_HLBF) {
+		value = TSN_RD32(ioaddr + MTL_EST_FRM_SZ_ERR);
+		feqn = value & txqcnt_mask;
+
+		value = TSN_RD32(ioaddr + MTL_EST_FRM_SZ_CAP);
+		hbfq = (value & MTL_EST_FRM_SZ_CAP_HBFQ_MASK(cap->txqcnt))
+			>> MTL_EST_FRM_SZ_CAP_HBFQ_SHIFT;
+		hbfs = value & MTL_EST_FRM_SZ_CAP_HBFS_MASK;
+
+		/* Clear Interrupt */
+		TSN_WR32(feqn, ioaddr + MTL_EST_FRM_SZ_ERR);
+
+		err_stat->hlbf_sz[hbfq] = hbfs;
+	}
+
+	if (status & MTL_EST_STATUS_BTRE) {
+		if ((status & MTL_EST_STATUS_BTRL) ==
+		    MTL_EST_STATUS_BTRL_MAX)
+			err_stat->btre_max_n++;
+		else
+			err_stat->btre_n++;
+
+		err_stat->btrl = (status & MTL_EST_STATUS_BTRL) >>
+					MTL_EST_STATUS_BTRL_SHIFT;
+
+		TSN_WR32(MTL_EST_STATUS_BTRE, ioaddr +
+		       MTL_EST_STATUS);
+	}
+
+	if (status & MTL_EST_STATUS_SWLC) {
+		TSN_WR32(MTL_EST_STATUS_SWLC, ioaddr +
+			 MTL_EST_STATUS);
+		TSN_INFO_NA("SWOL has been switched\n");
+	}
+
+	return status;
+}
+
+int dwmac_get_est_err_stat(struct tsn_err_stat **err_stat)
+{
+	if (!dw_tsn_feat_en[TSN_FEAT_ID_EST])
+		return -ENOTSUPP;
+
+	*err_stat = &dw_err_stat;
+
+	return 0;
+}
+
+int dwmac_clr_est_err_stat(void *ioaddr)
+{
+	if (!dw_tsn_feat_en[TSN_FEAT_ID_EST])
+		return -ENOTSUPP;
+
+	memset(&dw_err_stat, 0, sizeof(dw_err_stat));
 
 	return 0;
 }

@@ -412,6 +412,9 @@ struct mii_regs {
 	unsigned int clk_csr_mask;
 };
 
+/* tsn capability,  meant for mac_device_info->tsn_cap */
+#define TSN_CAP_EST			BIT(0)
+
 struct mac_device_info {
 	const struct stmmac_ops *mac;
 	const struct stmmac_desc_ops *desc;
@@ -432,6 +435,7 @@ struct mac_device_info {
 	unsigned int num_vlan;
 	u32 vlan_filter[32];
 	unsigned int promisc;
+	u32 tsn_cap;
 };
 
 struct stmmac_rx_routing {

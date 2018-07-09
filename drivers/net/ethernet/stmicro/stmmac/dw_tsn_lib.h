@@ -55,8 +55,29 @@
 #define MTL_EST_STATUS_BTRL_MAX		(0xF << 8)
 #define MTL_EST_STATUS_SWOL		BIT(7)	/* SW owned list */
 #define MTL_EST_STATUS_SWOL_SHIFT	7
+#define MTL_EST_STATUS_CGCE		BIT(4)	/* Constant gate ctrl err */
+#define MTL_EST_STATUS_HLBS		BIT(3)	/* HLB due to scheduling */
+#define MTL_EST_STATUS_HLBF		BIT(2)	/* HLB due to frame size */
 #define MTL_EST_STATUS_BTRE		BIT(1)	/* BTR Error */
 #define MTL_EST_STATUS_SWLC		BIT(0)	/* Switch to SWOL complete */
+
+/* MTL EST Scheduling error */
+#define MTL_EST_SCH_ERR			0x00000c60
+#define MTL_EST_FRM_SZ_ERR		0x00000c64
+#define MTL_EST_FRM_SZ_CAP		0x00000c68
+#define MTL_EST_FRM_SZ_CAP_HBFS_MASK	GENMASK(14, 0)
+#define MTL_EST_FRM_SZ_CAP_HBFQ_SHIFT	16
+#define MTL_EST_FRM_SZ_CAP_HBFQ_MASK(x)		(x > 4 ? GENMASK(18, 16) : \
+						 x > 2 ? GENMASK(17, 16) : \
+						 BIT(16))
+
+/* MTL EST interrupt enable */
+#define MTL_EST_INT_EN			0x00000c70
+#define MTL_EST_INT_EN_CGCE		BIT(4)
+#define MTL_EST_INT_EN_IEHS		BIT(3)
+#define MTL_EST_INT_EN_IEHF		BIT(2)
+#define MTL_EST_INT_EN_IEBE		BIT(1)
+#define MTL_EST_INT_EN_IECC		BIT(0)
 
 /* MTL EST GCL control register */
 #define MTL_EST_GCL_CTRL		0x00000c80
@@ -136,6 +157,26 @@ struct tsn_hw_cap {
 	unsigned int ext_max;		/* Max time extension */
 };
 
+/* TSN Error Status */
+struct tsn_err_stat {
+	unsigned int cgce_n;			/* Constant gate error
+						 * count.
+						 */
+	unsigned int hlbs_q;			/* Queue with HLB due to
+						 * Scheduling
+						 */
+	unsigned int hlbf_sz[MTL_MAX_TX_QUEUES];/* Frame size that causes
+						 * HLB
+						 */
+	unsigned int btre_n;			/* BTR error with BTR
+						 * renewal
+						 */
+	unsigned int btre_max_n;		/* BTR error with BTR
+						 * renewal fail count
+						 */
+	unsigned int btrl;			/* BTR error loop count */
+};
+
 /* EST Gate Control Entry */
 struct est_gc_entry {
 	unsigned int gates;		/* gate control: 0: closed,
@@ -168,6 +209,7 @@ struct est_gc_config {
 
 /* TSN functions */
 void dwmac_tsn_init(void *ioaddr);
+void dwmac_tsn_setup(void *ioaddr);
 void dwmac_get_tsn_hwcap(struct tsn_hw_cap **tsn_hwcap);
 void dwmac_set_est_gcb(struct est_gc_entry *gcl, unsigned int bank);
 void dwmac_set_tsn_feat(enum tsn_feat_id featid, bool enable);
@@ -188,4 +230,7 @@ int dwmac_set_est_gcrr_times(void *ioaddr,
 int dwmac_set_est_enable(void *ioaddr, bool enable);
 int dwmac_get_est_gcc(void *ioaddr,
 		      struct est_gc_config **gcc, bool frmdrv);
+int dwmac_est_irq_status(void *ioaddr);
+int dwmac_get_est_err_stat(struct tsn_err_stat **err_stat);
+int dwmac_clr_est_err_stat(void *ioaddr);
 #endif /* __DW_TSN_LIB_H__ */

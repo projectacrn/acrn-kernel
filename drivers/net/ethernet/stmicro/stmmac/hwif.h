@@ -363,6 +363,9 @@ struct stmmac_ops {
 	int (*set_est_enable)(void __iomem *ioaddr, bool enable);
 	int (*get_est_gcc)(void __iomem *ioaddr,
 			   struct est_gc_config **gcc, bool frmdrv);
+	int (*est_irq_status)(void __iomem *ioaddr);
+	int (*get_est_err_stat)(struct tsn_err_stat **err_stat);
+	int (*clr_est_err_stat)(void __iomem *ioaddr);
 	/* Safety Features */
 	int (*safety_feat_config)(void __iomem *ioaddr, unsigned int asp);
 	int (*safety_feat_irq_status)(struct net_device *ndev,
@@ -483,6 +486,12 @@ struct stmmac_ops {
 	stmmac_do_callback(__priv, mac, set_est_enable, __args)
 #define stmmac_get_est_gcc(__priv, __args...) \
 	stmmac_do_callback(__priv, mac, get_est_gcc, __args)
+#define stmmac_est_irq_status(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, est_irq_status, __args)
+#define stmmac_get_est_err_stat(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, get_est_err_stat, __args)
+#define stmmac_clr_est_err_stat(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, clr_est_err_stat, __args)
 #define stmmac_safety_feat_config(__priv, __args...) \
 	stmmac_do_callback(__priv, mac, safety_feat_config, __args)
 #define stmmac_safety_feat_irq_status(__priv, __args...) \
