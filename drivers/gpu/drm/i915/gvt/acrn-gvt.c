@@ -769,11 +769,15 @@ static int acrngt_write_gpa(unsigned long handle, unsigned long gpa,
 
 static unsigned long acrngt_gfn_to_pfn(unsigned long handle, unsigned long gfn)
 {
-	unsigned long hpa;
+	unsigned long sos_gpa, hpa;
+	void *va = NULL;
 	struct acrngt_hvm_dev *info = (struct acrngt_hvm_dev *)handle;
 	gvt_dbg_core("convert gfn 0x%lx to pfn\n", gfn);
 
-	hpa = vhm_vm_gpa2hpa(info->vm_id, gfn << PAGE_SHIFT);
+	va = map_guest_phys(info->vm_id, gfn << PAGE_SHIFT, 1 << PAGE_SHIFT);
+	sos_gpa = virt_to_phys(va);
+	/* assumption: it is identical 1:1 mapping */
+	hpa = sos_gpa;
 	return hpa >> PAGE_SHIFT;
 }
 
