@@ -478,6 +478,9 @@
 	INTEL_VGA_DEVICE(0x9A19, info), \
 	INTEL_VGA_DEVICE(0x9A39, info)
 
+#define INTEL_ATS_IDS(info) \
+	INTEL_VGA_DEVICE(0x0201, info)
+
 /* JSL */
 #define INTEL_JSL_IDS(info) \
 	INTEL_VGA_DEVICE(0x4500, info)
