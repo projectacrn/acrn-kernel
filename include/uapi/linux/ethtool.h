@@ -1401,6 +1401,21 @@ struct ethtool_lgcl {
  * @extension_ns: Denominator of cycle time extension in nano-seconds.
  * @base_s: Numerator of base time in seconds.
  * @base_ns: Denominator of base time in nano-seconds.
+ * @cgce_n: Number of time where constant gate control error is triggered.
+ * @hlbs_q: Queue number that experience the head-of-line blocking due to
+ *          scheduling. Example: hlbs_q = 0x5 (0000_0101b) means queue 0
+ *          and queue 2 is having hlbs error.
+ * @hlbf_sz: Frame size that causes the head-of-line blocking for each
+ *           queue.
+ * @btre_n: Count for condition when (base time) < (current time) and
+ *          manage to update to new base time within 8 iteration of
+ *          cycle time.
+ * @btre_max_n: Count for condition when (base time) < (current time)
+ *              and did not manage to update to new base time within 8
+ *              iteration of cycle time.
+ * @btrl: Minimum count (N) for which the equation
+ *        Current Time =< New BTR + (N * New Cycle Time)
+ *        becomes true.
  */
 struct ethtool_est_info {
 	__u32	cmd;
@@ -1411,6 +1426,12 @@ struct ethtool_est_info {
 	__u32	extension_ns;
 	__u32	base_s;
 	__u32	base_ns;
+	__u32	cgce_n;
+	__u32	hlbs_q;
+	__u32	hlbf_sz[8];
+	__u32	btre_n;
+	__u32	btre_max_n;
+	__u32	btrl;
 };
 
 /* CMDs currently supported */

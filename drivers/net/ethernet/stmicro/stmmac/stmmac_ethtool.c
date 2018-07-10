@@ -1352,6 +1352,7 @@ static int stmmac_ethtool_get_est_info(struct net_device *dev,
 {
 	struct est_gc_config *gcc;
 	struct est_gcrr *egcrr;
+	struct tsn_err_stat *erstat;
 	struct stmmac_priv *priv = netdev_priv(dev);
 	int bank, ret;
 
@@ -1374,6 +1375,20 @@ static int stmmac_ethtool_get_est_info(struct net_device *dev,
 	esti->base_ns = egcrr->base_nsec;
 	esti->extension_s = 0;
 	esti->extension_ns = egcrr->ter_nsec;
+
+	ret = stmmac_get_est_err_stat(priv, &erstat);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST error status.\n");
+
+		return ret;
+	}
+
+	esti->cgce_n = erstat->cgce_n;
+	esti->hlbs_q = erstat->hlbs_q;
+	esti->btre_n = erstat->btre_n;
+	esti->btre_max_n = esti->btre_max_n;
+	esti->btrl = esti->btrl;
+	memcpy(esti->hlbf_sz, erstat->hlbf_sz, sizeof(esti->hlbf_sz));
 
 	return 0;
 }
