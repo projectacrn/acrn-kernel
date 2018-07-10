@@ -31,6 +31,7 @@
 
 #include "stmmac.h"
 #include "dwmac_dma.h"
+#include "dw_tsn_lib.h"
 
 #define REG_SPACE_SIZE	0x1060
 #define MAC100_ETHTOOL_NAME	"st_mac100"
@@ -1096,6 +1097,18 @@ static int stmmac_get_tunable(struct net_device *dev,
 	case ETHTOOL_RX_COPYBREAK:
 		*(u32 *)data = priv->rx_copybreak;
 		break;
+	case ETHTOOL_TX_EST_TILS:
+		ret = stmmac_get_tsn_hwtunable(priv, TSN_HWTUNA_TX_EST_TILS,
+					       data);
+		break;
+	case ETHTOOL_TX_EST_PTOV:
+		ret = stmmac_get_tsn_hwtunable(priv, TSN_HWTUNA_TX_EST_PTOV,
+					       data);
+		break;
+	case ETHTOOL_TX_EST_CTOV:
+		ret = stmmac_get_tsn_hwtunable(priv, TSN_HWTUNA_TX_EST_CTOV,
+					       data);
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -1115,12 +1128,281 @@ static int stmmac_set_tunable(struct net_device *dev,
 	case ETHTOOL_RX_COPYBREAK:
 		priv->rx_copybreak = *(u32 *)data;
 		break;
+	case ETHTOOL_TX_EST_TILS:
+		ret = stmmac_set_tsn_hwtunable(priv, priv->ioaddr,
+					       TSN_HWTUNA_TX_EST_TILS,
+					       data);
+		break;
+	case ETHTOOL_TX_EST_PTOV:
+		ret = stmmac_set_tsn_hwtunable(priv, priv->ioaddr,
+					       TSN_HWTUNA_TX_EST_PTOV,
+					       data);
+		break;
+	case ETHTOOL_TX_EST_CTOV:
+		ret = stmmac_set_tsn_hwtunable(priv, priv->ioaddr,
+					       TSN_HWTUNA_TX_EST_CTOV,
+					       data);
+		break;
 	default:
 		ret = -EINVAL;
 		break;
 	}
 
 	return ret;
+}
+
+static int stmmac_ethtool_get_est_gcl_depth(struct net_device *dev)
+{
+	struct stmmac_priv *priv = netdev_priv(dev);
+	struct tsn_hw_cap *tsn_hwcap;
+
+	stmmac_get_tsn_hwcap(priv, &tsn_hwcap);
+
+	return tsn_hwcap->gcl_depth;
+}
+
+static int stmmac_ethtool_get_est_gcl_length(struct net_device *dev, int own)
+{
+	int bank, ret;
+	int gcl_length;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, own);
+
+	ret = stmmac_get_est_gcrr_llr(priv, priv->ioaddr, &gcl_length,
+				      bank, 1);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC length.\n");
+
+		return 0;
+	}
+
+	return gcl_length;
+}
+
+static int stmmac_ethtool_get_est_gcl(struct net_device *dev,
+				      struct ethtool_gcl *gcl,
+				      void *gclbuf)
+{
+	struct est_gc_config *gcc;
+	struct ethtool_gc_entry *egce;
+	struct est_gc_entry *sgce;
+	int i, bank, ret;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (gcl->cmd != ETHTOOL_GGCL ||
+	    gcl->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	ret = stmmac_get_est_gcc(priv, priv->ioaddr, &gcc, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC config.\n");
+
+		return ret;
+	}
+
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, gcl->own);
+
+	if (gcl->len != gcc->gcb[bank].gcrr.llr) {
+		dev_err(priv->device, "GC length request invalid.\n");
+
+		return -EINVAL;
+	}
+
+	egce = (struct ethtool_gc_entry *)gclbuf;
+	sgce = gcc->gcb[bank].gcl;
+	for (i = 0; i < gcl->len; i++) {
+		egce->gates = sgce->gates;
+		egce->ti_ns = sgce->ti_nsec;
+		egce->opid = ETH_GATEOP_SET_GATE_STATES;
+
+		egce++;
+		sgce++;
+	}
+
+	return 0;
+}
+
+static int stmmac_ethtool_set_est_gcl(struct net_device *dev,
+				      struct ethtool_gcl *gcl,
+				      void *gclbuf)
+{
+	struct ethtool_gc_entry *egce;
+	int i, bank;
+	struct stmmac_priv *priv = netdev_priv(dev);
+	int ret = -1;
+
+	if (gcl->cmd != ETHTOOL_SGCL ||
+	    gcl->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, gcl->own);
+
+	egce = (struct ethtool_gc_entry *)gclbuf;
+	for (i = 0; i < gcl->len; i++) {
+		struct est_gc_entry sgce;
+
+		sgce.gates = egce->gates;
+		sgce.ti_nsec = egce->ti_ns;
+
+		ret = stmmac_set_est_gce(priv, priv->ioaddr, &sgce,
+					 i, bank, 1);
+		if (ret) {
+			dev_err(priv->device,
+				"fail to program GC entry(%d).\n", i);
+
+			return ret;
+		}
+		egce++;
+	}
+
+	return stmmac_set_est_gcrr_llr(priv, priv->ioaddr, gcl->len,
+				       bank, 1);
+}
+
+static int stmmac_ethtool_get_est_gce(struct net_device *dev,
+				      struct ethtool_gce *gce)
+{
+	struct est_gc_config *gcc;
+	struct est_gc_entry *sgce;
+	int bank, ret;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (gce->cmd != ETHTOOL_GGCE ||
+	    gce->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	ret = stmmac_get_est_gcc(priv, priv->ioaddr, &gcc, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC config.\n");
+
+		return ret;
+	}
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, gce->own);
+
+	if (gce->row >= gcc->gcb[bank].gcrr.llr) {
+		dev_err(priv->device, "GC entry row >= length.\n");
+
+		return -EINVAL;
+	}
+
+	sgce = gcc->gcb[bank].gcl + gce->row;
+	gce->gce.gates = sgce->gates;
+	gce->gce.ti_ns = sgce->ti_nsec;
+	gce->gce.opid = ETH_GATEOP_SET_GATE_STATES;
+
+	return 0;
+}
+
+static int stmmac_ethtool_set_est_gce(struct net_device *dev,
+				      struct ethtool_gce *gce)
+{
+	struct est_gc_entry sgce;
+	int bank, gcl_length, ret;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (gce->cmd != ETHTOOL_SGCE ||
+	    gce->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, gce->own);
+
+	ret = stmmac_get_est_gcrr_llr(priv, priv->ioaddr, &gcl_length,
+				      bank, 1);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC length.\n");
+
+		return ret;
+	}
+
+	if (gce->row >= gcl_length) {
+		dev_err(priv->device,
+			"row exceeds GCL length set in SGCL.\n");
+
+		return -EINVAL;
+	}
+
+	if (!gcl_length) {
+		dev_err(priv->device,
+			"GCL length is zero. Use SGCL first.\n");
+
+		return -EINVAL;
+	}
+
+	sgce.gates = gce->gce.gates;
+	sgce.ti_nsec = gce->gce.ti_ns;
+
+	ret = stmmac_set_est_gce(priv, priv->ioaddr, &sgce, gce->row,
+				 bank, 1);
+	if (ret) {
+		dev_err(priv->device,
+			"fail to program GC entry(%d).\n", gce->row);
+
+			return ret;
+	}
+
+	return 0;
+}
+
+static int stmmac_ethtool_get_est_info(struct net_device *dev,
+				       struct ethtool_est_info *esti)
+{
+	struct est_gc_config *gcc;
+	struct est_gcrr *egcrr;
+	struct stmmac_priv *priv = netdev_priv(dev);
+	int bank, ret;
+
+	if (esti->cmd != ETHTOOL_GESTINFO ||
+	    esti->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	ret = stmmac_get_est_gcc(priv, priv->ioaddr, &gcc, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC config.\n");
+
+		return ret;
+	}
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, esti->own);
+	egcrr = &gcc->gcb[bank].gcrr;
+
+	esti->cycle_s = egcrr->cycle_sec;
+	esti->cycle_ns = egcrr->cycle_nsec;
+	esti->base_s = egcrr->base_sec;
+	esti->base_ns = egcrr->base_nsec;
+	esti->extension_s = 0;
+	esti->extension_ns = egcrr->ter_nsec;
+
+	return 0;
+}
+
+static int stmmac_ethtool_set_est_info(struct net_device *dev,
+				       struct ethtool_est_info *esti)
+{
+	struct est_gcrr egcrr;
+	struct stmmac_priv *priv = netdev_priv(dev);
+	int bank;
+
+	if (esti->cmd != ETHTOOL_SESTINFO ||
+	    esti->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	if (esti->extension_s) {
+		dev_err(priv->device, "extension in seconds not supported.\n");
+
+		return -EINVAL;
+	}
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, esti->own);
+
+	egcrr.cycle_sec = esti->cycle_s;
+	egcrr.cycle_nsec = esti->cycle_ns;
+	egcrr.base_sec = esti->base_s;
+	egcrr.base_nsec = esti->base_ns;
+	egcrr.ter_nsec = esti->extension_ns;
+
+	return stmmac_set_est_gcrr_times(priv, priv->ioaddr, &egcrr, bank, 1);
 }
 
 static const struct ethtool_ops stmmac_ethtool_ops = {
@@ -1149,6 +1431,14 @@ static const struct ethtool_ops stmmac_ethtool_ops = {
 	.set_tunable = stmmac_set_tunable,
 	.get_link_ksettings = stmmac_ethtool_get_link_ksettings,
 	.set_link_ksettings = stmmac_ethtool_set_link_ksettings,
+	.get_est_gcl_depth = stmmac_ethtool_get_est_gcl_depth,
+	.get_est_gcl_length = stmmac_ethtool_get_est_gcl_length,
+	.get_est_gcl = stmmac_ethtool_get_est_gcl,
+	.set_est_gcl = stmmac_ethtool_set_est_gcl,
+	.get_est_gce = stmmac_ethtool_get_est_gce,
+	.set_est_gce = stmmac_ethtool_set_est_gce,
+	.get_est_info = stmmac_ethtool_get_est_info,
+	.set_est_info = stmmac_ethtool_set_est_info,
 };
 
 void stmmac_set_ethtool_ops(struct net_device *netdev)
