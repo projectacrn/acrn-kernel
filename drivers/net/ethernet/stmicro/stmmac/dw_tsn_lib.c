@@ -1100,6 +1100,7 @@ int dwmac_set_fpe_enable(void *ioaddr, bool enable)
 		return -ENOTSUPP;
 
 	dw_fpe_config.enable = enable & MAC_FPE_CTRL_STS_EFPE;
+
 	TSN_WR32((unsigned int)dw_fpe_config.enable,
 		 ioaddr + MAC_FPE_CTRL_STS);
 
@@ -1153,6 +1154,61 @@ int dwmac_get_fpe_pmac_sts(void *ioaddr, unsigned int *hrs)
 		TSN_INFO_NA("FPE: pMAC is in Hold state.\n");
 	else
 		TSN_INFO_NA("FPE: pMAC is in Release state.\n");
+
+	return 0;
+}
+
+int dwmac_fpe_irq_status(void *ioaddr)
+{
+	unsigned int status;
+	int fpe_state = FPE_STATE_UNKNOWN;
+
+	status = TSN_RD32(ioaddr + MAC_FPE_CTRL_STS);
+
+	if (status & MAC_FPE_CTRL_STS_TRSP) {
+		TSN_INFO_NA("Respond mPacket is transmitted\n");
+		fpe_state |= FPE_STATE_TRSP;
+	}
+
+	if (status & MAC_FPE_CTRL_STS_TVER) {
+		TSN_INFO_NA("Verify mPacket is transmitted\n");
+		fpe_state |= FPE_STATE_TVER;
+	}
+
+	if (status & MAC_FPE_CTRL_STS_RRSP) {
+		dw_fpe_config.lp_fpe_support = 1;
+		TSN_INFO_NA("Respond mPacket is received\n");
+		fpe_state |= FPE_STATE_RRSP;
+	}
+
+	if (status & MAC_FPE_CTRL_STS_RVER) {
+		TSN_INFO_NA("Verify mPacket is received\n");
+		fpe_state |= FPE_STATE_RVER;
+	}
+
+	return fpe_state;
+}
+
+int dwmac_fpe_send_mpacket(void *ioaddr, enum mpacket_type type)
+{
+	unsigned int value;
+
+	value = TSN_RD32(ioaddr + MAC_FPE_CTRL_STS);
+
+	switch (type) {
+	case MPACKET_VERIFY:
+		dw_fpe_config.lp_fpe_support = 0;
+		value &= ~MAC_FPE_CTRL_STS_SRSP;
+		value |= MAC_FPE_CTRL_STS_SVER;
+		break;
+	case MPACKET_RESPONSE:
+		value &= ~MAC_FPE_CTRL_STS_SVER;
+		value |= MAC_FPE_CTRL_STS_SRSP;
+		break;
+	default:
+		return -ENOTSUPP;
+	}
+	TSN_WR32(value, ioaddr + MAC_FPE_CTRL_STS);
 
 	return 0;
 }

@@ -29,6 +29,8 @@
  * 2) IEEE 802.1Qbu Frame Preemption (FPE)
  */
 
+#define GMAC_INT_FPE_EN			BIT(17)
+
 /* FPRQ only available in EQoS ver5.00 MAC_RxQ_Ctrl1 */
 #define GMAC_RXQCTRL_FPRQ_MASK		GENMASK(26, 24)	/* FPE Residue Queue */
 #define GMAC_RXQCTRL_FPRQ_SHIFT		24
@@ -45,6 +47,12 @@
 
 /* MAC FPE control status */
 #define MAC_FPE_CTRL_STS		0x00000234
+#define MAC_FPE_CTRL_STS_TRSP		BIT(19)
+#define MAC_FPE_CTRL_STS_TVER		BIT(18)
+#define MAC_FPE_CTRL_STS_RRSP		BIT(17)
+#define MAC_FPE_CTRL_STS_RVER		BIT(16)
+#define MAC_FPE_CTRL_STS_SRSP		BIT(2)
+#define MAC_FPE_CTRL_STS_SVER		BIT(1)
 #define MAC_FPE_CTRL_STS_EFPE		BIT(0)
 
 /* MTL EST control register */
@@ -162,6 +170,19 @@ enum tsn_feat_id {
 	TSN_FEAT_ID_MAX,
 };
 
+enum tsn_fpe_irq_state {
+	FPE_STATE_TRSP = 1,
+	FPE_STATE_TVER = 2,
+	FPE_STATE_RRSP = 4,
+	FPE_STATE_RVER = 8,
+	FPE_STATE_UNKNOWN = 16,
+};
+
+enum mpacket_type {
+	MPACKET_VERIFY = 0,
+	MPACKET_RESPONSE = 1,
+};
+
 /* HW register read & write macros */
 #define TSN_RD32(__addr)		readl(__addr)
 #define TSN_WR32(__val, __addr)		writel(__val, __addr)
@@ -246,6 +267,7 @@ struct est_gc_config {
 struct fpe_config {
 	unsigned int txqpec;		/* TxQ Preemption Classification */
 	bool enable;			/* 1: enabled */
+	bool lp_fpe_support;		/* 1: link partner fpe supported */
 };
 
 /* TSN functions */
@@ -279,4 +301,6 @@ int dwmac_set_fpe_enable(void *ioaddr, bool enable);
 int dwmac_get_fpe_config(void *ioaddr, struct fpe_config **fpec,
 			 bool frmdrv);
 int dwmac_get_fpe_pmac_sts(void *ioaddr, unsigned int *hrs);
+int dwmac_fpe_irq_status(void *ioaddr);
+int dwmac_fpe_send_mpacket(void *ioaddr, enum mpacket_type type);
 #endif /* __DW_TSN_LIB_H__ */

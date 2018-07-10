@@ -861,11 +861,21 @@ static void stmmac_adjust_link(struct net_device *dev)
 			new_state = true;
 			priv->oldlink = true;
 		}
+
+		if (dev->features & NETIF_F_HW_FPE) {
+			stmmac_set_fpe_enable(priv, priv->ioaddr, 1);
+			stmmac_fpe_send_mpacket(priv, priv->ioaddr,
+						MPACKET_VERIFY);
+		}
+
 	} else if (priv->oldlink) {
 		new_state = true;
 		priv->oldlink = false;
 		priv->speed = SPEED_UNKNOWN;
 		priv->oldduplex = DUPLEX_UNKNOWN;
+
+		if (dev->features & NETIF_F_HW_FPE)
+			stmmac_set_fpe_enable(priv, priv->ioaddr, 0);
 	}
 
 	if (new_state && netif_msg_link(priv))
@@ -3666,10 +3676,13 @@ static int stmmac_set_features(struct net_device *netdev,
 			stmmac_set_est_enable(priv, priv->ioaddr, 0);
 	}
 	if (changed & NETIF_F_HW_FPE) {
-		if (features & NETIF_F_HW_FPE)
+		if (features & NETIF_F_HW_FPE) {
 			stmmac_set_fpe_enable(priv, priv->ioaddr, 1);
-		else
+			stmmac_fpe_send_mpacket(priv, priv->ioaddr,
+						MPACKET_VERIFY);
+		} else {
 			stmmac_set_fpe_enable(priv, priv->ioaddr, 0);
+		}
 	}
 
 	netdev->features = features;
@@ -3743,6 +3756,14 @@ static irqreturn_t stmmac_interrupt(int irq, void *dev_id)
 
 		if (priv->hw->tsn_cap & TSN_CAP_EST)
 			stmmac_est_irq_status(priv, priv->ioaddr);
+
+		if (priv->hw->tsn_cap & TSN_CAP_FPE) {
+			int fpe_state =
+				stmmac_fpe_irq_status(priv, priv->ioaddr);
+			if ((fpe_state & FPE_STATE_RVER) == FPE_STATE_RVER)
+				stmmac_fpe_send_mpacket(priv, priv->ioaddr,
+							MPACKET_RESPONSE);
+		}
 
 		/* PCS link status */
 		if (priv->hw->pcs) {
@@ -4411,6 +4432,7 @@ int stmmac_dvr_probe(struct device *device,
 	if (tsn_hwcap && tsn_hwcap->fpe_support && priv->plat->tsn_fpe_en) {
 		ndev->hw_features |= NETIF_F_HW_FPE;
 		stmmac_set_tsn_feat(priv, TSN_FEAT_ID_FPE, true);
+		priv->hw->tsn_cap |= TSN_CAP_FPE;
 		dev_info(priv->device, "FPE feature enabled\n");
 	}
 

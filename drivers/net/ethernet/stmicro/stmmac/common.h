@@ -414,6 +414,7 @@ struct mii_regs {
 
 /* tsn capability,  meant for mac_device_info->tsn_cap */
 #define TSN_CAP_EST			BIT(0)
+#define TSN_CAP_FPE			BIT(1)
 
 struct mac_device_info {
 	const struct stmmac_ops *mac;

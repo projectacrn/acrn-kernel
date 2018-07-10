@@ -64,6 +64,9 @@ static void dwmac4_core_init(struct mac_device_info *hw,
 	if (hw->pcs)
 		value |= GMAC_PCS_IRQ_DEFAULT;
 
+	if (hw->tsn_cap & TSN_CAP_FPE)
+		value |= GMAC_INT_FPE_EN;
+
 	writel(value, ioaddr + GMAC_INT_EN);
 }
 
@@ -1105,6 +1108,8 @@ const struct stmmac_ops dwmac510_ops = {
 	.set_fpe_enable = dwmac_set_fpe_enable,
 	.get_fpe_config = dwmac_get_fpe_config,
 	.get_fpe_pmac_sts = dwmac_get_fpe_pmac_sts,
+	.fpe_irq_status = dwmac_fpe_irq_status,
+	.fpe_send_mpacket = dwmac_fpe_send_mpacket,
 	.safety_feat_config = dwmac5_safety_feat_config,
 	.safety_feat_irq_status = dwmac5_safety_feat_irq_status,
 	.safety_feat_dump = dwmac5_safety_feat_dump,
@@ -1169,6 +1174,8 @@ const struct stmmac_ops dwmac510_xpcs_ops = {
 	.set_fpe_enable = dwmac_set_fpe_enable,
 	.get_fpe_config = dwmac_get_fpe_config,
 	.get_fpe_pmac_sts = dwmac_get_fpe_pmac_sts,
+	.fpe_irq_status = dwmac_fpe_irq_status,
+	.fpe_send_mpacket = dwmac_fpe_send_mpacket,
 	.safety_feat_config = dwmac5_safety_feat_config,
 	.safety_feat_irq_status = dwmac5_safety_feat_irq_status,
 	.safety_feat_dump = dwmac5_safety_feat_dump,

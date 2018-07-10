@@ -372,6 +372,9 @@ struct stmmac_ops {
 	int (*get_fpe_config)(void __iomem *ioaddr,
 			      struct fpe_config **fpec, bool frmdrv);
 	int (*get_fpe_pmac_sts)(void __iomem *ioaddr, u32 *hrs);
+	int (*fpe_irq_status)(void __iomem *ioaddr);
+	int (*fpe_send_mpacket)(void __iomem *ioaddr,
+				enum mpacket_type type);
 	/* Safety Features */
 	int (*safety_feat_config)(void __iomem *ioaddr, unsigned int asp);
 	int (*safety_feat_irq_status)(struct net_device *ndev,
@@ -506,6 +509,10 @@ struct stmmac_ops {
 	stmmac_do_callback(__priv, mac, get_fpe_config, __args)
 #define stmmac_get_fpe_pmac_sts(__priv, __args...) \
 	stmmac_do_callback(__priv, mac, get_fpe_pmac_sts, __args)
+#define stmmac_fpe_irq_status(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, fpe_irq_status, __args)
+#define stmmac_fpe_send_mpacket(__priv, __args...) \
+	stmmac_do_callback(__priv, mac, fpe_send_mpacket, __args)
 #define stmmac_safety_feat_config(__priv, __args...) \
 	stmmac_do_callback(__priv, mac, safety_feat_config, __args)
 #define stmmac_safety_feat_irq_status(__priv, __args...) \
