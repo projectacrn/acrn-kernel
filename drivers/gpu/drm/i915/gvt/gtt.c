@@ -1546,6 +1546,31 @@ static void gen8_mm_free_page_table(struct intel_vgpu_mm *mm)
 	mm->virtual_page_table = mm->shadow_page_table = NULL;
 }
 
+static void invalidate_mm_pv(struct intel_vgpu_mm *mm)
+{
+	struct intel_vgpu *vgpu = mm->vgpu;
+	struct intel_gvt *gvt = vgpu->gvt;
+	struct intel_gvt_gtt *gtt = &gvt->gtt;
+	struct intel_gvt_gtt_pte_ops *ops = gtt->pte_ops;
+	struct intel_gvt_gtt_entry se;
+
+	if (WARN_ON(mm->page_table_level != 4))
+		return;
+
+	i915_ppgtt_close(&mm->ppgtt->base);
+	i915_ppgtt_put(mm->ppgtt);
+
+	ppgtt_get_shadow_root_entry(mm, &se, 0);
+	if (!ops->test_present(&se))
+		return;
+	trace_gpt_change(vgpu->id, "destroy root pointer",
+			NULL, se.type, se.val64, 0);
+	se.val64 = 0;
+	ppgtt_set_shadow_root_entry(mm, &se, 0);
+
+	mm->shadowed = false;
+}
+
 static void invalidate_mm(struct intel_vgpu_mm *mm)
 {
 	struct intel_vgpu *vgpu = mm->vgpu;
@@ -1557,6 +1582,11 @@ static void invalidate_mm(struct intel_vgpu_mm *mm)
 
 	if (WARN_ON(!mm->has_shadow_page_table || !mm->shadowed))
 		return;
+
+	if (VGPU_PVMMIO(mm->vgpu) & PVMMIO_PPGTT_UPDATE) {
+		invalidate_mm_pv(mm);
+		return;
+	}
 
 	for (i = 0; i < mm->page_table_entry_cnt; i++) {
 		ppgtt_get_shadow_root_entry(mm, &se, i);
@@ -1601,6 +1631,35 @@ out:
 	kfree(mm);
 }
 
+static int shadow_mm_pv(struct intel_vgpu_mm *mm)
+{
+	struct intel_vgpu *vgpu = mm->vgpu;
+	struct intel_gvt *gvt = vgpu->gvt;
+	char name[16];
+	struct intel_gvt_gtt_entry se;
+
+	if (WARN_ON(mm->page_table_level != 4))
+		return -EINVAL;
+
+	snprintf(name, sizeof (name), "%p", mm);
+
+	mm->ppgtt = i915_ppgtt_create(gvt->dev_priv, NULL, name);
+	if (IS_ERR(mm->ppgtt)) {
+		gvt_vgpu_err("fail to create ppgtt for pdp 0x%llx\n", px_dma(&mm->ppgtt->pml4));
+		return PTR_ERR(mm->ppgtt);
+	}
+
+	se.type = GTT_TYPE_PPGTT_ROOT_L4_ENTRY;
+	se.val64 = px_dma(&mm->ppgtt->pml4);
+	ppgtt_set_shadow_root_entry(mm, &se, 0);
+
+	trace_gpt_change(vgpu->id, "populate root pointer",
+			NULL, se.type, se.val64, 0);
+	mm->shadowed = true;
+
+	return 0;
+}
+
 static int shadow_mm(struct intel_vgpu_mm *mm)
 {
 	struct intel_vgpu *vgpu = mm->vgpu;
@@ -1614,6 +1673,9 @@ static int shadow_mm(struct intel_vgpu_mm *mm)
 
 	if (WARN_ON(!mm->has_shadow_page_table || mm->shadowed))
 		return 0;
+
+	if (VGPU_PVMMIO(mm->vgpu) & PVMMIO_PPGTT_UPDATE)
+		return shadow_mm_pv(mm);
 
 	mm->shadowed = true;
 
@@ -2504,4 +2566,226 @@ void intel_vgpu_reset_gtt(struct intel_vgpu *vgpu)
 			memset(page_address(vgpu->gtt.scratch_pt[i].page),
 				0, PAGE_SIZE);
 	}
+}
+
+int intel_vgpu_g2v_pv_ppgtt_alloc_4lvl(struct intel_vgpu *vgpu,
+		int page_table_level)
+{
+	struct gvt_shared_page *shared_page = vgpu->mmio.shared_page;
+	struct intel_vgpu_mm *mm;
+	u64 pdp = shared_page->pdp;
+	int ret = 0;
+
+	if (WARN_ON(page_table_level != 4))
+		return -EINVAL;
+
+	gvt_dbg_mm("alloc_4lvl pdp=%llx start=%llx length=%llx pt_count=%llx\n",
+			shared_page->pdp, shared_page->start,
+			shared_page->length, shared_page->pt_count);
+
+	mm = intel_vgpu_find_ppgtt_mm(vgpu, page_table_level, &pdp);
+	if (!mm) {
+		gvt_vgpu_err("failed to find mm for pdp 0x%llx\n", pdp);
+		ret = -EINVAL;
+	} else {
+		ret = gen8_ppgtt_alloc_4lvl(&mm->ppgtt->base,
+			shared_page->start, shared_page->length);
+		if (ret)
+			gvt_vgpu_err("failed to alloc for pdp %llx\n", pdp);
+	}
+
+	return ret;
+}
+
+int intel_vgpu_g2v_pv_ppgtt_clear_4lvl(struct intel_vgpu *vgpu,
+		int page_table_level)
+{
+	struct gvt_shared_page *shared_page = vgpu->mmio.shared_page;
+	struct intel_vgpu_mm *mm;
+	u64 pdp = shared_page->pdp;
+	int ret = 0;
+
+	if (WARN_ON(page_table_level != 4))
+		return -EINVAL;
+
+	gvt_dbg_mm("clear_4lvl pdp=%llx start=%llx length=%llx pt_count=%llx\n",
+			shared_page->pdp, shared_page->start,
+			shared_page->length, shared_page->pt_count);
+
+	mm = intel_vgpu_find_ppgtt_mm(vgpu, page_table_level, &pdp);
+	if (!mm) {
+		gvt_vgpu_err("failed to find mm for pdp 0x%llx\n", pdp);
+		ret = -EINVAL;
+	} else {
+		gen8_ppgtt_clear_4lvl(&mm->ppgtt->base,
+			shared_page->start, shared_page->length);
+	}
+
+	return ret;
+}
+
+static int intel_vgpu_convert_gfn(struct intel_vgpu *vgpu,
+			unsigned long gpa, unsigned long *pt, unsigned long start_index,
+			unsigned long end_index,
+			unsigned long *mfns, int *mfn_index)
+{
+	const struct intel_gvt_device_info *info = &vgpu->gvt->device_info;
+	int ret;
+	int i;
+	unsigned long mfn, gfn;
+
+	gvt_dbg_mm("gpa=%lx pt=%lx start_index=%lx end_index=%lx mfn_index=%d\n",
+			gpa, (unsigned long)pt, start_index, end_index, *mfn_index);
+
+	ret = intel_gvt_hypervisor_read_gpa(vgpu, gpa, pt + start_index,
+				(end_index - start_index) << info->gtt_entry_size_shift);
+	if (ret) {
+		gvt_vgpu_err("fail to read gpa %lx\n", gpa);
+		goto fail;
+	}
+
+	for (i = start_index; i < end_index; i++) {
+		gfn = pt[i] >> PAGE_SHIFT;
+		mfn = intel_gvt_hypervisor_gfn_to_mfn(vgpu, gfn);
+		if (mfn == INTEL_GVT_INVALID_ADDR) {
+			gvt_vgpu_err("fail to translate gfn: 0x%lx\n", gfn);
+			ret = -ENXIO;
+			goto fail;
+		}
+		mfn = (mfn << PAGE_SHIFT) | (pt[i] & ~PAGE_MASK);
+		mfns[(*mfn_index)++] = mfn;
+	}
+
+fail:
+	return ret;
+}
+
+int intel_vgpu_g2v_pv_ppgtt_insert_4lvl(struct intel_vgpu *vgpu,
+		int page_table_level)
+{
+	struct gvt_shared_page *shared_page = vgpu->mmio.shared_page;
+	const struct intel_gvt_device_info *info = &vgpu->gvt->device_info;
+	struct intel_vgpu_mm *mm;
+	u64 pdp = shared_page->pdp;
+	int ret = 0;
+	struct intel_gvt_gtt_gma_ops *gma_ops = vgpu->gvt->gtt.gma_ops;
+	unsigned long gma_index[4];
+	unsigned long gma_end_index[4];
+	int i;
+	u64 start = shared_page->start;
+	u64 length = shared_page->length;
+	struct sg_table st;
+	struct scatterlist *sg = NULL;
+	unsigned long end_index;
+	unsigned long *mfns = NULL;
+	int mfn_index = 0;
+	unsigned long *pt= NULL;
+	int num_pages = length >> PAGE_SHIFT;
+
+	if (WARN_ON((page_table_level != 4)|| (shared_page->pt_count >= SHARED_PT_SIZE)))
+		return -EINVAL;
+
+	gvt_dbg_mm("insert_4lvl pdp=%llx start=%llx length=%llx pt_count=%llx\n",
+			shared_page->pdp, shared_page->start,
+			shared_page->length, shared_page->pt_count);
+
+	mm = intel_vgpu_find_ppgtt_mm(vgpu, page_table_level, &pdp);
+	if (!mm) {
+		gvt_vgpu_err("fail to find mm for pdp 0x%llx\n", pdp);
+		ret = -EINVAL;
+		goto fail;
+	} else {
+
+		mfns = kmalloc(sizeof (unsigned long) * num_pages, GFP_KERNEL);
+		if (!mfns) {
+			gvt_vgpu_err("fail to alloc mfn array\n");
+			ret = -ENOMEM;
+			goto fail;
+		}
+
+		pt = (unsigned long *)__get_free_pages(GFP_KERNEL, 0);
+		if (!pt) {
+			gvt_vgpu_err("fail to alloc pt");
+			ret = -ENOMEM;
+			goto fail;
+		}
+
+		if (sg_alloc_table(&st, num_pages, GFP_KERNEL)) {
+			gvt_vgpu_err("fail to alloc sg table");
+			ret = -ENOMEM;
+			goto fail;
+		}
+
+		gma_index[0] = gma_ops->gma_to_pml4_index(start);
+		gma_index[1] = gma_ops->gma_to_l4_pdp_index(start);
+		gma_index[2] = gma_ops->gma_to_pde_index(start);
+		gma_index[3] = gma_ops->gma_to_pte_index(start);
+
+		gma_end_index[0] = gma_ops->gma_to_pml4_index(start + length);
+		gma_end_index[1] = gma_ops->gma_to_l4_pdp_index(start + length);
+		gma_end_index[2] = gma_ops->gma_to_pde_index(start + length);
+		gma_end_index[3] = gma_ops->gma_to_pte_index(start + length);
+
+		for (i = 0; i <= 3; i++) {
+			gvt_dbg_mm("gma_index[%d]=%ld gma_end_index[%d]=%ld\n",
+				i, gma_index[i], i, gma_end_index[i]);
+		}
+
+		if (gma_end_index[3] == 0) {
+			gma_end_index[3] = 512;
+			gma_end_index[2]--;
+		}
+
+		// handle first page
+		if (gma_index[2] != gma_end_index[2]) {
+			end_index = 512;
+		} else {
+			end_index = gma_end_index[3];
+		}
+
+		ret = intel_vgpu_convert_gfn(vgpu, shared_page->rsvd2[0] +
+				(gma_index[3] << info->gtt_entry_size_shift), pt,
+				gma_index[3], end_index, mfns, &mfn_index);
+		if (ret)
+			goto fail_free_sg;
+
+		// handle middle pages
+		if (gma_end_index[2] - gma_index[2] > 1)
+			for (i = 0; i < shared_page->pt_count - 2; i++) {
+				ret = intel_vgpu_convert_gfn(vgpu, shared_page->rsvd2[1 + i],
+						pt, 0, 512, mfns, &mfn_index);
+				if (ret)
+					goto fail_free_sg;
+			}
+
+		// handle last page
+		if (gma_end_index[2] != gma_index[2] ) {
+			ret = intel_vgpu_convert_gfn(vgpu, shared_page->rsvd2[shared_page->pt_count - 1],
+					pt, 0, gma_end_index[3], mfns, &mfn_index);
+			if (ret)
+				goto fail_free_sg;
+		}
+
+		BUG_ON(num_pages != mfn_index);
+
+		for_each_sg(st.sgl, sg, num_pages, i) {
+			sg->offset = 0;
+			sg->length = PAGE_SIZE;
+			sg_dma_address(sg) = mfns[i];
+			sg_dma_len(sg) = PAGE_SIZE;
+		}
+
+		gen8_ppgtt_insert_4lvl_sg(&mm->ppgtt->base, st.sgl, I915_CACHE_NONE, start);
+
+	}
+
+fail_free_sg:
+	sg_free_table(&st);
+fail:
+	if (mfns)
+		kfree(mfns);
+	if (pt)
+		free_page((unsigned long)pt);
+
+	return ret;
 }
