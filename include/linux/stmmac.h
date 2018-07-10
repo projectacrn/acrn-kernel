@@ -195,5 +195,7 @@ struct plat_stmmacenet_data {
 	bool en_tx_lpi_clockgating;
 	int no_msi;
 	bool tsn_est_en;
+	bool tsn_fpe_en;
+	u32 fprq;
 };
 #endif

@@ -61,6 +61,7 @@ static bool dw_tsn_feat_en[TSN_FEAT_ID_MAX];
 static unsigned int dw_tsn_hwtunable[TSN_HWTUNA_MAX];
 static struct est_gc_config dw_est_gc_config;
 static struct tsn_err_stat dw_err_stat;
+static struct fpe_config dw_fpe_config;
 
 static unsigned int est_get_gcl_depth(unsigned int hw_cap)
 {
@@ -300,6 +301,75 @@ static int est_set_ov(void *ioaddr,
 	return 0;
 }
 
+static int fpe_set_afsz(void *ioaddr, const unsigned int afsz)
+{
+	unsigned int value;
+
+	if (!dw_tsn_feat_en[TSN_FEAT_ID_FPE])
+		return -ENOTSUPP;
+
+	if (afsz > FPE_AFSZ_MAX) {
+		TSN_WARN_NA("FPE: AFSZ is out-of-bound.\n");
+
+		return -EINVAL;
+	}
+
+	if (afsz != dw_tsn_hwtunable[TSN_HWTUNA_TX_FPE_AFSZ]) {
+		value = TSN_RD32(ioaddr + MTL_FPE_CTRL_STS);
+		value &= ~MTL_FPE_CTRL_STS_AFSZ;
+		value |= afsz;
+		TSN_WR32(value, ioaddr + MTL_FPE_CTRL_STS);
+		dw_tsn_hwtunable[TSN_HWTUNA_TX_FPE_AFSZ] = afsz;
+	}
+
+	return 0;
+}
+
+static int fpe_set_hr_adv(void *ioaddr,
+			  const unsigned int *hadv,
+			  const unsigned int *radv)
+{
+	unsigned int value;
+
+	if (!dw_tsn_feat_en[TSN_FEAT_ID_FPE])
+		return -ENOTSUPP;
+
+	value = TSN_RD32(ioaddr + MTL_FPE_ADVANCE);
+
+	if (hadv) {
+		if (*hadv > FPE_ADV_MAX) {
+			TSN_WARN("FPE: invalid HADV(%u), max=%u\n",
+				 *hadv, FPE_ADV_MAX);
+
+			return -EINVAL;
+		} else if (*hadv !=
+			   dw_tsn_hwtunable[TSN_HWTUNA_TX_FPE_HADV]) {
+			value &= ~MTL_FPE_ADVANCE_HADV;
+			value |= (*hadv & MTL_FPE_ADVANCE_HADV);
+			dw_tsn_hwtunable[TSN_HWTUNA_TX_FPE_HADV] = *hadv;
+		}
+	}
+
+	if (radv) {
+		if (*radv > FPE_ADV_MAX) {
+			TSN_WARN("FPE: invalid RADV(%u), max=%u\n",
+				 *radv, FPE_ADV_MAX);
+
+			return -EINVAL;
+		} else if (*radv !=
+			   dw_tsn_hwtunable[TSN_HWTUNA_TX_FPE_RADV]) {
+			value &= ~MTL_FPE_ADVANCE_RADV;
+			value |= ((*radv << MTL_FPE_ADVANCE_RADV_SHIFT) &
+				  MTL_FPE_ADVANCE_RADV);
+			dw_tsn_hwtunable[TSN_HWTUNA_TX_FPE_RADV] = *radv;
+		}
+	}
+
+	TSN_WR32(value, ioaddr + MTL_FPE_ADVANCE);
+
+	return 0;
+}
+
 void dwmac_tsn_init(void *ioaddr)
 {
 	unsigned int gcl_depth;
@@ -321,7 +391,7 @@ void dwmac_tsn_init(void *ioaddr)
 		TSN_WARN_NA("EST NOT supported\n");
 		cap->est_support = 0;
 
-		return;
+		goto check_fpe;
 	}
 
 	gcl_depth = est_get_gcl_depth(hw_cap3);
@@ -341,13 +411,23 @@ void dwmac_tsn_init(void *ioaddr)
 
 	TSN_INFO("EST: depth=%u, ti_wid=%u, tils_max=%u tqcnt=%u\n",
 		 gcl_depth, ti_wid, tils_max, cap->txqcnt);
+
+check_fpe:
+	if (!(hw_cap3 & GMAC_HW_FEAT_FPESEL)) {
+		TSN_INFO_NA("FPE NOT supported\n");
+		cap->fpe_support = 0;
+	} else {
+		TSN_INFO_NA("FPE capable\n");
+		cap->rxqcnt = (hw_cap2 & GMAC_HW_FEAT_RXQCNT) + 1;
+		cap->fpe_support = 1;
+	}
 }
 
 /* dwmac_tsn_setup is called within stmmac_hw_setup() after
  * stmmac_init_dma_engine() which resets MAC controller.
  * This is so-that MAC registers are not cleared.
  */
-void dwmac_tsn_setup(void *ioaddr)
+void dwmac_tsn_setup(void *ioaddr, unsigned int fprq)
 {
 	struct tsn_hw_cap *cap = &dw_tsn_hwcap;
 	unsigned int value;
@@ -358,6 +438,15 @@ void dwmac_tsn_setup(void *ioaddr)
 			 MTL_EST_INT_EN_IEHF | MTL_EST_INT_EN_IEBE |
 			 MTL_EST_INT_EN_IECC);
 		TSN_WR32(value, ioaddr + MTL_EST_INT_EN);
+	}
+	if (cap->fpe_support && fprq <= cap->rxqcnt) {
+		/* Update FPRQ */
+		value = TSN_RD32(ioaddr + GMAC_RXQ_CTRL1);
+		value &= ~GMAC_RXQCTRL_FPRQ_MASK;
+		value |= fprq << GMAC_RXQCTRL_FPRQ_SHIFT;
+		TSN_WR32(value, ioaddr + GMAC_RXQ_CTRL1);
+	} else {
+		TSN_WARN_NA("FPE: FPRQ is out-of-bound.\n");
 	}
 }
 
@@ -393,6 +482,15 @@ int dwmac_set_tsn_hwtunable(void *ioaddr,
 		break;
 	case TSN_HWTUNA_TX_EST_CTOV:
 		ret = est_set_ov(ioaddr, NULL, data);
+		break;
+	case TSN_HWTUNA_TX_FPE_AFSZ:
+		ret = fpe_set_afsz(ioaddr, *data);
+		break;
+	case TSN_HWTUNA_TX_FPE_HADV:
+		ret = fpe_set_hr_adv(ioaddr, data, NULL);
+		break;
+	case TSN_HWTUNA_TX_FPE_RADV:
+		ret = fpe_set_hr_adv(ioaddr, NULL, data);
 		break;
 	default:
 		ret = -EINVAL;
@@ -954,6 +1052,107 @@ int dwmac_clr_est_err_stat(void *ioaddr)
 		return -ENOTSUPP;
 
 	memset(&dw_err_stat, 0, sizeof(dw_err_stat));
+
+	return 0;
+}
+
+int dwmac_set_fpe_config(void *ioaddr, struct fpe_config *fpec)
+{
+	unsigned int txqmask, value;
+	struct tsn_hw_cap *cap = &dw_tsn_hwcap;
+
+	if (!dw_tsn_feat_en[TSN_FEAT_ID_FPE])
+		return -ENOTSUPP;
+
+	/* Check PEC is within TxQ range */
+	txqmask = (1 << cap->txqcnt) - 1;
+	if (fpec->txqpec & ~txqmask) {
+		TSN_WARN_NA("FPE: Tx PEC is out-of-bound.\n");
+
+		return -EINVAL;
+	}
+
+	/* When EST and FPE are both enabled, TxQ0 is always preemptable
+	 * queue. If FPE is enabled, we expect at least lsb is set.
+	 * If FPE is not enabled, we also allow PEC = 0.
+	 */
+	if (fpec->txqpec && !(fpec->txqpec & FPE_PMAC_BIT)) {
+		TSN_WARN_NA("FPE: TxQ0 must not be express queue.\n");
+
+		return -EINVAL;
+	}
+
+	/* Field masking not needed as condition checks have been done */
+	value = TSN_RD32(ioaddr + MTL_FPE_CTRL_STS);
+	value &= ~(txqmask << MTL_FPE_CTRL_STS_PEC_SHIFT);
+	value |= (fpec->txqpec << MTL_FPE_CTRL_STS_PEC_SHIFT);
+	TSN_WR32(value, ioaddr + MTL_FPE_CTRL_STS);
+
+	/* Update driver copy */
+	dw_fpe_config.txqpec = fpec->txqpec;
+
+	return 0;
+}
+
+int dwmac_set_fpe_enable(void *ioaddr, bool enable)
+{
+	if (!dw_tsn_feat_en[TSN_FEAT_ID_FPE])
+		return -ENOTSUPP;
+
+	dw_fpe_config.enable = enable & MAC_FPE_CTRL_STS_EFPE;
+	TSN_WR32((unsigned int)dw_fpe_config.enable,
+		 ioaddr + MAC_FPE_CTRL_STS);
+
+	return 0;
+}
+
+int dwmac_get_fpe_config(void *ioaddr, struct fpe_config **fpec,
+			 bool frmdrv)
+{
+	unsigned int value;
+	struct fpe_config *pfpec;
+
+	if (!dw_tsn_feat_en[TSN_FEAT_ID_FPE])
+		return -ENOTSUPP;
+
+	/* Get FPE config from driver */
+	if (frmdrv) {
+		*fpec = &dw_fpe_config;
+
+		TSN_INFO_NA("FPE: read config from driver copy done.\n");
+
+		return 0;
+	}
+
+	pfpec = &dw_fpe_config;
+
+	value = TSN_RD32(ioaddr + MTL_FPE_CTRL_STS);
+	pfpec->txqpec = (value & MTL_FPE_CTRL_STS_PEC) >>
+			MTL_FPE_CTRL_STS_PEC_SHIFT;
+
+	value = TSN_RD32(ioaddr + MAC_FPE_CTRL_STS);
+	pfpec->enable = (bool)(value & MAC_FPE_CTRL_STS_EFPE);
+
+	*fpec = pfpec;
+	TSN_INFO_NA("FPE: read config from HW done.\n");
+
+	return 0;
+}
+
+int dwmac_get_fpe_pmac_sts(void *ioaddr, unsigned int *hrs)
+{
+	unsigned int value;
+
+	if (!dw_tsn_feat_en[TSN_FEAT_ID_FPE])
+		return -ENOTSUPP;
+
+	value = TSN_RD32(ioaddr + MTL_FPE_CTRL_STS);
+	*hrs = (value & MTL_FPE_CTRL_STS_HRS) >> MTL_FPE_CTRL_STS_HRS_SHIFT;
+
+	if (hrs)
+		TSN_INFO_NA("FPE: pMAC is in Hold state.\n");
+	else
+		TSN_INFO_NA("FPE: pMAC is in Release state.\n");
 
 	return 0;
 }

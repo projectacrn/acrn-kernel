@@ -26,9 +26,15 @@
 
 /* DWMAC v5.xx supports the following Time Sensitive Networking protocols:
  * 1) IEEE 802.1Qbv Enhancements for Scheduled Traffic (EST)
+ * 2) IEEE 802.1Qbu Frame Preemption (FPE)
  */
 
+/* FPRQ only available in EQoS ver5.00 MAC_RxQ_Ctrl1 */
+#define GMAC_RXQCTRL_FPRQ_MASK		GENMASK(26, 24)	/* FPE Residue Queue */
+#define GMAC_RXQCTRL_FPRQ_SHIFT		24
+
 /* MAC HW features3 bitmap */
+#define GMAC_HW_FEAT_FPESEL		BIT(26)
 #define GMAC_HW_FEAT_ESTTISW		GENMASK(24, 23)
 #define GMAC_HW_FEAT_ESTTISW_SHIFT	23
 #define GMAC_HW_FEAT_ESTWID		GENMASK(21, 20)
@@ -36,6 +42,10 @@
 #define GMAC_HW_FEAT_ESTDEP		GENMASK(19, 17)
 #define GMAC_HW_FEAT_ESTDEP_SHIFT	17
 #define GMAC_HW_FEAT_ESTSEL		BIT(16)
+
+/* MAC FPE control status */
+#define MAC_FPE_CTRL_STS		0x00000234
+#define MAC_FPE_CTRL_STS_EFPE		BIT(0)
 
 /* MTL EST control register */
 #define MTL_EST_CTRL			0x00000c50
@@ -100,12 +110,31 @@
 /* MTL EST GCL data register */
 #define MTL_EST_GCL_DATA		0x00000c84
 
+/* MTL FPE control status */
+#define MTL_FPE_CTRL_STS		0x00000c90
+#define MTL_FPE_CTRL_STS_HRS		BIT(28)	/* Hold/Release Status */
+#define MTL_FPE_CTRL_STS_HRS_SHIFT	28
+#define MTL_FPE_CTRL_STS_PEC		GENMASK(15, 8)	/* FPE Classification */
+#define MTL_FPE_CTRL_STS_PEC_SHIFT	8
+#define MTL_FPE_CTRL_STS_AFSZ		GENMASK(1, 0)	/* Extra Frag Size */
+
+/* MTL FPE Advance */
+#define MTL_FPE_ADVANCE			0x00000c94
+#define MTL_FPE_ADVANCE_RADV		GENMASK(31, 16)	/* Release Advance */
+#define MTL_FPE_ADVANCE_RADV_SHIFT	16
+#define MTL_FPE_ADVANCE_HADV		GENMASK(15, 0)	/* Hold Advance */
+
 /* EST Global defines */
 #define EST_CTR_HI_MAX			0xff	/* CTR Hi is 8-bit only */
 #define EST_PTOV_MAX			0xff	/* Max PTP time offset */
 #define EST_CTOV_MAX			0xfff	/* Max Current time offset */
 #define EST_TIWID_TO_EXTMAX(ti_wid)	((1 << (ti_wid + 7)) - 1)
 #define EST_GCL_BANK_MAX	(2)
+
+/* FPE Global defines */
+#define FPE_AFSZ_MAX			0x3	/* Max AFSZ */
+#define FPE_ADV_MAX			0xFFFF	/* Max Release/Hold advance */
+#define FPE_PMAC_BIT			0x01	/* pMAC bit in GC entry */
 
 /* MAC Core Version */
 #define TSN_VER_MASK		0xFF
@@ -120,12 +149,16 @@ enum tsn_hwtunable_id {
 	TSN_HWTUNA_TX_EST_TILS = 0,
 	TSN_HWTUNA_TX_EST_PTOV,
 	TSN_HWTUNA_TX_EST_CTOV,
+	TSN_HWTUNA_TX_FPE_AFSZ,
+	TSN_HWTUNA_TX_FPE_HADV,
+	TSN_HWTUNA_TX_FPE_RADV,
 	TSN_HWTUNA_MAX,
 };
 
 /* TSN Feature Enabled List */
 enum tsn_feat_id {
 	TSN_FEAT_ID_EST = 0,
+	TSN_FEAT_ID_FPE,
 	TSN_FEAT_ID_MAX,
 };
 
@@ -150,7 +183,9 @@ enum tsn_feat_id {
 /* TSN HW Capabilities */
 struct tsn_hw_cap {
 	bool est_support;		/* 1: supported */
+	bool fpe_support;		/* 1: supported */
 	unsigned int txqcnt;		/* Number of TxQ (control gate) */
+	unsigned int rxqcnt;		/* Number of RxQ (for FPRQ) */
 	unsigned int gcl_depth;		/* GCL depth. */
 	unsigned int ti_wid;		/* time interval width */
 	unsigned int tils_max;		/* Max time interval left shift */
@@ -207,9 +242,15 @@ struct est_gc_config {
 	bool enable;			/* 1: enabled */
 };
 
+/* FPE Configuration */
+struct fpe_config {
+	unsigned int txqpec;		/* TxQ Preemption Classification */
+	bool enable;			/* 1: enabled */
+};
+
 /* TSN functions */
 void dwmac_tsn_init(void *ioaddr);
-void dwmac_tsn_setup(void *ioaddr);
+void dwmac_tsn_setup(void *ioaddr, unsigned int fprq);
 void dwmac_get_tsn_hwcap(struct tsn_hw_cap **tsn_hwcap);
 void dwmac_set_est_gcb(struct est_gc_entry *gcl, unsigned int bank);
 void dwmac_set_tsn_feat(enum tsn_feat_id featid, bool enable);
@@ -233,4 +274,9 @@ int dwmac_get_est_gcc(void *ioaddr,
 int dwmac_est_irq_status(void *ioaddr);
 int dwmac_get_est_err_stat(struct tsn_err_stat **err_stat);
 int dwmac_clr_est_err_stat(void *ioaddr);
+int dwmac_set_fpe_config(void *ioaddr, struct fpe_config *fpec);
+int dwmac_set_fpe_enable(void *ioaddr, bool enable);
+int dwmac_get_fpe_config(void *ioaddr, struct fpe_config **fpec,
+			 bool frmdrv);
+int dwmac_get_fpe_pmac_sts(void *ioaddr, unsigned int *hrs);
 #endif /* __DW_TSN_LIB_H__ */
