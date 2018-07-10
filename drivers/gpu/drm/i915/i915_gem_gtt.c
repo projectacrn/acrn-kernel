@@ -814,7 +814,7 @@ static void gen8_ppgtt_set_pml4e(struct i915_pml4 *pml4,
  * This is the top-level structure in 4-level page tables used on gen8+.
  * Empty entries are always scratch pml4e.
  */
-static void gen8_ppgtt_clear_4lvl(struct i915_address_space *vm,
+void gen8_ppgtt_clear_4lvl(struct i915_address_space *vm,
 				  u64 start, u64 length)
 {
 	struct i915_hw_ppgtt *ppgtt = i915_vm_to_ppgtt(vm);
@@ -957,6 +957,25 @@ static void gen8_ppgtt_insert_3lvl(struct i915_address_space *vm,
 	gen8_ppgtt_insert_pte_entries(ppgtt, &ppgtt->pdp, &iter, &idx,
 				      cache_level, NULL);
 }
+
+void gen8_ppgtt_insert_4lvl_sg(struct i915_address_space *vm,
+				   struct scatterlist *sg,
+				   enum i915_cache_level cache_level,
+				   u64 start)
+{
+	struct i915_hw_ppgtt *ppgtt = i915_vm_to_ppgtt(vm);
+	struct i915_page_directory_pointer **pdps = ppgtt->pml4.pdps;
+	struct gen8_insert_pte idx = gen8_insert_pte(start);
+	struct sgt_dma iter;
+	iter.sg = sg;
+	iter.dma = sg_dma_address(sg);
+	iter.max = sg_dma_address(sg) + sg->length;
+
+	while (gen8_ppgtt_insert_pte_entries(ppgtt, pdps[idx.pml4e++], &iter,
+					     &idx, cache_level, NULL))
+		GEM_BUG_ON(idx.pml4e >= GEN8_PML4ES_PER_PML4);
+}
+
 
 static void gen8_ppgtt_insert_4lvl(struct i915_address_space *vm,
 				   struct i915_vma *vma,
@@ -1219,7 +1238,7 @@ static int gen8_ppgtt_alloc_3lvl(struct i915_address_space *vm,
 				    &i915_vm_to_ppgtt(vm)->pdp, start, length);
 }
 
-static int gen8_ppgtt_alloc_4lvl(struct i915_address_space *vm,
+int gen8_ppgtt_alloc_4lvl(struct i915_address_space *vm,
 				 u64 start, u64 length)
 {
 	struct i915_hw_ppgtt *ppgtt = i915_vm_to_ppgtt(vm);
