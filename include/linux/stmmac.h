@@ -196,5 +196,7 @@ struct plat_stmmacenet_data {
 	int has_xgmac;
 	int no_msi;
 	bool tsn_est_en;
+	bool tsn_fpe_en;
+	u32 fprq;
 };
 #endif
