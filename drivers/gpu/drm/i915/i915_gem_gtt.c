@@ -883,9 +883,12 @@ gen8_ppgtt_insert_pte_entries(struct i915_hw_ppgtt *ppgtt,
 			      enum i915_cache_level cache_level)
 {
 	struct i915_page_directory *pd;
-	const gen8_pte_t pte_encode = gen8_pte_encode(0, cache_level);
+	gen8_pte_t pte_encode = 0;
 	gen8_pte_t *vaddr;
 	bool ret;
+
+	if (cache_level != -1)
+		pte_encode = gen8_pte_encode(0, cache_level);
 
 	GEM_BUG_ON(idx->pdpe >= i915_pdpes_per_pdp(&ppgtt->base));
 	pd = pdp->page_directory[idx->pdpe];
