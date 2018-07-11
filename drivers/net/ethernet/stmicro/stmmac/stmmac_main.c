@@ -2104,6 +2104,9 @@ static void stmmac_mmc_setup(struct stmmac_priv *priv)
 
 	dwmac_mmc_intr_all_mask(priv->mmcaddr);
 
+	if ((priv->hw->tsn_cap & TSN_CAP_FPE) == TSN_CAP_FPE)
+		dwmac_mmc_fpe_intr_all_mask(priv->mmcaddr);
+
 	if (priv->dma_cap.rmon) {
 		dwmac_mmc_ctrl(priv->mmcaddr, mode);
 		memset(&priv->mmc, 0, sizeof(struct stmmac_counters));
