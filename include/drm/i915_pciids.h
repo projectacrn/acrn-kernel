@@ -493,8 +493,12 @@
 	INTEL_VGA_DEVICE(0x9A39, info), \
 	INTEL_TGL_SIM_12_IDS(info)
 
+#define INTEL_ATS_SIM_IDS(info) \
+	INTEL_VGA_DEVICE(0xFF25, info)
+
 #define INTEL_ATS_IDS(info) \
-	INTEL_VGA_DEVICE(0x0201, info)
+	INTEL_VGA_DEVICE(0x0201, info), \
+	INTEL_ATS_SIM_IDS(info)
 
 /* JSL */
 #define INTEL_JSL_IDS(info) \
