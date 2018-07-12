@@ -106,7 +106,6 @@ enum dal_dev_type {
  * @ddev: dal parent device
  * @wrlink: link in the writers list
  * @read_queue: queue of received messages from DAL FW
- * @write_buffer: buffer to send to DAL FW
  * @intf: client interface - user space or kernel space
  *
  * @seq: the sequence number of the last message sent (in kernel space API only)
@@ -124,7 +123,6 @@ struct dal_client {
 	struct dal_device *ddev;
 	struct list_head wrlink;
 	struct kfifo read_queue;
-	char write_buffer[DAL_MAX_BUFFER_SIZE];
 	enum dal_intf intf;
 
 	u64 seq;
@@ -192,7 +190,8 @@ struct dal_device {
 
 #define to_dal_device(d) container_of(d, struct dal_device, dev)
 
-ssize_t dal_write(struct dal_client *dc, size_t count, u64 seq);
+ssize_t dal_write(struct dal_client *dc,
+		  const void *buf, size_t count, u64 seq);
 int dal_wait_for_read(struct dal_client *dc);
 
 struct device *dal_find_dev(enum dal_dev_type device_id);
