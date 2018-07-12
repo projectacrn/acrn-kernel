@@ -316,13 +316,14 @@ static int dal_wait_for_write(struct dal_device *ddev, struct dal_client *dc)
  *        into the client read queue. In-band error message.
  *
  * @dc: dal client
+ * @cmd: rejected message header
  *
  * Return: 0 on success
  *         -ENOMEM when client read queue is full
  *
  * Locking: called under "ddev->write_lock" lock
  */
-static int dal_send_error_access_denied(struct dal_client *dc)
+static int dal_send_error_access_denied(struct dal_client *dc, const void *cmd)
 {
 	struct dal_device *ddev = dc->ddev;
 	struct bh_response_header res;
@@ -331,7 +332,7 @@ static int dal_send_error_access_denied(struct dal_client *dc)
 
 	mutex_lock(&ddev->context_lock);
 
-	bh_prep_access_denied_response(dc->write_buffer, &res);
+	bh_prep_access_denied_response(cmd, &res);
 	len = sizeof(res);
 
 	if (kfifo_in(&dc->read_queue, &len, sizeof(len)) != sizeof(len)) {
@@ -439,13 +440,14 @@ static const bh_filter_func dal_write_filter_tbl[] = {
  * dal_write - write message to DAL FW over mei
  *
  * @dc: dal client
+ * @buf: the message.
  * @count: message size
  * @seq: message sequence (if client is kernel space client)
  *
  * Return: >=0 data length on success
  *         <0 on failure
  */
-ssize_t dal_write(struct dal_client *dc, size_t count, u64 seq)
+ssize_t dal_write(struct dal_client *dc, const void *buf, size_t count, u64 seq)
 {
 	struct dal_device *ddev = dc->ddev;
 	struct device *dev;
@@ -470,7 +472,7 @@ ssize_t dal_write(struct dal_client *dc, size_t count, u64 seq)
 		/* adding client to write queue - this is the first fragment */
 		const struct bh_command_header *hdr;
 
-		hdr = bh_msg_cmd_hdr(dc->write_buffer, count);
+		hdr = bh_msg_cmd_hdr(buf, count);
 		if (!hdr) {
 			dev_dbg(dev, "expected cmd hdr at first fragment\n");
 			ret = -EINVAL;
@@ -478,7 +480,7 @@ ssize_t dal_write(struct dal_client *dc, size_t count, u64 seq)
 		}
 		ret = bh_filter_hdr(hdr, count, dc, dal_write_filter_tbl);
 		if (ret == -EPERM) {
-			ret = dal_send_error_access_denied(dc);
+			ret = dal_send_error_access_denied(dc, buf);
 			ret = ret ? ret : count;
 		}
 		if (ret)
@@ -500,7 +502,7 @@ ssize_t dal_write(struct dal_client *dc, size_t count, u64 seq)
 	dev_dbg(dev, "before mei_cldev_send - client type %d\n", intf);
 
 	/* send msg via MEI */
-	wr = mei_cldev_send(ddev->cldev, dc->write_buffer, count);
+	wr = mei_cldev_send(ddev->cldev, (void *)buf, count);
 	if (wr != count) {
 		/* ENODEV can be issued upon internal reset */
 		if (wr != -ENODEV) {

@@ -205,6 +205,8 @@ static ssize_t dal_dev_write(struct file *fp, const char __user *buff,
 {
 	struct dal_device *ddev;
 	struct dal_client *dc = fp->private_data;
+	void *data;
+	int ret;
 
 	ddev = dc->ddev;
 
@@ -219,10 +221,15 @@ static ssize_t dal_dev_write(struct file *fp, const char __user *buff,
 	if (!buff)
 		return -EINVAL;
 
-	if (copy_from_user(dc->write_buffer, buff, count))
-		return -EFAULT;
+	data =  memdup_user(buff, count);
+	if (IS_ERR(data))
+		return PTR_ERR(data);
 
-	return dal_write(dc, count, 0);
+	ret = dal_write(dc, data, count, 0);
+
+	kfree(data);
+
+	return ret;
 }
 
 static const struct file_operations mei_dal_fops = {
