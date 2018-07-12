@@ -184,9 +184,7 @@ int dal_kdi_send(unsigned int dev_idx, const unsigned char *buf,
 		goto out;
 	}
 
-	/* copy data to client object */
-	memcpy(dc->write_buffer, buf, len);
-	wr = dal_write(dc, len, seq);
+	wr = dal_write(dc, buf, len, seq);
 	if (wr > 0)
 		ret = 0;
 	else
