@@ -1312,9 +1312,17 @@ enum ethtool_fec_config_bits {
 /*
  * enum ethtool_gate_op - gate operation ID
  * @ETH_GATEOP_SET_GATE_STATES: Set gate states only.
+ * @ETH_GATEOP_SET_N_HOLD_MAC: Set gate states and port associated with
+ *                             pMAC stops transmitting preemptable
+ *                             frames.
+ * @ETH_GATEOP_SET_N_RELS_MAC: Set gate states and port associated with
+ *                             pMAC resumes transmitting preemptable
+ *                             frames.
  */
 enum ethtool_gate_op {
 	ETH_GATEOP_SET_GATE_STATES	= 0,
+	ETH_GATEOP_SET_N_HOLD_MAC,
+	ETH_GATEOP_SET_N_RELS_MAC,
 };
 
 /**
@@ -1434,6 +1442,60 @@ struct ethtool_est_info {
 	__u32	btrl;
 };
 
+/**
+ * struct ethtool_fpe_info - configuring IEEE802.1 Qbu Frame Preemption
+ * (FPE).
+ * @cmd: Command number - %ETHTOOL_{G,S}FPEINFO.
+ * @sts_map: On entry, bitmap of FPE status for each priority.
+ *           Value of each bit:- 0: Express & 1: Preemptable.
+ *           Least significant bit of sts_map field is for priority-0.
+ *           For example: sts_map = 0x65 (0110_0101b) means frames from
+ *           following priority list (0, 2, 5 & 6) are sent through pMAC.
+ *           On successful return, FPE status bitmap value actually read/
+ *           written.
+ *           In case of error for write operation, a bit with value '0'
+ *           indicates that frames from the associated priority is always
+ *           sent through Express MAC (eMAC). Bit value '1' means the
+ *           associated priority may be configured to be preemptable.
+ *           User is expected to reconfigure the bitmap again.
+ *           In case of error for read operation, the value of this field
+ *           should not be trusted.
+ * @hold_adv_ns: On entry, the value of hold advance in nano-seconds read/
+ *               written to/from hardware.
+ *               On successful return, hold advance value actually read/
+ *               written.
+ *               In case of error for write operation, the value indicates
+ *               the maximum value allowable for hold advance.
+ *               In case of error for read operation, the value should not
+ *               be trusted.
+ * @rels_adv_ns: On entry, the value of release advance in nano-seconds
+ *               read/written to/from hardware.
+ *               On successful return, release advance value actually read/
+ *               written.
+ *               In case of error for write operation, the value indicates
+ *               the maximum value allowable for release advance.
+ *               In case of error for read operation, the value should not
+ *               be trusted.
+ * @hold_req: Current state of pMAC [Read Only]:
+ *             0: release.
+ *             1: hold.
+ *            The value is ignored for write operation. In case of error
+ *            for read operation, the value should not be trusted.
+ * @lp_fpe: Frame preemption support in link partner [Read Only]:
+ *           0: no.
+ *           1: yes.
+ *          The value is ignored for write operation. In case of error for
+ *          read operation, the value should not be trusted.
+ */
+struct ethtool_fpe_info {
+	__u32	cmd;
+	__u32	sts_map;
+	__u32	hold_adv_ns;
+	__u32	rels_adv_ns;
+	__u32	hold_req;
+	__u32	lp_fpe;
+};
+
 /* CMDs currently supported */
 #define ETHTOOL_GSET		0x00000001 /* DEPRECATED, Get settings.
 					    * Please use ETHTOOL_GLINKSETTINGS
@@ -1536,6 +1598,9 @@ struct ethtool_est_info {
 #define ETHTOOL_SGCE		0x00000056 /* Set EST Gate Control Entry */
 #define ETHTOOL_GESTINFO	0x00000057 /* Get EST Info */
 #define ETHTOOL_SESTINFO	0x00000058 /* Set EST Info */
+#define ETHTOOL_GFPEINFO	0x00000059 /* Get FPE Info */
+#define ETHTOOL_SFPEINFO	0x0000005a /* Set FPE Info */
+
 
 /* compatibility with older code */
 #define SPARC_ETH_GSET		ETHTOOL_GSET

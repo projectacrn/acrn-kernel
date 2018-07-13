@@ -2789,6 +2789,42 @@ static int ethtool_set_est_info(struct net_device *dev, void __user *useraddr)
 	return ops->set_est_info(dev, &est_info);
 }
 
+static int ethtool_get_fpe_info(struct net_device *dev, void __user *useraddr)
+{
+	int ret;
+	struct ethtool_fpe_info fpe_info;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->get_fpe_info)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&fpe_info, useraddr, sizeof(fpe_info)))
+		return -EFAULT;
+
+	ret = ops->get_fpe_info(dev, &fpe_info);
+	if (ret)
+		return ret;
+
+	if (copy_to_user(useraddr, &fpe_info, sizeof(fpe_info)))
+		return -EFAULT;
+
+	return 0;
+}
+
+static int ethtool_set_fpe_info(struct net_device *dev, void __user *useraddr)
+{
+	struct ethtool_fpe_info fpe_info;
+	const struct ethtool_ops *ops = dev->ethtool_ops;
+
+	if (!ops->set_fpe_info)
+		return -EOPNOTSUPP;
+
+	if (copy_from_user(&fpe_info, useraddr, sizeof(fpe_info)))
+		return -EFAULT;
+
+	return ops->set_fpe_info(dev, &fpe_info);
+}
+
 /* The main entry point in this file.  Called from net/core/dev_ioctl.c */
 
 int dev_ethtool(struct net *net, struct ifreq *ifr)
@@ -2852,6 +2888,7 @@ int dev_ethtool(struct net *net, struct ifreq *ifr)
 	case ETHTOOL_GGCL:
 	case ETHTOOL_GGCE:
 	case ETHTOOL_GESTINFO:
+	case ETHTOOL_GFPEINFO:
 		break;
 	default:
 		if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
@@ -3087,6 +3124,12 @@ int dev_ethtool(struct net *net, struct ifreq *ifr)
 		break;
 	case ETHTOOL_SESTINFO:
 		rc = ethtool_set_est_info(dev, useraddr);
+		break;
+	case ETHTOOL_GFPEINFO:
+		rc = ethtool_get_fpe_info(dev, useraddr);
+		break;
+	case ETHTOOL_SFPEINFO:
+		rc = ethtool_set_fpe_info(dev, useraddr);
 		break;
 	default:
 		rc = -EOPNOTSUPP;
