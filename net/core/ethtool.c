@@ -131,6 +131,9 @@ tunable_strings[__ETHTOOL_TUNABLE_COUNT][ETH_GSTRING_LEN] = {
 	[ETHTOOL_TX_EST_TILS]	= "tx-est-tils",
 	[ETHTOOL_TX_EST_PTOV]	= "tx-est-ptov",
 	[ETHTOOL_TX_EST_CTOV]	= "tx-est-ctov",
+	[ETHTOOL_TX_FPE_AFSZ]	= "tx-fpe-afsz",
+	[ETHTOOL_TX_FPE_HADV]	= "tx-fpe-hadv",
+	[ETHTOOL_TX_FPE_RADV]	= "tx-fpe-radv",
 };
 
 static const char
@@ -2314,6 +2317,9 @@ static int ethtool_tunable_valid(const struct ethtool_tunable *tuna)
 	case ETHTOOL_TX_EST_TILS:
 	case ETHTOOL_TX_EST_PTOV:
 	case ETHTOOL_TX_EST_CTOV:
+	case ETHTOOL_TX_FPE_AFSZ:
+	case ETHTOOL_TX_FPE_HADV:
+	case ETHTOOL_TX_FPE_RADV:
 		if (tuna->len != sizeof(u32) ||
 		    tuna->type_id != ETHTOOL_TUNABLE_U32)
 			return -EINVAL;
