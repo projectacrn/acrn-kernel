@@ -230,6 +230,9 @@ enum tunable_id {
 	ETHTOOL_TX_EST_TILS,		/* EST: time interval left shift */
 	ETHTOOL_TX_EST_PTOV,		/* EST: PTP time offset */
 	ETHTOOL_TX_EST_CTOV,		/* EST: Current time offset */
+	ETHTOOL_TX_FPE_AFSZ,		/* FPE: Additional Frag Size */
+	ETHTOOL_TX_FPE_HADV,		/* FPE: Hold Advance */
+	ETHTOOL_TX_FPE_RADV,		/* FPE: Release Advance */
 	/*
 	 * Add your fresh new tunable attribute above and remember to update
 	 * tunable_strings[] in net/core/ethtool.c
