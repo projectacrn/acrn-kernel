@@ -324,6 +324,8 @@ bool ethtool_convert_link_mode_to_legacy_u32(u32 *legacy_u32,
  * @get_est_info: Get IEEE802.1 Qbv EST info, e.g. base time, cycle time
  *	& cycle time extension.
  * @set_est_info: Set IEEE802.1 Qbv EST info.
+ * @get_fpe_info: Get IEEE 802.1Qbu FPE info.
+ * @set_fpe_info: Set IEEE 802.1Qbu FPE info.
  *
  * All operations are optional (i.e. the function pointer may be set
  * to %NULL) and callers must take this into account.  Callers must
@@ -433,5 +435,9 @@ struct ethtool_ops {
 				struct ethtool_est_info *);
 	int	(*set_est_info)(struct net_device *,
 				struct ethtool_est_info *);
+	int	(*get_fpe_info)(struct net_device *,
+				struct ethtool_fpe_info *);
+	int	(*set_fpe_info)(struct net_device *,
+				struct ethtool_fpe_info *);
 };
 #endif /* _LINUX_ETHTOOL_H */
