@@ -905,6 +905,10 @@ static void icl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 	I915_WRITE(GAMT_CHKN_BIT_REG,
 		   I915_READ(GAMT_CHKN_BIT_REG) |
 		   GAMT_CHKN_DISABLE_L3_COH_PIPE);
+
+	/* WaEnable32PlaneMode:icl */
+	I915_WRITE(GEN9_CSFE_CHICKEN1_RCS,
+		   _MASKED_BIT_ENABLE(GEN11_ENABLE_32_PLANE_MODE));
 }
 
 void intel_gt_workarounds_apply(struct drm_i915_private *dev_priv)
