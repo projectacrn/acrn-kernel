@@ -127,4 +127,6 @@ int bh_proxy_open_jta_session(unsigned int conn_idx, uuid_t *ta_id,
 			      const char *init_buffer, unsigned int init_len,
 			      u64 *host_id, const char *ta_pkg,
 			      unsigned int pkg_len);
+
+void bh_prep_session_close_cmd(void *cmdbuf, u64 ta_session_id);
 #endif /* __BH_INTERNAL_H */

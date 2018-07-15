@@ -59,7 +59,9 @@
  *****************************************************************************/
 #define pr_fmt(fmt) KBUILD_MODNAME ":%s: " fmt, __func__
 
+#include <linux/types.h>
 #include <linux/mei_cl_bus.h>
+#include <linux/completion.h>
 #include "bh_errcode.h"
 #include "bh_external.h"
 #include "bh_internal.h"
@@ -72,20 +74,33 @@ static u64 bh_host_id_number = MSG_SEQ_START_NUMBER;
 /**
  * struct bh_request_cmd - bh request command
  *
+ * @link: link in the request list of bh service
  * @cmd: command header and data
  * @cmd_len: command buffer length
  * @conn_idx: connection index
  * @host_id: session host id
  * @response: response buffer
+ * @complete: request completion
+ * @ret: return value of the request
  */
 struct bh_request_cmd {
+	struct list_head link;
 	u8 *cmd;
 	unsigned int cmd_len;
-
 	unsigned int conn_idx;
 	u64 host_id;
 	void *response;
+	struct completion complete;
+	int ret;
 };
+
+struct bh_service {
+	struct work_struct work;
+	struct mutex request_lock; /* request lock */
+	struct list_head request_list;
+};
+
+static struct bh_service bh_srvc;
 
 /*
  * dal device session records list (array of list per dal device)
@@ -207,6 +222,8 @@ static struct bh_request_cmd *bh_request_alloc(const void *hdr,
 
 	request->conn_idx = conn_idx;
 	request->host_id = host_id;
+
+	init_completion(&request->complete);
 
 	return request;
 }
@@ -396,6 +413,85 @@ static int bh_send_message(const struct bh_request_cmd *request)
 
 	return 0;
 }
+
+void bh_prep_session_close_cmd(void *cmdbuf, u64 ta_session_id)
+{
+	struct bh_command_header *h = cmdbuf;
+	struct bh_close_jta_session_cmd *cmd;
+
+	cmd = (struct bh_close_jta_session_cmd *)h->cmd;
+	h->id = BHP_CMD_CLOSE_JTASESSION;
+	cmd->ta_session_id = ta_session_id;
+}
+
+static void bh_request_work(struct work_struct *work)
+{
+	struct bh_service *bh_srv;
+	struct bh_request_cmd *request;
+	struct bh_command_header *h;
+	struct bh_response_header *resp_hdr;
+	int ret;
+
+	bh_srv = container_of(work, struct bh_service, work);
+
+	mutex_lock(&bh_srv->request_lock);
+	request = list_first_entry_or_null(&bh_srv->request_list,
+					   struct bh_request_cmd, link);
+	if (!request) {
+		ret = -EINVAL;
+		goto out_free;
+	}
+
+	list_del_init(&request->link);
+
+	if (!request->cmd_len || !request->cmd) {
+		ret = -EINVAL;
+		goto out_free;
+	}
+
+send_request:
+	ret = bh_send_message(request);
+	if (ret)
+		goto out;
+
+	ret = bh_recv_message(request);
+out:
+	request->ret = ret;
+	if (wq_has_sleeper(&request->complete.wait)) {
+		mutex_unlock(&bh_srv->request_lock);
+		complete(&request->complete);
+		return;
+	}
+
+	/* no one waits for the response - clean up is needed */
+	pr_debug("no waiter - clean up is needed\n");
+	resp_hdr = (struct bh_response_header *)request->response;
+	/*
+	 * if the command was open_session and
+	 * it was succeeded then close the session
+	 */
+	if (ret || resp_hdr->code)
+		goto out_free;
+
+	h = (struct bh_command_header *)request->cmd;
+	if (bh_msg_is_cmd_open_session(h)) {
+		char cmdbuf[CMD_BUF_SIZE(struct bh_close_jta_session_cmd)];
+		u64 host_id = request->host_id;
+
+		bh_request_free(request);
+
+		bh_prep_session_close_cmd(cmdbuf, resp_hdr->ta_session_id);
+		request = bh_request_alloc(cmdbuf, sizeof(cmdbuf), NULL, 0,
+					   CONN_IDX_IVM, host_id);
+		if (!IS_ERR(request))
+			goto send_request;
+	}
+
+out_free:
+	bh_request_free(request);
+	mutex_unlock(&bh_srv->request_lock);
+}
+
 /**
  * bh_request - send request to DAL FW and receive response back
  *
@@ -417,24 +513,38 @@ int bh_request(unsigned int conn_idx, void *cmd_hdr, unsigned int cmd_hdr_len,
 	int ret;
 	struct bh_request_cmd *request;
 
-	if (!cmd_hdr || !response)
-		return -EINVAL;
-
+	mutex_lock(&bh_srvc.request_lock);
 	request = bh_request_alloc(cmd_hdr, cmd_hdr_len, cmd_data, cmd_data_len,
 				   conn_idx, host_id);
-	if (IS_ERR(request))
+	if (IS_ERR(request)) {
+		mutex_unlock(&bh_srvc.request_lock);
 		return PTR_ERR(request);
+	}
 
-	ret = bh_send_message(request);
+	list_add_tail(&request->link, &bh_srvc.request_list);
+	mutex_unlock(&bh_srvc.request_lock);
+
+	schedule_work(&bh_srvc.work);
+	ret = wait_for_completion_interruptible(&request->complete);
+	/*
+	 * if wait was interrupted than do not free allocated memory.
+	 * it is used by the worker
+	 */
 	if (ret)
-		goto out;
+		return ret;
 
-	ret = bh_recv_message(request);
+	mutex_lock(&bh_srvc.request_lock);
+
+	/* detach response buffer */
 	*response = request->response;
 	request->response = NULL;
 
-out:
+	ret = request->ret;
+
 	bh_request_free(request);
+
+	mutex_unlock(&bh_srvc.request_lock);
+
 	return ret;
 }
 
@@ -729,6 +839,23 @@ out:
 }
 
 /**
+ * bh_request_list_free - free request list of bh_service
+ *
+ * @request_list: request list
+ */
+static void bh_request_list_free(struct list_head *request_list)
+{
+	struct bh_request_cmd *pos, *next;
+
+	list_for_each_entry_safe(pos, next, request_list, link) {
+		list_del(&pos->link);
+		bh_request_free(pos);
+	}
+
+	INIT_LIST_HEAD(request_list);
+}
+
+/**
  * bh_is_initialized - check if bh is initialized
  *
  * Return: true when bh is initialized and false otherwise
@@ -750,9 +877,15 @@ void bh_init_internal(void)
 {
 	unsigned int i;
 
-	if (atomic_add_unless(&bh_state, 1, 1))
-		for (i = CONN_IDX_START; i < MAX_CONNECTIONS; i++)
-			bh_session_list_init(i);
+	if (!atomic_add_unless(&bh_state, 1, 1))
+		return;
+
+	for (i = CONN_IDX_START; i < MAX_CONNECTIONS; i++)
+		bh_session_list_init(i);
+
+	INIT_LIST_HEAD(&bh_srvc.request_list);
+	mutex_init(&bh_srvc.request_lock);
+	INIT_WORK(&bh_srvc.work, bh_request_work);
 }
 
 /**
@@ -765,7 +898,12 @@ void bh_deinit_internal(void)
 {
 	unsigned int i;
 
-	if (atomic_add_unless(&bh_state, -1, 0))
-		for (i = CONN_IDX_START; i < MAX_CONNECTIONS; i++)
-			bh_session_list_free(i);
+	if (!atomic_add_unless(&bh_state, -1, 0))
+		return;
+
+	for (i = CONN_IDX_START; i < MAX_CONNECTIONS; i++)
+		bh_session_list_free(i);
+
+	cancel_work_sync(&bh_srvc.work);
+	bh_request_list_free(&bh_srvc.request_list);
 }
