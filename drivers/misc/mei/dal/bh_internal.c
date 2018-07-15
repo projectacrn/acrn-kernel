@@ -621,7 +621,7 @@ int bh_proxy_open_jta_session(unsigned int conn_idx,
 	ret = bh_request(conn_idx, h, CMD_BUF_SIZE(*cmd), init_buffer,
 			 init_len, session->host_id, (void **)&resp_hdr);
 
-	if (!ret)
+	if (!ret && resp_hdr)
 		ret = resp_hdr->code;
 
 	if (ret == BHE_PACKAGE_NOT_FOUND) {
@@ -631,7 +631,7 @@ int bh_proxy_open_jta_session(unsigned int conn_idx,
 		 */
 		ret = bh_proxy_dnload_jta(conn_idx, ta_id, ta_pkg, pkg_len);
 		if (ret)
-			goto out_err;
+			goto out;
 
 		kfree(resp_hdr);
 		resp_hdr = NULL;
@@ -639,23 +639,19 @@ int bh_proxy_open_jta_session(unsigned int conn_idx,
 				 init_len, session->host_id,
 				 (void **)&resp_hdr);
 
-		if (!ret)
+		if (!ret && resp_hdr)
 			ret = resp_hdr->code;
 	}
 
-	if (ret)
-		goto out_err;
-
-	session->ta_session_id = resp_hdr->ta_session_id;
-
-	kfree(resp_hdr);
-
+	if (resp_hdr)
+		session->ta_session_id = resp_hdr->ta_session_id;
 	*host_id = session->host_id;
 
-	return 0;
+out:
+	if (ret)
+		bh_session_remove(conn_idx, session->host_id);
 
-out_err:
-	bh_session_remove(conn_idx, session->host_id);
+	kfree(resp_hdr);
 
 	return ret;
 }
