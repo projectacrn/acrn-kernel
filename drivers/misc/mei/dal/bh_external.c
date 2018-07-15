@@ -450,9 +450,7 @@ out:
 int bh_ta_session_close(u64 host_id)
 {
 	int ret;
-	struct bh_command_header *h;
-	struct bh_close_jta_session_cmd *cmd;
-	char cmdbuf[CMD_BUF_SIZE(*cmd)];
+	char cmdbuf[CMD_BUF_SIZE(struct bh_close_jta_session_cmd)];
 	struct bh_response_header *resp_hdr;
 	struct bh_session_record *session;
 	unsigned int conn_idx = CONN_IDX_IVM;
@@ -464,12 +462,9 @@ int bh_ta_session_close(u64 host_id)
 	if (!session)
 		return -EINVAL;
 
-	h = (struct bh_command_header *)cmdbuf;
-	cmd = (struct bh_close_jta_session_cmd *)h->cmd;
-	h->id = BHP_CMD_CLOSE_JTASESSION;
-	cmd->ta_session_id = session->ta_session_id;
+	bh_prep_session_close_cmd(cmdbuf, session->ta_session_id);
 
-	ret = bh_request(conn_idx, h, CMD_BUF_SIZE(*cmd), NULL, 0, host_id,
+	ret = bh_request(conn_idx, cmdbuf, sizeof(cmdbuf), NULL, 0, host_id,
 			 (void **)&resp_hdr);
 
 	if (!ret)
