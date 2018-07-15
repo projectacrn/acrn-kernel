@@ -69,6 +69,22 @@
 static atomic_t bh_state = ATOMIC_INIT(0);
 static u64 bh_host_id_number = MSG_SEQ_START_NUMBER;
 
+/**
+ * struct bh_request_cmd - bh request command
+ *
+ * @cmd: command header and data
+ * @cmd_len: command buffer length
+ * @conn_idx: connection index
+ * @host_id: session host id
+ */
+struct bh_request_cmd {
+	u8 *cmd;
+	unsigned int cmd_len;
+
+	unsigned int conn_idx;
+	u64 host_id;
+};
+
 /*
  * dal device session records list (array of list per dal device)
  * represents opened sessions to dal fw client
@@ -144,6 +160,54 @@ void bh_session_remove(unsigned int conn_idx, u64 host_id)
 	}
 }
 
+static void bh_request_free(struct bh_request_cmd *request)
+{
+	if (!request)
+		return;
+	kfree(request->cmd);
+	kfree(request);
+	request = NULL;
+}
+
+static struct bh_request_cmd *bh_request_alloc(const void *hdr,
+					       unsigned int hdr_len,
+					       const void *data,
+					       unsigned int data_len,
+					       unsigned int conn_idx,
+					       u64 host_id)
+{
+	struct bh_request_cmd *request;
+
+	if (!hdr || hdr_len < sizeof(struct bh_command_header))
+		return ERR_PTR(-EINVAL);
+
+	if (!data && data_len)
+		return ERR_PTR(-EINVAL);
+
+	request = kzalloc(sizeof(*request), GFP_KERNEL);
+	if (!request)
+		return ERR_PTR(-ENOMEM);
+
+	request->cmd = kmalloc(hdr_len + data_len, GFP_KERNEL);
+	if (!request->cmd) {
+		kfree(request);
+		return ERR_PTR(-ENOMEM);
+	}
+
+	memcpy(request->cmd, hdr, hdr_len);
+	request->cmd_len = hdr_len;
+
+	if (data_len) {
+		memcpy(request->cmd + hdr_len, data, data_len);
+		request->cmd_len += data_len;
+	}
+
+	request->conn_idx = conn_idx;
+	request->host_id = host_id;
+
+	return request;
+}
+
 static char skip_buffer[DAL_MAX_BUFFER_SIZE] = {0};
 /**
  * bh_transport_recv - receive message from DAL FW, using kdi callback
@@ -187,72 +251,47 @@ static int bh_transport_recv(unsigned int conn_idx, void *buffer, size_t size)
 }
 
 /**
- * bh_transport_send - send message to DAL FW,
+ * bh_send_message - build and send command message to DAL
  *     using kdi callback 'dal_kdi_send'
  *
- * @conn_idx: fw client connection idx
- * @buffer: message to send
- * @size: message size
- * @host_id: message host id
+ * @request: all request details
  *
  * Return: 0 on success
  *         <0 on failure
  */
-static int bh_transport_send(unsigned int conn_idx, const void *buffer,
-			     unsigned int size, u64 host_id)
+static int bh_send_message(const struct bh_request_cmd *request)
 {
+	int ret;
 	size_t chunk_sz;
 	unsigned int count;
-	const char *buf = buffer;
-	int ret;
+	const char *buf;
+	struct bh_command_header *h;
 
-	if (conn_idx > DAL_MEI_DEVICE_MAX)
+	if (!request)
+		return -EINVAL;
+
+	if (request->cmd_len < sizeof(*h) || !request->cmd)
+		return -EINVAL;
+
+	if (request->conn_idx > DAL_MEI_DEVICE_MAX)
 		return -ENODEV;
 
-	for (count = 0; count < size; count += chunk_sz) {
-		chunk_sz = min_t(size_t, size - count, DAL_MAX_BUFFER_SIZE);
-		ret = dal_kdi_send(conn_idx, buf + count, chunk_sz, host_id);
+	h = (struct bh_command_header *)request->cmd;
+	h->h.magic = BH_MSG_CMD_MAGIC;
+	h->h.length = request->cmd_len;
+	h->seq = request->host_id;
+
+	buf = request->cmd;
+	for (count = 0; count < request->cmd_len; count += chunk_sz) {
+		chunk_sz = min_t(size_t, request->cmd_len - count,
+				 DAL_MAX_BUFFER_SIZE);
+		ret = dal_kdi_send(request->conn_idx, buf + count, chunk_sz,
+				   request->host_id);
 		if (ret)
 			return ret;
 	}
 
 	return 0;
-}
-
-/**
- * bh_send_message - build and send command message to DAL
- *
- * @conn_idx: fw client connection idx
- * @hdr: command header
- * @hdr_len: command header length
- * @data: command data (message content)
- * @data_len: data length
- * @host_id: message host id
- *
- * Return: 0 on success
- *         <0 on failure
- */
-static int bh_send_message(unsigned int conn_idx,
-			   void *hdr, unsigned int hdr_len,
-			   const void *data, unsigned int data_len,
-			   u64 host_id)
-{
-	int ret;
-	struct bh_command_header *h;
-
-	if (hdr_len < sizeof(*h) || !hdr)
-		return -EINVAL;
-
-	h = hdr;
-	h->h.magic = BH_MSG_CMD_MAGIC;
-	h->h.length = hdr_len + data_len;
-	h->seq = host_id;
-
-	ret = bh_transport_send(conn_idx, hdr, hdr_len, host_id);
-	if (!ret && data_len > 0)
-		ret = bh_transport_send(conn_idx, data, data_len, host_id);
-
-	return ret;
 }
 
 /**
@@ -333,14 +372,19 @@ int bh_request(unsigned int conn_idx, void *cmd_hdr, unsigned int cmd_hdr_len,
 	int ret;
 	u32 retry_count;
 	u64 res_host_id;
+	struct bh_request_cmd *request;
 
 	if (!cmd_hdr || !response)
 		return -EINVAL;
 
-	ret = bh_send_message(conn_idx, cmd_hdr, cmd_hdr_len, cmd_data,
-			      cmd_data_len, host_id);
+	request = bh_request_alloc(cmd_hdr, cmd_hdr_len, cmd_data, cmd_data_len,
+				   conn_idx, host_id);
+	if (IS_ERR(request))
+		return PTR_ERR(request);
+
+	ret = bh_send_message(request);
 	if (ret)
-		return ret;
+		goto out;
 
 	for (retry_count = 0; retry_count < MAX_RETRY_COUNT; retry_count++) {
 		ret = bh_recv_message(conn_idx, response, &res_host_id);
@@ -362,9 +406,11 @@ int bh_request(unsigned int conn_idx, void *cmd_hdr, unsigned int cmd_hdr_len,
 
 	if (retry_count == MAX_RETRY_COUNT) {
 		pr_err("out of retry attempts\n");
-		return -EFAULT;
+		ret = -EFAULT;
 	}
 
+out:
+	bh_request_free(request);
 	return ret;
 }
 
