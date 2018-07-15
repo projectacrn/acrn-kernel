@@ -31,6 +31,7 @@
 #include "i915_sw_fence.h"
 
 #include <uapi/drm/i915_drm.h>
+#include "i915_gep.h"
 
 struct drm_file;
 struct drm_i915_gem_object;
@@ -202,6 +203,7 @@ struct drm_i915_gem_request {
 	struct drm_i915_file_private *file_priv;
 	/** file_priv list entry for this request */
 	struct list_head client_link;
+	struct i915_gep_req gep_req;
 };
 
 extern const struct dma_fence_ops i915_fence_ops;
