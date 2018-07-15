@@ -1977,11 +1977,14 @@ static int eb_submit(struct i915_execbuffer *eb)
 			return err;
 	}
 
+	i915_gep_init_req(eb->request, 0);
+	i915_gep_start_task(eb->request);
 	err = eb->engine->emit_bb_start(eb->request,
 					eb->batch->node.start +
 					eb->batch_start_offset,
 					eb->batch_len,
 					eb->batch_flags);
+	i915_gep_end_task(eb->request);
 	if (err)
 		return err;
 

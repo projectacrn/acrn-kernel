@@ -366,6 +366,8 @@ static void i915_gem_request_retire(struct drm_i915_gem_request *request)
 	list_del_init(&request->link);
 	spin_unlock_irq(&engine->timeline->lock);
 
+	i915_gep_read_req(request);
+
 	unreserve_engine(request->engine);
 	advance_ring(request);
 
@@ -702,6 +704,7 @@ i915_gem_request_alloc(struct intel_engine_cs *engine,
 	 * position of the head.
 	 */
 	req->head = req->ring->emit;
+	memset(&req->gep_req, 0, sizeof(req->gep_req));
 
 	/* Check that we didn't interrupt ourselves with a new request */
 	GEM_BUG_ON(req->timeline->seqno != req->fence.seqno);

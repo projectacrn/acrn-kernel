@@ -277,6 +277,8 @@ static int copy_workload_to_ring_buffer(struct intel_vgpu_workload *workload)
 	void *shadow_ring_buffer_va;
 	u32 *cs;
 
+	i915_gep_init_req(workload->req, vgpu->id);
+	i915_gep_start_task(workload->req);
 	/* allocate shadow ring buffer */
 	cs = intel_ring_begin(workload->req, workload->rb_len / sizeof(u32));
 	if (IS_ERR(cs)) {
@@ -295,6 +297,7 @@ static int copy_workload_to_ring_buffer(struct intel_vgpu_workload *workload)
 
 	cs += workload->rb_len / sizeof(u32);
 	intel_ring_advance(workload->req, cs);
+	i915_gep_end_task(workload->req);
 
 	return 0;
 }
