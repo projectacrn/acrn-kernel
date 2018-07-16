@@ -369,6 +369,7 @@ static void unwind_incomplete_requests(struct intel_engine_cs *engine)
 		if (i915_gem_request_completed(rq))
 			return;
 
+		i915_gep_trace("unwind_incomplete_requests fence_ctx=%llu seqno=%u", rq->fence.context, rq->fence.seqno);
 		__i915_gem_request_unsubmit(rq);
 		unwind_wa_tail(rq);
 
@@ -458,6 +459,8 @@ static void execlists_submit_ports(struct intel_engine_cs *engine)
 			port_set(&port[n], port_pack(rq, count));
 			desc = execlists_update_context(rq);
 			GEM_DEBUG_EXEC(port[n].context_id = upper_32_bits(desc));
+			i915_gep_trace("execlists_submit_ports pid=%d fence_ctx=%llu seqno=%u global=%u port=%u count=%u",
+					rq->gep_req.pid, rq->fence.context, rq->fence.seqno, rq->global_seqno, n, count);
 		} else {
 			GEM_BUG_ON(!n);
 			desc = 0;
@@ -547,6 +550,7 @@ static void inject_preempt_context(struct intel_engine_cs *engine)
 	for (n = execlists_num_ports(&engine->execlists); --n; )
 		elsp_write(0, elsp);
 
+	i915_gep_trace("inject_preempt_context engine=%d", engine->id);
 	elsp_write(ce->lrc_desc, elsp);
 
 	if (i915_modparams.fpreempt_timeout)
