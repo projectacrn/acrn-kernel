@@ -2085,7 +2085,9 @@ int intel_vgpu_emulate_gtt_mmio_write(struct intel_vgpu *vgpu, unsigned int off,
 		return -EINVAL;
 
 	off -= info->gtt_start_offset;
+	i915_gep_start_trace("gtt off=%x", off);
 	ret = emulate_gtt_mmio_write(vgpu, off, p_data, bytes);
+	i915_gep_end_trace();
 	return ret;
 }
 

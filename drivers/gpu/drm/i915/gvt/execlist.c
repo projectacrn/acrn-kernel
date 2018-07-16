@@ -485,11 +485,13 @@ static int prepare_execlist_workload(struct intel_vgpu_workload *workload)
 		goto out;
 	}
 
+	i915_gep_start_trace("sync_oos_pages");
 	ret = intel_vgpu_sync_oos_pages(workload->vgpu);
 	if (ret) {
 		gvt_vgpu_err("fail to vgpu sync oos pages\n");
 		goto err_unpin_mm;
 	}
+	i915_gep_end_trace();
 
 	ret = intel_vgpu_flush_post_shadow(workload->vgpu);
 	if (ret) {
@@ -723,6 +725,8 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 	workload->status = -EINPROGRESS;
 	workload->emulate_schedule_in = emulate_schedule_in;
 	workload->shadowed = false;
+	i915_gep_start_trace("submit workload=%p ring_context_gpa=%llx rb_head=%x rb_tail=%x",
+		workload, ring_context_gpa, head, tail);
 
 	if (ring_id == RCS) {
 		intel_gvt_hypervisor_read_gpa(vgpu, ring_context_gpa +
@@ -767,6 +771,7 @@ static int submit_context(struct intel_vgpu *vgpu, int ring_id,
 	}
 
 	queue_workload(workload);
+	i915_gep_end_trace();
 	return 0;
 }
 
