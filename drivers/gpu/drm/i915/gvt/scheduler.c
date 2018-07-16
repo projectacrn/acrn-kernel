@@ -466,6 +466,11 @@ static int dispatch_workload(struct intel_vgpu_workload *workload)
 	mutex_lock(&dev_priv->drm.struct_mutex);
 
 	ret = intel_gvt_scan_and_shadow_workload(workload);
+	i915_gep_start_trace("dispatch workload=%p ring_context_gpa=%llx rb_head=%x rb_tail=%x fence_ctx=%llu seqno=%u",
+			workload, workload->ring_context_gpa,
+			workload->rb_head, workload->rb_tail,
+			workload->req->fence.context,
+			workload->req->fence.seqno);
 
 	if (i915_modparams.enable_conformance_check
 			&& intel_gvt_vgpu_conformance_check(vgpu, ring_id))
@@ -515,6 +520,7 @@ out:
 	}
 
 	mutex_unlock(&dev_priv->drm.struct_mutex);
+	i915_gep_end_trace();
 	return ret;
 }
 

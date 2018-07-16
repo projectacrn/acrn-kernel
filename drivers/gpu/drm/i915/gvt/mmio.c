@@ -196,9 +196,12 @@ int intel_vgpu_emulate_mmio_read(struct intel_vgpu *vgpu, uint64_t pa,
 {
 	int ret;
 
+	i915_gep_start_trace("emulate_mmio_read pa=%llx p_data=%llx bytes=%d",
+			pa, *(u64 *)p_data, bytes);
 	mutex_lock(&vgpu->gvt->lock);
 	ret = intel_vgpu_emulate_mmio_read_locked(vgpu, pa, p_data, bytes);
 	mutex_unlock(&vgpu->gvt->lock);
+	i915_gep_end_trace();
 
 	return ret;
 }
@@ -230,7 +233,9 @@ int intel_vgpu_emulate_mmio_write_locked(struct intel_vgpu *vgpu, uint64_t pa,
 
 		gp = intel_vgpu_find_guest_page(vgpu, pa >> PAGE_SHIFT);
 		if (gp) {
+			i915_gep_start_trace("guest_page pfn=%lx", gp->gfn);
 			ret = gp->handler(gp, pa, p_data, bytes);
+			i915_gep_end_trace();
 			if (ret) {
 				gvt_err("guest page write error %d, "
 					"gfn 0x%lx, pa 0x%llx, "
@@ -267,7 +272,9 @@ int intel_vgpu_emulate_mmio_write_locked(struct intel_vgpu *vgpu, uint64_t pa,
 		return ret;
 	}
 
+	i915_gep_start_trace("mmio_reg offset=%x", offset);
 	ret = intel_vgpu_mmio_reg_rw(vgpu, offset, p_data, bytes, false);
+	i915_gep_end_trace();
 	if (ret < 0)
 		goto err;
 
@@ -293,9 +300,12 @@ int intel_vgpu_emulate_mmio_write(struct intel_vgpu *vgpu, uint64_t pa,
 {
 	int ret;
 
+	i915_gep_start_trace("emulate_mmio_write pa=%llx p_data=%llx bytes=%d",
+			pa, *(u64 *)p_data, bytes);
 	mutex_lock(&vgpu->gvt->lock);
 	ret = intel_vgpu_emulate_mmio_write_locked(vgpu, pa, p_data, bytes);
 	mutex_unlock(&vgpu->gvt->lock);
+	i915_gep_end_trace();
 
 	return ret;
 }

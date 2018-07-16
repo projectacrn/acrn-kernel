@@ -643,7 +643,10 @@ void intel_vgpu_trigger_virtual_event(struct intel_vgpu *vgpu,
 	handler = get_event_virt_handler(irq, event);
 	WARN_ON(!handler);
 
+	i915_gep_start_trace("trigger_virtual_event vgpu=%d event=%s(%d)\n",
+				vgpu->id, irq_name[event], event);
 	handler(irq, event, vgpu);
+	i915_gep_end_trace();
 
 	ops->check_pending_irq(vgpu);
 }
