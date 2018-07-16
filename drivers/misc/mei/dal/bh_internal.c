@@ -76,6 +76,7 @@ static u64 bh_host_id_number = MSG_SEQ_START_NUMBER;
  * @cmd_len: command buffer length
  * @conn_idx: connection index
  * @host_id: session host id
+ * @response: response buffer
  */
 struct bh_request_cmd {
 	u8 *cmd;
@@ -83,6 +84,7 @@ struct bh_request_cmd {
 
 	unsigned int conn_idx;
 	u64 host_id;
+	void *response;
 };
 
 /*
@@ -165,6 +167,7 @@ static void bh_request_free(struct bh_request_cmd *request)
 	if (!request)
 		return;
 	kfree(request->cmd);
+	kfree(request->response);
 	kfree(request);
 	request = NULL;
 }
@@ -251,51 +254,7 @@ static int bh_transport_recv(unsigned int conn_idx, void *buffer, size_t size)
 }
 
 /**
- * bh_send_message - build and send command message to DAL
- *     using kdi callback 'dal_kdi_send'
- *
- * @request: all request details
- *
- * Return: 0 on success
- *         <0 on failure
- */
-static int bh_send_message(const struct bh_request_cmd *request)
-{
-	int ret;
-	size_t chunk_sz;
-	unsigned int count;
-	const char *buf;
-	struct bh_command_header *h;
-
-	if (!request)
-		return -EINVAL;
-
-	if (request->cmd_len < sizeof(*h) || !request->cmd)
-		return -EINVAL;
-
-	if (request->conn_idx > DAL_MEI_DEVICE_MAX)
-		return -ENODEV;
-
-	h = (struct bh_command_header *)request->cmd;
-	h->h.magic = BH_MSG_CMD_MAGIC;
-	h->h.length = request->cmd_len;
-	h->seq = request->host_id;
-
-	buf = request->cmd;
-	for (count = 0; count < request->cmd_len; count += chunk_sz) {
-		chunk_sz = min_t(size_t, request->cmd_len - count,
-				 DAL_MAX_BUFFER_SIZE);
-		ret = dal_kdi_send(request->conn_idx, buf + count, chunk_sz,
-				   request->host_id);
-		if (ret)
-			return ret;
-	}
-
-	return 0;
-}
-
-/**
- * bh_recv_message - receive and prosses message from DAL
+ * bh_recv_message_try - try to receive and prosses message from DAL
  *
  * @conn_idx: fw client connection idx
  * @response: output param to hold the response
@@ -305,8 +264,8 @@ static int bh_send_message(const struct bh_request_cmd *request)
  * Return: 0 on success
  *         <0 on failure
  */
-static int bh_recv_message(unsigned int conn_idx, void **response,
-			   u64 *out_host_id)
+static int bh_recv_message_try(unsigned int conn_idx, void **response,
+			       u64 *out_host_id)
 {
 	int ret;
 	char *data;
@@ -351,6 +310,92 @@ out:
 }
 
 #define MAX_RETRY_COUNT 3
+static int bh_recv_message(struct bh_request_cmd *request)
+{
+	u32 retry;
+	u64 res_host_id;
+	void *resp;
+	int ret;
+
+	for (resp = NULL, retry = 0; retry < MAX_RETRY_COUNT; retry++) {
+		kfree(resp);
+		resp = NULL;
+
+		ret = bh_recv_message_try(request->conn_idx,
+					  &resp, &res_host_id);
+		if (ret) {
+			pr_debug("failed to recv msg = %d\n", ret);
+			continue;
+		}
+
+		if (res_host_id != request->host_id) {
+			pr_debug("recv message with host_id=%llu != sent host_id=%llu\n",
+				 res_host_id, request->host_id);
+			continue;
+		}
+
+		pr_debug("recv message with try=%d host_id=%llu\n",
+			 retry, request->host_id);
+		break;
+	}
+
+	if (retry == MAX_RETRY_COUNT) {
+		pr_err("out of retry attempts\n");
+		ret = -EFAULT;
+	}
+
+	if (ret) {
+		kfree(resp);
+		resp = NULL;
+	}
+
+	request->response = resp;
+	return ret;
+}
+
+/**
+ * bh_send_message - build and send command message to DAL
+ *     using kdi callback 'dal_kdi_send'
+ *
+ * @request: all request details
+ *
+ * Return: 0 on success
+ *         <0 on failure
+ */
+static int bh_send_message(const struct bh_request_cmd *request)
+{
+	int ret;
+	size_t chunk_sz;
+	unsigned int count;
+	const char *buf;
+	struct bh_command_header *h;
+
+	if (!request)
+		return -EINVAL;
+
+	if (request->cmd_len < sizeof(*h) || !request->cmd)
+		return -EINVAL;
+
+	if (request->conn_idx > DAL_MEI_DEVICE_MAX)
+		return -ENODEV;
+
+	h = (struct bh_command_header *)request->cmd;
+	h->h.magic = BH_MSG_CMD_MAGIC;
+	h->h.length = request->cmd_len;
+	h->seq = request->host_id;
+
+	buf = request->cmd;
+	for (count = 0; count < request->cmd_len; count += chunk_sz) {
+		chunk_sz = min_t(size_t, request->cmd_len - count,
+				 DAL_MAX_BUFFER_SIZE);
+		ret = dal_kdi_send(request->conn_idx, buf + count, chunk_sz,
+				   request->host_id);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
 /**
  * bh_request - send request to DAL FW and receive response back
  *
@@ -370,8 +415,6 @@ int bh_request(unsigned int conn_idx, void *cmd_hdr, unsigned int cmd_hdr_len,
 	       u64 host_id, void **response)
 {
 	int ret;
-	u32 retry_count;
-	u64 res_host_id;
 	struct bh_request_cmd *request;
 
 	if (!cmd_hdr || !response)
@@ -386,28 +429,9 @@ int bh_request(unsigned int conn_idx, void *cmd_hdr, unsigned int cmd_hdr_len,
 	if (ret)
 		goto out;
 
-	for (retry_count = 0; retry_count < MAX_RETRY_COUNT; retry_count++) {
-		ret = bh_recv_message(conn_idx, response, &res_host_id);
-		if (ret) {
-			pr_debug("failed to recv msg = %d\n", ret);
-			continue;
-		}
-
-		if (res_host_id != host_id) {
-			pr_debug("recv message with host_id=%llu != sent host_id=%llu\n",
-				 res_host_id, host_id);
-			continue;
-		}
-
-		pr_debug("recv message with try=%d host_id=%llu\n",
-			 retry_count, host_id);
-		break;
-	}
-
-	if (retry_count == MAX_RETRY_COUNT) {
-		pr_err("out of retry attempts\n");
-		ret = -EFAULT;
-	}
+	ret = bh_recv_message(request);
+	*response = request->response;
+	request->response = NULL;
 
 out:
 	bh_request_free(request);
