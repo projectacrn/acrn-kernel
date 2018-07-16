@@ -2500,6 +2500,7 @@ gen8_de_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 		crtc = intel_get_crtc_for_pipe(dev_priv, pipe);
 		if (iir & GEN8_PIPE_VBLANK) {
 			drm_handle_vblank(&dev_priv->drm, drm_crtc_index(&crtc->base));
+		i915_gep_trace("gen8_de_irq_handler vblank pipe=%d", pipe);
 #if IS_ENABLED(CONFIG_DRM_I915_GVT)
 			gvt_notify_vblank(dev_priv, pipe);
 #endif
