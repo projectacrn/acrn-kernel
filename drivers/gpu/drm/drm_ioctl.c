@@ -34,6 +34,7 @@
 #include "drm_legacy.h"
 #include "drm_internal.h"
 #include "drm_crtc_internal.h"
+#include "drm_trace.h"
 
 #include <linux/pci.h>
 #include <linux/export.h>
@@ -800,6 +801,7 @@ long drm_ioctl(struct file *filp,
 		  task_pid_nr(current),
 		  (long)old_encode_dev(file_priv->minor->kdev->devt),
 		  file_priv->authenticated, ioctl->name);
+	trace_drm_log(ioctl->name);
 
 	/* Do not trust userspace, use our own definition */
 	func = ioctl->func;
@@ -843,6 +845,7 @@ long drm_ioctl(struct file *filp,
 		kfree(kdata);
 	if (retcode)
 		DRM_DEBUG("ret = %d\n", retcode);
+	trace_drm_log("E");
 	return retcode;
 }
 EXPORT_SYMBOL(drm_ioctl);
