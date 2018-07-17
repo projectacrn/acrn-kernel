@@ -67,9 +67,6 @@
 #include "bh_external.h"
 #include "bh_internal.h"
 
-/* BH initialization state */
-static atomic_t bh_state = ATOMIC_INIT(0);
-
 /**
  * uuid_is_valid_hyphenless - check if uuid is valid in hyphenless format
  *
@@ -536,47 +533,4 @@ void bh_prep_access_denied_response(const char *cmd,
 	res->h.length = sizeof(*res);
 	res->code = BHE_OPERATION_NOT_PERMITTED;
 	res->seq = cmd_hdr->seq;
-}
-
-/**
- * bh_is_initialized - check if bhp is initialized
- *
- * Return: true when bhp is initialized
- *         false when bhp is not initialized
- */
-bool bh_is_initialized(void)
-{
-	return atomic_read(&bh_state) == 1;
-}
-
-/**
- * bh_init_internal - Beihai init function
- *
- * The plugin initialization includes initializing the session lists of all
- * dal devices (dal fw clients)
- *
- * Return: 0
- */
-void bh_init_internal(void)
-{
-	unsigned int i;
-
-	if (atomic_add_unless(&bh_state, 1, 1))
-		for (i = CONN_IDX_START; i < MAX_CONNECTIONS; i++)
-			bh_session_list_init(i);
-}
-
-/**
- * bh_deinit_internal - Beihai plugin deinit function
- *
- * The plugin deinitialization includes deinit the session lists of all
- * dal devices (dal fw clients)
- */
-void bh_deinit_internal(void)
-{
-	unsigned int i;
-
-	if (atomic_add_unless(&bh_state, -1, 0))
-		for (i = CONN_IDX_START; i < MAX_CONNECTIONS; i++)
-			bh_session_list_free(i);
 }
