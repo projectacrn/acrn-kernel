@@ -58,6 +58,18 @@ TRACE_EVENT(drm_vblank_event_delivered,
 		      __entry->seq)
 );
 
+TRACE_EVENT(drm_log,
+	TP_PROTO(const char *msg),
+	TP_ARGS(msg),
+	TP_STRUCT__entry(
+		__string(msg, msg)
+	),
+	TP_fast_assign(
+		__assign_str(msg, msg);
+	),
+	TP_printk("%s", __get_str(msg))
+);
+
 #endif /* _DRM_TRACE_H_ */
 
 /* This part must be outside protection */
