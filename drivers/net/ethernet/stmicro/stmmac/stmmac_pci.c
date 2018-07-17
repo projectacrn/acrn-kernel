@@ -237,7 +237,7 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->force_sf_dma_mode = 0;
 	plat->tso_en = 1;
 
-	plat->rx_queues_to_use = 4;
+	plat->rx_queues_to_use = 6;
 	plat->tx_queues_to_use = 4;
 
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
@@ -246,6 +246,8 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->rx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
 	plat->rx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
 	plat->rx_queues_cfg[3].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[4].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[5].mode_to_use = MTL_QUEUE_DCB;
 
 	plat->tx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
 	plat->tx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
@@ -261,6 +263,8 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->rx_queues_cfg[1].chan = 1;
 	plat->rx_queues_cfg[2].chan = 2;
 	plat->rx_queues_cfg[3].chan = 3;
+	plat->rx_queues_cfg[4].chan = 4;
+	plat->rx_queues_cfg[5].chan = 5;
 
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 	plat->tx_queues_cfg[0].weight = 0x10;
@@ -277,6 +281,8 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->rx_queues_cfg[1].pkt_route = 0x0;
 	plat->rx_queues_cfg[2].pkt_route = 0x0;
 	plat->rx_queues_cfg[3].pkt_route = 0x0;
+	plat->rx_queues_cfg[4].pkt_route = 0x0;
+	plat->rx_queues_cfg[5].pkt_route = 0x0;
 
 	plat->mdio_bus_data->phy_reset = NULL;
 	plat->mdio_bus_data->phy_mask = 0;
@@ -298,6 +304,9 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->axi->axi_blen[0] = 4;
 	plat->axi->axi_blen[1] = 8;
 	plat->axi->axi_blen[2] = 16;
+
+	plat->vlan_fail_q_en = 1;
+	plat->vlan_fail_q = 1;
 
 	/* Set system clock for HAPS is 62.5MHz */
 	plat->stmmac_clk = clk_register_fixed_rate(&pdev->dev,
