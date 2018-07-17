@@ -63,6 +63,8 @@ static struct est_gc_config dw_est_gc_config;
 static struct tsn_err_stat dw_err_stat;
 static struct fpe_config dw_fpe_config;
 
+#define ONE_SEC_IN_NANOSEC 1000000000ULL
+
 static unsigned int est_get_gcl_depth(unsigned int hw_cap)
 {
 	unsigned int depth;
@@ -368,6 +370,44 @@ static int fpe_set_hr_adv(void *ioaddr,
 	TSN_WR32(value, ioaddr + MTL_FPE_ADVANCE);
 
 	return 0;
+}
+
+static unsigned long long est_get_all_open_time(unsigned int bank,
+						unsigned long long cycle_ns,
+						unsigned int queue)
+{
+	int row;
+	unsigned int gcl_len = dw_est_gc_config.gcb[bank].gcrr.llr;
+	struct est_gc_entry *gcl = dw_est_gc_config.gcb[bank].gcl;
+	unsigned long long total = 0;
+	unsigned long long tti_ns = 0;
+	unsigned int gate = 0x1 << queue;
+
+	/* GCL which exceeds the cycle time will be truncated.
+	 * So, time interval that exceeds the cycle time will not be
+	 * included.
+	 */
+	for (row = 0; row < gcl_len; row++) {
+		tti_ns += gcl->ti_nsec;
+
+		if (gcl->gates & gate) {
+			if (tti_ns <= cycle_ns)
+				total += gcl->ti_nsec;
+			else
+				total += gcl->ti_nsec -
+					 (tti_ns - cycle_ns);
+		}
+
+		gcl++;
+	}
+
+	/* The gates wihtout any setting of open/close within
+	 * the cycle time are considered as open.
+	 */
+	if (tti_ns < cycle_ns)
+		total += cycle_ns - tti_ns;
+
+	return total;
 }
 
 void dwmac_tsn_init(void *ioaddr)
@@ -1209,6 +1249,49 @@ int dwmac_fpe_send_mpacket(void *ioaddr, enum mpacket_type type)
 		return -ENOTSUPP;
 	}
 	TSN_WR32(value, ioaddr + MAC_FPE_CTRL_STS);
+
+	return 0;
+}
+
+int dwmac_cbs_recal_idleslope(void *ioaddr,
+			      unsigned int queue,
+			      unsigned int *idle_slope)
+{
+	unsigned int open_time;
+	unsigned int hw_bank = dwmac_get_est_bank(ioaddr, 1);
+	unsigned long long new_idle_slope;
+	unsigned long long scaling = 0;
+	unsigned long long cycle_time_ns =
+			(dw_est_gc_config.gcb[hw_bank].gcrr.cycle_sec *
+			 ONE_SEC_IN_NANOSEC) +
+			dw_est_gc_config.gcb[hw_bank].gcrr.cycle_nsec;
+
+	if (!cycle_time_ns) {
+		TSN_WARN_NA("EST: Cycle time is 0.\n");
+		TSN_WARN_NA("CBS idle slope will not be reconfigured.\n");
+
+		return -EINVAL;
+	}
+
+	open_time = est_get_all_open_time(hw_bank,
+					  cycle_time_ns,
+					  queue);
+
+	if (!open_time) {
+		TSN_WARN("EST: Total gate open time for queue %d is 0\n",
+			 queue);
+
+		return -EINVAL;
+	}
+
+	scaling = cycle_time_ns;
+	_DO_DIV_(scaling, open_time);
+
+	new_idle_slope = *idle_slope * scaling;
+	if (new_idle_slope > CBS_IDLESLOPE_MAX)
+		new_idle_slope = CBS_IDLESLOPE_MAX;
+
+	*idle_slope = new_idle_slope;
 
 	return 0;
 }
