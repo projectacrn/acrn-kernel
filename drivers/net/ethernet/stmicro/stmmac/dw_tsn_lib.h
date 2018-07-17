@@ -24,6 +24,8 @@
 
 #include "linux/printk.h"
 
+#define _DO_DIV_(x, y)	do_div(x, y)
+
 /* DWMAC v5.xx supports the following Time Sensitive Networking protocols:
  * 1) IEEE 802.1Qbv Enhancements for Scheduled Traffic (EST)
  * 2) IEEE 802.1Qbu Frame Preemption (FPE)
@@ -138,6 +140,9 @@
 #define EST_CTOV_MAX			0xfff	/* Max Current time offset */
 #define EST_TIWID_TO_EXTMAX(ti_wid)	((1 << (ti_wid + 7)) - 1)
 #define EST_GCL_BANK_MAX	(2)
+
+/* CBS Global defines */
+#define CBS_IDLESLOPE_MAX		0x1fffff
 
 /* FPE Global defines */
 #define FPE_AFSZ_MAX			0x3	/* Max AFSZ */
@@ -303,4 +308,6 @@ int dwmac_get_fpe_config(void *ioaddr, struct fpe_config **fpec,
 int dwmac_get_fpe_pmac_sts(void *ioaddr, unsigned int *hrs);
 int dwmac_fpe_irq_status(void *ioaddr);
 int dwmac_fpe_send_mpacket(void *ioaddr, enum mpacket_type type);
+int dwmac_cbs_recal_idleslope(void *ioaddr, unsigned int queue,
+			      unsigned int *idle_slope);
 #endif /* __DW_TSN_LIB_H__ */
