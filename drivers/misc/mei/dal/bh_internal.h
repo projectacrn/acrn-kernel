@@ -107,8 +107,6 @@ enum bh_connection_index {
 u64 bh_get_msg_host_id(void);
 
 struct bh_session_record *bh_session_find(unsigned int conn_idx, u64 host_id);
-void bh_session_list_init(unsigned int conn_idx);
-void bh_session_list_free(unsigned int conn_idx);
 void bh_session_add(unsigned int conn_idx, struct bh_session_record *session);
 void bh_session_remove(unsigned int conn_idx, u64 host_id);
 
@@ -129,5 +127,4 @@ int bh_proxy_open_jta_session(unsigned int conn_idx, uuid_t *ta_id,
 			      const char *init_buffer, unsigned int init_len,
 			      u64 *host_id, const char *ta_pkg,
 			      unsigned int pkg_len);
-
 #endif /* __BH_INTERNAL_H */

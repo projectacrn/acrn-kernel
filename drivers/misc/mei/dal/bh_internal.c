@@ -65,6 +65,8 @@
 #include "bh_internal.h"
 #include "dal_dev.h"
 
+/* BH initialization state */
+static atomic_t bh_state = ATOMIC_INIT(0);
 static u64 bh_host_id_number = MSG_SEQ_START_NUMBER;
 
 /*
@@ -371,7 +373,7 @@ int bh_request(unsigned int conn_idx, void *cmd_hdr, unsigned int cmd_hdr_len,
  *
  * @conn_idx: fw client connection idx
  */
-void bh_session_list_free(unsigned int conn_idx)
+static void bh_session_list_free(unsigned int conn_idx)
 {
 	struct bh_session_record *pos, *next;
 	struct list_head *session_list =  &dal_dev_session_list[conn_idx];
@@ -389,7 +391,7 @@ void bh_session_list_free(unsigned int conn_idx)
  *
  * @conn_idx: fw client connection idx
  */
-void bh_session_list_init(unsigned int conn_idx)
+static void bh_session_list_init(unsigned int conn_idx)
 {
 	INIT_LIST_HEAD(&dal_dev_session_list[conn_idx]);
 }
@@ -654,4 +656,46 @@ out:
 	kfree(resp_hdr);
 
 	return ret;
+}
+
+/**
+ * bh_is_initialized - check if bh is initialized
+ *
+ * Return: true when bh is initialized and false otherwise
+ */
+bool bh_is_initialized(void)
+{
+	return atomic_read(&bh_state) == 1;
+}
+
+/**
+ * bh_init_internal - BH initialization function
+ *
+ * The BH initialization creates the session lists for all
+ * dal devices (dal fw clients)
+ *
+ * Return: 0
+ */
+void bh_init_internal(void)
+{
+	unsigned int i;
+
+	if (atomic_add_unless(&bh_state, 1, 1))
+		for (i = CONN_IDX_START; i < MAX_CONNECTIONS; i++)
+			bh_session_list_init(i);
+}
+
+/**
+ * bh_deinit_internal - BH  deinit function
+ *
+ * The deinitialization frees the session lists of all
+ * dal devices (dal fw clients)
+ */
+void bh_deinit_internal(void)
+{
+	unsigned int i;
+
+	if (atomic_add_unless(&bh_state, -1, 0))
+		for (i = CONN_IDX_START; i < MAX_CONNECTIONS; i++)
+			bh_session_list_free(i);
 }
