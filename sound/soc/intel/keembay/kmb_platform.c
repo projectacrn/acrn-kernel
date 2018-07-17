@@ -377,10 +377,6 @@ static irqreturn_t i2s_irq_handler(int irq, void *dev_id)
 		return IRQ_NONE;
 }
 
-static const struct snd_soc_component_driver kmb_component = {
-	.name           = "kmb",
-};
-
 /*
  * KMB PLATFORM
  */
@@ -479,7 +475,8 @@ static struct snd_pcm_ops kmb_platform_ops = {
 	.pointer = kmb_pcm_pointer,
 };
 
-struct snd_soc_platform_driver soc_kmb_platform_drv = {
+static const struct snd_soc_component_driver kmb_component = {
+	.name           = "kmb",
 	.ops		= &kmb_platform_ops,
 	.probe		= NULL,
 	.pcm_new	= kmb_platform_pcm_new,
@@ -977,14 +974,6 @@ static int kmb_plat_dai_probe(struct platform_device *pdev)
 			return ret;
 	}
 
-	ret = devm_snd_soc_register_platform(&pdev->dev,
-				&soc_kmb_platform_drv);
-	if (ret) {
-		dev_err(&pdev->dev, "not able to register platform\n");
-		snd_soc_unregister_component(&pdev->dev);
-		return -EBUSY;
-	}
-
 	ret = devm_snd_soc_register_component(&pdev->dev, &kmb_component,
 				intel_kmb_platform_dai,
 				ARRAY_SIZE(intel_kmb_platform_dai));
@@ -1008,7 +997,6 @@ static int kmb_plat_dai_remove(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, NULL);
 	snd_soc_unregister_component(&pdev->dev);
-	snd_soc_unregister_platform(&pdev->dev);
 
 	return 0;
 }
