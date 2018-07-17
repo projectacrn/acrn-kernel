@@ -1575,7 +1575,9 @@ static int stmmac_ethtool_set_est_info(struct net_device *dev,
 {
 	struct est_gcrr egcrr;
 	struct stmmac_priv *priv = netdev_priv(dev);
+	u32 txq_cnt = priv->plat->tx_queues_to_use;
 	int bank;
+	int ret;
 
 	if (esti->cmd != ETHTOOL_SESTINFO ||
 	    esti->own >= EST_GCL_BANK_MAX)
@@ -1594,7 +1596,40 @@ static int stmmac_ethtool_set_est_info(struct net_device *dev,
 	egcrr.base_nsec = esti->base_ns;
 	egcrr.ter_nsec = esti->extension_ns;
 
-	return stmmac_set_est_gcrr_times(priv, priv->ioaddr, &egcrr, bank, 1);
+	ret = stmmac_set_est_gcrr_times(priv, priv->ioaddr, &egcrr, bank, 1);
+
+	if (!ret && txq_cnt > 1) {
+		u32 queue;
+
+		for (queue = 1; queue < txq_cnt; queue++) {
+			u32 new_idle_slope;
+			struct stmmac_txq_cfg *txqcfg =
+				&priv->plat->tx_queues_cfg[queue];
+
+			if (txqcfg->mode_to_use == MTL_QUEUE_DCB)
+				continue;
+
+			new_idle_slope = txqcfg->idle_slope;
+			ret = stmmac_cbs_recal_idleslope(priv, priv->ioaddr,
+							 queue,
+							 &new_idle_slope);
+
+			if (ret) {
+				dev_err(priv->device,
+					"Recal idleslope failed.\n");
+				break;
+			}
+
+			stmmac_config_cbs(priv, priv->hw,
+					  txqcfg->send_slope,
+					  new_idle_slope,
+					  txqcfg->high_credit,
+					  txqcfg->low_credit,
+					  queue);
+		}
+	}
+
+	return ret;
 }
 
 static int stmmac_ethtool_get_fpe_info(struct net_device *dev,
