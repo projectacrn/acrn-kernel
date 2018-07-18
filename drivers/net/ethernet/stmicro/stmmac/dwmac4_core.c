@@ -592,7 +592,18 @@ static void dwmac4_set_filter(struct mac_device_info *hw,
 	unsigned int value = 0;
 
 	if (dev->flags & IFF_PROMISC) {
-		value = GMAC_PACKET_FILTER_PR;
+		/* VLAN Tag Filter Fail Packets Queuing */
+		if (hw->vlan_fail_q_en) {
+			value = readl(ioaddr + GMAC_RXQ_CTRL4);
+			value &= ~GMAC_RXQCTRL_VFFQ_MASK;
+			value |= GMAC_RXQCTRL_VFFQE |
+				 (hw->vlan_fail_q << GMAC_RXQCTRL_VFFQ_SHIFT);
+			writel(value, ioaddr + GMAC_RXQ_CTRL4);
+
+			value = GMAC_PACKET_FILTER_RA | GMAC_PACKET_FILTER_PR;
+		} else {
+			value = GMAC_PACKET_FILTER_PR;
+		}
 	} else if ((dev->flags & IFF_ALLMULTI) ||
 			(netdev_mc_count(dev) > HASH_TABLE_SIZE)) {
 		/* Pass all multi */
@@ -648,7 +659,7 @@ static void dwmac4_set_filter(struct mac_device_info *hw,
 
 	writel(value, ioaddr + GMAC_PACKET_FILTER);
 
-	if (dev->flags & IFF_PROMISC) {
+	if (dev->flags & IFF_PROMISC && !hw->vlan_fail_q_en) {
 		if (!hw->promisc) {
 			hw->promisc = 1;
 			dwmac4_vlan_promisc_enable(dev, hw);

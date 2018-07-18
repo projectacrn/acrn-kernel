@@ -197,5 +197,7 @@ struct plat_stmmacenet_data {
 	bool tsn_est_en;
 	bool tsn_fpe_en;
 	u32 fprq;
+	bool vlan_fail_q_en;
+	u8 vlan_fail_q;
 };
 #endif
