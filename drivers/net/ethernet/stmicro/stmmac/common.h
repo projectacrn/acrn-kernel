@@ -463,6 +463,8 @@ struct mac_device_info {
 	u32 tsn_cap;
 	bool vlan_fail_q_en;
 	u8 vlan_fail_q;
+	bool mdio_intr_en;
+	wait_queue_head_t mdio_busy_wait;
 };
 
 struct stmmac_rx_routing {

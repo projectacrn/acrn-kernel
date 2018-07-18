@@ -78,6 +78,9 @@
 #define GMAC_RXQCTRL_VFFQ_SHIFT		17
 #define GMAC_RXQCTRL_VFFQE		BIT(16)
 
+/* MDIO interrupt enable in MAC_Interrupt_Enable register */
+#define GMAC_INT_MDIO_EN		BIT(18)
+
 int dwmac5_safety_feat_config(void __iomem *ioaddr, unsigned int asp);
 int dwmac5_safety_feat_irq_status(struct net_device *ndev,
 		void __iomem *ioaddr, unsigned int asp,
