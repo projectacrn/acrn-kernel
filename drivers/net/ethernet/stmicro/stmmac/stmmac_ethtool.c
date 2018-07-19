@@ -502,6 +502,40 @@ static void stmmac_ethtool_gregs(struct net_device *dev,
 	       NUM_DWMAC1000_DMA_REGS * 4);
 }
 
+static void stmmac_get_ringparam(struct net_device *netdev,
+				 struct ethtool_ringparam *ring)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+
+	ring->rx_max_pending = DMA_MAX_RX_SIZE;
+	ring->tx_max_pending = DMA_MAX_TX_SIZE;
+	ring->rx_pending = priv->dma_rx_size;
+	ring->tx_pending = priv->dma_tx_size;
+}
+
+static int stmmac_set_ringparam(struct net_device *netdev,
+				struct ethtool_ringparam *ring)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+	int ret;
+
+	if (ring->rx_mini_pending || ring->rx_jumbo_pending ||
+	    ring->rx_pending < DMA_MIN_RX_SIZE ||
+	    ring->rx_pending > DMA_MAX_RX_SIZE ||
+	    !is_power_of_2(ring->rx_pending) ||
+	    ring->tx_pending < DMA_MIN_TX_SIZE ||
+	    ring->tx_pending > DMA_MAX_TX_SIZE ||
+	    !is_power_of_2(ring->tx_pending))
+		return -EINVAL;
+
+	netdev->netdev_ops->ndo_stop(netdev);
+	priv->dma_rx_size = ring->rx_pending;
+	priv->dma_tx_size = ring->tx_pending;
+	ret = netdev->netdev_ops->ndo_open(netdev);
+
+	return ret;
+}
+
 static void
 stmmac_get_pauseparam(struct net_device *netdev,
 		      struct ethtool_pauseparam *pause)
@@ -1687,6 +1721,8 @@ static const struct ethtool_ops stmmac_ethtool_ops = {
 	.get_regs_len = stmmac_ethtool_get_regs_len,
 	.get_link = ethtool_op_get_link,
 	.nway_reset = phy_ethtool_nway_reset,
+	.get_ringparam = stmmac_get_ringparam,
+	.set_ringparam = stmmac_set_ringparam,
 	.get_pauseparam = stmmac_get_pauseparam,
 	.set_pauseparam = stmmac_set_pauseparam,
 	.self_test = stmmac_diag_test,
