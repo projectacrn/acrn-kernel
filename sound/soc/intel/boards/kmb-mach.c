@@ -85,36 +85,10 @@ static struct snd_pcm_hw_constraint_list constraints_rates = {
 	.list	= rates,
 };
 
-static int kmb_mach_dai_link_prepare(struct snd_pcm_substream *substream)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct snd_soc_card *card = rtd->card;
-
-	return 0;
-} /*kmb_mach_dai_link_prepare*/
-
-static int kmb_mach_dai_link_hw_params(struct snd_pcm_substream *substream,
-				      struct snd_pcm_hw_params *params)
-{
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	struct snd_soc_card *card = rtd->card;
-	int ret = 0;
-	unsigned int fmt;
-
-	fmt =   SND_SOC_DAIFMT_I2S |
-		SND_SOC_DAIFMT_NB_NF |
-		SND_SOC_DAIFMT_CBS_CFS; //Codec Slave, SSP Master
-	return 0;
-} /* kmb_mach_dai_link_hw_params*/
-
 static int kmb_mach_dai_link_startup(struct snd_pcm_substream *substream)
 {
 	int ret = 0;
 	struct snd_pcm_runtime *str_runtime;
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *soc_card = rtd->card;
 
 	str_runtime = substream->runtime;
 	str_runtime->hw = kmb_pcm_hw_stereo;
@@ -141,8 +115,6 @@ static int kmb_mach_dai_link_startup(struct snd_pcm_substream *substream)
 
 static struct snd_soc_ops kmb_mach_dai_link_ops = {
 	.startup = kmb_mach_dai_link_startup,
-	.hw_params = kmb_mach_dai_link_hw_params,
-	.prepare = kmb_mach_dai_link_prepare,
 };
 
 /* kmb digital audio interface glue */
@@ -168,7 +140,6 @@ static struct snd_soc_card kmb_mach = {
 
 static int kmb_mach_audio_probe(struct platform_device *pdev)
 {
-	struct device_node *np = pdev->dev.of_node;
 	struct snd_soc_card *card = &kmb_mach;
 	int ret;
 

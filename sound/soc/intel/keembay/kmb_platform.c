@@ -36,7 +36,6 @@
 #include <sound/pcm_params.h>
 
 #define FORMAT(fmt) "%s: " fmt, __func__
-#define pr_fmt(fmt) KBUILD_MODNAME ": " FORMAT(fmt)
 
 #define BUFFER_BYTES_MAX	(3 * 2 * 8 * PERIOD_BYTES_MIN)
 #define PERIOD_BYTES_MIN	4096
@@ -256,8 +255,6 @@ static void kmb_pcm_transfer(struct kmb_i2s_info *dev, bool push)
 
 void kmb_pcm_push_tx(struct kmb_i2s_info *dev)
 {
-	int i;
-
 	kmb_pcm_transfer(dev, true);
 }
 
@@ -328,7 +325,7 @@ static irqreturn_t i2s_irq_handler(int irq, void *dev_id)
 {
 	struct kmb_i2s_info *dev = dev_id;
 	bool irq_valid = false;
-	u32 isr[4], regval;
+	u32 isr[4];
 	int i = 0;
 
 //	for (i = 0; i < 4; i++){// Commented out for single I2S port on PSS
@@ -411,9 +408,6 @@ static void kmb_platform_pcm_free(struct snd_pcm *pcm)
 static int kmb_pcm_hw_params(struct snd_pcm_substream *substream,
 		struct snd_pcm_hw_params *hw_params)
 {
-	struct snd_soc_pcm_runtime *rtd = substream->private_data;
-	struct snd_soc_card *card = rtd->card;
-
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	struct kmb_i2s_info *dev = runtime->private_data;
 	int ret_val;
@@ -630,7 +624,7 @@ static int kmb_dai_trigger(struct snd_pcm_substream *substream,
 
 static void i2s_config(struct kmb_i2s_info *dev, int stream)
 {
-	u32 ch_reg, regval;
+	u32 ch_reg;
 	struct i2s_clk_config_data *config = &dev->config;
 
 	i2s_disable_channels(dev, stream);
@@ -908,11 +902,9 @@ static int kmb_configure_dai_by_dt(struct kmb_i2s_info *dev,
 static int kmb_plat_dai_probe(struct platform_device *pdev)
 {
 	int ret, irq;
-	int index = pdev->id;
 	struct kmb_i2s_info *i2s_info;
 	struct snd_soc_dai_driver *kmb_i2s_dai;
 	struct resource *res;
-	u32 regval;
 	const char *clk_id;
 
 	cpr_base = ioremap(CPR_PHY_ADDRESS, 0x200);
@@ -990,11 +982,6 @@ static int kmb_plat_dai_probe(struct platform_device *pdev)
 
 static int kmb_plat_dai_remove(struct platform_device *pdev)
 {
-	int i;
-	int index = pdev->id;
-
-	struct kmb_i2s_info *i2s_info = dev_get_drvdata(&pdev->dev);
-
 	platform_set_drvdata(pdev, NULL);
 	snd_soc_unregister_component(&pdev->dev);
 
