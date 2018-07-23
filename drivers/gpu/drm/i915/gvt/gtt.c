@@ -2777,7 +2777,7 @@ int intel_vgpu_g2v_pv_ppgtt_insert_4lvl(struct intel_vgpu *vgpu,
 			sg_dma_len(sg) = PAGE_SIZE;
 		}
 
-		gen8_ppgtt_insert_4lvl_sg(&mm->ppgtt->base, st.sgl, I915_CACHE_NONE, start);
+		gen8_ppgtt_insert_4lvl_sg(&mm->ppgtt->base, st.sgl, start);
 
 	}
 
