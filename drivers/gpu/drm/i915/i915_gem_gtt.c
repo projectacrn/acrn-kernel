@@ -895,9 +895,12 @@ gen8_ppgtt_insert_pte_entries(struct i915_hw_ppgtt *ppgtt,
 			      struct gvt_shared_page *shared_page)
 {
 	struct i915_page_directory *pd;
-	const gen8_pte_t pte_encode = gen8_pte_encode(0, cache_level);
+	gen8_pte_t pte_encode = 0;
 	gen8_pte_t *vaddr;
 	bool ret;
+
+	if (cache_level != -1)
+		pte_encode = gen8_pte_encode(0, cache_level);
 
 	GEM_BUG_ON(idx->pdpe >= i915_pdpes_per_pdp(&ppgtt->base));
 	pd = pdp->page_directory[idx->pdpe];
@@ -960,7 +963,6 @@ static void gen8_ppgtt_insert_3lvl(struct i915_address_space *vm,
 
 void gen8_ppgtt_insert_4lvl_sg(struct i915_address_space *vm,
 				   struct scatterlist *sg,
-				   enum i915_cache_level cache_level,
 				   u64 start)
 {
 	struct i915_hw_ppgtt *ppgtt = i915_vm_to_ppgtt(vm);
@@ -972,7 +974,7 @@ void gen8_ppgtt_insert_4lvl_sg(struct i915_address_space *vm,
 	iter.max = sg_dma_address(sg) + sg->length;
 
 	while (gen8_ppgtt_insert_pte_entries(ppgtt, pdps[idx.pml4e++], &iter,
-					     &idx, cache_level, NULL))
+					     &idx, -1, NULL))
 		GEM_BUG_ON(idx.pml4e >= GEN8_PML4ES_PER_PML4);
 }
 

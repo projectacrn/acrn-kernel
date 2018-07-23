@@ -592,7 +592,6 @@ int gen8_ppgtt_alloc_4lvl(struct i915_address_space *vm,
 
 void gen8_ppgtt_insert_4lvl_sg(struct i915_address_space *vm,
 				   struct scatterlist *sg,
-				   enum i915_cache_level cache_level,
 				   u64 start);
 
 /* Flags used by pin/bind&friends. */
