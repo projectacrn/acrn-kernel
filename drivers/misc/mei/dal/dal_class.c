@@ -174,7 +174,7 @@ static void dal_recv_cb(struct mei_cl_device *cldev)
 	struct dal_client *dc;
 	enum dal_intf intf;
 	ssize_t len;
-	ssize_t ret;
+	size_t ret;
 	bool is_unexpected_msg = false;
 
 	ddev = mei_cldev_get_drvdata(cldev);
@@ -334,14 +334,12 @@ static int dal_send_error_access_denied(struct dal_client *dc)
 	bh_prep_access_denied_response(dc->write_buffer, &res);
 	len = sizeof(res);
 
-	ret = kfifo_in(&dc->read_queue, &len, sizeof(len));
-	if (ret < sizeof(len)) {
+	if (kfifo_in(&dc->read_queue, &len, sizeof(len)) != sizeof(len)) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	ret = kfifo_in(&dc->read_queue, &res, len);
-	if (ret < len) {
+	if (kfifo_in(&dc->read_queue, &res, len) != len) {
 		ret = -ENOMEM;
 		goto out;
 	}
