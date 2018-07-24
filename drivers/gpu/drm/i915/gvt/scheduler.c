@@ -34,6 +34,7 @@
  */
 
 #include <linux/kthread.h>
+#include <uapi/linux/sched/types.h>
 
 #include "i915_drv.h"
 #include "gvt.h"
@@ -524,14 +525,54 @@ out:
 	return ret;
 }
 
+static void inject_error_cs_irq(struct intel_vgpu *vgpu, int ring_id);
+static void complete_current_workload(struct intel_gvt *gvt, int ring_id);
+
 static struct intel_vgpu_workload *pick_next_workload(
 		struct intel_gvt *gvt, int ring_id)
 {
+	long lret = 0;
 	struct intel_gvt_workload_scheduler *scheduler = &gvt->scheduler;
 	struct intel_vgpu_workload *workload = NULL;
+	struct intel_vgpu_workload *current_workload = NULL;
 
 	mutex_lock(&gvt->sched_lock);
 
+	current_workload = scheduler->current_workload[ring_id];
+	if (!current_workload)
+		goto pick;
+
+	gvt_dbg_sched("ring id %d wait workload %p\n",
+			current_workload->ring_id, current_workload);
+	mutex_unlock(&gvt->sched_lock);
+	lret = i915_wait_request(current_workload->req, 0,
+			MAX_SCHEDULE_TIMEOUT);
+	mutex_lock(&gvt->sched_lock);
+
+	gvt_dbg_sched("i915_wait_request %p returns %ld\n",
+			current_workload, lret);
+	if (lret >= 0 && current_workload->status == -EINPROGRESS)
+		current_workload->status = 0;
+
+	/*
+	 * increased guilty_count means that this request triggerred
+	 * a GPU reset, so we need to notify the guest about the
+	 * hang.
+	 */
+	if (current_workload->guilty_count <
+	    atomic_read(&current_workload->req->ctx->guilty_count)) {
+		current_workload->status = -EIO;
+		inject_error_cs_irq(current_workload->vgpu, ring_id);
+	}
+
+	mutex_unlock(&gvt->sched_lock);
+	gvt_dbg_sched("will complete workload %p, status: %d\n",
+			current_workload, current_workload->status);
+
+	complete_current_workload(gvt, ring_id);
+	mutex_lock(&gvt->sched_lock);
+
+pick:
 	/*
 	 * no current vgpu / will be scheduled out / no workload
 	 * bail out
@@ -577,7 +618,8 @@ static struct intel_vgpu_workload *pick_next_workload(
 
 	gvt_dbg_sched("ring id %d pick new workload %p\n", ring_id, workload);
 
-	atomic_inc(&workload->vgpu->running_workload_num);
+	if (workload && workload->vgpu)
+		atomic_inc(&workload->vgpu->running_workload_num);
 out:
 	mutex_unlock(&gvt->sched_lock);
 	return workload;
@@ -759,6 +801,10 @@ static int workload_thread(void *priv)
 			|| IS_BROXTON(gvt->dev_priv)
 			|| IS_KABYLAKE(gvt->dev_priv);
 
+	struct sched_param param = { .sched_priority = 1 };
+
+	sched_setscheduler_nocheck(current, SCHED_FIFO, &param);
+
 	DEFINE_WAIT_FUNC(wait, woken_wake_function);
 
 	kfree(p);
@@ -799,35 +845,7 @@ static int workload_thread(void *priv)
 		if (ret) {
 			vgpu = workload->vgpu;
 			gvt_vgpu_err("fail to dispatch workload, skip\n");
-			goto complete;
 		}
-
-		gvt_dbg_sched("ring id %d wait workload %p\n",
-				workload->ring_id, workload);
-		lret = i915_wait_request(workload->req, 0,
-				MAX_SCHEDULE_TIMEOUT);
-
-		gvt_dbg_sched("i915_wait_request %p returns %ld\n",
-				workload, lret);
-		if (lret >= 0 && workload->status == -EINPROGRESS)
-			workload->status = 0;
-
-		/*
-		 * increased guilty_count means that this request triggerred
-		 * a GPU reset, so we need to notify the guest about the
-		 * hang.
-		 */
-		if (workload->guilty_count <
-				atomic_read(&workload->req->ctx->guilty_count)) {
-			workload->status = -EIO;
-			inject_error_cs_irq(workload->vgpu, ring_id);
-		}
-
-complete:
-		gvt_dbg_sched("will complete workload %p, status: %d\n",
-				workload, workload->status);
-
-		complete_current_workload(gvt, ring_id);
 
 		if (need_force_wake)
 			intel_uncore_forcewake_put(gvt->dev_priv,
