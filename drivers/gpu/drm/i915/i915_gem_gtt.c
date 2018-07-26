@@ -2164,6 +2164,16 @@ static void gen8_ggtt_insert_page(struct i915_address_space *vm,
 
 	gen8_set_pte(pte, gen8_pte_encode(addr, level));
 
+	if (intel_vgpu_active(vm->i915) &&
+			(i915_modparams.enable_pvmmio & PVMMIO_GGTT_UPDATE)) {
+		struct drm_i915_private *dev_priv = vm->i915;
+		struct gvt_shared_page *shared_page = dev_priv->shared_page;
+
+		writeq(offset, &shared_page->start);
+		writeq(1, &shared_page->length);
+		I915_WRITE(vgtif_reg(g2v_notify), VGT_G2V_GGTT_INSERT);
+	}
+
 	ggtt->invalidate(vm->i915);
 }
 
@@ -2177,13 +2187,30 @@ static void gen8_ggtt_insert_entries(struct i915_address_space *vm,
 	gen8_pte_t __iomem *gtt_entries;
 	const gen8_pte_t pte_encode = gen8_pte_encode(0, level);
 	dma_addr_t addr;
+	int num_entries = 0;
 
 	gtt_entries = (gen8_pte_t __iomem *)ggtt->gsm;
 	gtt_entries += vma->node.start >> PAGE_SHIFT;
-	for_each_sgt_dma(addr, sgt_iter, vma->pages)
-		gen8_set_pte(gtt_entries++, pte_encode | addr);
 
+	for_each_sgt_dma(addr, sgt_iter, vma->pages) {
+		gen8_set_pte(gtt_entries++, pte_encode | addr);
+		num_entries++;
+	}
 	wmb();
+
+	if (intel_vgpu_active(vm->i915) &&
+			(i915_modparams.enable_pvmmio & PVMMIO_GGTT_UPDATE)) {
+		struct drm_i915_private *dev_priv = vm->i915;
+		struct gvt_shared_page *shared_page = dev_priv->shared_page;
+
+		writeq(vma->node.start, &shared_page->start);
+		/*
+		 * Sometimes number of entries does not match vma node size.
+		 * Pass number of pte entries instead.
+		 */
+		writeq(num_entries, &shared_page->length);
+		I915_WRITE(vgtif_reg(g2v_notify), VGT_G2V_GGTT_INSERT);
+	}
 
 	/* This next bit makes the above posting read even more important. We
 	 * want to flush the TLBs only after we're certain all the PTE updates
@@ -2259,6 +2286,17 @@ static void gen8_ggtt_clear_range(struct i915_address_space *vm,
 
 	for (i = 0; i < num_entries; i++)
 		gen8_set_pte(&gtt_base[i], scratch_pte);
+
+	if (intel_vgpu_active(vm->i915) &&
+			(i915_modparams.enable_pvmmio & PVMMIO_GGTT_UPDATE)) {
+		struct drm_i915_private *dev_priv = vm->i915;
+		struct gvt_shared_page *shared_page = dev_priv->shared_page;
+
+		writeq(start, &shared_page->start);
+		writeq(length, &shared_page->length);
+		I915_WRITE(vgtif_reg(g2v_notify), VGT_G2V_GGTT_CLEAR);
+	}
+
 }
 
 static void bxt_vtd_ggtt_wa(struct i915_address_space *vm)
