@@ -137,6 +137,42 @@ static int map_aperture(struct intel_vgpu *vgpu, bool map)
 	return 0;
 }
 
+int map_gttmmio(struct intel_vgpu *vgpu, bool trap)
+{
+	struct intel_vgpu_gm *gm = &vgpu->gm;
+	unsigned long mfn;
+	u64 start, end;
+	int ret = 0;
+	int i;
+
+	start = *(u64 *)(vgpu_cfg_space(vgpu) + PCI_BASE_ADDRESS_0);
+	start &= ~GENMASK(3, 0);
+	start += vgpu->cfg_space.bar[INTEL_GVT_PCI_BAR_GTTMMIO].size >> 1;
+
+	end = start +
+		(vgpu->cfg_space.bar[INTEL_GVT_PCI_BAR_GTTMMIO].size >> 1);
+
+	WARN_ON((end - start) != vgpu->gtt.ggtt_mm->page_table_entry_size);
+
+	gvt_dbg_mmio("%s start=%llx end=%llx trap=%d page_array_cnt=%d\n",
+		__func__, start, end, trap, gm->page_array_cnt);
+
+	start >>= PAGE_SHIFT;
+	for (i = 0; i < gm->page_array_cnt; i++) {
+		mfn = page_to_pfn(gm->page[i]);
+		gvt_dbg_mmio("page=%p mfn=%lx size=%x start=%llx\n",
+			vgpu->gm.page[i], mfn, 1 << (MAX_ORDER - 1), start);
+		ret = intel_gvt_hypervisor_map_gfn_to_mfn(vgpu, start,
+				mfn, 1 << (MAX_ORDER - 1), trap);
+		if (ret)
+			return ret;
+		start += 1 << (MAX_ORDER - 1);
+	}
+
+	return ret;
+}
+
+
 static int trap_gttmmio(struct intel_vgpu *vgpu, bool trap)
 {
 	u64 start, end;
