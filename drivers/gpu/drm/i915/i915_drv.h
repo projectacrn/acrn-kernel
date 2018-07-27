@@ -4411,4 +4411,7 @@ static inline int intel_hws_csb_write_index(struct drm_i915_private *i915)
 		return I915_HWS_CSB_WRITE_INDEX;
 }
 
+#define PVMMIO_LEVEL_ENABLE(dev_priv, level)	\
+	(intel_vgpu_active(dev_priv) && i915_modparams.enable_pvmmio & level)
+
 #endif
