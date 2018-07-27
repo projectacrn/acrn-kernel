@@ -241,7 +241,6 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 
 	plat->rx_queues_to_use = 6;
 	plat->tx_queues_to_use = 4;
-
 	plat->rx_sched_algorithm = MTL_RX_ALGORITHM_SP;
 
 	plat->rx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;

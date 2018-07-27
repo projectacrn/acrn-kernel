@@ -1813,7 +1813,6 @@ static void stmmac_dma_operation_mode(struct stmmac_priv *priv)
 	/* configure all channels */
 	for (chan = 0; chan < rx_channels_count; chan++) {
 		qmode = priv->plat->rx_queues_cfg[chan].mode_to_use;
-
 		stmmac_dma_rx_mode(priv, priv->ioaddr, rxmode, chan,
 				rxfifosz, qmode);
 		stmmac_set_dma_bfsize(priv, priv->ioaddr, priv->dma_buf_sz,
@@ -1822,7 +1821,6 @@ static void stmmac_dma_operation_mode(struct stmmac_priv *priv)
 
 	for (chan = 0; chan < tx_channels_count; chan++) {
 		qmode = priv->plat->tx_queues_cfg[chan].mode_to_use;
-
 		stmmac_dma_tx_mode(priv, priv->ioaddr, txmode, chan,
 				txfifosz, qmode);
 	}
