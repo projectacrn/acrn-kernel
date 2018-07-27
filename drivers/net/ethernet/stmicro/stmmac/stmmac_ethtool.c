@@ -298,6 +298,7 @@ static const struct stmmac_stats stmmac_mmc_tsn[] = {
 /* All test entries will be added before MAX_TEST_CASES */
 enum stmmac_diagnostics_cases {
 	TEST_MAC_LOOP,
+	TEST_PHY_LOOP,
 	MAX_TEST_CASES,
 	TOTAL_PASSED,
 	TOTAL_FAILED,
@@ -306,6 +307,7 @@ enum stmmac_diagnostics_cases {
 
 static const char stmmac_gstrings_test[][ETH_GSTRING_LEN] = {
 	[TEST_MAC_LOOP]    = "MAC loopback test     (online)",
+	[TEST_PHY_LOOP]    = "PHY loopback test     (online)",
 	[MAX_TEST_CASES]   = "8888888888888888888888888888888",
 	[TOTAL_PASSED]     = "Total test passed             ",
 	[TOTAL_FAILED]     = "Total test failed             ",
@@ -720,16 +722,30 @@ out:
 	return 0;
 }
 
-static void stmmac_lb_set_mode(struct stmmac_priv *priv, bool mode)
+static void stmmac_lb_set_mode(struct net_device *netdev,
+			       char *type, bool mode)
 {
-	mutex_lock(&priv->lock);
-	stmmac_set_loopback_mode(priv, priv->hw, mode);
-	mutex_unlock(&priv->lock);
+	struct stmmac_priv *priv = netdev_priv(netdev);
+	struct phy_device *phy = priv->dev->phydev;
+
+	if (!strcmp(type, "MAC")) {
+		mutex_lock(&priv->lock);
+		stmmac_set_loopback_mode(priv, priv->hw, mode);
+		mutex_unlock(&priv->lock);
+	} else if (!strcmp(type, "PHY")) {
+		phy_loopback(phy, mode);
+	}
+
+	/* add small delay to avoid loopback test failure */
+	msleep(50);
 }
 
-static void stmmac_lb_setup(struct stmmac_priv *priv,
-			    struct stmmac_lbst_priv *lbstp)
+static void stmmac_lb_setup(struct net_device *netdev,
+			    struct stmmac_lbst_priv *lbstp,
+			    char *type)
 {
+	struct stmmac_priv *priv = netdev_priv(netdev);
+
 	init_completion(&lbstp->comp);
 
 	lbstp->pt.type = htons(ETH_P_ALL);
@@ -738,39 +754,51 @@ static void stmmac_lb_setup(struct stmmac_priv *priv,
 	lbstp->pt.af_packet_priv = lbstp;
 	dev_add_pack(&lbstp->pt);
 
-	stmmac_lb_set_mode(priv, true);
+	stmmac_lb_set_mode(netdev, type, true);
 }
 
-static void stmmac_lb_clean(struct stmmac_priv *priv,
-			    struct stmmac_lbst_priv *lbstp)
+static void stmmac_lb_clean(struct net_device *netdev,
+			    struct stmmac_lbst_priv *lbstp,
+			    char *type)
 {
 	dev_remove_pack(&lbstp->pt);
-	stmmac_lb_set_mode(priv, false);
+	stmmac_lb_set_mode(netdev, type, false);
 }
 
-static int stmmac_loopback_test(struct net_device *netdev, u64 *data)
+static int stmmac_loopback_test(struct net_device *netdev, u64 *data,
+				char *type)
 {
 	struct stmmac_priv *priv = netdev_priv(netdev);
 	const struct stmmac_ops *mac_dev_ops = priv->hw->mac;
 	struct sk_buff *skb;
 	struct stmmac_lbst_priv *lbstp;
+	struct phy_driver *phydrv = to_phy_driver(netdev->phydev
+						  ->mdio.dev.driver);
 	int err;
 
-	if (!mac_dev_ops->set_loopback_mode) {
-		netdev_err(priv->dev, "MAC loopback self test function %s\n",
-			   "is not supported");
-		return 0;
-	}
+	if (!strcmp(type, "MAC")) {
+		if (!mac_dev_ops->set_loopback_mode) {
+			netdev_err(priv->dev, "MAC loopback self test function %s\n",
+				   "is not supported");
+			return 0;
+		}
 
-	/* Dwmac MAC level loopback hw limitaion:
-	 * 1.) only work in full duplex mode
-	 * 2.) link partner is required to supply rx clk
-	 * 3.) big packet loopback is not supported
-	 */
-	if (!netdev->phydev->duplex) {
-		netdev_err(priv->dev, "Cannot perform MAC loopback test %s\n",
-			   "while not in full duplex mode");
-		return 0;
+		/* Dwmac MAC level loopback hw limitaion:
+		 * 1.) only work in full duplex mode
+		 * 2.) link partner is required to supply rx clk
+		 * 3.) big packet loopback is not supported
+		 */
+		if (!netdev->phydev->duplex) {
+			netdev_err(priv->dev, "Cannot perform MAC loopback test %s\n",
+				   "while not in full duplex mode");
+			return 0;
+		}
+	} else if (!strcmp(type, "PHY")) {
+		if (!phydrv->set_loopback) {
+			netdev_err(priv->dev, "PHY loopback self test function %s\n",
+				   "is not supported");
+			return 0;
+		}
 	}
 
 	data[TOTAL_NOT_TESTED]--;
@@ -785,9 +813,9 @@ static int stmmac_loopback_test(struct net_device *netdev, u64 *data)
 		goto out;
 	}
 
-	stmmac_lb_setup(priv, lbstp);
+	stmmac_lb_setup(netdev, lbstp, type);
 
-	err = dev_queue_xmit(skb);
+	err = netdev->netdev_ops->ndo_start_xmit(skb, netdev);
 	if (err)
 		goto cleanup;
 
@@ -805,25 +833,37 @@ static int stmmac_loopback_test(struct net_device *netdev, u64 *data)
 	data[TOTAL_PASSED]++;
 
 cleanup:
-	stmmac_lb_clean(priv, lbstp);
+	stmmac_lb_clean(netdev, lbstp, type);
 out:
 	kfree(lbstp);
-	data[TEST_MAC_LOOP] = err;
+	if (!strcmp(type, "MAC"))
+		data[TEST_MAC_LOOP] = err;
+	else if (!strcmp(type, "PHY"))
+		data[TEST_PHY_LOOP] = err;
+
 	return err;
 }
 
 static void stmmac_diag_test(struct net_device *netdev,
 			     struct ethtool_test *eth_test, u64 *data)
 {
+	char *MAC = "MAC";
+	char *PHY = "PHY";
+
 	/* ToDo: self-test mechanism */
 	data[TEST_MAC_LOOP] = 0;
+	data[TEST_PHY_LOOP] = 0;
 	data[MAX_TEST_CASES] = 888888;
 	data[TOTAL_PASSED] = 0;
 	data[TOTAL_FAILED] = 0;
 	data[TOTAL_NOT_TESTED] = MAX_TEST_CASES;
 
 	if (!(eth_test->flags & ETH_TEST_FL_OFFLINE)) {
-		if (stmmac_loopback_test(netdev, data)) {
+		if (stmmac_loopback_test(netdev, data, MAC)) {
+			eth_test->flags |= ETH_TEST_FL_FAILED;
+			data[TOTAL_FAILED]++;
+		}
+		if (stmmac_loopback_test(netdev, data, PHY)) {
 			eth_test->flags |= ETH_TEST_FL_FAILED;
 			data[TOTAL_FAILED]++;
 		}
