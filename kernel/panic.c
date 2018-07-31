@@ -27,6 +27,9 @@
 #include <linux/console.h>
 #include <linux/bug.h>
 #include <linux/ratelimit.h>
+#include <linux/debugfs.h>
+#include <asm/sections.h>
+#include <linux/acpi.h>
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
@@ -242,6 +245,9 @@ void panic(const char *fmt, ...)
 	 */
 	debug_locks_off();
 	console_flush_on_panic();
+
+	/* Flush CPU cache */
+	ACPI_FLUSH_CPU_CACHE();
 
 	if (!panic_blink)
 		panic_blink = no_blink;
