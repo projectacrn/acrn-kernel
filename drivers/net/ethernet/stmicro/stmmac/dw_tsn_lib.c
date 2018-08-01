@@ -117,7 +117,7 @@ static unsigned int est_get_ti_width(unsigned int hw_cap)
 	return width;
 }
 
-static int est_poll_srwo(void *ioaddr)
+static int est_poll_srwo(void _IOMEM_ *ioaddr)
 {
 	/* Poll until the EST GCL Control[SRWO] bit clears.
 	 * Total wait = 12 x 50ms ~= 0.6s.
@@ -135,7 +135,7 @@ static int est_poll_srwo(void *ioaddr)
 	return -ETIMEDOUT;
 }
 
-static int est_set_gcl_addr(void *ioaddr, unsigned int addr,
+static int est_set_gcl_addr(void _IOMEM_ *ioaddr, unsigned int addr,
 			    unsigned int gcrr, unsigned int rwops,
 			    unsigned int dbgb, unsigned int dbgm)
 {
@@ -164,7 +164,7 @@ static int est_set_gcl_addr(void *ioaddr, unsigned int addr,
 	return est_poll_srwo(ioaddr);
 }
 
-static int est_write_gcl_config(void *ioaddr, unsigned int data,
+static int est_write_gcl_config(void _IOMEM_ *ioaddr, unsigned int data,
 				unsigned int addr, unsigned int gcrr,
 				unsigned int dbgb, unsigned int dbgm)
 {
@@ -173,7 +173,7 @@ static int est_write_gcl_config(void *ioaddr, unsigned int data,
 	return est_set_gcl_addr(ioaddr, addr, gcrr, GCL_OPS_W, dbgb, dbgm);
 }
 
-static int est_read_gcl_config(void *ioaddr, unsigned int *data,
+static int est_read_gcl_config(void _IOMEM_ *ioaddr, unsigned int *data,
 			       unsigned int addr, unsigned int gcrr,
 			       unsigned int dbgb, unsigned int dbgm)
 {
@@ -188,7 +188,7 @@ static int est_read_gcl_config(void *ioaddr, unsigned int *data,
 	return ret;
 }
 
-static int est_read_gce(void *ioaddr, unsigned int row,
+static int est_read_gce(void _IOMEM_ *ioaddr, unsigned int row,
 			unsigned int *gates, unsigned int *ti_nsec,
 			unsigned int dbgb, unsigned int dbgm)
 {
@@ -226,7 +226,7 @@ static unsigned int est_get_gcl_total_intervals_nsec(unsigned int bank,
 	return nsec;
 }
 
-static int est_set_tils(void *ioaddr, const unsigned int tils)
+static int est_set_tils(void _IOMEM_ *ioaddr, const unsigned int tils)
 {
 	unsigned int value;
 	struct tsn_hw_cap *cap = &dw_tsn_hwcap;
@@ -259,7 +259,7 @@ static int est_set_tils(void *ioaddr, const unsigned int tils)
 	return 0;
 }
 
-static int est_set_ov(void *ioaddr,
+static int est_set_ov(void _IOMEM_ *ioaddr,
 		      const unsigned int *ptov,
 		      const unsigned int *ctov)
 {
@@ -303,7 +303,7 @@ static int est_set_ov(void *ioaddr,
 	return 0;
 }
 
-static int fpe_set_afsz(void *ioaddr, const unsigned int afsz)
+static int fpe_set_afsz(void _IOMEM_ *ioaddr, const unsigned int afsz)
 {
 	unsigned int value;
 
@@ -327,7 +327,7 @@ static int fpe_set_afsz(void *ioaddr, const unsigned int afsz)
 	return 0;
 }
 
-static int fpe_set_hr_adv(void *ioaddr,
+static int fpe_set_hr_adv(void _IOMEM_ *ioaddr,
 			  const unsigned int *hadv,
 			  const unsigned int *radv)
 {
@@ -410,7 +410,7 @@ static unsigned long long est_get_all_open_time(unsigned int bank,
 	return total;
 }
 
-void dwmac_tsn_init(void *ioaddr)
+void dwmac_tsn_init(void _IOMEM_ *ioaddr)
 {
 	unsigned int gcl_depth;
 	unsigned int tils_max;
@@ -467,7 +467,7 @@ check_fpe:
  * stmmac_init_dma_engine() which resets MAC controller.
  * This is so-that MAC registers are not cleared.
  */
-void dwmac_tsn_setup(void *ioaddr, unsigned int fprq)
+void dwmac_tsn_setup(void _IOMEM_ *ioaddr, unsigned int fprq)
 {
 	struct tsn_hw_cap *cap = &dw_tsn_hwcap;
 	unsigned int value;
@@ -507,7 +507,7 @@ void dwmac_set_tsn_feat(enum tsn_feat_id featid, bool enable)
 		dw_tsn_feat_en[featid] = enable;
 }
 
-int dwmac_set_tsn_hwtunable(void *ioaddr,
+int dwmac_set_tsn_hwtunable(void _IOMEM_ *ioaddr,
 			    enum tsn_hwtunable_id id,
 			    const unsigned int *data)
 {
@@ -549,7 +549,7 @@ int dwmac_get_tsn_hwtunable(enum tsn_hwtunable_id id, unsigned int *data)
 	return 0;
 }
 
-int dwmac_get_est_bank(void *ioaddr, unsigned int own)
+int dwmac_get_est_bank(void _IOMEM_ *ioaddr, unsigned int own)
 {
 	int swol;
 
@@ -567,7 +567,7 @@ int dwmac_get_est_bank(void *ioaddr, unsigned int own)
 		return (~swol & 0x1);
 }
 
-int dwmac_set_est_gce(void *ioaddr,
+int dwmac_set_est_gce(void _IOMEM_ *ioaddr,
 		      struct est_gc_entry *gce, unsigned int row,
 		      unsigned int dbgb, unsigned int dbgm)
 {
@@ -634,7 +634,7 @@ int dwmac_set_est_gce(void *ioaddr,
 	return ret;
 }
 
-int dwmac_get_est_gcrr_llr(void *ioaddr, unsigned int *gcl_len,
+int dwmac_get_est_gcrr_llr(void _IOMEM_ *ioaddr, unsigned int *gcl_len,
 			   unsigned int dbgb, unsigned int dbgm)
 {
 	unsigned int bank, value;
@@ -668,7 +668,7 @@ int dwmac_get_est_gcrr_llr(void *ioaddr, unsigned int *gcl_len,
 	return 0;
 }
 
-int dwmac_set_est_gcrr_llr(void *ioaddr, unsigned int gcl_len,
+int dwmac_set_est_gcrr_llr(void _IOMEM_ *ioaddr, unsigned int gcl_len,
 			   unsigned int dbgb, unsigned int dbgm)
 {
 	unsigned int bank, value;
@@ -714,7 +714,7 @@ int dwmac_set_est_gcrr_llr(void *ioaddr, unsigned int gcl_len,
 	return 0;
 }
 
-int dwmac_set_est_gcrr_times(void *ioaddr,
+int dwmac_set_est_gcrr_times(void _IOMEM_ *ioaddr,
 			     struct est_gcrr *gcrr,
 			     unsigned int dbgb, unsigned int dbgm)
 {
@@ -864,7 +864,7 @@ int dwmac_set_est_gcrr_times(void *ioaddr,
 	return 0;
 }
 
-int dwmac_set_est_enable(void *ioaddr, bool enable)
+int dwmac_set_est_enable(void _IOMEM_ *ioaddr, bool enable)
 {
 	unsigned int value;
 
@@ -880,7 +880,7 @@ int dwmac_set_est_enable(void *ioaddr, bool enable)
 	return 0;
 }
 
-int dwmac_get_est_gcc(void *ioaddr,
+int dwmac_get_est_gcc(void _IOMEM_ *ioaddr,
 		      struct est_gc_config **gcc, bool frmdrv)
 {
 	int ret;
@@ -993,7 +993,7 @@ int dwmac_get_est_gcc(void *ioaddr,
 	return 0;
 }
 
-int dwmac_est_irq_status(void *ioaddr)
+int dwmac_est_irq_status(void _IOMEM_ *ioaddr)
 {
 	struct tsn_hw_cap *cap = &dw_tsn_hwcap;
 	struct tsn_err_stat *err_stat = &dw_err_stat;
@@ -1086,7 +1086,7 @@ int dwmac_get_est_err_stat(struct tsn_err_stat **err_stat)
 	return 0;
 }
 
-int dwmac_clr_est_err_stat(void *ioaddr)
+int dwmac_clr_est_err_stat(void _IOMEM_ *ioaddr)
 {
 	if (!dw_tsn_feat_en[TSN_FEAT_ID_EST])
 		return -ENOTSUPP;
@@ -1096,7 +1096,7 @@ int dwmac_clr_est_err_stat(void *ioaddr)
 	return 0;
 }
 
-int dwmac_set_fpe_config(void *ioaddr, struct fpe_config *fpec)
+int dwmac_set_fpe_config(void _IOMEM_ *ioaddr, struct fpe_config *fpec)
 {
 	unsigned int txqmask, value;
 	struct tsn_hw_cap *cap = &dw_tsn_hwcap;
@@ -1134,7 +1134,7 @@ int dwmac_set_fpe_config(void *ioaddr, struct fpe_config *fpec)
 	return 0;
 }
 
-int dwmac_set_fpe_enable(void *ioaddr, bool enable)
+int dwmac_set_fpe_enable(void _IOMEM_ *ioaddr, bool enable)
 {
 	if (!dw_tsn_feat_en[TSN_FEAT_ID_FPE])
 		return -ENOTSUPP;
@@ -1147,7 +1147,7 @@ int dwmac_set_fpe_enable(void *ioaddr, bool enable)
 	return 0;
 }
 
-int dwmac_get_fpe_config(void *ioaddr, struct fpe_config **fpec,
+int dwmac_get_fpe_config(void _IOMEM_ *ioaddr, struct fpe_config **fpec,
 			 bool frmdrv)
 {
 	unsigned int value;
@@ -1180,7 +1180,7 @@ int dwmac_get_fpe_config(void *ioaddr, struct fpe_config **fpec,
 	return 0;
 }
 
-int dwmac_get_fpe_pmac_sts(void *ioaddr, unsigned int *hrs)
+int dwmac_get_fpe_pmac_sts(void _IOMEM_ *ioaddr, unsigned int *hrs)
 {
 	unsigned int value;
 
@@ -1198,7 +1198,7 @@ int dwmac_get_fpe_pmac_sts(void *ioaddr, unsigned int *hrs)
 	return 0;
 }
 
-int dwmac_fpe_irq_status(void *ioaddr)
+int dwmac_fpe_irq_status(void _IOMEM_ *ioaddr)
 {
 	unsigned int status;
 	int fpe_state = FPE_STATE_UNKNOWN;
@@ -1229,7 +1229,7 @@ int dwmac_fpe_irq_status(void *ioaddr)
 	return fpe_state;
 }
 
-int dwmac_fpe_send_mpacket(void *ioaddr, enum mpacket_type type)
+int dwmac_fpe_send_mpacket(void _IOMEM_ *ioaddr, enum mpacket_type type)
 {
 	unsigned int value;
 
@@ -1253,7 +1253,7 @@ int dwmac_fpe_send_mpacket(void *ioaddr, enum mpacket_type type)
 	return 0;
 }
 
-int dwmac_cbs_recal_idleslope(void *ioaddr,
+int dwmac_cbs_recal_idleslope(void _IOMEM_ *ioaddr,
 			      unsigned int queue,
 			      unsigned int *idle_slope)
 {
