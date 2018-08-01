@@ -25,6 +25,7 @@
 #include "linux/printk.h"
 
 #define _DO_DIV_(x, y)	do_div(x, y)
+#define _IOMEM_		__iomem
 
 /* DWMAC v5.xx supports the following Time Sensitive Networking protocols:
  * 1) IEEE 802.1Qbv Enhancements for Scheduled Traffic (EST)
@@ -276,38 +277,38 @@ struct fpe_config {
 };
 
 /* TSN functions */
-void dwmac_tsn_init(void *ioaddr);
-void dwmac_tsn_setup(void *ioaddr, unsigned int fprq);
+void dwmac_tsn_init(void _IOMEM_ *ioaddr);
+void dwmac_tsn_setup(void _IOMEM_ *ioaddr, unsigned int fprq);
 void dwmac_get_tsn_hwcap(struct tsn_hw_cap **tsn_hwcap);
 void dwmac_set_est_gcb(struct est_gc_entry *gcl, unsigned int bank);
 void dwmac_set_tsn_feat(enum tsn_feat_id featid, bool enable);
-int dwmac_set_tsn_hwtunable(void *ioaddr, enum tsn_hwtunable_id id,
+int dwmac_set_tsn_hwtunable(void _IOMEM_ *ioaddr, enum tsn_hwtunable_id id,
 			    const unsigned int *data);
 int dwmac_get_tsn_hwtunable(enum tsn_hwtunable_id id, unsigned int *data);
-int dwmac_get_est_bank(void *ioaddr, unsigned int own);
-int dwmac_set_est_gce(void *ioaddr,
+int dwmac_get_est_bank(void _IOMEM_ *ioaddr, unsigned int own);
+int dwmac_set_est_gce(void _IOMEM_ *ioaddr,
 		      struct est_gc_entry *gce, unsigned int row,
 		      unsigned int dbgb, unsigned int dbgm);
-int dwmac_get_est_gcrr_llr(void *ioaddr, unsigned int *gcl_len,
+int dwmac_get_est_gcrr_llr(void _IOMEM_ *ioaddr, unsigned int *gcl_len,
 			   unsigned int dbgb, unsigned int dbgm);
-int dwmac_set_est_gcrr_llr(void *ioaddr, unsigned int gcl_len,
+int dwmac_set_est_gcrr_llr(void _IOMEM_ *ioaddr, unsigned int gcl_len,
 			   unsigned int dbgb, unsigned int dbgm);
-int dwmac_set_est_gcrr_times(void *ioaddr,
+int dwmac_set_est_gcrr_times(void _IOMEM_ *ioaddr,
 			     struct est_gcrr *gcrr,
 			     unsigned int dbgb, unsigned int dbgm);
-int dwmac_set_est_enable(void *ioaddr, bool enable);
-int dwmac_get_est_gcc(void *ioaddr,
+int dwmac_set_est_enable(void _IOMEM_ *ioaddr, bool enable);
+int dwmac_get_est_gcc(void _IOMEM_ *ioaddr,
 		      struct est_gc_config **gcc, bool frmdrv);
-int dwmac_est_irq_status(void *ioaddr);
+int dwmac_est_irq_status(void _IOMEM_ *ioaddr);
 int dwmac_get_est_err_stat(struct tsn_err_stat **err_stat);
-int dwmac_clr_est_err_stat(void *ioaddr);
-int dwmac_set_fpe_config(void *ioaddr, struct fpe_config *fpec);
-int dwmac_set_fpe_enable(void *ioaddr, bool enable);
-int dwmac_get_fpe_config(void *ioaddr, struct fpe_config **fpec,
+int dwmac_clr_est_err_stat(void _IOMEM_ *ioaddr);
+int dwmac_set_fpe_config(void _IOMEM_ *ioaddr, struct fpe_config *fpec);
+int dwmac_set_fpe_enable(void _IOMEM_ *ioaddr, bool enable);
+int dwmac_get_fpe_config(void _IOMEM_ *ioaddr, struct fpe_config **fpec,
 			 bool frmdrv);
-int dwmac_get_fpe_pmac_sts(void *ioaddr, unsigned int *hrs);
-int dwmac_fpe_irq_status(void *ioaddr);
-int dwmac_fpe_send_mpacket(void *ioaddr, enum mpacket_type type);
-int dwmac_cbs_recal_idleslope(void *ioaddr, unsigned int queue,
+int dwmac_get_fpe_pmac_sts(void _IOMEM_ *ioaddr, unsigned int *hrs);
+int dwmac_fpe_irq_status(void _IOMEM_ *ioaddr);
+int dwmac_fpe_send_mpacket(void _IOMEM_ *ioaddr, enum mpacket_type type);
+int dwmac_cbs_recal_idleslope(void _IOMEM_ *ioaddr, unsigned int queue,
 			      unsigned int *idle_slope);
 #endif /* __DW_TSN_LIB_H__ */
