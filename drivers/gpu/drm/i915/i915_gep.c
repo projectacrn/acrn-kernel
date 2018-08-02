@@ -60,12 +60,12 @@ err_unref:
 
 static int i915_gep_exit(void)
 {
+	i915_gep.enabled = false;
 	i915_gem_free_object(&i915_gep.buf_obj->base);
-	iounmap(i915_gep.cpu_addr);
+	io_mapping_unmap(i915_gep.cpu_addr);
 	i915_gep.buf_obj = NULL;
 	i915_gep.cpu_addr = NULL;
 	i915_gep.ggtt_offset = 0;
-	i915_gep.enabled = false;
 	i915_gep.buf_offset = 0;
 	return 0;
 }
