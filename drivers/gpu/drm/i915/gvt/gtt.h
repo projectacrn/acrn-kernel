@@ -135,7 +135,6 @@ struct intel_vgpu_mm {
 	u32 page_table_entry_cnt;
 	void *virtual_page_table;
 	void *shadow_page_table;
-	struct i915_hw_ppgtt *ppgtt;
 
 	int page_table_level;
 	bool has_shadow_page_table;
@@ -312,18 +311,5 @@ int intel_vgpu_emulate_gtt_mmio_read(struct intel_vgpu *vgpu,
 
 int intel_vgpu_emulate_gtt_mmio_write(struct intel_vgpu *vgpu,
 	unsigned int off, void *p_data, unsigned int bytes);
-
-int intel_vgpu_g2v_pv_ppgtt_alloc_4lvl(struct intel_vgpu *vgpu,
-		int page_table_level);
-
-int intel_vgpu_g2v_pv_ppgtt_clear_4lvl(struct intel_vgpu *vgpu,
-		int page_table_level);
-
-int intel_vgpu_g2v_pv_ppgtt_insert_4lvl(struct intel_vgpu *vgpu,
-		int page_table_level);
-
-int intel_vgpu_g2v_pv_ggtt_insert(struct intel_vgpu *vgpu);
-
-int intel_vgpu_g2v_pv_ggtt_clear(struct intel_vgpu *vgpu);
 
 #endif /* _GVT_GTT_H_ */
