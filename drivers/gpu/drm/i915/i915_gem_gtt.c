@@ -814,15 +814,13 @@ static void gen8_ppgtt_set_pml4e(struct i915_pml4 *pml4,
  * This is the top-level structure in 4-level page tables used on gen8+.
  * Empty entries are always scratch pml4e.
  */
-void gen8_ppgtt_clear_4lvl(struct i915_address_space *vm,
+static void gen8_ppgtt_clear_4lvl(struct i915_address_space *vm,
 				  u64 start, u64 length)
 {
 	struct i915_hw_ppgtt *ppgtt = i915_vm_to_ppgtt(vm);
 	struct i915_pml4 *pml4 = &ppgtt->pml4;
 	struct i915_page_directory_pointer *pdp;
 	unsigned int pml4e;
-	u64 orig_start = start;
-	u64 orig_length = length;
 
 	GEM_BUG_ON(!use_4lvl(vm));
 
@@ -835,16 +833,6 @@ void gen8_ppgtt_clear_4lvl(struct i915_address_space *vm,
 		gen8_ppgtt_set_pml4e(pml4, vm->scratch_pdp, pml4e);
 
 		free_pdp(vm, pdp);
-	}
-	if (intel_vgpu_active(vm->i915) &&
-			(i915_modparams.enable_pvmmio & PVMMIO_PPGTT_UPDATE)) {
-		struct drm_i915_private *dev_priv = vm->i915;
-		struct gvt_shared_page *shared_page = dev_priv->shared_page;
-
-		writeq(px_dma(pml4), &shared_page->pdp);
-		writeq(orig_start, &shared_page->start);
-		writeq(orig_length, &shared_page->length);
-		I915_WRITE(vgtif_reg(g2v_notify), VGT_G2V_PPGTT_L4_CLEAR);
 	}
 }
 
@@ -874,38 +862,21 @@ static __always_inline struct gen8_insert_pte gen8_insert_pte(u64 start)
 	};
 }
 
-static __always_inline void insert_shared_pt(
-					struct gvt_shared_page *shared_page, u64 daddr)
-{
-	if (shared_page) {
-		if (shared_page->pt_count >= SHARED_PT_SIZE) {
-			DRM_ERROR("ppgtt insert size is too big\n");
-			return;
-		}
-		shared_page->rsvd2[shared_page->pt_count++] = daddr;
-	}
-}
-
 static __always_inline bool
 gen8_ppgtt_insert_pte_entries(struct i915_hw_ppgtt *ppgtt,
 			      struct i915_page_directory_pointer *pdp,
 			      struct sgt_dma *iter,
 			      struct gen8_insert_pte *idx,
-			      enum i915_cache_level cache_level,
-			      struct gvt_shared_page *shared_page)
+			      enum i915_cache_level cache_level)
 {
 	struct i915_page_directory *pd;
-	gen8_pte_t pte_encode = 0;
+	const gen8_pte_t pte_encode = gen8_pte_encode(0, cache_level);
 	gen8_pte_t *vaddr;
 	bool ret;
-
-	if (cache_level != -1)
-		pte_encode = gen8_pte_encode(0, cache_level);
 
 	GEM_BUG_ON(idx->pdpe >= i915_pdpes_per_pdp(&ppgtt->base));
 	pd = pdp->page_directory[idx->pdpe];
 	vaddr = kmap_atomic_px(pd->page_table[idx->pde]);
-	insert_shared_pt(shared_page, px_dma(pd->page_table[idx->pde]));
 	do {
 		vaddr[idx->pte] = pte_encode | iter->dma;
 
@@ -940,7 +911,6 @@ gen8_ppgtt_insert_pte_entries(struct i915_hw_ppgtt *ppgtt,
 
 			kunmap_atomic(vaddr);
 			vaddr = kmap_atomic_px(pd->page_table[idx->pde]);
-			insert_shared_pt(shared_page, px_dma(pd->page_table[idx->pde]));
 		}
 	} while (1);
 	kunmap_atomic(vaddr);
@@ -958,26 +928,8 @@ static void gen8_ppgtt_insert_3lvl(struct i915_address_space *vm,
 	struct gen8_insert_pte idx = gen8_insert_pte(vma->node.start);
 
 	gen8_ppgtt_insert_pte_entries(ppgtt, &ppgtt->pdp, &iter, &idx,
-				      cache_level, NULL);
+				      cache_level);
 }
-
-void gen8_ppgtt_insert_4lvl_sg(struct i915_address_space *vm,
-				   struct scatterlist *sg,
-				   u64 start)
-{
-	struct i915_hw_ppgtt *ppgtt = i915_vm_to_ppgtt(vm);
-	struct i915_page_directory_pointer **pdps = ppgtt->pml4.pdps;
-	struct gen8_insert_pte idx = gen8_insert_pte(start);
-	struct sgt_dma iter;
-	iter.sg = sg;
-	iter.dma = sg_dma_address(sg);
-	iter.max = sg_dma_address(sg) + sg->length;
-
-	while (gen8_ppgtt_insert_pte_entries(ppgtt, pdps[idx.pml4e++], &iter,
-					     &idx, -1, NULL))
-		GEM_BUG_ON(idx.pml4e >= GEN8_PML4ES_PER_PML4);
-}
-
 
 static void gen8_ppgtt_insert_4lvl(struct i915_address_space *vm,
 				   struct i915_vma *vma,
@@ -988,30 +940,10 @@ static void gen8_ppgtt_insert_4lvl(struct i915_address_space *vm,
 	struct sgt_dma iter = sgt_dma(vma);
 	struct i915_page_directory_pointer **pdps = ppgtt->pml4.pdps;
 	struct gen8_insert_pte idx = gen8_insert_pte(vma->node.start);
-	struct drm_i915_private *dev_priv = vm->i915;
-	struct gvt_shared_page *shared_page = NULL;
-
-	if (intel_vgpu_active(vm->i915) &&
-			(i915_modparams.enable_pvmmio & PVMMIO_PPGTT_UPDATE)) {
-		u64 start = vma->node.start;
-		u64 length = vma->node.size;
-		struct i915_pml4 *pml4 = &ppgtt->pml4;
-
-		shared_page = dev_priv->shared_page;
-		writeq(px_dma(pml4), &shared_page->pdp);
-		writeq(start, &shared_page->start);
-		writeq(length, &shared_page->length);
-		writeq(0, &shared_page->pt_count);
-	}
 
 	while (gen8_ppgtt_insert_pte_entries(ppgtt, pdps[idx.pml4e++], &iter,
-					     &idx, cache_level, shared_page))
+					     &idx, cache_level))
 		GEM_BUG_ON(idx.pml4e >= GEN8_PML4ES_PER_PML4);
-
-	if (intel_vgpu_active(vm->i915) &&
-			(i915_modparams.enable_pvmmio & PVMMIO_PPGTT_UPDATE))
-		I915_WRITE(vgtif_reg(g2v_notify), VGT_G2V_PPGTT_L4_INSERT);
-
 }
 
 static void gen8_free_page_tables(struct i915_address_space *vm,
@@ -1240,7 +1172,7 @@ static int gen8_ppgtt_alloc_3lvl(struct i915_address_space *vm,
 				    &i915_vm_to_ppgtt(vm)->pdp, start, length);
 }
 
-int gen8_ppgtt_alloc_4lvl(struct i915_address_space *vm,
+static int gen8_ppgtt_alloc_4lvl(struct i915_address_space *vm,
 				 u64 start, u64 length)
 {
 	struct i915_hw_ppgtt *ppgtt = i915_vm_to_ppgtt(vm);
@@ -1249,8 +1181,6 @@ int gen8_ppgtt_alloc_4lvl(struct i915_address_space *vm,
 	u64 from = start;
 	u32 pml4e;
 	int ret;
-	u64 orig_start = start;
-	u64 orig_length = length;
 
 	gen8_for_each_pml4e(pdp, pml4, start, length, pml4e) {
 		if (pml4->pdps[pml4e] == vm->scratch_pdp) {
@@ -1265,16 +1195,6 @@ int gen8_ppgtt_alloc_4lvl(struct i915_address_space *vm,
 		ret = gen8_ppgtt_alloc_pdp(vm, pdp, start, length);
 		if (unlikely(ret))
 			goto unwind_pdp;
-	}
-	if (intel_vgpu_active(vm->i915) &&
-			(i915_modparams.enable_pvmmio & PVMMIO_PPGTT_UPDATE)) {
-		struct drm_i915_private *dev_priv = vm->i915;
-		struct gvt_shared_page *shared_page = dev_priv->shared_page;
-
-		writeq(px_dma(pml4), &shared_page->pdp);
-		writeq(orig_start, &shared_page->start);
-		writeq(orig_length, &shared_page->length);
-		I915_WRITE(vgtif_reg(g2v_notify), VGT_G2V_PPGTT_L4_ALLOC);
 	}
 
 	return 0;
@@ -2164,16 +2084,6 @@ static void gen8_ggtt_insert_page(struct i915_address_space *vm,
 
 	gen8_set_pte(pte, gen8_pte_encode(addr, level));
 
-	if (intel_vgpu_active(vm->i915) &&
-			(i915_modparams.enable_pvmmio & PVMMIO_GGTT_UPDATE)) {
-		struct drm_i915_private *dev_priv = vm->i915;
-		struct gvt_shared_page *shared_page = dev_priv->shared_page;
-
-		writeq(offset, &shared_page->start);
-		writeq(1, &shared_page->length);
-		I915_WRITE(vgtif_reg(g2v_notify), VGT_G2V_GGTT_INSERT);
-	}
-
 	ggtt->invalidate(vm->i915);
 }
 
@@ -2187,30 +2097,13 @@ static void gen8_ggtt_insert_entries(struct i915_address_space *vm,
 	gen8_pte_t __iomem *gtt_entries;
 	const gen8_pte_t pte_encode = gen8_pte_encode(0, level);
 	dma_addr_t addr;
-	int num_entries = 0;
 
 	gtt_entries = (gen8_pte_t __iomem *)ggtt->gsm;
 	gtt_entries += vma->node.start >> PAGE_SHIFT;
-
-	for_each_sgt_dma(addr, sgt_iter, vma->pages) {
+	for_each_sgt_dma(addr, sgt_iter, vma->pages)
 		gen8_set_pte(gtt_entries++, pte_encode | addr);
-		num_entries++;
-	}
+
 	wmb();
-
-	if (intel_vgpu_active(vm->i915) &&
-			(i915_modparams.enable_pvmmio & PVMMIO_GGTT_UPDATE)) {
-		struct drm_i915_private *dev_priv = vm->i915;
-		struct gvt_shared_page *shared_page = dev_priv->shared_page;
-
-		writeq(vma->node.start, &shared_page->start);
-		/*
-		 * Sometimes number of entries does not match vma node size.
-		 * Pass number of pte entries instead.
-		 */
-		writeq(num_entries, &shared_page->length);
-		I915_WRITE(vgtif_reg(g2v_notify), VGT_G2V_GGTT_INSERT);
-	}
 
 	/* This next bit makes the above posting read even more important. We
 	 * want to flush the TLBs only after we're certain all the PTE updates
@@ -2286,17 +2179,6 @@ static void gen8_ggtt_clear_range(struct i915_address_space *vm,
 
 	for (i = 0; i < num_entries; i++)
 		gen8_set_pte(&gtt_base[i], scratch_pte);
-
-	if (intel_vgpu_active(vm->i915) &&
-			(i915_modparams.enable_pvmmio & PVMMIO_GGTT_UPDATE)) {
-		struct drm_i915_private *dev_priv = vm->i915;
-		struct gvt_shared_page *shared_page = dev_priv->shared_page;
-
-		writeq(start, &shared_page->start);
-		writeq(length, &shared_page->length);
-		I915_WRITE(vgtif_reg(g2v_notify), VGT_G2V_GGTT_CLEAR);
-	}
-
 }
 
 static void bxt_vtd_ggtt_wa(struct i915_address_space *vm)

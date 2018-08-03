@@ -37,7 +37,6 @@
 #include <linux/io-mapping.h>
 #include <linux/mm.h>
 #include <linux/pagevec.h>
-#include <linux/scatterlist.h>
 
 #include "i915_gem_timeline.h"
 #include "i915_gem_request.h"
@@ -583,16 +582,6 @@ int i915_gem_gtt_insert(struct i915_address_space *vm,
 			struct drm_mm_node *node,
 			u64 size, u64 alignment, unsigned long color,
 			u64 start, u64 end, unsigned int flags);
-
-void gen8_ppgtt_clear_4lvl(struct i915_address_space *vm,
-				  u64 start, u64 length);
-
-int gen8_ppgtt_alloc_4lvl(struct i915_address_space *vm,
-				  u64 start, u64 length);
-
-void gen8_ppgtt_insert_4lvl_sg(struct i915_address_space *vm,
-				   struct scatterlist *sg,
-				   u64 start);
 
 /* Flags used by pin/bind&friends. */
 #define PIN_NONBLOCK		BIT(0)
