@@ -34,6 +34,7 @@
  */
 
 #include <linux/kthread.h>
+#include <uapi/linux/sched/types.h>
 
 #include "i915_drv.h"
 #include "gvt.h"
@@ -749,8 +750,10 @@ static int workload_thread(void *priv)
 	bool need_force_wake = IS_SKYLAKE(gvt->dev_priv)
 			|| IS_BROXTON(gvt->dev_priv)
 			|| IS_KABYLAKE(gvt->dev_priv);
-
+	struct sched_param param = { .sched_priority = 1 };
 	DEFINE_WAIT_FUNC(wait, woken_wake_function);
+
+	sched_setscheduler_nocheck(current, SCHED_FIFO, &param);
 
 	kfree(p);
 
