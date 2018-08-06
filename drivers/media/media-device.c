@@ -447,7 +447,7 @@ static int media_device_close(struct file *filp)
 	return 0;
 }
 
-static int media_device_get_info(struct media_device *dev,
+static long media_device_get_info(struct media_device *dev,
 				 struct file *filp,
 				 void *arg)
 {
