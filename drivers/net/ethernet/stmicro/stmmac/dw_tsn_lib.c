@@ -1139,6 +1139,7 @@ int dwmac_set_fpe_enable(void _IOMEM_ *ioaddr, bool enable)
 	if (!dw_tsn_feat_en[TSN_FEAT_ID_FPE])
 		return -ENOTSUPP;
 
+	dw_fpe_config.lp_fpe_support = 0;
 	dw_fpe_config.enable = enable & MAC_FPE_CTRL_STS_EFPE;
 
 	TSN_WR32((unsigned int)dw_fpe_config.enable,
@@ -1206,6 +1207,8 @@ int dwmac_fpe_irq_status(void _IOMEM_ *ioaddr)
 	status = TSN_RD32(ioaddr + MAC_FPE_CTRL_STS);
 
 	if (status & MAC_FPE_CTRL_STS_TRSP) {
+		if (dw_fpe_config.enable)
+			dw_fpe_config.lp_fpe_support = 1;
 		TSN_INFO_NA("Respond mPacket is transmitted\n");
 		fpe_state |= FPE_STATE_TRSP;
 	}
