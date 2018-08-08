@@ -358,11 +358,12 @@ EXPORT_SYMBOL(dal_create_session);
  * @output_len: input and output param -
  *              - input: the expected maximum length of the received message
  *              - output: size of the received message
- * @response_code: output param to hold the return value from the applet
+ * @response_code: An optional output param to hold the return value
+ *                 from the applet. Can be NULL.
  *
  * Return: 0 on success
- *         <0 on system failure
- *         >0 on DAL FW failure
+ *         < 0 on system failure
+ *         > 0 on DAL FW failure
  */
 int dal_send_and_receive(u64 session_handle, int command_id, const u8 *input,
 			 size_t input_len, u8 **output, size_t *output_len,
