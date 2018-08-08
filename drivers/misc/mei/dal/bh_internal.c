@@ -599,6 +599,9 @@ int bh_proxy_check_svl_jta_blocked_state(uuid_t *ta_id)
 	struct bh_response_header *resp_hdr;
 	u64 host_id;
 
+	if (!ta_id)
+		return -EINVAL;
+
 	memset(cmdbuf, 0, sizeof(cmdbuf));
 	resp_hdr = NULL;
 
@@ -725,11 +728,12 @@ int bh_proxy_dnload_jta(unsigned int conn_idx, uuid_t *ta_id,
 	u64 host_id;
 	int ret;
 
+	if (!ta_pkg || !pkg_len || !ta_id)
+		return -EINVAL;
+
 	memset(cmdbuf, 0, sizeof(cmdbuf));
 	resp_hdr = NULL;
 
-	if (!ta_pkg || !pkg_len)
-		return -EINVAL;
 
 	h = (struct bh_command_header *)cmdbuf;
 	cmd = (struct bh_download_jta_cmd *)h->cmd;
@@ -778,7 +782,7 @@ int bh_proxy_open_jta_session(unsigned int conn_idx,
 	struct bh_response_header *resp_hdr;
 	struct bh_session_record *session;
 
-	if (!host_id)
+	if (!host_id || !ta_id)
 		return -EINVAL;
 
 	if (!init_buffer && init_len > 0)
