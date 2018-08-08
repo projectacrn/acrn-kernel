@@ -62,8 +62,6 @@
 #include "acp_format.h"
 #include "acp_parser.h"
 
-#define PR_ALIGN 4
-
 /* CSS Header + CSS Crypto Block
  * Prefixes each signed ACP package
  */
