@@ -222,7 +222,7 @@ static bool ac_pr_is_safe_to_read(const struct ac_pr_state *pr, size_t n_move)
  * Return: true when cur is at the end of the acp
  *         false otherwise
  */
-static bool ac_pr_is_end(struct ac_pr_state *pr)
+static bool ac_pr_is_end(const struct ac_pr_state *pr)
 {
 	return (pr->cur == pr->head + pr->total);
 }
