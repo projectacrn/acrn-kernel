@@ -323,15 +323,16 @@ int bh_ta_session_open(u64 *host_id, const char *ta_id,
  * @length: sent message size
  * @output: output param to hold pointer to the buffer which
  *          will contain received message.
- *          This buffer is allocated by Beihai and freed by the user
+ *          This buffer is allocated by Beihai and freed by the user.
  * @output_length: input and output param -
  *                 - input: the expected maximum length of the received message
  *                 - output: size of the received message
- * @response_code: output param to hold the return value from the applet
+ * @response_code: An optional output param to hold the return value
+ *                 from the applet. Can be NULL.
  *
  * Return: 0 on success
- *         <0 on system failure
- *         >0 on DAL FW failure
+ *         < 0 on system failure
+ *         > 0 on DAL FW failure
  */
 int bh_ta_session_command(u64 host_id, int command_id,
 			  const void *input, size_t length,
