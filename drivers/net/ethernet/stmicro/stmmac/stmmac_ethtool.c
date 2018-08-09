@@ -583,6 +583,12 @@ stmmac_set_pauseparam(struct net_device *netdev,
 	struct phy_device *phy = netdev->phydev;
 	int new_pause = FLOW_OFF;
 	struct rgmii_adv adv_lp;
+	struct est_gc_config *gcc;
+	int ret;
+
+	ret = stmmac_get_est_gcc(priv, priv->ioaddr, &gcc, 1);
+	if (ret)
+		gcc->enable = 0;
 
 	if (priv->hw->pcs && !stmmac_pcs_get_adv_lp(priv, priv->ioaddr, &adv_lp)) {
 		pause->autoneg = 1;
@@ -606,6 +612,9 @@ stmmac_set_pauseparam(struct net_device *netdev,
 
 	priv->flow_ctrl = new_pause;
 	phy->autoneg = pause->autoneg;
+
+	if (priv->flow_ctrl && gcc->enable)
+		pr_warn("stmmac: EST & PAUSE cannot co-exist!\n");
 
 	if (phy->autoneg) {
 		if (netif_running(netdev))

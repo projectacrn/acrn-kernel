@@ -3724,10 +3724,13 @@ static int stmmac_set_features(struct net_device *netdev,
 		stmmac_set_hw_vlan_mode(priv, priv->ioaddr, features);
 
 	if (changed & NETIF_F_HW_EST) {
-		if (features & NETIF_F_HW_EST)
+		if (features & NETIF_F_HW_EST) {
 			stmmac_set_est_enable(priv, priv->ioaddr, 1);
-		else
+			if (priv->flow_ctrl)
+				pr_warn("stmmac: EST & PAUSE cannot co-exist!\n");
+		} else {
 			stmmac_set_est_enable(priv, priv->ioaddr, 0);
+		}
 	}
 	if (changed & NETIF_F_HW_FPE) {
 		if (features & NETIF_F_HW_FPE) {
