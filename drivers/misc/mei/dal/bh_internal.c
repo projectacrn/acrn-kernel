@@ -201,6 +201,9 @@ static struct bh_request_cmd *bh_request_alloc(const void *hdr,
 
 	if (!data && data_len)
 		return ERR_PTR(-EINVAL);
+	/* check for unsigned-integer overflow */
+	if (hdr_len + data_len < data_len)
+		return ERR_PTR(-EINVAL);
 
 	request = kzalloc(sizeof(*request), GFP_KERNEL);
 	if (!request)
