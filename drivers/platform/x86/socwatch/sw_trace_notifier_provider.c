@@ -1877,6 +1877,7 @@ int sw_add_trace_notifier_providers(void)
             return -EIO;
         }
     }
+#ifdef CONFIG_TRACEPOINTS
     /*
      * Add the cpu hot plug notifier.
      */
@@ -1886,6 +1887,7 @@ int sw_add_trace_notifier_providers(void)
             return -EIO;
         }
     }
+#endif
     return PW_SUCCESS;
 }
 /*
