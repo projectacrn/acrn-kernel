@@ -427,6 +427,17 @@ void bh_prep_session_close_cmd(void *cmdbuf, u64 ta_session_id)
 	cmd->ta_session_id = ta_session_id;
 }
 
+static int bh_send_recv_message(struct bh_request_cmd *request)
+{
+	int ret;
+
+	ret = bh_send_message(request);
+	if (ret)
+		return ret;
+
+	return bh_recv_message(request);
+}
+
 static void bh_request_work(struct work_struct *work)
 {
 	struct bh_service *bh_srv;
@@ -452,14 +463,9 @@ static void bh_request_work(struct work_struct *work)
 		goto out_free;
 	}
 
-send_request:
-	ret = bh_send_message(request);
-	if (ret)
-		goto out;
-
-	ret = bh_recv_message(request);
-out:
+	ret = bh_send_recv_message(request);
 	request->ret = ret;
+
 	if (wq_has_sleeper(&request->complete.wait)) {
 		mutex_unlock(&bh_srv->request_lock);
 		complete(&request->complete);
@@ -487,7 +493,7 @@ out:
 		request = bh_request_alloc(cmdbuf, sizeof(cmdbuf), NULL, 0,
 					   CONN_IDX_IVM, host_id);
 		if (!IS_ERR(request))
-			goto send_request;
+			bh_send_recv_message(request);
 	}
 
 out_free:
