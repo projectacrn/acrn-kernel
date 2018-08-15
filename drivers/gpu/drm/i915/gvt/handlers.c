@@ -1393,6 +1393,7 @@ static int pvinfo_mmio_write(struct intel_vgpu *vgpu, unsigned int offset,
 {
 	u32 data;
 	int ret;
+	struct intel_gvt_irq_ops *ops = vgpu->gvt->irq.ops;
 
 	write_vreg(vgpu, offset, p_data, bytes);
 	data = vgpu_vreg(vgpu, offset);
@@ -1416,6 +1417,9 @@ static int pvinfo_mmio_write(struct intel_vgpu *vgpu, unsigned int offset,
 		} else {
 			vgpu_vreg(vgpu, offset) = 0;
 		}
+		break;
+	case _vgtif_reg(check_pending_irq):
+		ops->check_pending_irq(vgpu);
 		break;
 	/* add xhot and yhot to handled list to avoid error log */
 	case 0x78830:
