@@ -1252,6 +1252,39 @@ out:
 }
 EXPORT_SYMBOL(phy_loopback);
 
+int phy_ext_loopback(struct phy_device *phydev, bool enable)
+{
+	struct phy_driver *phydrv = to_phy_driver(phydev->mdio.dev.driver);
+	int ret = 0;
+
+	mutex_lock(&phydev->lock);
+
+	if (enable && phydev->loopback_enabled) {
+		ret = -EBUSY;
+		goto out;
+	}
+
+	if (!enable && !phydev->loopback_enabled) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (phydev->drv && phydrv->set_ext_loopback)
+		ret = phydrv->set_ext_loopback(phydev, enable);
+	else
+		ret = -EOPNOTSUPP;
+
+	if (ret)
+		goto out;
+
+	phydev->loopback_enabled = enable;
+
+out:
+	mutex_unlock(&phydev->lock);
+	return ret;
+}
+EXPORT_SYMBOL(phy_ext_loopback);
+
 /**
  * phy_reset_after_clk_enable - perform a PHY reset if needed
  * @phydev: target phy_device struct

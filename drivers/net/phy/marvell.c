@@ -150,6 +150,8 @@
 #define MII_88E1510_GEN_CTRL_REG_1_MODE_MASK	0x7
 #define MII_88E1510_GEN_CTRL_REG_1_MODE_SGMII	0x1	/* SGMII to copper */
 #define MII_88E1510_GEN_CTRL_REG_1_RESET	0x8000	/* Soft reset */
+#define MII_88E1512_CHECKER_CTRL		0x12	/* Checker CTRL reg */
+#define MII_88E1512_ENABLE_STUB_TEST		0x8	/* Enable Stub Test */
 
 #define LPA_FIBER_1000HALF	0x40
 #define LPA_FIBER_1000FULL	0x20
@@ -1528,6 +1530,30 @@ static void marvell_get_stats(struct phy_device *phydev,
 		data[i] = marvell_get_stat(phydev, i);
 }
 
+int m88e1510_phy_ext_loopback(struct phy_device *phydev, bool enable)
+{
+	int err;
+
+	/* Select page 6 */
+	err = marvell_set_page(phydev, 6);
+	if (err < 0)
+		return err;
+
+	err = phy_modify(phydev, MII_88E1512_CHECKER_CTRL,
+			 MII_88E1512_ENABLE_STUB_TEST,
+			 enable ? MII_88E1512_ENABLE_STUB_TEST : 0);
+
+	if (err < 0)
+		return err;
+
+	/* Reset page selection */
+	err = marvell_set_page(phydev, MII_MARVELL_COPPER_PAGE);
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+
 #ifdef CONFIG_HWMON
 static int m88e1121_get_temp(struct phy_device *phydev, long *temp)
 {
@@ -2241,6 +2267,7 @@ static struct phy_driver marvell_drivers[] = {
 		.get_strings = marvell_get_strings,
 		.get_stats = marvell_get_stats,
 		.set_loopback = genphy_loopback,
+		.set_ext_loopback = m88e1510_phy_ext_loopback,
 	},
 	{
 		.phy_id = MARVELL_PHY_ID_88E1540,
