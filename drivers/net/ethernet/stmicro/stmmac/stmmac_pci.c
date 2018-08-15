@@ -249,11 +249,17 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->rx_queues_cfg[3].mode_to_use = MTL_QUEUE_DCB;
 	plat->rx_queues_cfg[4].mode_to_use = MTL_QUEUE_DCB;
 	plat->rx_queues_cfg[5].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[6].mode_to_use = MTL_QUEUE_DCB;
+	plat->rx_queues_cfg[7].mode_to_use = MTL_QUEUE_DCB;
 
 	plat->tx_queues_cfg[0].mode_to_use = MTL_QUEUE_DCB;
 	plat->tx_queues_cfg[1].mode_to_use = MTL_QUEUE_DCB;
 	plat->tx_queues_cfg[2].mode_to_use = MTL_QUEUE_DCB;
 	plat->tx_queues_cfg[3].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[4].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[5].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[6].mode_to_use = MTL_QUEUE_DCB;
+	plat->tx_queues_cfg[7].mode_to_use = MTL_QUEUE_DCB;
 
 	plat->tx_queues_cfg[1].send_slope = 0xCCC;
 	plat->tx_queues_cfg[1].idle_slope = 0x1333;
@@ -266,6 +272,8 @@ static int synp_haps_default_data(struct pci_dev *pdev,
 	plat->rx_queues_cfg[3].chan = 3;
 	plat->rx_queues_cfg[4].chan = 4;
 	plat->rx_queues_cfg[5].chan = 5;
+	plat->rx_queues_cfg[6].chan = 6;
+	plat->rx_queues_cfg[7].chan = 7;
 
 	plat->tx_sched_algorithm = MTL_TX_ALGORITHM_WRR;
 	plat->tx_queues_cfg[0].weight = 0x10;
