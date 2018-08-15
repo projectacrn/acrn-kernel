@@ -299,6 +299,7 @@ static const struct stmmac_stats stmmac_mmc_tsn[] = {
 enum stmmac_diagnostics_cases {
 	TEST_MAC_LOOP,
 	TEST_PHY_LOOP,
+	TEST_EXT_LOOP,
 	MAX_TEST_CASES,
 	TOTAL_PASSED,
 	TOTAL_FAILED,
@@ -308,6 +309,7 @@ enum stmmac_diagnostics_cases {
 static const char stmmac_gstrings_test[][ETH_GSTRING_LEN] = {
 	[TEST_MAC_LOOP]    = "MAC loopback test     (online)",
 	[TEST_PHY_LOOP]    = "PHY loopback test     (online)",
+	[TEST_EXT_LOOP]    = "EXT loopback test  (external_lb)",
 	[MAX_TEST_CASES]   = "8888888888888888888888888888888",
 	[TOTAL_PASSED]     = "Total test passed             ",
 	[TOTAL_FAILED]     = "Total test failed             ",
@@ -734,6 +736,8 @@ static void stmmac_lb_set_mode(struct net_device *netdev,
 		mutex_unlock(&priv->lock);
 	} else if (!strcmp(type, "PHY")) {
 		phy_loopback(phy, mode);
+	} else if (!strcmp(type, "EXT")) {
+		phy_ext_loopback(phy, mode);
 	}
 
 	/* add small delay to avoid loopback test failure */
@@ -840,6 +844,8 @@ out:
 		data[TEST_MAC_LOOP] = err;
 	else if (!strcmp(type, "PHY"))
 		data[TEST_PHY_LOOP] = err;
+	else if (!strcmp(type, "EXT"))
+		data[TEST_EXT_LOOP] = err;
 
 	return err;
 }
@@ -849,10 +855,12 @@ static void stmmac_diag_test(struct net_device *netdev,
 {
 	char *MAC = "MAC";
 	char *PHY = "PHY";
+	char *EXT = "EXT";
 
 	/* ToDo: self-test mechanism */
 	data[TEST_MAC_LOOP] = 0;
 	data[TEST_PHY_LOOP] = 0;
+	data[TEST_EXT_LOOP] = 0;
 	data[MAX_TEST_CASES] = 888888;
 	data[TOTAL_PASSED] = 0;
 	data[TOTAL_FAILED] = 0;
@@ -866,6 +874,13 @@ static void stmmac_diag_test(struct net_device *netdev,
 		if (stmmac_loopback_test(netdev, data, PHY)) {
 			eth_test->flags |= ETH_TEST_FL_FAILED;
 			data[TOTAL_FAILED]++;
+		}
+	} else if (ETH_TEST_FL_EXTERNAL_LB) {
+		if (stmmac_loopback_test(netdev, data, EXT)) {
+			eth_test->flags |= ETH_TEST_FL_FAILED;
+			data[TOTAL_FAILED]++;
+		} else {
+			eth_test->flags |= ETH_TEST_FL_EXTERNAL_LB_DONE;
 		}
 	}
 }
