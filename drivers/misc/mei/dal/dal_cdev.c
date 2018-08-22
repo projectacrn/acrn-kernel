@@ -161,7 +161,7 @@ static ssize_t dal_dev_read(struct file *fp, char __user *buf,
 	struct dal_client *dc = fp->private_data;
 	struct dal_device *ddev = dc->ddev;
 	int ret;
-	size_t len;
+	size_t r_len, len;
 	unsigned int copied;
 
 	ret = dal_wait_for_read(dc);
@@ -171,8 +171,8 @@ static ssize_t dal_dev_read(struct file *fp, char __user *buf,
 	if (kfifo_is_empty(&dc->read_queue))
 		return 0;
 
-	ret = kfifo_out(&dc->read_queue, &len, sizeof(len));
-	if (len > count) {
+	r_len = kfifo_out(&dc->read_queue, &len, sizeof(len));
+	if (r_len != sizeof(len) || len > count) {
 		dev_dbg(&ddev->dev, "could not copy buffer: src size = %zd, dest size = %zu\n",
 			len, count);
 		return -EFAULT;
