@@ -185,7 +185,7 @@ struct dal_device {
 
 	bool is_device_removed;
 
-	int device_id;
+	unsigned int device_id;
 };
 
 #define to_dal_device(d) container_of(d, struct dal_device, dev)
