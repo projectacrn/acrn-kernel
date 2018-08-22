@@ -216,8 +216,8 @@ int dal_kdi_recv(unsigned int dev_idx, unsigned char *buf, size_t *count)
 	struct dal_device *ddev;
 	struct dal_client *dc;
 	struct device *dev;
+	size_t r_len, len;
 	int ret;
-	size_t len;
 
 	if (!buf || !count)
 		return -EINVAL;
@@ -247,8 +247,8 @@ int dal_kdi_recv(unsigned int dev_idx, unsigned char *buf, size_t *count)
 		goto out;
 	}
 
-	ret = kfifo_out(&dc->read_queue, &len, sizeof(len));
-	if (ret != sizeof(len)) {
+	r_len = kfifo_out(&dc->read_queue, &len, sizeof(len));
+	if (r_len != sizeof(len)) {
 		dev_err(&ddev->dev, "could not copy buffer: cannot fetch size\n");
 		ret = -EFAULT;
 		goto out;
@@ -261,8 +261,8 @@ int dal_kdi_recv(unsigned int dev_idx, unsigned char *buf, size_t *count)
 		goto out;
 	}
 
-	ret = kfifo_out(&dc->read_queue, buf, len);
-	if (ret != len) {
+	r_len = kfifo_out(&dc->read_queue, buf, len);
+	if (r_len != len) {
 		dev_err(&ddev->dev, "could not copy buffer: src size = %zd, dest size = %d\n",
 			len, ret);
 		ret = -EFAULT;
