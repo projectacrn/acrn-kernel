@@ -259,7 +259,7 @@ int bh_ta_session_open(u64 *host_id, const char *ta_id,
 	unsigned int count;
 	bool found;
 	uuid_t *ta_ids = NULL;
-	int i;
+	unsigned int i;
 
 	if (!ta_id || !host_id)
 		return -EINVAL;
