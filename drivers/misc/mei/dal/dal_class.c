@@ -269,9 +269,6 @@ static int dal_mei_enable(struct dal_device *ddev)
 		return ret;
 	}
 
-	/* save pointer to the context in the device */
-	mei_cldev_set_drvdata(ddev->cldev, ddev);
-
 	/* register to mei bus callbacks */
 	ret = mei_cldev_register_rx_cb(ddev->cldev, dal_recv_cb);
 	if (ret) {
@@ -279,6 +276,9 @@ static int dal_mei_enable(struct dal_device *ddev)
 			ret);
 		mei_cldev_disable(ddev->cldev);
 	}
+
+	/* save pointer to the context in the device */
+	mei_cldev_set_drvdata(ddev->cldev, ddev);
 
 	return ret;
 }
@@ -709,13 +709,11 @@ static int dal_remove(struct mei_cl_device *cldev)
 	if (waitqueue_active(&ddev->wq))
 		wake_up_interruptible(&ddev->wq);
 
-	device_del(&ddev->dev);
-
 	mei_cldev_set_drvdata(cldev, NULL);
 
-	mei_cldev_disable(cldev);
+	device_unregister(&ddev->dev);
 
-	put_device(&ddev->dev);
+	mei_cldev_disable(cldev);
 
 	return 0;
 }
@@ -772,32 +770,36 @@ static int dal_probe(struct mei_cl_device *cldev,
 	ret = device_register(&ddev->dev);
 	if (ret) {
 		dev_err(pdev, "unable to register device\n");
-		goto err;
+		kfree(ddev);
+		return ret;
 	}
 
 	ddev->bh_fw_msg.msg = kzalloc(DAL_MAX_BUFFER_SIZE, GFP_KERNEL);
 	if (!ddev->bh_fw_msg.msg) {
 		ret = -ENOMEM;
-		goto err;
+		goto err_unregister;
 	}
 
 	ret = dal_access_list_init(ddev);
 	if (ret)
-		goto err;
+		goto err_unregister;
 
 	ret = dal_mei_enable(ddev);
 	if (ret < 0)
-		goto err;
+		goto err_unregister;
 
 	ret = dal_dev_add(ddev);
 	if (ret)
-		goto err;
+		goto err_mei_disable;
 
 	return 0;
 
-err:
-	dal_remove(cldev);
+err_mei_disable:
+	mei_cldev_set_drvdata(cldev, NULL);
+	mei_cldev_disable(cldev);
 
+err_unregister:
+	device_unregister(&ddev->dev);
 	return ret;
 }
 
