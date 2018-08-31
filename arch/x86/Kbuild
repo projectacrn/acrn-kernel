@@ -9,6 +9,8 @@ obj-$(CONFIG_XEN) += xen/
 
 obj-$(CONFIG_PVH) += platform/pvh/
 
+obj-$(CONFIG_ACRN) += acrn/
+
 # Hyper-V paravirtualization support
 obj-$(subst m,y,$(CONFIG_HYPERV)) += hyperv/
 
