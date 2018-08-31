@@ -47,7 +47,6 @@
 		((a)->lrca == (b)->lrca))
 
 bool gvt_shadow_wa_ctx = false;
-static void clean_workloads(struct intel_vgpu *vgpu, unsigned long engine_mask);
 
 static int context_switch_events[] = {
 	[RCS] = RCS_AS_CONTEXT_SWITCH,
