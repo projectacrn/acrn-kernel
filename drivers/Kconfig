@@ -232,4 +232,5 @@ source "drivers/counter/Kconfig"
 
 source "drivers/vbs/Kconfig"
 
+source "drivers/acrn/Kconfig"
 endmenu
