@@ -232,4 +232,5 @@ source "drivers/interconnect/Kconfig"
 
 source "drivers/vbs/Kconfig"
 
+source "drivers/acrn/Kconfig"
 endmenu
