@@ -35,6 +35,7 @@ struct stmmac_resources {
 	const char *mac;
 	int wol_irq;
 	int lpi_irq;
+	int xpcs_irq;
 	int irq;
 };
 
@@ -134,9 +135,11 @@ struct stmmac_priv {
 
 	/* RX Queue */
 	struct stmmac_rx_queue rx_queue[MTL_MAX_RX_QUEUES];
+	unsigned int dma_rx_size;
 
 	/* TX Queue */
 	struct stmmac_tx_queue tx_queue[MTL_MAX_TX_QUEUES];
+	unsigned int dma_tx_size;
 
 	bool oldlink;
 	int speed;
@@ -159,6 +162,7 @@ struct stmmac_priv {
 	int clk_csr;
 	struct timer_list eee_ctrl_timer;
 	int lpi_irq;
+	int xpcs_irq;
 	int eee_enabled;
 	int eee_active;
 	int tx_lpi_timer;

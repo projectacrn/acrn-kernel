@@ -34,9 +34,13 @@
 
 #define GEN_DEFAULT_PIPEOFFSETS \
 	.pipe_offsets = { PIPE_A_OFFSET, PIPE_B_OFFSET, \
-			  PIPE_C_OFFSET, PIPE_EDP_OFFSET }, \
+			  PIPE_C_OFFSET, PIPE_D_OFFSET, \
+			  PIPE_EDP_OFFSET, \
+			  PIPE_DSI0_OFFSET, PIPE_DSI1_OFFSET}, \
 	.trans_offsets = { TRANSCODER_A_OFFSET, TRANSCODER_B_OFFSET, \
-			   TRANSCODER_C_OFFSET, TRANSCODER_EDP_OFFSET }, \
+			   TRANSCODER_C_OFFSET, TRANSCODER_D_OFFSET, \
+			   TRANSCODER_EDP_OFFSET, \
+			   TRANSCODER_DSI0_OFFSET, TRANSCODER_DSI1_OFFSET}, \
 	.palette_offsets = { PALETTE_A_OFFSET, PALETTE_B_OFFSET }
 
 #define GEN_CHV_PIPEOFFSETS \
@@ -594,6 +598,7 @@ static const struct intel_device_info intel_cannonlake_info = {
 	GEN10_FEATURES, \
 	GEN(11), \
 	.ddb_size = 2048, \
+	.has_guc_ct = 1, \
 	.has_csr = 0, \
 	.has_logical_ring_elsq = 1
 
@@ -603,6 +608,41 @@ static const struct intel_device_info intel_icelake_11_info = {
 	.is_alpha_support = 1,
 	.has_resource_streamer = 0,
 	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING | BSD3_RING,
+};
+
+static const struct intel_device_info intel_icelake_11_5_info = {
+	GEN11_FEATURES,
+	PLATFORM(INTEL_ICELAKE),
+	.num_pipes = 4,
+	.is_alpha_support = 1,
+	.has_global_mocs = 1,
+	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | VEBOX2_RING |
+		     BSD_RING | BSD2_RING | BSD3_RING | BSD4_RING,
+};
+
+static const struct intel_device_info intel_jasperlake_info = {
+	GEN11_FEATURES,
+	PLATFORM(INTEL_ICELAKE),
+	.num_pipes = 3,
+	.is_alpha_support = 1,
+	.has_resource_streamer = 0,
+	.ring_mask = RENDER_RING | BLT_RING | BSD_RING,
+};
+
+#define GEN12_FEATURES \
+	GEN11_FEATURES, \
+	GEN(12), \
+	.has_global_mocs = 1, \
+	.has_guc_dist_db = 1
+
+static const struct intel_device_info intel_tigerlake_12_info = {
+	GEN12_FEATURES,
+	PLATFORM(INTEL_TIGERLAKE),
+	.num_pipes = 4,
+	.is_alpha_support = 1,
+	.has_resource_streamer = 0,
+	.ring_mask = RENDER_RING | BLT_RING | VEBOX_RING | BSD_RING |
+		     BSD3_RING | CCS_RING,
 };
 
 #undef GEN
@@ -667,6 +707,9 @@ static const struct pci_device_id pciidlist[] = {
 	INTEL_CFL_U_GT3_IDS(&intel_coffeelake_gt3_info),
 	INTEL_CNL_IDS(&intel_cannonlake_info),
 	INTEL_ICL_11_IDS(&intel_icelake_11_info),
+	INTEL_ICL_11_5_IDS(&intel_icelake_11_5_info),
+	INTEL_TGL_12_IDS(&intel_tigerlake_12_info),
+	INTEL_JSL_IDS(&intel_jasperlake_info),
 	{0, 0, 0}
 };
 MODULE_DEVICE_TABLE(pci, pciidlist);

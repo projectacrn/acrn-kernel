@@ -148,6 +148,8 @@ struct i915_gem_context {
 		struct intel_ring *ring;
 		u32 *lrc_reg_state;
 		u64 lrc_desc;
+		u32 sw_context_id;
+		u32 sw_counter;
 		int pin_count;
 	} __engine[I915_NUM_ENGINES];
 

@@ -140,7 +140,7 @@ fw_domain_wait_ack_with_fallback(const struct drm_i915_private *i915,
 	 * the fallback ack.
 	 *
 	 * This workaround is described in HSDES #1604254524 and it's known as:
-	 * WaRsForcewakeAddDelayForAck:skl,bxt,kbl,glk,cfl,cnl,icl
+	 * WaRsForcewakeAddDelayForAck:skl,bxt,kbl,glk,cfl,cnl,icl,tgl
 	 * although the name is a bit misleading.
 	 */
 
@@ -917,6 +917,21 @@ static const i915_reg_t gen11_shadowed_regs[] = {
 	/* TODO: Other registers are not yet used */
 };
 
+static const i915_reg_t gen12_shadowed_regs[] = {
+	RING_TAIL(RENDER_RING_BASE),		/* 0x2000 (base) */
+	GEN6_RPNSWREQ,				/* 0xA008 */
+	GEN6_RC_VIDEO_FREQ,			/* 0xA00C */
+	RING_TAIL(GEN12_COMPUTE0_RING_BASE),	/* 0x1A000 (base) */
+	RING_TAIL(BLT_RING_BASE),		/* 0x22000 (base) */
+	RING_TAIL(GEN11_BSD_RING_BASE),		/* 0x1C0000 (base) */
+	RING_TAIL(GEN11_BSD2_RING_BASE),	/* 0x1C4000 (base) */
+	RING_TAIL(GEN11_VEBOX_RING_BASE),	/* 0x1C8000 (base) */
+	RING_TAIL(GEN11_BSD3_RING_BASE),	/* 0x1D0000 (base) */
+	RING_TAIL(GEN11_BSD4_RING_BASE),	/* 0x1D4000 (base) */
+	RING_TAIL(GEN11_VEBOX2_RING_BASE),	/* 0x1D8000 (base) */
+	/* TODO: Other registers are not yet used */
+};
+
 static int mmio_reg_cmp(u32 key, const i915_reg_t *reg)
 {
 	u32 offset = i915_mmio_reg_offset(*reg);
@@ -939,6 +954,7 @@ static bool is_gen##x##_shadowed(u32 offset) \
 
 __is_genX_shadowed(8)
 __is_genX_shadowed(11)
+__is_genX_shadowed(12)
 
 #define __gen8_reg_write_fw_domains(offset) \
 ({ \
@@ -983,6 +999,15 @@ static const struct intel_forcewake_range __chv_fw_ranges[] = {
 	enum forcewake_domains __fwd = 0; \
 	if (GEN11_NEEDS_FORCE_WAKE((offset)) && !is_gen11_shadowed(offset)) \
 		__fwd = find_fw_domain(dev_priv, offset); \
+	__fwd; \
+})
+
+#define __gen12_fwtable_reg_write_fw_domains(offset) \
+({ \
+	enum forcewake_domains __fwd = 0; \
+	const u32 __offset = (offset); \
+	if (GEN11_NEEDS_FORCE_WAKE(__offset) && !is_gen12_shadowed(__offset)) \
+		__fwd = find_fw_domain(dev_priv, __offset); \
 	__fwd; \
 })
 
@@ -1044,6 +1069,46 @@ static const struct intel_forcewake_range __gen11_fw_ranges[] = {
 	GEN_FW_RANGE(0xb480, 0xdfff, FORCEWAKE_BLITTER),
 	GEN_FW_RANGE(0xe000, 0xe8ff, FORCEWAKE_RENDER),
 	GEN_FW_RANGE(0xe900, 0x243ff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x24400, 0x247ff, FORCEWAKE_RENDER),
+	GEN_FW_RANGE(0x24800, 0x3ffff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x40000, 0x1bffff, 0),
+	GEN_FW_RANGE(0x1c0000, 0x1c3fff, FORCEWAKE_MEDIA_VDBOX0),
+	GEN_FW_RANGE(0x1c4000, 0x1c7fff, FORCEWAKE_MEDIA_VDBOX1),
+	GEN_FW_RANGE(0x1c8000, 0x1cbfff, FORCEWAKE_MEDIA_VEBOX0),
+	GEN_FW_RANGE(0x1cc000, 0x1cffff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x1d0000, 0x1d3fff, FORCEWAKE_MEDIA_VDBOX2),
+	GEN_FW_RANGE(0x1d4000, 0x1d7fff, FORCEWAKE_MEDIA_VDBOX3),
+	GEN_FW_RANGE(0x1d8000, 0x1dbfff, FORCEWAKE_MEDIA_VEBOX1)
+};
+
+/* *Must* be sorted by offset ranges! See intel_fw_table_check(). */
+static const struct intel_forcewake_range __gen12_fw_ranges[] = {
+	GEN_FW_RANGE(0x0, 0xaff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0xb00, 0x1fff, 0), /* uncore range */
+	GEN_FW_RANGE(0x2000, 0x26ff, FORCEWAKE_RENDER),
+	GEN_FW_RANGE(0x2700, 0x2fff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x3000, 0x3fff, FORCEWAKE_RENDER),
+	GEN_FW_RANGE(0x4000, 0x51ff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x5200, 0x7fff, FORCEWAKE_RENDER),
+	GEN_FW_RANGE(0x8000, 0x813f, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x8140, 0x815f, FORCEWAKE_RENDER),
+	GEN_FW_RANGE(0x8160, 0x82ff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x8300, 0x84ff, FORCEWAKE_RENDER),
+	GEN_FW_RANGE(0x8500, 0x8bff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x8c00, 0x8cff, FORCEWAKE_RENDER),
+	GEN_FW_RANGE(0x8d00, 0x93ff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x9400, 0x97ff, FORCEWAKE_ALL),
+	GEN_FW_RANGE(0x9800, 0xafff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0xb000, 0xb47f, FORCEWAKE_RENDER),
+	GEN_FW_RANGE(0xb480, 0xdfff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0xe000, 0xe8ff, FORCEWAKE_RENDER),
+	GEN_FW_RANGE(0xe900, 0x147ff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x14800, 0x148ff, FORCEWAKE_RENDER), /* ComputeCS */
+	GEN_FW_RANGE(0x14900, 0x19fff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x1a000, 0x1a7ff, FORCEWAKE_RENDER), /* ComputeCS */
+	GEN_FW_RANGE(0x1a800, 0x1afff, FORCEWAKE_BLITTER),
+	GEN_FW_RANGE(0x1b000, 0x1bfff, FORCEWAKE_RENDER), /* ComputeCS */
+	GEN_FW_RANGE(0x1c000, 0x243ff, FORCEWAKE_BLITTER),
 	GEN_FW_RANGE(0x24400, 0x247ff, FORCEWAKE_RENDER),
 	GEN_FW_RANGE(0x24800, 0x3ffff, FORCEWAKE_BLITTER),
 	GEN_FW_RANGE(0x40000, 0x1bffff, 0),
@@ -1279,7 +1344,11 @@ func##_write##x(struct drm_i915_private *dev_priv, i915_reg_t reg, u##x val, boo
 #define __gen8_write(x) __gen_write(gen8, x)
 #define __fwtable_write(x) __gen_write(fwtable, x)
 #define __gen11_fwtable_write(x) __gen_write(gen11_fwtable, x)
+#define __gen12_fwtable_write(x) __gen_write(gen12_fwtable, x)
 
+__gen12_fwtable_write(8)
+__gen12_fwtable_write(16)
+__gen12_fwtable_write(32)
 __gen11_fwtable_write(8)
 __gen11_fwtable_write(16)
 __gen11_fwtable_write(32)
@@ -1293,6 +1362,7 @@ __gen6_write(8)
 __gen6_write(16)
 __gen6_write(32)
 
+#undef __gen12_fwtable_write
 #undef __gen11_fwtable_write
 #undef __fwtable_write
 #undef __gen8_write
@@ -1580,9 +1650,19 @@ void intel_uncore_init(struct drm_i915_private *dev_priv)
 		ASSIGN_FW_DOMAINS_TABLE(__gen9_fw_ranges);
 		ASSIGN_WRITE_MMIO_VFUNCS(dev_priv, fwtable);
 		ASSIGN_READ_MMIO_VFUNCS(dev_priv, fwtable);
-	} else {
+	} else if (IS_GEN11(dev_priv)) {
 		ASSIGN_FW_DOMAINS_TABLE(__gen11_fw_ranges);
 		ASSIGN_WRITE_MMIO_VFUNCS(dev_priv, gen11_fwtable);
+		ASSIGN_READ_MMIO_VFUNCS(dev_priv, gen11_fwtable);
+	} else {
+		/*
+		 * The only difference is the CCS mmio range belonging to
+		 * RENDER, which only changes the shadow reg list used by the
+		 * write functions only (i.e. it is ok to reuse the gen11 read
+		 * functions).
+		 */
+		ASSIGN_FW_DOMAINS_TABLE(__gen12_fw_ranges);
+		ASSIGN_WRITE_MMIO_VFUNCS(dev_priv, gen12_fwtable);
 		ASSIGN_READ_MMIO_VFUNCS(dev_priv, gen11_fwtable);
 	}
 
@@ -1644,7 +1724,7 @@ static const struct reg_whitelist {
 } reg_read_whitelist[] = { {
 	.offset_ldw = RING_TIMESTAMP(RENDER_RING_BASE),
 	.offset_udw = RING_TIMESTAMP_UDW(RENDER_RING_BASE),
-	.gen_mask = INTEL_GEN_MASK(4, 11),
+	.gen_mask = INTEL_GEN_MASK(4, 12),
 	.size = 8
 } };
 
@@ -1912,6 +1992,95 @@ static int gen6_reset_engines(struct drm_i915_private *dev_priv,
 	return gen6_hw_domain_reset(dev_priv, hw_mask);
 }
 
+static u32 gen11_lock_sfc(struct drm_i915_private *dev_priv,
+			  struct intel_engine_cs *engine)
+{
+	u8 vdbox_sfc_access = INTEL_INFO(dev_priv)->vdbox_sfc_access;
+	i915_reg_t sfc_forced_lock;
+	u32 sfc_forced_lock_bit;
+	i915_reg_t sfc_forced_lock_ack;
+	u32 sfc_forced_lock_ack_bit;
+	i915_reg_t sfc_usage;
+	u32 sfc_usage_bit;
+	u32 sfc_reset_bit;
+
+	switch (engine->class) {
+	case VIDEO_DECODE_CLASS:
+		if ((BIT(engine->instance) & vdbox_sfc_access) == 0)
+			return 0;
+		sfc_forced_lock = GEN11_VCS_SFC_FORCED_LOCK(engine);
+		sfc_forced_lock_bit = GEN11_VCS_SFC_FORCED_LOCK_BIT;
+		sfc_forced_lock_ack = GEN11_VCS_SFC_LOCK_STATUS(engine);
+		sfc_forced_lock_ack_bit  = GEN11_VCS_SFC_LOCK_ACK_BIT;
+		sfc_usage = GEN11_VCS_SFC_LOCK_STATUS(engine);
+		sfc_usage_bit = GEN11_VCS_SFC_USAGE_BIT;
+		sfc_reset_bit = GEN11_VCS_SFC_RESET_BIT(engine->instance);
+		break;
+	case VIDEO_ENHANCEMENT_CLASS:
+		sfc_forced_lock = GEN11_VECS_SFC_FORCED_LOCK(engine);
+		sfc_forced_lock_bit = GEN11_VECS_SFC_FORCED_LOCK_BIT;
+		sfc_forced_lock_ack = GEN11_VECS_SFC_LOCK_ACK(engine);
+		sfc_forced_lock_ack_bit  = GEN11_VECS_SFC_LOCK_ACK_BIT;
+		sfc_usage = GEN11_VECS_SFC_USAGE(engine);
+		sfc_usage_bit = GEN11_VECS_SFC_USAGE_BIT;
+		sfc_reset_bit = GEN11_VECS_SFC_RESET_BIT(engine->instance);
+		break;
+	default:
+		return 0;
+	}
+
+	/*
+	 * Tell the engine that a software reset is going to happen. The engine
+	 * will then try to force lock the SFC (if currently locked, it will
+	 * remain so until we tell the engine it is safe to unlock; if currently
+	 * unlocked, it will ignore this and all new lock requests). If SFC
+	 * ends up being locked to the engine we want to reset, we have to reset
+	 * it as well (we will unlock it once the reset sequence is completed).
+	 */
+	I915_WRITE(sfc_forced_lock, I915_READ(sfc_forced_lock) |
+				    sfc_forced_lock_bit);
+
+	if (intel_wait_for_register(dev_priv,
+				    sfc_forced_lock_ack,
+				    sfc_forced_lock_ack_bit,
+				    sfc_forced_lock_ack_bit,
+				    500)) {
+		DRM_DEBUG_DRIVER("Wait for SFC forced lock ack failed\n");
+		return 0;
+	}
+
+	if ((I915_READ(sfc_usage) & sfc_usage_bit) == sfc_usage_bit)
+		return sfc_reset_bit;
+
+	return 0;
+}
+
+static void gen11_unlock_sfc(struct drm_i915_private *dev_priv,
+			     struct intel_engine_cs *engine)
+{
+	u8 vdbox_sfc_access = INTEL_INFO(dev_priv)->vdbox_sfc_access;
+	i915_reg_t sfc_forced_lock;
+	u32 sfc_forced_lock_bit;
+
+	switch (engine->class) {
+	case VIDEO_DECODE_CLASS:
+		if ((BIT(engine->instance) & vdbox_sfc_access) == 0)
+			return;
+		sfc_forced_lock = GEN11_VCS_SFC_FORCED_LOCK(engine);
+		sfc_forced_lock_bit = GEN11_VCS_SFC_FORCED_LOCK_BIT;
+		break;
+	case VIDEO_ENHANCEMENT_CLASS:
+		sfc_forced_lock = GEN11_VECS_SFC_FORCED_LOCK(engine);
+		sfc_forced_lock_bit = GEN11_VECS_SFC_FORCED_LOCK_BIT;
+		break;
+	default:
+		return;
+	}
+
+	I915_WRITE(sfc_forced_lock, (I915_READ(sfc_forced_lock) &
+				     ~sfc_forced_lock_bit));
+}
+
 /**
  * gen11_reset_engines - reset individual engines
  * @dev_priv: i915 device
@@ -1938,22 +2107,31 @@ static int gen11_reset_engines(struct drm_i915_private *dev_priv,
 		[VCS4] = GEN11_GRDOM_MEDIA4,
 		[VECS] = GEN11_GRDOM_VECS,
 		[VECS2] = GEN11_GRDOM_VECS2,
+		[CCS] = GEN11_GRDOM_RENDER, /* FIXME: RCS/CCS engine reset won't be as simple */
 	};
 	u32 hw_mask;
+	unsigned int tmp;
+	int ret;
 
-	BUILD_BUG_ON(VECS2 + 1 != I915_NUM_ENGINES);
+	BUILD_BUG_ON(CCS + 1 != I915_NUM_ENGINES);
 
 	if (engine_mask == ALL_ENGINES) {
 		hw_mask = GEN11_GRDOM_FULL;
 	} else {
-		unsigned int tmp;
-
 		hw_mask = 0;
-		for_each_engine_masked(engine, dev_priv, engine_mask, tmp)
+		for_each_engine_masked(engine, dev_priv, engine_mask, tmp) {
 			hw_mask |= hw_engine_mask[engine->id];
+			hw_mask |= gen11_lock_sfc(dev_priv, engine);
+		}
 	}
 
-	return gen6_hw_domain_reset(dev_priv, hw_mask);
+	ret = gen6_hw_domain_reset(dev_priv, hw_mask);
+
+	if (engine_mask != ALL_ENGINES)
+		for_each_engine_masked(engine, dev_priv, engine_mask, tmp)
+			gen11_unlock_sfc(dev_priv, engine);
+
+	return ret;
 }
 
 /**
@@ -2277,7 +2455,9 @@ intel_uncore_forcewake_for_write(struct drm_i915_private *dev_priv,
 	u32 offset = i915_mmio_reg_offset(reg);
 	enum forcewake_domains fw_domains;
 
-	if (INTEL_GEN(dev_priv) >= 11) {
+	if (INTEL_GEN(dev_priv) >= 12) {
+		fw_domains = __gen12_fwtable_reg_write_fw_domains(offset);
+	} else if (INTEL_GEN(dev_priv) >= 11) {
 		fw_domains = __gen11_fwtable_reg_write_fw_domains(offset);
 	} else if (HAS_FWTABLE(dev_priv) && !IS_VALLEYVIEW(dev_priv)) {
 		fw_domains = __fwtable_reg_write_fw_domains(offset);
