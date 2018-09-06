@@ -123,11 +123,15 @@
 #define MEI_DEV_ID_SPT_H_2    0xA13B  /* Sunrise Point H 2 */
 
 #define MEI_DEV_ID_LBG        0xA1BA  /* Lewisburg (SPT) */
+#define MEI_DEV_ID_LBG_SSX    0xA23A  /* Lewisburg SSX (SPT) */
 
 #define MEI_DEV_ID_BXT_M      0x1A9A  /* Broxton M */
 #define MEI_DEV_ID_APL_I      0x5A9A  /* Apollo Lake I */
+#define MEI_DEV_ID_DNV        0x19D3  /* Denverton (BXT) */
 
 #define MEI_DEV_ID_GLK        0x319A  /* Gemini Lake */
+
+#define MEI_DEV_ID_LKF        0x98E0  /* Lake Field */
 
 #define MEI_DEV_ID_KBP        0xA2BA  /* Kaby Point */
 #define MEI_DEV_ID_KBP_2      0xA2BB  /* Kaby Point 2 */
@@ -136,6 +140,22 @@
 #define MEI_DEV_ID_CNP_LP_4   0x9DE4  /* Cannon Point LP 4 (iTouch) */
 #define MEI_DEV_ID_CNP_H      0xA360  /* Cannon Point H */
 #define MEI_DEV_ID_CNP_H_4    0xA364  /* Cannon Point H 4 (iTouch) */
+
+#define MEI_DEV_ID_CDF        0x18D3  /* Cedar Falls */
+
+#define MEI_DEV_ID_ICP_LP     0x34E0  /* Ice Lake Point LP */
+#define MEI_DEV_ID_ICP_N      0x38E0  /* Ice Lake Point N */
+#define MEI_DEV_ID_ICP_H      0x3DE0  /* Ice Lake Point H */
+
+#define MEI_DEV_ID_TGP_LP     0xA0E0  /* Tiger Lake LP */
+#define MEI_DEV_ID_TGP_LP_4   0xA0E5  /* Tiger Lake LP 4 */
+#define MEI_DEV_ID_TGP_K      0x42E0  /* Tiger Lake K */
+#define MEI_DEV_ID_TGP_K_4    0x42E5  /* Tiger Lake K 4 */
+#define MEI_DEV_ID_TGP_H      0x43E0  /* Tiger Lake H */
+#define MEI_DEV_ID_TGP_H_4    0x43E5  /* Tiger Lake H 4 */
+
+#define MEI_DEV_ID_MCC        0x4B70  /* Mule Creek Canyon */
+#define MEI_DEV_ID_MCC_4      0x4B75  /* Mule Creek Canyon 4 */
 
 /*
  * MEI HW Section

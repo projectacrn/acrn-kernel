@@ -43,3 +43,13 @@ config INTEL_MEI_TXE
 
 	  Supported SoCs:
 	  Intel Bay Trail
+
+config INTEL_MEI_DAL
+	tristate "Dynamic Application Loader for ME"
+	depends on INTEL_MEI
+	help
+	  Dynamic Application Loader enables downloading java applets
+	  to DAL FW and run it in a secure environment.
+	  The DAL module exposes both user space api and kernel space api.
+
+source "drivers/misc/mei/spd/Kconfig"
