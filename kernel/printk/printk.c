@@ -376,6 +376,9 @@ __packed __aligned(4)
  */
 DEFINE_RAW_SPINLOCK(logbuf_lock);
 
+/* Keep the number of slow suspend in check */
+#define MAX_SLOW_SUSPEND_COUNT  (50)
+
 /*
  * Helper macros to lock/unlock logbuf_lock and switch between
  * printk-safe/unsafe modes.
