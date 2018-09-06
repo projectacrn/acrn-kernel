@@ -150,15 +150,15 @@ DEFINE_EVENT(cpu, cpu_frequency,
 
 TRACE_EVENT(cpu_frequency_limits,
 
-	TP_PROTO(unsigned int min_freq, unsigned int max_freq,
+	TP_PROTO(unsigned int max_freq, unsigned int min_freq,
 		unsigned int cpu_id),
 
-	TP_ARGS(min_freq, max_freq, cpu_id),
+	TP_ARGS(max_freq, min_freq, cpu_id),
 
 	TP_STRUCT__entry(
-		__field(u32, min_freq)
-		__field(u32, max_freq)
-		__field(u32, cpu_id)
+		__field(	u32,		min_freq	)
+		__field(	u32,		max_freq	)
+		__field(	u32,		cpu_id		)
 	),
 
 	TP_fast_assign(
