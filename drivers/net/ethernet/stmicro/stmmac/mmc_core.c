@@ -29,6 +29,10 @@
 #define MMC_TX_INTR		0x08	/* MMC TX Interrupt */
 #define MMC_RX_INTR_MASK	0x0c	/* MMC Interrupt Mask */
 #define MMC_TX_INTR_MASK	0x10	/* MMC Interrupt Mask */
+#define MMC_FPE_TX_INTR		0x8a0	/* MMC FPE Tx Intr */
+#define MMC_FPE_TX_INTR_MASK	0x8a4	/* MMC FPE Tx Intr Mask */
+#define MMC_FPE_RX_INTR		0x8c0	/* MMC FPE Rx Intr */
+#define MMC_FPE_RX_INTR_MASK	0x8c4	/* MMC FPE Rx Intr Mask */
 #define MMC_DEFAULT_MASK	0xffffffff
 
 /* MMC TX counter registers */
@@ -127,6 +131,14 @@
 #define MMC_RX_TCP_ERR_OCTETS		0x17c
 #define MMC_RX_ICMP_GD_OCTETS		0x180
 #define MMC_RX_ICMP_ERR_OCTETS		0x184
+
+/* Frame Preemption */
+#define MMC_TX_FPE_FRAGMENT		0x8a8
+#define MMC_TX_HOLD_REQ			0x8ac
+#define MMC_RX_PACKET_ASSEMBLY_ERR	0x8c8
+#define MMC_RX_PACKET_SMD_ERR		0x8cc
+#define MMC_RX_PACKET_ASSEMBLY_OK	0x8d0
+#define MMC_RX_FPE_FRAGMENT		0x8d4
 
 void dwmac_mmc_ctrl(void __iomem *mmcaddr, unsigned int mode)
 {
@@ -265,4 +277,29 @@ void dwmac_mmc_read(void __iomem *mmcaddr, struct stmmac_counters *mmc)
 	mmc->mmc_rx_tcp_err_octets += readl(mmcaddr + MMC_RX_TCP_ERR_OCTETS);
 	mmc->mmc_rx_icmp_gd_octets += readl(mmcaddr + MMC_RX_ICMP_GD_OCTETS);
 	mmc->mmc_rx_icmp_err_octets += readl(mmcaddr + MMC_RX_ICMP_ERR_OCTETS);
+}
+
+/* To mask all fpe interrupts.*/
+void dwmac_mmc_fpe_intr_all_mask(void __iomem *mmcaddr)
+{
+	writel(MMC_DEFAULT_MASK, mmcaddr + MMC_FPE_TX_INTR_MASK);
+	writel(MMC_DEFAULT_MASK, mmcaddr + MMC_FPE_RX_INTR_MASK);
+}
+
+/* This reads the MAC core counters for tsn (if actually supported).
+ * By default the MMC core is programmed to reset each
+ * counter after a read. So all the field of the mmc struct
+ * have to be incremented.
+ */
+void dwmac_mmc_tsn_read(void __iomem *mmcaddr, struct stmmac_counters *mmc)
+{
+	/* Frame Preemption */
+	mmc->mmc_tx_fpe_fragment += readl(mmcaddr + MMC_TX_FPE_FRAGMENT);
+	mmc->mmc_tx_hold_req += readl(mmcaddr + MMC_TX_HOLD_REQ);
+	mmc->mmc_rx_packet_assembly_err +=
+	    readl(mmcaddr + MMC_RX_PACKET_ASSEMBLY_ERR);
+	mmc->mmc_rx_packet_smd_err += readl(mmcaddr + MMC_RX_PACKET_SMD_ERR);
+	mmc->mmc_rx_packet_assembly_ok += readl(mmcaddr +
+	    MMC_RX_PACKET_ASSEMBLY_OK);
+	mmc->mmc_rx_fpe_fragment += readl(mmcaddr + MMC_RX_FPE_FRAGMENT);
 }

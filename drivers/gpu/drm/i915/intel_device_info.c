@@ -57,6 +57,7 @@ static const char * const platform_names[] = {
 	PLATFORM_NAME(COFFEELAKE),
 	PLATFORM_NAME(CANNONLAKE),
 	PLATFORM_NAME(ICELAKE),
+	PLATFORM_NAME(TIGERLAKE),
 };
 #undef PLATFORM_NAME
 
@@ -166,12 +167,25 @@ static void gen11_sseu_info_init(struct drm_i915_private *dev_priv)
 	u8 eu_en;
 	int s;
 
-	sseu->max_slices = 1;
-	sseu->max_subslices = 8;
-	sseu->max_eus_per_subslice = 8;
+	if (IS_ICL_11_5(dev_priv)) {
+		sseu->max_slices = 4;
+		sseu->max_subslices = 4;
+		sseu->max_eus_per_subslice = 8;
+	} else if (IS_GEN11(dev_priv)) {
+		sseu->max_slices = 1;
+		sseu->max_subslices = 8;
+		sseu->max_eus_per_subslice = 8;
+	} else {
+		sseu->max_slices = 1;
+		sseu->max_subslices = 6;
+		sseu->max_eus_per_subslice = 8;
+	}
 
 	s_en = I915_READ(GEN11_GT_SLICE_ENABLE) & GEN11_GT_S_ENA_MASK;
-	ss_en = ~I915_READ(GEN11_GT_SUBSLICE_DISABLE);
+	if (IS_GEN11(dev_priv))
+		ss_en = ~I915_READ(GEN11_GT_SUBSLICE_DISABLE);
+	else
+		ss_en = I915_READ(GEN12_GT_DSS_ENABLE);
 	ss_en_mask = BIT(sseu->max_subslices) - 1;
 	eu_en = ~(I915_READ(GEN11_EU_DISABLE) & GEN11_EU_DIS_MASK);
 
@@ -191,10 +205,15 @@ static void gen11_sseu_info_init(struct drm_i915_private *dev_priv)
 	sseu->eu_per_subslice = hweight8(eu_en);
 	sseu->eu_total = compute_eu_total(sseu);
 
-	/* ICL has no power gating restrictions. */
+	/*
+	 * ICL has no power gating restrictions. TGL only supports slice-level
+	 * power gating
+	 */
 	sseu->has_slice_pg = 1;
-	sseu->has_subslice_pg = 1;
-	sseu->has_eu_pg = 1;
+	if (IS_GEN11(dev_priv)) {
+		sseu->has_subslice_pg = 1;
+		sseu->has_eu_pg = 1;
+	}
 }
 
 static void gen10_sseu_info_init(struct drm_i915_private *dev_priv)
@@ -682,7 +701,7 @@ static u32 read_timestamp_frequency(struct drm_i915_private *dev_priv)
 		}
 
 		return freq;
-	} else if (INTEL_GEN(dev_priv) <= 11) {
+	} else if (INTEL_GEN(dev_priv) <= 12) {
 		u32 ctc_reg = I915_READ(CTC_MODE);
 		u32 freq = 0;
 
@@ -872,6 +891,7 @@ void intel_device_info_init_mmio(struct drm_i915_private *dev_priv)
 	struct intel_device_info *info = mkwrite_device_info(dev_priv);
 	u8 vdbox_disable, vebox_disable;
 	u32 media_fuse;
+	uint logical_vdbox = 0;
 	int i;
 
 	if (INTEL_GEN(dev_priv) < 11)
@@ -888,8 +908,15 @@ void intel_device_info_init_mmio(struct drm_i915_private *dev_priv)
 		if (!HAS_ENGINE(dev_priv, _VCS(i)))
 			continue;
 
-		if (!(BIT(i) & vdbox_disable))
+		if (!(BIT(i) & vdbox_disable)) {
+			/*
+			 * In Gen11, only even numbered logical VDBOXes are
+			 * hooked up to an SFC (Scaler & Format Converter) unit.
+			 */
+			if (logical_vdbox++ % 2 == 0)
+				info->vdbox_sfc_access |= BIT(i);
 			continue;
+		}
 
 		info->ring_mask &= ~ENGINE_MASK(_VCS(i));
 		DRM_DEBUG_DRIVER("vcs%u fused off\n", i);

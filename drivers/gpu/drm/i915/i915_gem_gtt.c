@@ -120,7 +120,10 @@ static void gen6_ggtt_invalidate(struct drm_i915_private *dev_priv)
 static void guc_ggtt_invalidate(struct drm_i915_private *dev_priv)
 {
 	gen6_ggtt_invalidate(dev_priv);
-	I915_WRITE(GEN8_GTCR, GEN8_GTCR_INVALIDATE);
+	if (INTEL_GEN(dev_priv) >= 12)
+		I915_WRITE(GEN12_GTCR, GEN8_GTCR_INVALIDATE);
+	else
+		I915_WRITE(GEN8_GTCR, GEN8_GTCR_INVALIDATE);
 }
 
 static void gmch_ggtt_invalidate(struct drm_i915_private *dev_priv)
@@ -1611,6 +1614,15 @@ static int gen8_ppgtt_init(struct i915_hw_ppgtt *ppgtt)
 		1ULL << 48 :
 		1ULL << 32;
 
+	/* Dual Context is supported by partitioning the address space
+	 * in two halves; RCS context occupies the address space of bit 47=0
+	 * while CCS context uses the the space of bit 47=1.
+	 */
+	if (HAS_CCS(dev_priv)) {
+		GEM_BUG_ON(!USES_FULL_48BIT_PPGTT(dev_priv));
+		ppgtt->base.total = 1ULL << 47;
+	}
+
 	/* There are only few exceptions for gen >=6. chv and bxt.
 	 * And we are not sure about the latter so play safe for now.
 	 */
@@ -2320,14 +2332,21 @@ static void gen6_check_and_clear_faults(struct drm_i915_private *dev_priv)
 
 static void gen8_check_and_clear_faults(struct drm_i915_private *dev_priv)
 {
-	u32 fault = I915_READ(GEN8_RING_FAULT_REG);
+	i915_reg_t fault_reg = (INTEL_GEN(dev_priv) >= 12) ?
+				GEN12_RING_FAULT_REG : GEN8_RING_FAULT_REG;
+	u32 fault = I915_READ(fault_reg);
 
 	if (fault & RING_FAULT_VALID) {
 		u32 fault_data0, fault_data1;
 		u64 fault_addr;
 
-		fault_data0 = I915_READ(GEN8_FAULT_TLB_DATA0);
-		fault_data1 = I915_READ(GEN8_FAULT_TLB_DATA1);
+		if (INTEL_GEN(dev_priv) >= 12) {
+			fault_data0 = I915_READ(GEN12_FAULT_TLB_DATA0);
+			fault_data1 = I915_READ(GEN12_FAULT_TLB_DATA1);
+		} else {
+			fault_data0 = I915_READ(GEN8_FAULT_TLB_DATA0);
+			fault_data1 = I915_READ(GEN8_FAULT_TLB_DATA1);
+		}
 		fault_addr = ((u64)(fault_data1 & FAULT_VA_HIGH_BITS) << 44) |
 			     ((u64)fault_data0 << 12);
 
@@ -2343,11 +2362,11 @@ static void gen8_check_and_clear_faults(struct drm_i915_private *dev_priv)
 				 GEN8_RING_FAULT_ENGINE_ID(fault),
 				 RING_FAULT_SRCID(fault),
 				 RING_FAULT_FAULT_TYPE(fault));
-		I915_WRITE(GEN8_RING_FAULT_REG,
+		I915_WRITE(fault_reg,
 			   fault & ~RING_FAULT_VALID);
 	}
 
-	POSTING_READ(GEN8_RING_FAULT_REG);
+	POSTING_READ(fault_reg);
 }
 
 void i915_check_and_clear_faults(struct drm_i915_private *dev_priv)
@@ -3141,6 +3160,19 @@ void intel_ppat_put(const struct intel_ppat_entry *entry)
 	kref_put(&ppat->entries[index].ref, release_ppat);
 }
 
+static void tgl_private_pat_update_hw(struct drm_i915_private *dev_priv)
+{
+	struct intel_ppat *ppat = &dev_priv->ppat;
+	int i;
+
+	for_each_set_bit(i, ppat->dirty, ppat->max_entries) {
+		GEM_BUG_ON(GEN8_PPAT_GET_TC(ppat->entries[i].value));
+		GEM_BUG_ON(GEN8_PPAT_GET_AGE(ppat->entries[i].value));
+		I915_WRITE(GEN12_PAT_INDEX(i), ppat->entries[i].value);
+		clear_bit(i, ppat->dirty);
+	}
+}
+
 static void cnl_private_pat_update_hw(struct drm_i915_private *dev_priv)
 {
 	struct intel_ppat *ppat = &dev_priv->ppat;
@@ -3215,6 +3247,23 @@ static void cnl_setup_private_ppat(struct intel_ppat *ppat)
 	__alloc_ppat_entry(ppat, 5, GEN8_PPAT_WB | GEN8_PPAT_LLCELLC | GEN8_PPAT_AGE(1));
 	__alloc_ppat_entry(ppat, 6, GEN8_PPAT_WB | GEN8_PPAT_LLCELLC | GEN8_PPAT_AGE(2));
 	__alloc_ppat_entry(ppat, 7, GEN8_PPAT_WB | GEN8_PPAT_LLCELLC | GEN8_PPAT_AGE(3));
+}
+
+static void tgl_setup_private_ppat(struct intel_ppat *ppat)
+{
+	ppat->max_entries = 8;
+	ppat->update_hw = tgl_private_pat_update_hw;
+	ppat->match = bdw_private_pat_match;
+	ppat->clear_value = GEN8_PPAT_WB;
+
+	__alloc_ppat_entry(ppat, 0, GEN8_PPAT_WB);
+	__alloc_ppat_entry(ppat, 1, GEN8_PPAT_WC);
+	__alloc_ppat_entry(ppat, 2, GEN8_PPAT_WT);
+	__alloc_ppat_entry(ppat, 3, GEN8_PPAT_UC);
+	__alloc_ppat_entry(ppat, 4, GEN8_PPAT_WB);
+	__alloc_ppat_entry(ppat, 5, GEN8_PPAT_WB);
+	__alloc_ppat_entry(ppat, 6, GEN8_PPAT_WB);
+	__alloc_ppat_entry(ppat, 7, GEN8_PPAT_WB);
 }
 
 /* The GGTT and PPGTT need a private PPAT setup in order to handle cacheability
@@ -3306,7 +3355,9 @@ static void setup_private_pat(struct drm_i915_private *dev_priv)
 
 	ppat->i915 = dev_priv;
 
-	if (INTEL_GEN(dev_priv) >= 10)
+	if (INTEL_GEN(dev_priv) >= 12)
+		tgl_setup_private_ppat(ppat);
+	else if (INTEL_GEN(dev_priv) >= 10)
 		cnl_setup_private_ppat(ppat);
 	else if (IS_CHERRYVIEW(dev_priv) || IS_GEN9_LP(dev_priv))
 		chv_setup_private_ppat(ppat);

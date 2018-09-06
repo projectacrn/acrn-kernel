@@ -191,6 +191,7 @@ struct ioat_ring_ent {
 		struct ioat_pq_ext_descriptor *pq_ex;
 		struct ioat_pq_update_descriptor *pqu;
 		struct ioat_raw_descriptor *raw;
+		struct ioat_pgcmp_descriptor *pgcmp;
 	};
 	size_t len;
 	struct dma_async_tx_descriptor txd;
@@ -393,6 +394,10 @@ struct dma_async_tx_descriptor *
 ioat_prep_pqxor_val(struct dma_chan *chan, dma_addr_t *src,
 		     unsigned int src_cnt, size_t len,
 		     enum sum_check_flags *result, unsigned long flags);
+struct dma_async_tx_descriptor *
+ioat_dma_prep_pgcmp_lock(struct dma_chan *c, dma_addr_t dma_dest,
+			 dma_addr_t dma_src, size_t len,
+			 enum sum_check_flags *result, unsigned long flags);
 
 /* IOAT Operation functions */
 irqreturn_t ioat_dma_do_interrupt(int irq, void *data);

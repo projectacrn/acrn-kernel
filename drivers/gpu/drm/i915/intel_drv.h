@@ -1168,6 +1168,7 @@ struct intel_digital_port {
 	bool release_cl2_override;
 	uint8_t max_lanes;
 	enum intel_display_power_domain ddi_io_power_domain;
+	enum tc_port_type tc_type;
 
 	void (*write_infoframe)(struct drm_encoder *encoder,
 				const struct intel_crtc_state *crtc_state,
@@ -1371,9 +1372,6 @@ void gen8_irq_power_well_post_enable(struct drm_i915_private *dev_priv,
 				     u8 pipe_mask);
 void gen8_irq_power_well_pre_disable(struct drm_i915_private *dev_priv,
 				     u8 pipe_mask);
-void gen9_reset_guc_interrupts(struct drm_i915_private *dev_priv);
-void gen9_enable_guc_interrupts(struct drm_i915_private *dev_priv);
-void gen9_disable_guc_interrupts(struct drm_i915_private *dev_priv);
 
 /* intel_crt.c */
 void intel_crt_init(struct drm_i915_private *dev_priv);
@@ -1414,6 +1412,10 @@ void icl_map_plls_to_ports(struct drm_crtc *crtc,
 void icl_unmap_plls_to_ports(struct drm_crtc *crtc,
 			     struct intel_crtc_state *crtc_state,
 			     struct drm_atomic_state *old_state);
+bool intel_is_port_combophy(struct drm_i915_private *dev_priv, enum port port);
+bool intel_is_port_tc(struct drm_i915_private *dev_priv, enum port port);
+enum tc_port intel_port_to_tc(struct drm_i915_private *dev_priv,
+			      enum port port);
 
 unsigned int intel_fb_align_height(const struct drm_framebuffer *fb,
 				   int plane, unsigned int height);
@@ -1650,6 +1652,7 @@ bool intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 void intel_dp_set_link_params(struct intel_dp *intel_dp,
 			      int link_rate, uint8_t lane_count,
 			      bool link_mst);
+void intel_dp_set_fia_lane_count(struct intel_dp *intel_dp);
 int intel_dp_get_link_train_fallback_values(struct intel_dp *intel_dp,
 					    int link_rate, uint8_t lane_count);
 void intel_dp_start_link_train(struct intel_dp *intel_dp);
@@ -1692,6 +1695,9 @@ void intel_edp_drrs_invalidate(struct drm_i915_private *dev_priv,
 			       unsigned int frontbuffer_bits);
 void intel_edp_drrs_flush(struct drm_i915_private *dev_priv,
 			  unsigned int frontbuffer_bits);
+void icl_program_mg_dp_mode(struct intel_dp *intel_dp);
+void icl_enable_phy_clock_gating(struct intel_digital_port *dig_port);
+void icl_disable_phy_clock_gating(struct intel_digital_port *dig_port);
 
 void
 intel_dp_program_link_training_pattern(struct intel_dp *intel_dp,
@@ -1706,6 +1712,7 @@ intel_dp_pre_emphasis_max(struct intel_dp *intel_dp, uint8_t voltage_swing);
 void intel_dp_compute_rate(struct intel_dp *intel_dp, int port_clock,
 			   uint8_t *link_bw, uint8_t *rate_select);
 bool intel_dp_source_supports_hbr2(struct intel_dp *intel_dp);
+bool intel_dp_source_supports_hbr3(struct intel_dp *intel_dp);
 bool
 intel_dp_get_link_status(struct intel_dp *intel_dp, uint8_t link_status[DP_LINK_STATUS_SIZE]);
 
@@ -1727,6 +1734,9 @@ int intel_dp_mst_encoder_init(struct intel_digital_port *intel_dig_port, int con
 void intel_dp_mst_encoder_cleanup(struct intel_digital_port *intel_dig_port);
 /* intel_dsi.c */
 void intel_dsi_init(struct drm_i915_private *dev_priv);
+
+/* intel_dsi_new.c */
+void intel_gen11_dsi_init(struct drm_i915_private *dev_priv);
 
 /* intel_dsi_dcs_backlight.c */
 int intel_dsi_dcs_init_backlight_funcs(struct intel_connector *intel_connector);
@@ -1927,7 +1937,8 @@ void bxt_display_core_init(struct drm_i915_private *dev_priv, bool resume);
 void bxt_display_core_uninit(struct drm_i915_private *dev_priv);
 void intel_runtime_pm_enable(struct drm_i915_private *dev_priv);
 const char *
-intel_display_power_domain_str(enum intel_display_power_domain domain);
+intel_display_power_domain_str(struct drm_i915_private *dev_priv,
+			       enum intel_display_power_domain domain);
 
 bool intel_display_power_is_enabled(struct drm_i915_private *dev_priv,
 				    enum intel_display_power_domain domain);

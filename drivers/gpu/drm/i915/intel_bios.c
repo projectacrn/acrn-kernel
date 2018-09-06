@@ -1197,18 +1197,37 @@ static const u8 cnp_ddc_pin_map[] = {
 	[DDC_BUS_DDI_F] = GMBUS_PIN_3_BXT, /* sic */
 };
 
+static const u8 icp_ddc_pin_map[] = {
+	[ICL_DDC_BUS_DDI_A] = GMBUS_PIN_1_BXT,
+	[ICL_DDC_BUS_DDI_B] = GMBUS_PIN_2_BXT,
+	[ICL_DDC_BUS_PORT_1] = GMBUS_PIN_9_TC1_ICP,
+	[ICL_DDC_BUS_PORT_2] = GMBUS_PIN_10_TC2_ICP,
+	[ICL_DDC_BUS_PORT_3] = GMBUS_PIN_11_TC3_ICP,
+	[ICL_DDC_BUS_PORT_4] = GMBUS_PIN_12_TC4_ICP,
+};
+
 static u8 map_ddc_pin(struct drm_i915_private *dev_priv, u8 vbt_pin)
 {
-	if (HAS_PCH_CNP(dev_priv)) {
-		if (vbt_pin < ARRAY_SIZE(cnp_ddc_pin_map)) {
-			return cnp_ddc_pin_map[vbt_pin];
-		} else {
-			DRM_DEBUG_KMS("Ignoring alternate pin: VBT claims DDC pin %d, which is not valid for this platform\n", vbt_pin);
-			return 0;
-		}
+	const u8 *ddc_pin_map;
+	int n_entries;
+
+	if (HAS_PCH_ICP(dev_priv)) {
+		ddc_pin_map = icp_ddc_pin_map;
+		n_entries = ARRAY_SIZE(icp_ddc_pin_map);
+	} else if (HAS_PCH_CNP(dev_priv)) {
+		ddc_pin_map = cnp_ddc_pin_map;
+		n_entries = ARRAY_SIZE(cnp_ddc_pin_map);
+	} else {
+		/* Assuming direct map */
+		return vbt_pin;
 	}
 
-	return vbt_pin;
+	if (vbt_pin < n_entries && ddc_pin_map[vbt_pin] != 0) {
+		return ddc_pin_map[vbt_pin];
+	} else {
+		DRM_DEBUG_KMS("Ignoring alternate pin: VBT claims DDC pin %d, which is not valid for this platform\n", vbt_pin);
+		return 0;
+	}
 }
 
 static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
@@ -1374,6 +1393,19 @@ static void parse_ddi_port(struct drm_i915_private *dev_priv, enum port port,
 		DRM_DEBUG_KMS("VBT DP max link rate for port %c: %d\n",
 			      port_name(port), info->dp_max_link_rate);
 	}
+
+	/*
+	 * Parse Enable/Disable support for DP display through USB Type C port.
+	 */
+	if (bdb_version >= 195)
+		info->supports_dp_typec = child->dp_usb_type_c;
+
+	/*
+	 * Parse Enable/Disable feature flag indicating whether this port is a
+	 * Thunderbolt port (applicable from ICL onwards).
+	 */
+	if (bdb_version >= 209)
+		info->supports_tbt = child->tbt;
 }
 
 static void parse_ddi_ports(struct drm_i915_private *dev_priv, u8 bdb_version)
@@ -1945,6 +1977,7 @@ bool intel_bios_is_dsi_present(struct drm_i915_private *dev_priv,
 	const struct child_device_config *child;
 	u8 dvo_port;
 	int i;
+	bool ret = false;
 
 	for (i = 0; i < dev_priv->vbt.child_dev_num; i++) {
 		child = dev_priv->vbt.child_dev + i;
@@ -1956,11 +1989,20 @@ bool intel_bios_is_dsi_present(struct drm_i915_private *dev_priv,
 
 		switch (dvo_port) {
 		case DVO_PORT_MIPIA:
+			ret = true;
+			goto out;
 		case DVO_PORT_MIPIC:
-			if (port)
-				*port = dvo_port - DVO_PORT_MIPIA;
-			return true;
+			ret = IS_ICELAKE(dev_priv);
+			if (!ret) {
+				ret = true;
+				goto out;
+			}
+			break;
 		case DVO_PORT_MIPIB:
+			ret = IS_ICELAKE(dev_priv);
+			if (ret)
+				goto out;
+			break;
 		case DVO_PORT_MIPID:
 			DRM_DEBUG_KMS("VBT has unsupported DSI port %c\n",
 				      port_name(dvo_port - DVO_PORT_MIPIA));
@@ -1968,7 +2010,16 @@ bool intel_bios_is_dsi_present(struct drm_i915_private *dev_priv,
 		}
 	}
 
-	return false;
+out:
+	if (ret) {
+		if (port)
+			*port = dvo_port - DVO_PORT_MIPIA;
+	} else {
+		DRM_DEBUG_KMS("DSI info not present in VBT\n");
+	}
+
+
+	return ret;
 }
 
 /**
