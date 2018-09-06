@@ -1,0 +1,12 @@
+To enable Linux sound driver on KeemBay platform.
+
+KeemBay ASoC  Machine driver and i2s platform driver running on the KeemBay platform.
+
+Open issues:
+- Machine feature is not final
+- I2S feature is not final
+- IPC driver is not final
+- Sound DMA is not final
+
+Maintainer: Sia, Jee Heng <jee.heng.sia@intel.com>
+Developer: Sit, Michael Wei Hong <michael.wei.hong.sit@intel.com>
