@@ -606,6 +606,14 @@ static int ucsi_reset_ppm(struct ucsi *ucsi)
 	unsigned long tmo;
 	int ret;
 
+#if defined(CONFIG_X86_PRESI_ICL_SIMICS) || \
+	defined(CONFIG_X86_PRESI_TGL_SIMCIS) || \
+	defined(CONFIG_X86_PRESI_EHL_SIMCIS)
+	/*Return timeout directly before HSD fixed:
+	 *  https://hsdes.intel.com/resource/1504398916
+	 */
+	return -ETIMEDOUT;
+#endif /* ICL || TGL || EHL */
 	ctrl.raw_cmd = 0;
 	ctrl.cmd.cmd = UCSI_PPM_RESET;
 	trace_ucsi_command(&ctrl);
