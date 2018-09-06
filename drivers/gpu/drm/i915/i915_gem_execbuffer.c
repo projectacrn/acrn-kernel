@@ -2028,14 +2028,13 @@ gen8_dispatch_bsd_engine(struct drm_i915_private *dev_priv,
 	return file_priv->bsd_engine;
 }
 
-#define I915_USER_RINGS (4)
-
 static const enum intel_engine_id user_ring_map[I915_USER_RINGS + 1] = {
 	[I915_EXEC_DEFAULT]	= RCS,
 	[I915_EXEC_RENDER]	= RCS,
 	[I915_EXEC_BLT]		= BCS,
 	[I915_EXEC_BSD]		= VCS,
-	[I915_EXEC_VEBOX]	= VECS
+	[I915_EXEC_VEBOX]	= VECS,
+	[I915_EXEC_COMPUTE]	= CCS,
 };
 
 static struct intel_engine_cs *

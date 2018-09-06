@@ -182,8 +182,9 @@ enum intel_engine_id {
 	VCS4,
 #define _VCS(n) (VCS + (n))
 	VECS,
-	VECS2
+	VECS2,
 #define _VECS(n) (VECS + (n))
+	CCS,
 };
 
 struct i915_priolist {
@@ -327,7 +328,9 @@ struct intel_engine_cs {
 
 	enum intel_engine_id id;
 	unsigned int hw_id;
+
 	unsigned int guc_id;
+	u8 guc_class;
 
 	u8 uabi_id;
 	u8 uabi_class;
@@ -569,6 +572,8 @@ struct intel_engine_cs {
 #define I915_ENGINE_NEEDS_CMD_PARSER BIT(0)
 #define I915_ENGINE_SUPPORTS_STATS   BIT(1)
 #define I915_ENGINE_HAS_PREEMPTION   BIT(2)
+#define I915_ENGINE_HAS_RCS_REG_STATE	BIT(3)
+#define I915_ENGINE_HAS_EU_PRIORITY	BIT(4)
 	unsigned int flags;
 
 	/*
@@ -1122,5 +1127,8 @@ int intel_enable_engine_stats(struct intel_engine_cs *engine);
 void intel_disable_engine_stats(struct intel_engine_cs *engine);
 
 ktime_t intel_engine_get_busy_time(struct intel_engine_cs *engine);
+
+u32 intel_class_context_size(struct drm_i915_private *dev_priv, u8 class);
+
 
 #endif /* _INTEL_RINGBUFFER_H_ */

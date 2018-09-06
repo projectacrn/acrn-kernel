@@ -639,7 +639,9 @@ enum intel_pch {
 	PCH_KBP,        /* Kaby Lake PCH */
 	PCH_CNP,        /* Cannon Lake PCH */
 	PCH_ICP,	/* Ice Lake PCH */
+	PCH_TGP,	/* Tiger Lake PCH */
 	PCH_NOP,
+	PCH_SIM = -1	/* Simulator hint */
 };
 
 enum intel_sbi_destination {
@@ -1013,6 +1015,7 @@ enum modeset_restore {
 #define DP_AUX_B 0x10
 #define DP_AUX_C 0x20
 #define DP_AUX_D 0x30
+#define DP_AUX_E 0x50
 #define DP_AUX_F 0x60
 
 #define DDC_PIN_B  0x05
@@ -1034,6 +1037,8 @@ struct ddi_vbt_port_info {
 	uint8_t supports_hdmi:1;
 	uint8_t supports_dp:1;
 	uint8_t supports_edp:1;
+	uint8_t supports_dp_typec:1;
+	uint8_t supports_tbt:1;
 
 	uint8_t alternate_aux_channel;
 	uint8_t alternate_ddc_pin;
@@ -1665,7 +1670,11 @@ struct drm_i915_private {
 	u32 pm_imr;
 	u32 pm_ier;
 	u32 pm_rps_events;
-	u32 pm_guc_events;
+	union {
+		/* RPS and GuC share a register pre-Gen11 */
+		u32 pm_guc_events;
+		u32 guc_events;
+	};
 	u32 pipestat_irq_mask[I915_MAX_PIPES];
 
 	struct i915_hotplug hotplug;
@@ -1847,11 +1856,18 @@ struct drm_i915_private {
 
 		/* The hw wants to have a stable context identifier for the
 		 * lifetime of the context (for OA, PASID, faults, etc).
-		 * This is limited in execlists to 21 bits.
+		 * This is limited in execlists to 21 bits. In enhanced execlist
+		 * (GEN11+) this is limited to 11 bits (the SW Context ID field)
+		 * but GuC limits it a bit further (11 bits - 16) due to some
+		 * entries being reserved for future use (so the firmware only
+		 * supports a GuC stage descriptor pool of 2032 entries).
 		 */
 		struct ida hw_ida;
-#define MAX_CONTEXT_HW_ID (1<<21) /* exclusive */
-#define GEN11_MAX_CONTEXT_HW_ID (1<<11) /* exclusive */
+#define MAX_CONTEXT_HW_ID			(1<<21) /* exclusive */
+#define GEN11_MAX_CONTEXT_HW_ID			(1<<11) /* exclusive */
+#define GEN11_MAX_CONTEXT_HW_ID_WITH_GUC	GEN11_MAX_CONTEXT_HW_ID - 16
+/* in Gen12 ID 0x7FF is reserved to indicate "invalid context" */
+#define GEN12_MAX_CONTEXT_HW_ID			(GEN11_MAX_CONTEXT_HW_ID - 1)
 	} contexts;
 
 	u32 fdi_rx_config;
@@ -2127,11 +2143,16 @@ struct drm_i915_private {
 
 	struct i915_pmu pmu;
 
+	struct timer_list sim_irq_timer;
+
 	/*
 	 * NOTE: This is the dri1/ums dungeon, don't add stuff here. Your patch
 	 * will be rejected. Instead look for a better place.
 	 */
+
+	bool __is_simulator; /* To be replaced, do not check directly */
 };
+#define IS_PRESILICON(i915) ((i915)->__is_simulator)
 
 static inline struct drm_i915_private *to_i915(const struct drm_device *dev)
 {
@@ -2377,6 +2398,7 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define IS_COFFEELAKE(dev_priv)	IS_PLATFORM(dev_priv, INTEL_COFFEELAKE)
 #define IS_CANNONLAKE(dev_priv)	IS_PLATFORM(dev_priv, INTEL_CANNONLAKE)
 #define IS_ICELAKE(dev_priv)	IS_PLATFORM(dev_priv, INTEL_ICELAKE)
+#define IS_TIGERLAKE(dev_priv)	IS_PLATFORM(dev_priv, INTEL_TIGERLAKE)
 #define IS_MOBILE(dev_priv)	((dev_priv)->info.is_mobile)
 #define IS_HSW_EARLY_SDV(dev_priv) (IS_HASWELL(dev_priv) && \
 				    (INTEL_DEVID(dev_priv) & 0xFF00) == 0x0C00)
@@ -2430,6 +2452,8 @@ intel_info(const struct drm_i915_private *dev_priv)
 				 (dev_priv)->info.gt == 3)
 #define IS_CNL_WITH_PORT_F(dev_priv)   (IS_CANNONLAKE(dev_priv) && \
 					(INTEL_DEVID(dev_priv) & 0x0004) == 0x0004)
+#define IS_ICL_11_5(dev_priv)	(IS_ICELAKE(dev_priv) && \
+				 HAS_RESOURCE_STREAMER(dev_priv))
 
 #define IS_ALPHA_SUPPORT(intel_info) ((intel_info)->is_alpha_support)
 
@@ -2500,6 +2524,7 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define IS_GEN9(dev_priv)	(!!((dev_priv)->info.gen_mask & BIT(8)))
 #define IS_GEN10(dev_priv)	(!!((dev_priv)->info.gen_mask & BIT(9)))
 #define IS_GEN11(dev_priv)	(!!((dev_priv)->info.gen_mask & BIT(10)))
+#define IS_GEN12(dev_priv)	(!!((dev_priv)->info.gen_mask & BIT(11)))
 
 #define IS_LP(dev_priv)	(INTEL_INFO(dev_priv)->is_lp)
 #define IS_GEN9_LP(dev_priv)	(IS_GEN9(dev_priv) && IS_LP(dev_priv))
@@ -2514,6 +2539,7 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define BSD3_RING	ENGINE_MASK(VCS3)
 #define BSD4_RING	ENGINE_MASK(VCS4)
 #define VEBOX2_RING	ENGINE_MASK(VECS2)
+#define CCS_RING	ENGINE_MASK(CCS)
 #define ALL_ENGINES	(~0)
 
 #define HAS_ENGINE(dev_priv, id) \
@@ -2523,6 +2549,7 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define HAS_BSD2(dev_priv)	HAS_ENGINE(dev_priv, VCS2)
 #define HAS_BLT(dev_priv)	HAS_ENGINE(dev_priv, BCS)
 #define HAS_VEBOX(dev_priv)	HAS_ENGINE(dev_priv, VECS)
+#define HAS_CCS(dev_priv)	HAS_ENGINE(dev_priv, CCS)
 
 #define HAS_LEGACY_SEMAPHORES(dev_priv) IS_GEN7(dev_priv)
 
@@ -2614,6 +2641,7 @@ intel_info(const struct drm_i915_private *dev_priv)
  */
 #define HAS_GUC(dev_priv)	((dev_priv)->info.has_guc)
 #define HAS_GUC_CT(dev_priv)	((dev_priv)->info.has_guc_ct)
+#define HAS_GUC_DIST_DB(dev_priv)	((dev_priv)->info.has_guc_dist_db)
 #define HAS_GUC_UCODE(dev_priv)	(HAS_GUC(dev_priv))
 #define HAS_GUC_SCHED(dev_priv)	(HAS_GUC(dev_priv))
 
@@ -2630,6 +2658,8 @@ intel_info(const struct drm_i915_private *dev_priv)
 
 #define HAS_POOLED_EU(dev_priv)	((dev_priv)->info.has_pooled_eu)
 
+#define HAS_GLOBAL_MOCS_REGISTERS(dev_priv)	((dev_priv)->info.has_global_mocs)
+
 #define INTEL_PCH_DEVICE_ID_MASK		0xff80
 #define INTEL_PCH_IBX_DEVICE_ID_TYPE		0x3b00
 #define INTEL_PCH_CPT_DEVICE_ID_TYPE		0x1c00
@@ -2643,14 +2673,26 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define INTEL_PCH_KBP_DEVICE_ID_TYPE		0xA280
 #define INTEL_PCH_CNP_DEVICE_ID_TYPE		0xA300
 #define INTEL_PCH_CNP_LP_DEVICE_ID_TYPE		0x9D80
-#define INTEL_PCH_ICP_DEVICE_ID_TYPE		0x3480
+#define INTEL_PCH_ICP_LP_DEVICE_ID_TYPE		0x3480
+#define INTEL_PCH_ICP_DEVICE_ID_TYPE		0xFFFF /* FIXME: Replace with real ID when available as IC */
+#define INTEL_PCH_ICP_H_DEVICE_ID_TYPE		0xFFFE /* FIXME: Replace with real ID when available as IC */
+#define INTEL_PCH_TGP_LP_DEVICE_ID_TYPE		0xFFFD /* FIXME: Replace with real ID when available as IC */
 #define INTEL_PCH_P2X_DEVICE_ID_TYPE		0x7100
 #define INTEL_PCH_P3X_DEVICE_ID_TYPE		0x7000
 #define INTEL_PCH_QEMU_DEVICE_ID_TYPE		0x2900 /* qemu q35 has 2918 */
+#define INTEL_PCH_HAS3_DEVICE_ID_TYPE		0x7000
+#define INTEL_PCH_HAS4_DEVICE_ID_TYPE		0x3a00
 
 #define INTEL_PCH_TYPE(dev_priv) ((dev_priv)->pch_type)
 #define INTEL_PCH_ID(dev_priv) ((dev_priv)->pch_id)
+#define HAS_PCH_TGP_LP(dev_priv) \
+	(INTEL_PCH_ID(dev_priv) == INTEL_PCH_TGP_LP_DEVICE_ID_TYPE)
+#define HAS_PCH_TGP(dev_priv) (INTEL_PCH_TYPE(dev_priv) == PCH_TGP)
 #define HAS_PCH_ICP(dev_priv) (INTEL_PCH_TYPE(dev_priv) == PCH_ICP)
+#define HAS_PCH_ICP_LP(dev_priv) \
+	(INTEL_PCH_ID(dev_priv) == INTEL_PCH_ICP_LP_DEVICE_ID_TYPE)
+#define HAS_PCH_ICP_H(dev_priv) \
+	(INTEL_PCH_ID(dev_priv) == INTEL_PCH_ICP_H_DEVICE_ID_TYPE)
 #define HAS_PCH_CNP(dev_priv) (INTEL_PCH_TYPE(dev_priv) == PCH_CNP)
 #define HAS_PCH_CNP_LP(dev_priv) \
 	(INTEL_PCH_ID(dev_priv) == INTEL_PCH_CNP_LP_DEVICE_ID_TYPE)
@@ -2747,6 +2789,11 @@ int vlv_force_gfx_clock(struct drm_i915_private *dev_priv, bool on);
 
 int intel_engines_init_mmio(struct drm_i915_private *dev_priv);
 int intel_engines_init(struct drm_i915_private *dev_priv);
+
+int intel_mark_page_as_mop(struct drm_i915_private *dev_priv,
+			   u64 address, bool owned);
+int intel_mark_all_pages_as_mop(struct drm_i915_private *dev_priv,
+				struct sg_table *pages, bool owned);
 
 /* intel_hotplug.c */
 void intel_hpd_irq_handler(struct drm_i915_private *dev_priv,

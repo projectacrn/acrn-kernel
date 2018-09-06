@@ -206,8 +206,9 @@ static const struct mipi_dsi_host_ops intel_dsi_host_ops = {
 	.transfer = intel_dsi_host_transfer,
 };
 
-static struct intel_dsi_host *intel_dsi_host_init(struct intel_dsi *intel_dsi,
-						  enum port port)
+struct intel_dsi_host *intel_dsi_host_init(struct intel_dsi *intel_dsi,
+					const struct mipi_dsi_host_ops *funcs,
+					enum port port)
 {
 	struct intel_dsi_host *host;
 	struct mipi_dsi_device *device;
@@ -216,7 +217,7 @@ static struct intel_dsi_host *intel_dsi_host_init(struct intel_dsi *intel_dsi,
 	if (!host)
 		return NULL;
 
-	host->base.ops = &intel_dsi_host_ops;
+	host->base.ops = funcs;
 	host->intel_dsi = intel_dsi;
 	host->port = port;
 
@@ -288,16 +289,6 @@ static void band_gap_reset(struct drm_i915_private *dev_priv)
 	vlv_flisdsi_write(dev_priv, 0x08, 0x0000);
 
 	mutex_unlock(&dev_priv->sb_lock);
-}
-
-static inline bool is_vid_mode(struct intel_dsi *intel_dsi)
-{
-	return intel_dsi->operation_mode == INTEL_DSI_VIDEO_MODE;
-}
-
-static inline bool is_cmd_mode(struct intel_dsi *intel_dsi)
-{
-	return intel_dsi->operation_mode == INTEL_DSI_COMMAND_MODE;
 }
 
 static bool intel_dsi_compute_config(struct intel_encoder *encoder,
@@ -740,17 +731,6 @@ static void intel_dsi_port_disable(struct intel_encoder *encoder)
 static void intel_dsi_prepare(struct intel_encoder *intel_encoder,
 			      const struct intel_crtc_state *pipe_config);
 static void intel_dsi_unprepare(struct intel_encoder *encoder);
-
-static void intel_dsi_msleep(struct intel_dsi *intel_dsi, int msec)
-{
-	struct drm_i915_private *dev_priv = to_i915(intel_dsi->base.base.dev);
-
-	/* For v3 VBTs in vid-mode the delays are part of the VBT sequences */
-	if (is_vid_mode(intel_dsi) && dev_priv->vbt.dsi.seq_version >= 3)
-		return;
-
-	msleep(msec);
-}
 
 /*
  * Panel enable/disable sequences from the VBT spec.
@@ -1259,9 +1239,8 @@ static void intel_dsi_get_config(struct intel_encoder *encoder,
 	pipe_config->port_clock = pclk;
 }
 
-static enum drm_mode_status
-intel_dsi_mode_valid(struct drm_connector *connector,
-		     struct drm_display_mode *mode)
+enum drm_mode_status intel_dsi_mode_valid(struct drm_connector *connector,
+					  struct drm_display_mode *mode)
 {
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 	const struct drm_display_mode *fixed_mode = intel_connector->panel.fixed_mode;
@@ -1602,7 +1581,7 @@ static void intel_dsi_unprepare(struct intel_encoder *encoder)
 	}
 }
 
-static int intel_dsi_get_modes(struct drm_connector *connector)
+int intel_dsi_get_modes(struct drm_connector *connector)
 {
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 	struct drm_display_mode *mode;
@@ -1625,7 +1604,7 @@ static int intel_dsi_get_modes(struct drm_connector *connector)
 	return 1;
 }
 
-static void intel_dsi_connector_destroy(struct drm_connector *connector)
+void intel_dsi_connector_destroy(struct drm_connector *connector)
 {
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 
@@ -1793,7 +1772,8 @@ void intel_dsi_init(struct drm_i915_private *dev_priv)
 	for_each_dsi_port(port, intel_dsi->ports) {
 		struct intel_dsi_host *host;
 
-		host = intel_dsi_host_init(intel_dsi, port);
+		host = intel_dsi_host_init(intel_dsi, &intel_dsi_host_ops,
+					   port);
 		if (!host)
 			goto err;
 
