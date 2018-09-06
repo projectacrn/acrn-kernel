@@ -18,8 +18,10 @@
 #include <linux/ethtool.h>
 #include <linux/io.h>
 #include <net/dsa.h>
+#include <linux/if_vlan.h>
 #include "stmmac.h"
 #include "stmmac_pcs.h"
+#include "dw_xpcs.h"
 #include "dwmac4.h"
 #include "dwmac5.h"
 
@@ -61,6 +63,12 @@ static void dwmac4_core_init(struct mac_device_info *hw,
 
 	if (hw->pcs)
 		value |= GMAC_PCS_IRQ_DEFAULT;
+
+	if (hw->tsn_cap & TSN_CAP_FPE)
+		value |= GMAC_INT_FPE_EN;
+
+	if (hw->mdio_intr_en)
+		value |= GMAC_INT_MDIO_EN;
 
 	writel(value, ioaddr + GMAC_INT_EN);
 }
@@ -397,6 +405,189 @@ static void dwmac4_set_eee_timer(struct mac_device_info *hw, int ls, int tw)
 	writel(value, ioaddr + GMAC4_LPI_TIMER_CTRL);
 }
 
+static void dwmac4_write_single_vlan(struct net_device *dev, u16 vid)
+{
+	void __iomem *ioaddr = (void __iomem *)dev->base_addr;
+	u32 val;
+
+	val = readl(ioaddr + GMAC_VLAN_TAG_CTRL);
+	val &= ~GMAC_VLAN_TAG_VID;
+	val |= GMAC_VLAN_TAG_ETV | vid;
+
+	writel(val, ioaddr + GMAC_VLAN_TAG_CTRL);
+}
+
+static int dwmac4_write_vlan_filter(struct net_device *dev,
+				    struct mac_device_info *hw,
+				    u8 index, u32 data)
+{
+	void __iomem *ioaddr = (void __iomem *)dev->base_addr;
+	u32 val;
+	int i, timeout = 10;
+
+	if (index >= hw->num_vlan)
+		return -EINVAL;
+
+	writel(data, ioaddr + GMAC_VLAN_TAG_DATA);
+
+	val = readl(ioaddr + GMAC_VLAN_TAG_CTRL);
+	val &= ~(GMAC_VLAN_TAG_CTRL_OFS_MASK |
+		 GMAC_VLAN_TAG_CTRL_CT |
+		 GMAC_VLAN_TAG_CTRL_OB);
+	val |= (index << GMAC_VLAN_TAG_CTRL_OFS_SHIFT) | GMAC_VLAN_TAG_CTRL_OB;
+
+	writel(val, ioaddr + GMAC_VLAN_TAG_CTRL);
+
+	for (i = 0; i < timeout; i++) {
+		val = readl(ioaddr + GMAC_VLAN_TAG_CTRL);
+		if (!(val & GMAC_VLAN_TAG_CTRL_OB))
+			return 0;
+		udelay(1);
+	}
+
+	netdev_err(dev, "Timeout accessing MAC_VLAN_Tag_Filter\n");
+
+	return -EBUSY;
+}
+
+static int dwmac4_add_hw_vlan_rx_fltr(struct net_device *dev,
+				      struct mac_device_info *hw,
+				      __be16 proto, u16 vid)
+{
+	u32 val = 0;
+	int i, ret;
+	int index = -1;
+
+	if (vid > 4095)
+		return -EINVAL;
+
+	if (hw->promisc) {
+		netdev_err(dev,
+			   "Adding VLAN in promisc mode not supported\n");
+		return -EPERM;
+	}
+
+	/* Single Rx VLAN Filter */
+	if (hw->num_vlan == 1) {
+		/* For single VLAN filter, VID 0 means VLAN promiscuous */
+		if (vid == 0) {
+			netdev_warn(dev, "Adding VLAN ID 0 is not supported\n");
+			return -EPERM;
+		}
+
+		if (hw->vlan_filter[0] & GMAC_VLAN_TAG_VID) {
+			netdev_err(dev, "Only single VLAN ID supported\n");
+			return -EPERM;
+		}
+
+		hw->vlan_filter[0] = vid;
+		dwmac4_write_single_vlan(dev, vid);
+
+		return 0;
+	}
+
+	/* Extended Rx VLAN Filter Enable */
+	val |= GMAC_VLAN_TAG_DATA_ETV | GMAC_VLAN_TAG_DATA_VEN | vid;
+
+	for (i = 0; i < hw->num_vlan; i++) {
+		if (hw->vlan_filter[i] == val)
+			return 0;
+		else if (!(hw->vlan_filter[i] & GMAC_VLAN_TAG_DATA_VEN))
+			index = i;
+	}
+
+	if (index == -1) {
+		netdev_err(dev, "MAC_VLAN_Tag_Filter full (size: %0u)\n",
+			   hw->num_vlan);
+		return -EPERM;
+	}
+
+	ret = dwmac4_write_vlan_filter(dev, hw, index, val);
+
+	if (!ret)
+		hw->vlan_filter[index] = val;
+
+	return ret;
+}
+
+static int dwmac4_del_hw_vlan_rx_fltr(struct net_device *dev,
+				      struct mac_device_info *hw,
+				      __be16 proto, u16 vid)
+{
+	int i, ret = 0;
+
+	if (hw->promisc) {
+		netdev_err(dev,
+			   "Deleting VLAN in promisc mode not supported\n");
+		return -EPERM;
+	}
+
+	/* Single Rx VLAN Filter */
+	if (hw->num_vlan == 1) {
+		if ((hw->vlan_filter[0] & GMAC_VLAN_TAG_VID) == vid) {
+			hw->vlan_filter[0] = 0;
+			dwmac4_write_single_vlan(dev, 0);
+		}
+		return 0;
+	}
+
+	/* Extended Rx VLAN Filter Enable */
+	for (i = 0; i < hw->num_vlan; i++) {
+		if ((hw->vlan_filter[i] & GMAC_VLAN_TAG_DATA_VID) == vid) {
+			ret = dwmac4_write_vlan_filter(dev, hw, i, 0);
+
+			if (!ret)
+				hw->vlan_filter[i] = 0;
+			else
+				return ret;
+		}
+	}
+
+	return ret;
+}
+
+static void dwmac4_vlan_promisc_enable(struct net_device *dev,
+				       struct mac_device_info *hw)
+{
+	int i;
+	u32 val;
+
+	/* Single Rx VLAN Filter */
+	if (hw->num_vlan == 1) {
+		dwmac4_write_single_vlan(dev, 0);
+		return;
+	}
+
+	/* Extended Rx VLAN Filter Enable */
+	for (i = 0; i < hw->num_vlan; i++) {
+		if (hw->vlan_filter[i] & GMAC_VLAN_TAG_DATA_VEN) {
+			val = hw->vlan_filter[i] & ~GMAC_VLAN_TAG_DATA_VEN;
+			dwmac4_write_vlan_filter(dev, hw, i, val);
+		}
+	}
+}
+
+static void dwmac4_restore_hw_vlan_rx_fltr(struct net_device *dev,
+					   struct mac_device_info *hw)
+{
+	int i;
+	u32 val;
+
+	/* Single Rx VLAN Filter */
+	if (hw->num_vlan == 1) {
+		dwmac4_write_single_vlan(dev, hw->vlan_filter[0]);
+		return;
+	}
+
+	/* Extended Rx VLAN Filter Enable */
+	for (i = 0; i < hw->num_vlan; i++) {
+		if (hw->vlan_filter[i] & GMAC_VLAN_TAG_DATA_VEN) {
+			val = hw->vlan_filter[i];
+			dwmac4_write_vlan_filter(dev, hw, i, val);
+		}
+	}
+}
+
 static void dwmac4_set_filter(struct mac_device_info *hw,
 			      struct net_device *dev)
 {
@@ -404,7 +595,18 @@ static void dwmac4_set_filter(struct mac_device_info *hw,
 	unsigned int value = 0;
 
 	if (dev->flags & IFF_PROMISC) {
-		value = GMAC_PACKET_FILTER_PR;
+		/* VLAN Tag Filter Fail Packets Queuing */
+		if (hw->vlan_fail_q_en) {
+			value = readl(ioaddr + GMAC_RXQ_CTRL4);
+			value &= ~GMAC_RXQCTRL_VFFQ_MASK;
+			value |= GMAC_RXQCTRL_VFFQE |
+				 (hw->vlan_fail_q << GMAC_RXQCTRL_VFFQ_SHIFT);
+			writel(value, ioaddr + GMAC_RXQ_CTRL4);
+
+			value = GMAC_PACKET_FILTER_RA | GMAC_PACKET_FILTER_PR;
+		} else {
+			value = GMAC_PACKET_FILTER_PR;
+		}
 	} else if ((dev->flags & IFF_ALLMULTI) ||
 			(netdev_mc_count(dev) > HASH_TABLE_SIZE)) {
 		/* Pass all multi */
@@ -454,7 +656,23 @@ static void dwmac4_set_filter(struct mac_device_info *hw,
 		}
 	}
 
+	/* VLAN filtering */
+	if (dev->features & NETIF_F_HW_VLAN_CTAG_FILTER)
+		value |= GMAC_PACKET_FILTER_VTFE;
+
 	writel(value, ioaddr + GMAC_PACKET_FILTER);
+
+	if (dev->flags & IFF_PROMISC && !hw->vlan_fail_q_en) {
+		if (!hw->promisc) {
+			hw->promisc = 1;
+			dwmac4_vlan_promisc_enable(dev, hw);
+		}
+	} else {
+		if (hw->promisc) {
+			hw->promisc = 0;
+			dwmac4_restore_hw_vlan_rx_fltr(dev, hw);
+		}
+	}
 }
 
 static void dwmac4_flow_ctrl(struct mac_device_info *hw, unsigned int duplex,
@@ -503,6 +721,34 @@ static void dwmac4_rane(void __iomem *ioaddr, bool restart)
 static void dwmac4_get_adv_lp(void __iomem *ioaddr, struct rgmii_adv *adv)
 {
 	dwmac_get_adv_lp(ioaddr, GMAC_PCS_BASE, adv);
+}
+
+static void dwmac_xpcs_init(struct net_device *ndev, int pcs_mode)
+{
+	dw_xpcs_init(ndev, pcs_mode);
+}
+
+static void dwmac_xpcs_ctrl_ane(struct net_device *ndev, bool ane,
+				bool loopback)
+{
+	dw_xpcs_ctrl_ane(ndev, ane, loopback);
+}
+
+static void dwmac_xpcs_rane(struct net_device *ndev, bool restart)
+{
+	dw_xpcs_rane(ndev, restart);
+}
+
+static void dwmac_xpcs_get_adv_lp(struct net_device *ndev,
+				  struct rgmii_adv *adv)
+{
+	dw_xpcs_get_adv_lp(ndev, adv);
+}
+
+static int dwmac_xpcs_irq_status(struct net_device *ndev,
+				 struct stmmac_extra_stats *x)
+{
+	return dw_xpcs_irq_status(ndev, x);
 }
 
 /* RGMII or SMII interface */
@@ -605,6 +851,9 @@ static int dwmac4_irq_status(struct mac_device_info *hw,
 			x->irq_rx_path_exit_lpi_mode_n++;
 	}
 
+	if (intr_status & mdio_irq)
+		wake_up(&hw->mdio_busy_wait);
+
 	dwmac_pcs_isr(ioaddr, GMAC_PCS_BASE, intr_status, x);
 	if (intr_status & PCS_RGSMIIIS_IRQ)
 		dwmac4_phystatus(ioaddr, x);
@@ -701,6 +950,52 @@ static void dwmac4_debug(void __iomem *ioaddr, struct stmmac_extra_stats *x,
 		x->mac_gmii_rx_proto_engine++;
 }
 
+static void dwmac4_rx_hw_vlan(struct net_device *dev,
+			      struct mac_device_info *hw,
+			      struct dma_desc *rx_desc, struct sk_buff *skb)
+{
+	if ((dev->features & NETIF_F_HW_VLAN_CTAG_RX) &&
+	    hw->desc->get_rx_vlan_valid(rx_desc)) {
+		u16 vid = (u16)hw->desc->get_rx_vlan_tci(rx_desc);
+
+		__vlan_hwaccel_put_tag(skb, htons(ETH_P_8021Q), vid);
+	}
+}
+
+static void dwmac4_set_hw_vlan_mode(void __iomem *ioaddr,
+				    netdev_features_t features)
+{
+	u32 val;
+
+	val = readl(ioaddr + GMAC_VLAN_TAG_CTRL);
+	val &= ~GMAC_VLAN_TAG_CTRL_EVLS_MASK;
+
+	if (features & NETIF_F_HW_VLAN_CTAG_RX)
+		/* Always strip VLAN on Receive */
+		val |= GMAC_VLAN_TAG_STRIP_ALL;
+	else
+		/* Do not strip VLAN on Receive */
+		val |= GMAC_VLAN_TAG_STRIP_NONE;
+
+	/* Enable outer VLAN Tag in Rx DMA descriptor */
+	val |= GMAC_VLAN_TAG_CTRL_EVLRXS;
+
+	writel(val, ioaddr + GMAC_VLAN_TAG_CTRL);
+}
+
+static void dwmac4_set_loopback_mode(struct mac_device_info *hw, bool mode)
+{
+	void __iomem *ioaddr = hw->pcsr;
+	u32 value = readl(ioaddr + GMAC_CONFIG);
+
+	if (mode)
+		value |= GMAC_CONFIG_LM;
+	else
+		value &= ~GMAC_CONFIG_LM;
+
+	writel(value, ioaddr + GMAC_CONFIG);
+}
+
 const struct stmmac_ops dwmac4_ops = {
 	.core_init = dwmac4_core_init,
 	.set_mac = stmmac_set_mac,
@@ -730,6 +1025,12 @@ const struct stmmac_ops dwmac4_ops = {
 	.pcs_get_adv_lp = dwmac4_get_adv_lp,
 	.debug = dwmac4_debug,
 	.set_filter = dwmac4_set_filter,
+	.rx_hw_vlan = dwmac4_rx_hw_vlan,
+	.set_hw_vlan_mode = dwmac4_set_hw_vlan_mode,
+	.add_hw_vlan_rx_fltr = dwmac4_add_hw_vlan_rx_fltr,
+	.del_hw_vlan_rx_fltr = dwmac4_del_hw_vlan_rx_fltr,
+	.restore_hw_vlan_rx_fltr = dwmac4_restore_hw_vlan_rx_fltr,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
 };
 
 const struct stmmac_ops dwmac410_ops = {
@@ -761,6 +1062,12 @@ const struct stmmac_ops dwmac410_ops = {
 	.pcs_get_adv_lp = dwmac4_get_adv_lp,
 	.debug = dwmac4_debug,
 	.set_filter = dwmac4_set_filter,
+	.rx_hw_vlan = dwmac4_rx_hw_vlan,
+	.set_hw_vlan_mode = dwmac4_set_hw_vlan_mode,
+	.add_hw_vlan_rx_fltr = dwmac4_add_hw_vlan_rx_fltr,
+	.del_hw_vlan_rx_fltr = dwmac4_del_hw_vlan_rx_fltr,
+	.restore_hw_vlan_rx_fltr = dwmac4_restore_hw_vlan_rx_fltr,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
 };
 
 const struct stmmac_ops dwmac510_ops = {
@@ -792,12 +1099,139 @@ const struct stmmac_ops dwmac510_ops = {
 	.pcs_get_adv_lp = dwmac4_get_adv_lp,
 	.debug = dwmac4_debug,
 	.set_filter = dwmac4_set_filter,
+	.rx_hw_vlan = dwmac4_rx_hw_vlan,
+	.set_hw_vlan_mode = dwmac4_set_hw_vlan_mode,
+	.add_hw_vlan_rx_fltr = dwmac4_add_hw_vlan_rx_fltr,
+	.del_hw_vlan_rx_fltr = dwmac4_del_hw_vlan_rx_fltr,
+	.restore_hw_vlan_rx_fltr = dwmac4_restore_hw_vlan_rx_fltr,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
+	.tsn_init = dwmac_tsn_init,
+	.get_tsn_hwcap = dwmac_get_tsn_hwcap,
+	.set_est_gcb = dwmac_set_est_gcb,
+	.set_tsn_feat = dwmac_set_tsn_feat,
+	.set_tsn_hwtunable = dwmac_set_tsn_hwtunable,
+	.get_tsn_hwtunable = dwmac_get_tsn_hwtunable,
+	.get_est_bank = dwmac_get_est_bank,
+	.set_est_gce = dwmac_set_est_gce,
+	.get_est_gcrr_llr = dwmac_get_est_gcrr_llr,
+	.set_est_gcrr_llr = dwmac_set_est_gcrr_llr,
+	.set_est_gcrr_times = dwmac_set_est_gcrr_times,
+	.set_est_enable = dwmac_set_est_enable,
+	.get_est_gcc = dwmac_get_est_gcc,
+	.est_irq_status = dwmac_est_irq_status,
+	.get_est_err_stat = dwmac_get_est_err_stat,
+	.clr_est_err_stat = dwmac_clr_est_err_stat,
+	.set_fpe_config = dwmac_set_fpe_config,
+	.set_fpe_enable = dwmac_set_fpe_enable,
+	.get_fpe_config = dwmac_get_fpe_config,
+	.get_fpe_pmac_sts = dwmac_get_fpe_pmac_sts,
+	.fpe_irq_status = dwmac_fpe_irq_status,
+	.fpe_send_mpacket = dwmac_fpe_send_mpacket,
+	.cbs_recal_idleslope = dwmac_cbs_recal_idleslope,
 	.safety_feat_config = dwmac5_safety_feat_config,
 	.safety_feat_irq_status = dwmac5_safety_feat_irq_status,
 	.safety_feat_dump = dwmac5_safety_feat_dump,
 	.rxp_config = dwmac5_rxp_config,
 	.flex_pps_config = dwmac5_flex_pps_config,
 };
+
+const struct stmmac_ops dwmac510_xpcs_ops = {
+	.core_init = dwmac4_core_init,
+	.set_mac = stmmac_dwmac4_set_mac,
+	.rx_ipc = dwmac4_rx_ipc_enable,
+	.rx_queue_enable = dwmac4_rx_queue_enable,
+	.rx_queue_prio = dwmac4_rx_queue_priority,
+	.tx_queue_prio = dwmac4_tx_queue_priority,
+	.rx_queue_routing = dwmac4_rx_queue_routing,
+	.prog_mtl_rx_algorithms = dwmac4_prog_mtl_rx_algorithms,
+	.prog_mtl_tx_algorithms = dwmac4_prog_mtl_tx_algorithms,
+	.set_mtl_tx_queue_weight = dwmac4_set_mtl_tx_queue_weight,
+	.map_mtl_to_dma = dwmac4_map_mtl_dma,
+	.config_cbs = dwmac4_config_cbs,
+	.dump_regs = dwmac4_dump_regs,
+	.host_irq_status = dwmac4_irq_status,
+	.host_mtl_irq_status = dwmac4_irq_mtl_status,
+	.flow_ctrl = dwmac4_flow_ctrl,
+	.pmt = dwmac4_pmt,
+	.set_umac_addr = dwmac4_set_umac_addr,
+	.get_umac_addr = dwmac4_get_umac_addr,
+	.set_eee_mode = dwmac4_set_eee_mode,
+	.reset_eee_mode = dwmac4_reset_eee_mode,
+	.set_eee_timer = dwmac4_set_eee_timer,
+	.set_eee_pls = dwmac4_set_eee_pls,
+	.xpcs_init = dwmac_xpcs_init,
+	.xpcs_ctrl_ane = dwmac_xpcs_ctrl_ane,
+	.xpcs_rane = dwmac_xpcs_rane,
+	.xpcs_get_adv_lp = dwmac_xpcs_get_adv_lp,
+	.xpcs_irq_status = dwmac_xpcs_irq_status,
+	.debug = dwmac4_debug,
+	.set_filter = dwmac4_set_filter,
+	.rx_hw_vlan = dwmac4_rx_hw_vlan,
+	.set_hw_vlan_mode = dwmac4_set_hw_vlan_mode,
+	.add_hw_vlan_rx_fltr = dwmac4_add_hw_vlan_rx_fltr,
+	.del_hw_vlan_rx_fltr = dwmac4_del_hw_vlan_rx_fltr,
+	.restore_hw_vlan_rx_fltr = dwmac4_restore_hw_vlan_rx_fltr,
+	.set_loopback_mode = dwmac4_set_loopback_mode,
+	.tsn_init = dwmac_tsn_init,
+	.get_tsn_hwcap = dwmac_get_tsn_hwcap,
+	.set_est_gcb = dwmac_set_est_gcb,
+	.set_tsn_feat = dwmac_set_tsn_feat,
+	.set_tsn_hwtunable = dwmac_set_tsn_hwtunable,
+	.get_tsn_hwtunable = dwmac_get_tsn_hwtunable,
+	.get_est_bank = dwmac_get_est_bank,
+	.set_est_gce = dwmac_set_est_gce,
+	.get_est_gcrr_llr = dwmac_get_est_gcrr_llr,
+	.set_est_gcrr_llr = dwmac_set_est_gcrr_llr,
+	.set_est_gcrr_times = dwmac_set_est_gcrr_times,
+	.set_est_enable = dwmac_set_est_enable,
+	.get_est_gcc = dwmac_get_est_gcc,
+	.est_irq_status = dwmac_est_irq_status,
+	.get_est_err_stat = dwmac_get_est_err_stat,
+	.clr_est_err_stat = dwmac_clr_est_err_stat,
+	.set_fpe_config = dwmac_set_fpe_config,
+	.set_fpe_enable = dwmac_set_fpe_enable,
+	.get_fpe_config = dwmac_get_fpe_config,
+	.get_fpe_pmac_sts = dwmac_get_fpe_pmac_sts,
+	.fpe_irq_status = dwmac_fpe_irq_status,
+	.fpe_send_mpacket = dwmac_fpe_send_mpacket,
+	.cbs_recal_idleslope = dwmac_cbs_recal_idleslope,
+	.safety_feat_config = dwmac5_safety_feat_config,
+	.safety_feat_irq_status = dwmac5_safety_feat_irq_status,
+	.safety_feat_dump = dwmac5_safety_feat_dump,
+	.rxp_config = dwmac5_rxp_config,
+	.flex_pps_config = dwmac5_flex_pps_config,
+};
+
+static u32 dwmac4_get_num_vlan(void __iomem *ioaddr)
+{
+	u32 val, num_vlan;
+
+	val = readl(ioaddr + GMAC_HW_FEATURE3);
+	switch (val & GMAC_HW_FEAT_NRVF) {
+	case 0:
+		num_vlan = 1;
+		break;
+	case 1:
+		num_vlan = 4;
+		break;
+	case 2:
+		num_vlan = 8;
+		break;
+	case 3:
+		num_vlan = 16;
+		break;
+	case 4:
+		num_vlan = 24;
+		break;
+	case 5:
+		num_vlan = 32;
+		break;
+	default:
+		num_vlan = 1;
+	}
+
+	return num_vlan;
+}
 
 int dwmac4_setup(struct stmmac_priv *priv)
 {
@@ -827,6 +1261,8 @@ int dwmac4_setup(struct stmmac_priv *priv)
 	mac->mii.reg_mask = GENMASK(20, 16);
 	mac->mii.clk_csr_shift = 8;
 	mac->mii.clk_csr_mask = GENMASK(11, 8);
+
+	mac->num_vlan = dwmac4_get_num_vlan(priv->ioaddr);
 
 	return 0;
 }

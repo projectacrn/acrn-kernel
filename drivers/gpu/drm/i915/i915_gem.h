@@ -67,9 +67,12 @@ struct drm_i915_private;
 #define GEM_TRACE_DUMP() do { } while (0)
 #endif
 
-#define I915_NUM_ENGINES 8
+#define I915_NUM_ENGINES 9
 
 void i915_gem_park(struct drm_i915_private *i915);
 void i915_gem_unpark(struct drm_i915_private *i915);
+
+#define I915_USER_RINGS (5)
+#define I915_EXEC_INTERNAL_ENGINE (I915_USER_RINGS + 1) /*no submits allowed*/
 
 #endif /* __I915_GEM_H__ */

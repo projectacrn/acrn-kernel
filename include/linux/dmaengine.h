@@ -73,6 +73,7 @@ enum dma_transaction_type {
 	DMA_SLAVE,
 	DMA_CYCLIC,
 	DMA_INTERLEAVE,
+	DMA_PGCMP,
 /* last transaction type for creation of the capabilities mask */
 	DMA_TX_TYPE_END,
 };
@@ -797,6 +798,9 @@ struct dma_device {
 	struct dma_async_tx_descriptor *(*device_prep_dma_imm_data)(
 		struct dma_chan *chan, dma_addr_t dst, u64 data,
 		unsigned long flags);
+	struct dma_async_tx_descriptor *(*device_prep_dma_pgcmp)(
+		struct dma_chan *chan, dma_addr_t dst, dma_addr_t src,
+		size_t len, enum sum_check_flags *result, unsigned long flags);
 
 	int (*device_config)(struct dma_chan *chan,
 			     struct dma_slave_config *config);

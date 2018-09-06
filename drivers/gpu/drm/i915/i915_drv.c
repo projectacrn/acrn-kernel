@@ -133,7 +133,18 @@ static bool i915_error_injected(struct drm_i915_private *dev_priv)
 static enum intel_pch
 intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 {
+	if (i915_modparams.force_pch >= 0) {
+		DRM_DEBUG_KMS("Forcing PCH type to %i\n",
+			      i915_modparams.force_pch);
+		return i915_modparams.force_pch;
+	}
 	switch (id) {
+	case INTEL_PCH_HAS3_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found HAS PCH\n");
+		return PCH_SIM;
+	case INTEL_PCH_HAS4_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found HAS4 PCH (x58 ICH10)\n");
+		return PCH_SIM;
 	case INTEL_PCH_IBX_DEVICE_ID_TYPE:
 		DRM_DEBUG_KMS("Found Ibex Peak PCH\n");
 		WARN_ON(!IS_GEN5(dev_priv));
@@ -194,6 +205,18 @@ intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 		DRM_DEBUG_KMS("Found Ice Lake PCH\n");
 		WARN_ON(!IS_ICELAKE(dev_priv));
 		return PCH_ICP;
+	case INTEL_PCH_ICP_LP_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found Ice Lake LP PCH\n");
+		WARN_ON(!IS_ICELAKE(dev_priv));
+		return PCH_ICP;
+	case INTEL_PCH_ICP_H_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found Ice Lake H PCH\n");
+		WARN_ON(!IS_ICELAKE(dev_priv));
+		return PCH_ICP;
+	case INTEL_PCH_TGP_LP_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found Tiger Lake LP PCH\n");
+		WARN_ON(!IS_TIGERLAKE(dev_priv));
+		return PCH_TGP;
 	default:
 		return PCH_NONE;
 	}
@@ -233,6 +256,10 @@ intel_virt_detect_pch(const struct drm_i915_private *dev_priv)
 		id = INTEL_PCH_SPT_DEVICE_ID_TYPE;
 	else if (IS_COFFEELAKE(dev_priv) || IS_CANNONLAKE(dev_priv))
 		id = INTEL_PCH_CNP_DEVICE_ID_TYPE;
+	else if (IS_ICELAKE(dev_priv))
+		id = INTEL_PCH_ICP_DEVICE_ID_TYPE;
+	else if (IS_TIGERLAKE(dev_priv))
+		id = INTEL_PCH_TGP_LP_DEVICE_ID_TYPE;
 
 	if (id)
 		DRM_DEBUG_KMS("Assuming PCH ID %04x\n", id);
@@ -240,6 +267,59 @@ intel_virt_detect_pch(const struct drm_i915_private *dev_priv)
 		DRM_DEBUG_KMS("Assuming no PCH\n");
 
 	return id;
+}
+
+static void simulator_set_pch(struct drm_i915_private *dev_priv)
+{
+	dev_priv->__is_simulator = true;
+	dev_priv->pch_id = intel_virt_detect_pch(dev_priv);
+	dev_priv->pch_type = intel_pch_type(dev_priv, dev_priv->pch_id);
+}
+
+/*
+ * Marks a physical page to be model-owned, which means that access to this
+ * page triggers callback on HAS side and thanks to it we can inform fulsim that
+ * something was changed and it may need to be processed.
+ * The communication is done by writing a 64 bit value to mmio offset 0x180000,
+ * which is unused in real HW. HAS will trap writes to this offset and use the
+ * value internally according to the following encoding:
+ *
+ * Bit 0: 0 – delete mop page; 1 – add mop page
+ * Bits 1-11: reserved
+ * Bits 12-63: page number
+ */
+int intel_mark_page_as_mop(struct drm_i915_private *dev_priv,
+			   u64 address, bool owned)
+{
+	const i915_reg_t mop_reg = _MMIO(0x180000);
+
+	// The cake is a lie!
+	GEM_BUG_ON(!IS_PRESILICON(dev_priv));
+	GEM_BUG_ON(address & (PAGE_SIZE - 1));
+
+	if (owned)
+		address |= 1;
+
+	I915_WRITE64_FW(mop_reg, address);
+
+	return 0;
+}
+
+int intel_mark_all_pages_as_mop(struct drm_i915_private *dev_priv,
+				struct sg_table *pages, bool owned)
+{
+	struct sg_page_iter sg_iter;
+	int ret;
+
+	__sg_page_iter_start(&sg_iter, pages->sgl, sg_nents(pages->sgl), 0);
+	while (__sg_page_iter_next(&sg_iter)) {
+		ret = intel_mark_page_as_mop(dev_priv,
+				sg_page_iter_dma_address(&sg_iter), owned);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
 }
 
 static void intel_detect_pch(struct drm_i915_private *dev_priv)
@@ -251,6 +331,12 @@ static void intel_detect_pch(struct drm_i915_private *dev_priv)
 	 */
 	if (INTEL_INFO(dev_priv)->num_pipes == 0) {
 		dev_priv->pch_type = PCH_NOP;
+		return;
+	}
+
+	if (i915_modparams.is_simulator == 1) {
+		DRM_DEBUG_KMS("Forcing Simulator mode\n");
+		simulator_set_pch(dev_priv);
 		return;
 	}
 
@@ -275,7 +361,10 @@ static void intel_detect_pch(struct drm_i915_private *dev_priv)
 		id = pch->device & INTEL_PCH_DEVICE_ID_MASK;
 
 		pch_type = intel_pch_type(dev_priv, id);
-		if (pch_type != PCH_NONE) {
+		if (pch_type == PCH_SIM) {
+			simulator_set_pch(dev_priv);
+			break;
+		} else if (pch_type != PCH_NONE) {
 			dev_priv->pch_type = pch_type;
 			dev_priv->pch_id = id;
 			break;
@@ -338,6 +427,9 @@ static int i915_getparam_ioctl(struct drm_device *dev, void *data,
 		break;
 	case I915_PARAM_HAS_BSD2:
 		value = !!dev_priv->engine[VCS2];
+		break;
+	case I915_PARAM_HAS_CCS:
+		value = !!dev_priv->engine[CCS];
 		break;
 	case I915_PARAM_HAS_LLC:
 		value = HAS_LLC(dev_priv);

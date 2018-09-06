@@ -114,23 +114,68 @@ enum intel_dpll_id {
 	 */
 	DPLL_ID_ICL_DPLL1 = 1,
 	/**
+	 * @DPLL_ID_ICL_TBTPLL: ICL TBT PLL
+	 */
+	DPLL_ID_ICL_TBTPLL = 2,
+	/**
 	 * @DPLL_ID_ICL_MGPLL1: ICL MG PLL 1 port 1 (C)
 	 */
-	DPLL_ID_ICL_MGPLL1 = 2,
+	DPLL_ID_ICL_MGPLL1 = 3,
 	/**
 	 * @DPLL_ID_ICL_MGPLL2: ICL MG PLL 1 port 2 (D)
 	 */
-	DPLL_ID_ICL_MGPLL2 = 3,
+	DPLL_ID_ICL_MGPLL2 = 4,
 	/**
 	 * @DPLL_ID_ICL_MGPLL3: ICL MG PLL 1 port 3 (E)
 	 */
-	DPLL_ID_ICL_MGPLL3 = 4,
+	DPLL_ID_ICL_MGPLL3 = 5,
 	/**
 	 * @DPLL_ID_ICL_MGPLL4: ICL MG PLL 1 port 4 (F)
 	 */
-	DPLL_ID_ICL_MGPLL4 = 5,
+	DPLL_ID_ICL_MGPLL4 = 6,
+
+	/**
+	 * @DPLL_ID_ICL_11_5_DPLL0: ICL 11.5 combo PHY DPLL0
+	 */
+	DPLL_ID_ICL_11_5_DPLL0 = 0,
+	/**
+	 * @DPLL_ID_ICL_11_5_DPLL1: ICL 11.5 combo PHY DPLL1
+	 */
+	DPLL_ID_ICL_11_5_DPLL1 = 1,
+	/**
+	 * @DPLL_ID_ICL_11_5_DPLL4: ICL 11.5 combo PHY DPLL4
+	 */
+	DPLL_ID_ICL_11_5_DPLL4 = 2,
+	/**
+	 * @DPLL_ID_ICL_11_5_TBTPLL: ICL 11.5 TBT PLL
+	 */
+	DPLL_ID_ICL_11_5_TBTPLL = 3,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL1: ICL 11.5 MG PLL 1 port 1 (TC1)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL1 = 4,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL2: ICL 11.5 MG PLL 2 port 2 (TC2)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL2 = 5,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL3: ICL 11.5 MG PLL 3 port 3 (TC3)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL3 = 6,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL4: ICL 11.5 MG PLL 4 port 4 (TC4)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL4 = 7,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL5: ICL 11.5 MG PLL 5 port 5 (TC5)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL5 = 8,
+	/**
+	 * @DPLL_ID_ICL_11_5_MGPLL6: ICL 11.5 MG PLL 6 port 6 (TC6)
+	 */
+	DPLL_ID_ICL_11_5_MGPLL6 = 9,
 };
-#define I915_NUM_PLLS 6
+#define I915_NUM_PLLS 10
 
 struct intel_dpll_hw_state {
 	/* i9xx, pch plls */
@@ -336,5 +381,12 @@ void intel_shared_dpll_init(struct drm_device *dev);
 
 void intel_dpll_dump_hw_state(struct drm_i915_private *dev_priv,
 			      struct intel_dpll_hw_state *hw_state);
+int icl_calc_dp_combo_pll_link(struct drm_i915_private *dev_priv,
+			       uint32_t pll_id);
+enum intel_dpll_id icl_port_to_mg_pll_id(struct drm_i915_private *dev_priv,
+					 enum port port);
+bool intel_is_dpll_combophy(struct drm_i915_private *dev_priv,
+			    enum intel_dpll_id id);
+enum intel_dpll_id intel_get_tbtpll_id(struct drm_i915_private *dev_priv);
 
 #endif /* _INTEL_DPLL_MGR_H_ */

@@ -44,9 +44,16 @@
 #define DWMAC_CORE_5_10 0x51
 #define STMMAC_CHAN0	0	/* Always supported and default for all chips */
 
-/* These need to be power of two, and >= 4 */
-#define DMA_TX_SIZE 512
-#define DMA_RX_SIZE 512
+/* TX and RX Descriptor Length, these need to be power of two.
+ * TX descriptor length less than 64 may cause transmit queue timed out error.
+ * RX descriptor length less than 64 may cause inconsistent Rx chain error.
+ */
+#define DMA_MIN_TX_SIZE		64
+#define DMA_MAX_TX_SIZE		1024
+#define DMA_DEFAULT_TX_SIZE	512
+#define DMA_MIN_RX_SIZE		64
+#define DMA_MAX_RX_SIZE		1024
+#define DMA_DEFAULT_RX_SIZE	512
 #define STMMAC_GET_ENTRY(x, size)	((x + 1) & (size - 1))
 
 #undef FRAME_FILTER_DEBUG
@@ -98,6 +105,14 @@ struct stmmac_extra_stats {
 	unsigned long threshold;
 	unsigned long tx_pkt_n;
 	unsigned long rx_pkt_n;
+	unsigned long q0_rx_pkt_n;
+	unsigned long q1_rx_pkt_n;
+	unsigned long q2_rx_pkt_n;
+	unsigned long q3_rx_pkt_n;
+	unsigned long q4_rx_pkt_n;
+	unsigned long q5_rx_pkt_n;
+	unsigned long q6_rx_pkt_n;
+	unsigned long q7_rx_pkt_n;
 	unsigned long normal_irq_n;
 	unsigned long rx_normal_irq_n;
 	unsigned long napi_poll;
@@ -105,6 +120,22 @@ struct stmmac_extra_stats {
 	unsigned long tx_clean;
 	unsigned long tx_set_ic_bit;
 	unsigned long irq_receive_pmt_irq_n;
+	unsigned long q0_rx_irq_n;
+	unsigned long q1_rx_irq_n;
+	unsigned long q2_rx_irq_n;
+	unsigned long q3_rx_irq_n;
+	unsigned long q4_rx_irq_n;
+	unsigned long q5_rx_irq_n;
+	unsigned long q6_rx_irq_n;
+	unsigned long q7_rx_irq_n;
+	unsigned long q0_tx_irq_n;
+	unsigned long q1_tx_irq_n;
+	unsigned long q2_tx_irq_n;
+	unsigned long q3_tx_irq_n;
+	unsigned long q4_tx_irq_n;
+	unsigned long q5_tx_irq_n;
+	unsigned long q6_tx_irq_n;
+	unsigned long q7_tx_irq_n;
 	/* MMC info */
 	unsigned long mmc_tx_irq_n;
 	unsigned long mmc_rx_irq_n;
@@ -412,6 +443,10 @@ struct mii_regs {
 	unsigned int clk_csr_mask;
 };
 
+/* tsn capability,  meant for mac_device_info->tsn_cap */
+#define TSN_CAP_EST			BIT(0)
+#define TSN_CAP_FPE			BIT(1)
+
 struct mac_device_info {
 	const struct stmmac_ops *mac;
 	const struct stmmac_desc_ops *desc;
@@ -429,6 +464,14 @@ struct mac_device_info {
 	unsigned int pcs;
 	unsigned int pmt;
 	unsigned int ps;
+	unsigned int num_vlan;
+	u32 vlan_filter[32];
+	unsigned int promisc;
+	u32 tsn_cap;
+	bool vlan_fail_q_en;
+	u8 vlan_fail_q;
+	bool mdio_intr_en;
+	wait_queue_head_t mdio_busy_wait;
 };
 
 struct stmmac_rx_routing {

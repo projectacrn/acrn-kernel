@@ -8,8 +8,14 @@
 #include "bochs.h"
 #include <drm/drm_plane_helper.h>
 
+#if defined(CONFIG_X86_PRESI_ICL_SIMICS) || defined(CONFIG_X86_PRESI_TGL_SIMICS)\
+	|| defined(CONFIG_X86_PRESI_EHL_SIMICS)
+int defx = 800;
+int defy = 600;
+#else /* !(ICL ||TGL) SIMICS */
 static int defx = 1024;
 static int defy = 768;
+#endif /* ICL || TGL SIMICS */
 
 module_param(defx, int, 0444);
 module_param(defy, int, 0444);

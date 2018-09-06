@@ -48,7 +48,7 @@
  * GuC stage descriptor:
  * During initialization, the driver allocates a static pool of 1024 such
  * descriptors, and shares them with the GuC.
- * Currently, there exists a 1:1 mapping between a intel_guc_client and a
+ * Pre-Gen11, there exists a 1:1 mapping between a intel_guc_client and a
  * guc_stage_desc (via the client's stage_id), so effectively only one
  * gets used. This stage descriptor lets the GuC know about the doorbell,
  * workqueue and process descriptor. Theoretically, it also lets the GuC
@@ -57,6 +57,21 @@
  * item instead (the single guc_stage_desc associated to execbuf client
  * contains information about the default kernel context only, but this is
  * essentially unused). This is called a "proxy" submission.
+ *
+ * This changes with Gen11 and Enhanced Execlists, where the GuC stage
+ * descriptor stores information about all possible HW contexts that use it.
+ * Therefore, now there is (64 x number of engine classes) guc_execlist_context
+ * structs on each one of the 2032 stage descriptors.
+ * The idea is that every direct-submission GuC client gets one SW Context ID
+ * and every HW context created by that client gets one SW Counter. The "SW
+ * Context ID" and "SW Counter" to use now get passed on every work queue item.
+ *
+ * But we don't have direct submission yet: does that mean we are limited to 64
+ * contexts in total (one client)? Not really: we can use extra GuC context
+ * descriptors to store more HW contexts. They are special in that they don't
+ * have their own work queue, doorbell or process descriptor. Instead, these
+ * "principal" GuC context descriptors use the one that belongs to the client
+ * as a "proxy" for submission (a generalization of the old proxy submission).
  *
  * The Scratch registers:
  * There are 16 MMIO-based registers start from 0xC180. The kernel driver writes
@@ -94,29 +109,65 @@ static inline bool is_high_priority(struct intel_guc_client *client)
 
 static int reserve_doorbell(struct intel_guc_client *client)
 {
+	struct intel_guc *guc = client->guc;
 	unsigned long offset;
 	unsigned long end;
 	u16 id;
 
 	GEM_BUG_ON(client->doorbell_id != GUC_DOORBELL_INVALID);
 
-	/*
-	 * The bitmap tracks which doorbell registers are currently in use.
-	 * It is split into two halves; the first half is used for normal
-	 * priority contexts, the second half for high-priority ones.
-	 */
-	offset = 0;
-	end = GUC_NUM_DOORBELLS / 2;
-	if (is_high_priority(client)) {
-		offset = end;
-		end += offset;
+	if (!HAS_GUC_DIST_DB(guc_to_i915(client->guc))) {
+		/*
+		 * The bitmap tracks which doorbell registers are currently
+		 * in use. It is split into two halves; the first half is used
+		 * for normal priority contexts, the second half for
+		 * high-priority ones.
+		 */
+		offset = 0;
+		end = GUC_NUM_DOORBELLS / 2;
+		if (is_high_priority(client)) {
+			offset = end;
+			end += offset;
+		}
+
+		id = find_next_zero_bit(guc->doorbell_bitmap, end, offset);
+		if (id == end)
+			return -ENOSPC;
+	} else {
+		u32 attempts = guc->num_sqidi_supported;
+		/*
+		 * We can use the same doorbell_bitmap with distributed
+		 * doorbells, since the total max number of doorbells is still
+		 * the same. The bitmap format is different since it needs to
+		 * cope with the number of SQIDIs.
+		 *
+		 * To keep the SQIDI usage balanced, guc wants us to do this:
+		 * - Start from SQIDI0.
+		 * - Store the last SQIDI used.
+		 * - Select next free SQIDI based on last SQIDI used (if last
+		 *   is max SQIDI supported, wrap to SQIDI0).
+		 * - Get absolute doorbell id to be pass to GuC.
+		 *
+		 * Note: client priority has no longer an effect during
+		 * doorbell selection.
+		 */
+retry:
+		guc->last_sqidi_num_used++;
+		if (guc->last_sqidi_num_used >= guc->num_sqidi_supported)
+			guc->last_sqidi_num_used = 0;
+		offset = guc->last_sqidi_num_used * guc->num_of_doorbells_per_sqidi;
+		end = offset + guc->num_of_doorbells_per_sqidi - 1;
+
+		id = find_next_zero_bit(guc->doorbell_bitmap, end, offset);
+		if (id == end) {
+			if (--attempts > 0)
+				goto retry;
+			else
+				return -ENOSPC;
+		}
 	}
 
-	id = find_next_zero_bit(client->guc->doorbell_bitmap, end, offset);
-	if (id == end)
-		return -ENOSPC;
-
-	__set_bit(id, client->guc->doorbell_bitmap);
+	__set_bit(id, guc->doorbell_bitmap);
 	client->doorbell_id = id;
 	DRM_DEBUG_DRIVER("client %u (high prio=%s) reserved doorbell: %d\n",
 			 client->stage_id, yesno(is_high_priority(client)),
@@ -171,6 +222,39 @@ static struct guc_stage_desc *__get_stage_desc(struct intel_guc_client *client)
 	return &base[client->stage_id];
 }
 
+static struct gen11_guc_stage_desc *
+__gen11_get_proxy_stage_desc(struct intel_guc_client *client)
+{
+	struct gen11_guc_pooled_stage_desc *base = client->guc->stage_desc_pool_vaddr;
+
+	return &base[client->stage_id].desc;
+}
+
+static struct gen11_guc_stage_desc *
+__gen11_get_ppal_stage_desc(struct intel_guc *guc, u32 index)
+{
+	struct gen11_guc_pooled_stage_desc *base = guc->stage_desc_pool_vaddr;
+
+	return &base[index].desc;
+}
+
+/* update fields once the doorbell cacheline is known */
+static void gen12_guc_proxy_stage_db_update(struct intel_guc *guc,
+					    struct intel_guc_client *client)
+{
+	struct gen11_guc_stage_desc *desc;
+	u32 gfx_addr;
+
+	desc = __gen11_get_proxy_stage_desc(client);
+
+	gfx_addr = intel_guc_ggtt_offset(guc, client->vma);
+	desc->db_trigger_phy = sg_dma_address(client->vma->pages->sgl) +
+				client->doorbell_offset;
+	desc->db_trigger_cpu = (uintptr_t)client->vaddr +
+				client->doorbell_offset;
+	desc->db_trigger_uk = gfx_addr + client->doorbell_offset;
+}
+
 /*
  * Initialise, update, or clear doorbell data shared with the GuC
  *
@@ -180,11 +264,17 @@ static struct guc_stage_desc *__get_stage_desc(struct intel_guc_client *client)
 
 static void __update_doorbell_desc(struct intel_guc_client *client, u16 new_id)
 {
-	struct guc_stage_desc *desc;
+	struct drm_i915_private *dev_priv = guc_to_i915(client->guc);
 
 	/* Update the GuC's idea of the doorbell ID */
-	desc = __get_stage_desc(client);
-	desc->db_id = new_id;
+	if (INTEL_GEN(dev_priv) >= 11) {
+		struct gen11_guc_stage_desc *desc =
+				__gen11_get_proxy_stage_desc(client);
+		desc->db_id = new_id;
+	} else {
+		struct guc_stage_desc *desc = __get_stage_desc(client);
+		desc->db_id = new_id;
+	}
 }
 
 static struct guc_doorbell_info *__get_doorbell(struct intel_guc_client *client)
@@ -195,6 +285,8 @@ static struct guc_doorbell_info *__get_doorbell(struct intel_guc_client *client)
 static void __create_doorbell(struct intel_guc_client *client)
 {
 	struct guc_doorbell_info *doorbell;
+
+	GEM_BUG_ON(HAS_GUC_DIST_DB(guc_to_i915(client->guc)));
 
 	doorbell = __get_doorbell(client);
 	doorbell->db_status = GUC_DOORBELL_ENABLED;
@@ -219,9 +311,11 @@ static void __destroy_doorbell(struct intel_guc_client *client)
 		WARN_ONCE(true, "Doorbell never became invalid after disable\n");
 }
 
-static int create_doorbell(struct intel_guc_client *client)
+static int legacy_create_doorbell(struct intel_guc_client *client)
 {
 	int ret;
+
+	GEM_BUG_ON(HAS_GUC_DIST_DB(guc_to_i915(client->guc)));
 
 	if (WARN_ON(!has_doorbell(client)))
 		return -ENODEV; /* internal setup error, should never happen */
@@ -239,6 +333,62 @@ static int create_doorbell(struct intel_guc_client *client)
 	}
 
 	return 0;
+}
+
+static int create_dist_doorbell(struct intel_guc_client *client)
+{
+	u32 dd_cacheline_info;
+	int ret;
+
+	GEM_BUG_ON(!HAS_GUC_DIST_DB(guc_to_i915(client->guc)));
+
+	__update_doorbell_desc(client, client->doorbell_id);
+
+	ret = __guc_allocate_doorbell(client->guc, client->stage_id);
+	if (ret < 0)
+		goto dd_err;
+
+	/*
+	 * In distributed doorbells, guc is returning the cacheline selected
+	 * by HW as part of the 7bit data from the allocate doorbell command:
+	 *  bit [6]   - Cacheline returned
+	 *  bit [5:0] - Cacheline offset address
+	 * (bit 5 must be zero, or our assumption of allocating the process
+	 * descriptor in the upper half of the page is no longer correct).
+	 */
+	if (!(ret & BIT(6))) {
+		ret = -EIO;
+		goto dd_err;
+	}
+
+	dd_cacheline_info = ret & ~BIT(6);
+	GEM_BUG_ON(dd_cacheline_info & BIT(5));
+
+	client->doorbell_offset = dd_cacheline_info * cache_line_size();
+	DRM_DEBUG_DRIVER("doorbell id: %d offset/cacheline: 0x%lx\n",
+			 client->doorbell_id, client->doorbell_offset);
+
+	/* update descriptor only after successful doorbell alloc */
+	gen12_guc_proxy_stage_db_update(client->guc, client);
+	/* and verify db status was updated correctly by the guc fw */
+	GEM_BUG_ON(__get_doorbell(client)->db_status != GUC_DOORBELL_ENABLED);
+
+	return 0;
+
+dd_err:
+	__destroy_doorbell(client);
+	__update_doorbell_desc(client, GUC_DOORBELL_INVALID);
+	DRM_ERROR("Couldn't create client %u doorbell: %d\n",
+		  client->stage_id, ret);
+	return ret;
+}
+
+static int create_doorbell(struct intel_guc_client *client)
+{
+	if (!HAS_GUC_DIST_DB(guc_to_i915(client->guc)))
+		return legacy_create_doorbell(client);
+	else
+		return create_dist_doorbell(client);
 }
 
 static int destroy_doorbell(struct intel_guc_client *client)
@@ -261,6 +411,8 @@ static int destroy_doorbell(struct intel_guc_client *client)
 static unsigned long __select_cacheline(struct intel_guc *guc)
 {
 	unsigned long offset;
+
+	GEM_BUG_ON(HAS_GUC_DIST_DB(guc_to_i915(guc)));
 
 	/* Doorbell uses a single cache line within a page */
 	offset = offset_in_page(guc->db_cacheline);
@@ -304,14 +456,90 @@ static void guc_proc_desc_init(struct intel_guc *guc,
 	desc->priority = client->priority;
 }
 
+static void gen11_guc_proxy_stage_init(struct intel_guc *guc,
+				       struct intel_guc_client *client)
+{
+	struct gen11_guc_stage_desc *desc;
+	u32 gfx_addr;
+
+	desc = __gen11_get_proxy_stage_desc(client);
+
+	desc->priority = client->priority;
+	desc->db_id = client->doorbell_id;
+
+	/*
+	 * NB: This descriptor acts as a "proxy" (being assigned to a client,
+	 * it has a doorbell and workqueue and can submit workloads on behalf
+	 * of other descriptors). It can, at the same time, be a "principal"
+	 * (or"proxy entry" in GuC-speak) because it can also submit things
+	 * on behalf of itself, but we leave that decission for later.
+	 */
+	desc->is_proxy = true;
+
+	/*
+	 * In Gen12 (distributed doorbells) the doorbell offset (cacheline)
+	 * is selected by HW, won't be known until doorbell creation, and it
+	 * is zero at this point. Regardless of this, db_trigger_phy will
+	 * always be in the same page.
+	 */
+	gfx_addr = intel_guc_ggtt_offset(guc, client->vma);
+	desc->db_trigger_phy = sg_dma_address(client->vma->pages->sgl) +
+			       client->doorbell_offset;
+	desc->db_trigger_cpu = (uintptr_t)client->vaddr + client->doorbell_offset;
+	desc->db_trigger_uk = gfx_addr + client->doorbell_offset;
+	desc->process_desc = gfx_addr + client->proc_desc_offset;
+	desc->wq_addr = gfx_addr + GUC_DB_SIZE;
+	desc->wq_size = GUC_WQ_SIZE;
+
+	if (IS_PRESILICON(guc_to_i915(guc)))
+		intel_mark_page_as_mop(guc_to_i915(guc),
+				       sg_dma_address(client->vma->pages->sgl),
+				       true);
+}
+
+static void gen11_guc_proxy_stage_fini(struct intel_guc *guc,
+				       struct intel_guc_client *client)
+{
+	struct gen11_guc_stage_desc *desc = __gen11_get_proxy_stage_desc(client);
+
+	if (IS_PRESILICON(guc_to_i915(guc)))
+		intel_mark_page_as_mop(guc_to_i915(guc),
+				       sg_dma_address(client->vma->pages->sgl),
+				       false);
+
+	/* No memset: the stage desc might still be used as a principal */
+	desc->priority = 0;
+	desc->db_id = 0;
+	desc->is_proxy = false;
+	desc->db_trigger_phy = 0;
+	desc->db_trigger_cpu = 0;
+	desc->db_trigger_uk = 0;
+	desc->process_desc = 0;
+	desc->wq_addr = 0;
+	desc->wq_size = 0;
+}
+
 static int guc_stage_desc_pool_create(struct intel_guc *guc)
 {
+	struct drm_i915_private *dev_priv = guc_to_i915(guc);
 	struct i915_vma *vma;
+	u32 max_stage_desc;
+	u32 gemsize;
 	void *vaddr;
 
-	vma = intel_guc_allocate_vma(guc,
-				     PAGE_ALIGN(sizeof(struct guc_stage_desc) *
-				     GUC_MAX_STAGE_DESCRIPTORS));
+	GEM_BUG_ON(guc->stage_desc_pool);
+
+	if (INTEL_GEN(dev_priv) >= 11) {
+		max_stage_desc = GEN11_GUC_MAX_STAGE_DESCRIPTORS;
+		gemsize = PAGE_ALIGN(max_stage_desc *
+				     sizeof(struct gen11_guc_pooled_stage_desc));
+	} else {
+		max_stage_desc = GEN9_GUC_MAX_STAGE_DESCRIPTORS;
+		gemsize = PAGE_ALIGN(max_stage_desc *
+				     sizeof(struct guc_stage_desc));
+	}
+
+	vma = intel_guc_allocate_vma(guc, gemsize);
 	if (IS_ERR(vma))
 		return PTR_ERR(vma);
 
@@ -321,6 +549,7 @@ static int guc_stage_desc_pool_create(struct intel_guc *guc)
 		return PTR_ERR(vaddr);
 	}
 
+	guc->max_stage_desc = max_stage_desc;
 	guc->stage_desc_pool = vma;
 	guc->stage_desc_pool_vaddr = vaddr;
 	ida_init(&guc->stage_ids);
@@ -342,8 +571,8 @@ static void guc_stage_desc_pool_destroy(struct intel_guc *guc)
  * data structures relating to this client (doorbell, process descriptor,
  * write queue, etc).
  */
-static void guc_stage_desc_init(struct intel_guc *guc,
-				struct intel_guc_client *client)
+static void guc_proxy_stage_init(struct intel_guc *guc,
+				 struct intel_guc_client *client)
 {
 	struct drm_i915_private *dev_priv = guc_to_i915(guc);
 	struct intel_engine_cs *engine;
@@ -425,8 +654,8 @@ static void guc_stage_desc_init(struct intel_guc *guc,
 	desc->desc_private = ptr_to_u64(client);
 }
 
-static void guc_stage_desc_fini(struct intel_guc *guc,
-				struct intel_guc_client *client)
+static void guc_proxy_stage_fini(struct intel_guc *guc,
+				 struct intel_guc_client *client)
 {
 	struct guc_stage_desc *desc;
 
@@ -434,11 +663,78 @@ static void guc_stage_desc_fini(struct intel_guc *guc,
 	memset(desc, 0, sizeof(*desc));
 }
 
+static u32 get_wq_offset(struct guc_process_desc *desc)
+{
+	const size_t wqi_size = sizeof(struct guc_wq_item);
+	u32 wq_off;
+
+	/*
+	 * Free space is guaranteed, either by normal port submission or
+	 * because we waited for the wq_resume to be processed.
+	 */
+	wq_off = READ_ONCE(desc->tail);
+	GEM_BUG_ON(CIRC_SPACE(wq_off, READ_ONCE(desc->head),
+			      GUC_WQ_SIZE) < wqi_size);
+	GEM_BUG_ON(wq_off & (wqi_size - 1));
+
+	return wq_off;
+}
+
+static void write_wqi(struct guc_process_desc *desc, u32 wq_off)
+{
+	const size_t wqi_size = sizeof(struct guc_wq_item);
+
+	WRITE_ONCE(desc->tail, (wq_off + wqi_size) & (GUC_WQ_SIZE - 1));
+}
+
+#define GUC_WQI_NOOP(target_engine) \
+	(WQ_TYPE_NOOP |\
+	 (0 << WQ_LEN_SHIFT) |\
+	 ((target_engine) << GEN11_WQ_TARGET_SHIFT))
+#define GUC_WAIT_FOR_ENGINE_ERROR_CLEANED_MS 10
+static void guc_wq_resume_parsing_item_append(struct intel_guc_client *client,
+					      struct intel_engine_cs *engine)
+{
+	struct drm_i915_private *i915 = guc_to_i915(client->guc);
+	struct guc_process_desc *desc = __get_process_desc(client);
+	struct guc_wq_item *wqi;
+	const u32 wqi_len = 0; /* workqueue item length must be 0 */
+	const u32 target_engine = engine->guc_id;
+	const u32 target_engine_class = engine->guc_class;
+	const u32 wqi_noop = GUC_WQI_NOOP(target_engine);
+	u32 wq_off;
+
+	lockdep_assert_held(&client->wq_lock);
+	GEM_BUG_ON(INTEL_GEN(i915) < 11);
+
+	wq_off = get_wq_offset(desc);
+	wqi = client->vaddr + wq_off + GUC_DB_SIZE;
+
+	/*
+	 * Submit 4 wq_items (1 RESUME_WQ_PARSING followed by 3 NOOPs) in
+	 * order to keep it the same size as a 'normal' wq_item.
+	 */
+	wqi->header = WQ_TYPE_RESUME_WQ_PARSING |
+		      (wqi_len << WQ_LEN_SHIFT) |
+		      (target_engine << GEN11_WQ_TARGET_SHIFT);
+	wqi->context_desc = wqi_noop;
+	wqi->submit_element_info = wqi_noop;
+	wqi->fence_id = wqi_noop;
+	write_wqi(desc, wq_off);
+
+	/* must wait for the flag to be cleared */
+	WARN_ON(wait_for_atomic(!(desc->queue_engine_error &
+				  BIT(target_engine_class)),
+				GUC_WAIT_FOR_ENGINE_ERROR_CLEANED_MS));
+}
+
 /* Construct a Work Item and append it to the GuC's Work Queue */
 static void guc_wq_item_append(struct intel_guc_client *client,
+			       struct intel_context *ce,
 			       u32 target_engine, u32 context_desc,
 			       u32 ring_tail, u32 fence_id)
 {
+	struct drm_i915_private *dev_priv = guc_to_i915(client->guc);
 	/* wqi_len is in DWords, and does not include the one-word header */
 	const size_t wqi_size = sizeof(struct guc_wq_item);
 	const u32 wqi_len = wqi_size / sizeof(u32) - 1;
@@ -457,27 +753,38 @@ static void guc_wq_item_append(struct intel_guc_client *client,
 	 */
 	BUILD_BUG_ON(wqi_size != 16);
 
-	/* Free space is guaranteed. */
-	wq_off = READ_ONCE(desc->tail);
-	GEM_BUG_ON(CIRC_SPACE(wq_off, READ_ONCE(desc->head),
-			      GUC_WQ_SIZE) < wqi_size);
-	GEM_BUG_ON(wq_off & (wqi_size - 1));
+	wq_off = get_wq_offset(desc);
 
 	/* WQ starts from the page after doorbell / process_desc */
 	wqi = client->vaddr + wq_off + GUC_DB_SIZE;
 
-	/* Now fill in the 4-word work queue item */
-	wqi->header = WQ_TYPE_INORDER |
-		      (wqi_len << WQ_LEN_SHIFT) |
-		      (target_engine << WQ_TARGET_SHIFT) |
-		      WQ_NO_WCFLUSH_WAIT;
 	wqi->context_desc = context_desc;
-	wqi->submit_element_info = ring_tail << WQ_RING_TAIL_SHIFT;
-	GEM_BUG_ON(ring_tail > WQ_RING_TAIL_MAX);
 	wqi->fence_id = fence_id;
 
+	/* Now fill in the 4-word work queue item */
+	if (INTEL_GEN(dev_priv) >= 11) {
+		wqi->header = (wqi_len << WQ_LEN_SHIFT) |
+			      (target_engine << GEN11_WQ_TARGET_SHIFT) |
+			      WQ_NO_WCFLUSH_WAIT;
+
+		ring_tail = ring_tail / sizeof(u64);
+		wqi->submit_element_info =
+			(ce->sw_context_id << GEN11_WQ_SW_CTX_INDEX_SHIFT) |
+			(ce->sw_counter << GEN11_WQ_SW_COUNTER_SHIFT |
+			(ring_tail << GEN11_WQ_RING_TAIL_INDEX_SHIFT));
+		GEM_BUG_ON(ring_tail > WQ_RING_TAIL_MAX);
+	} else {
+		wqi->header = WQ_TYPE_INORDER |
+			      (wqi_len << WQ_LEN_SHIFT) |
+			      (target_engine << WQ_TARGET_SHIFT) |
+			      WQ_NO_WCFLUSH_WAIT;
+		ring_tail = ring_tail / sizeof(u64);
+		wqi->submit_element_info = ring_tail << WQ_RING_TAIL_SHIFT;
+		GEM_BUG_ON(ring_tail > WQ_RING_TAIL_MAX);
+	}
+
 	/* Make the update visible to GuC */
-	WRITE_ONCE(desc->tail, (wq_off + wqi_size) & (GUC_WQ_SIZE - 1));
+	write_wqi(desc, wq_off);
 }
 
 static void guc_reset_wq(struct intel_guc_client *client)
@@ -509,17 +816,40 @@ static void guc_ring_doorbell(struct intel_guc_client *client)
 	GEM_BUG_ON(db->db_status != GUC_DOORBELL_ENABLED);
 }
 
+static bool guc_needs_wq_resume_parsing_item(struct intel_guc_client *client,
+					     u32 target_engine_class)
+{
+	struct guc_process_desc *desc;
+
+	if (INTEL_GEN(guc_to_i915(client->guc)) < 11)
+		return false;
+
+	desc = __get_process_desc(client);
+
+	if (!(desc->queue_engine_error & BIT(target_engine_class)))
+		return false;
+
+	return true;
+}
+
 static void guc_add_request(struct intel_guc *guc, struct i915_request *rq)
 {
 	struct intel_guc_client *client = guc->execbuf_client;
 	struct intel_engine_cs *engine = rq->engine;
-	u32 ctx_desc = lower_32_bits(intel_lr_context_descriptor(rq->ctx,
-								 engine));
-	u32 ring_tail = intel_ring_set_tail(rq->ring, rq->tail) / sizeof(u64);
+	struct intel_context *ce = &rq->ctx->__engine[rq->engine->id];
+	u32 ring_tail = intel_ring_set_tail(rq->ring, rq->tail);
+	u32 ctx_desc;
+
+	/* be sure the ctx rcs/ccs priority is up to date */
+	context_descriptor_eu_priority_update(rq, &ce->lrc_desc);
+	ctx_desc = lower_32_bits(ce->lrc_desc);
 
 	spin_lock(&client->wq_lock);
 
-	guc_wq_item_append(client, engine->guc_id, ctx_desc,
+	if (guc_needs_wq_resume_parsing_item(client, engine->guc_class))
+		guc_wq_resume_parsing_item_append(client, engine);
+
+	guc_wq_item_append(client, ce, engine->guc_id, ctx_desc,
 			   ring_tail, rq->global_seqno);
 	guc_ring_doorbell(client);
 
@@ -552,17 +882,21 @@ static void inject_preempt_context(struct work_struct *work)
 					     preempt_work[engine->id]);
 	struct intel_guc_client *client = guc->preempt_client;
 	struct guc_stage_desc *stage_desc = __get_stage_desc(client);
+	struct intel_context *ce = &client->owner->__engine[engine->id];
 	u32 ctx_desc = lower_32_bits(intel_lr_context_descriptor(client->owner,
 								 engine));
 	u32 data[7];
+
+	/* FIXME: Gen11+ preemption is different anyway */
+	GEM_BUG_ON(INTEL_GEN(guc_to_i915(guc)) >= 11);
 
 	/*
 	 * The ring contains commands to write GUC_PREEMPT_FINISHED into HWSP.
 	 * See guc_fill_preempt_context().
 	 */
 	spin_lock_irq(&client->wq_lock);
-	guc_wq_item_append(client, engine->guc_id, ctx_desc,
-			   GUC_PREEMPT_BREADCRUMB_BYTES / sizeof(u64), 0);
+	guc_wq_item_append(client, ce, engine->guc_id, ctx_desc,
+			   GUC_PREEMPT_BREADCRUMB_BYTES, 0);
 	spin_unlock_irq(&client->wq_lock);
 
 	/*
@@ -880,6 +1214,37 @@ static void guc_clients_doorbell_fini(struct intel_guc *guc)
 	__update_doorbell_desc(guc->execbuf_client, GUC_DOORBELL_INVALID);
 }
 
+static void __doorbell_cacheline_proc_desc_setup(struct intel_guc *guc,
+						 struct intel_guc_client *client)
+{
+	client->doorbell_offset = __select_cacheline(guc);
+
+	/*
+	 * Since the doorbell only requires a single cacheline, we can save
+	 * space by putting the application process descriptor in the same
+	 * page. Use the half of the page that doesn't include the doorbell.
+	 */
+	if (client->doorbell_offset >= (GUC_DB_SIZE / 2))
+		client->proc_desc_offset = 0;
+	else
+		client->proc_desc_offset = (GUC_DB_SIZE / 2);
+}
+
+static void
+__distributed_doorbell_cacheline_proc_desc_setup(struct intel_guc_client *client)
+{
+	/*
+	 * Although we no longer control the selection of cacheline,
+	 * none of the Gen12 defined skus ever set the highest bit of
+	 * cacheline (bit 11 of [11:6] is always 0). This means that the
+	 * doorbell cacheline will always be in the lower 2KB. Simply
+	 * put the application process descriptor in the upper half of
+	 * the page and leave it there.
+	 */
+	client->doorbell_offset = 0;
+	client->proc_desc_offset = (GUC_DB_SIZE / 2);
+}
+
 /**
  * guc_client_alloc() - Allocate an intel_guc_client
  * @dev_priv:	driver private data structure
@@ -916,8 +1281,7 @@ guc_client_alloc(struct drm_i915_private *dev_priv,
 	client->doorbell_id = GUC_DOORBELL_INVALID;
 	spin_lock_init(&client->wq_lock);
 
-	ret = ida_simple_get(&guc->stage_ids, 0, GUC_MAX_STAGE_DESCRIPTORS,
-			     GFP_KERNEL);
+	ret = ida_simple_get(&guc->stage_ids, 0, guc->max_stage_desc, GFP_KERNEL);
 	if (ret < 0)
 		goto err_client;
 
@@ -940,20 +1304,16 @@ guc_client_alloc(struct drm_i915_private *dev_priv,
 	}
 	client->vaddr = vaddr;
 
-	client->doorbell_offset = __select_cacheline(guc);
-
-	/*
-	 * Since the doorbell only requires a single cacheline, we can save
-	 * space by putting the application process descriptor in the same
-	 * page. Use the half of the page that doesn't include the doorbell.
-	 */
-	if (client->doorbell_offset >= (GUC_DB_SIZE / 2))
-		client->proc_desc_offset = 0;
+	if (!HAS_GUC_DIST_DB(dev_priv))
+		__doorbell_cacheline_proc_desc_setup(guc, client);
 	else
-		client->proc_desc_offset = (GUC_DB_SIZE / 2);
+		__distributed_doorbell_cacheline_proc_desc_setup(client);
 
 	guc_proc_desc_init(guc, client);
-	guc_stage_desc_init(guc, client);
+	if (INTEL_GEN(dev_priv) >= 11)
+		gen11_guc_proxy_stage_init(guc, client);
+	else
+		guc_proxy_stage_init(guc, client);
 
 	ret = reserve_doorbell(client);
 	if (ret)
@@ -980,7 +1340,10 @@ err_client:
 static void guc_client_free(struct intel_guc_client *client)
 {
 	unreserve_doorbell(client);
-	guc_stage_desc_fini(client->guc, client);
+	if (INTEL_GEN(guc_to_i915(client->guc)) >= 11)
+		gen11_guc_proxy_stage_fini(client->guc, client);
+	else
+		guc_proxy_stage_fini(client->guc, client);
 	i915_gem_object_unpin_map(client->vma->obj);
 	i915_vma_unpin_and_release(&client->vma);
 	ida_simple_remove(&client->guc->stage_ids, client->stage_id);
@@ -1019,7 +1382,11 @@ static void guc_fill_preempt_context(struct intel_guc *guc)
 		 * We rely on this context image *not* being saved after
 		 * preemption. This ensures that the RING_HEAD / RING_TAIL
 		 * remain pointing at initial values forever.
+		 *
+		 * Not only CTX_SAVE_INHIBIT doesn't exist in Gen11+, but also
+		 * GuC does not support preempt-to-idle via a preempt_client.
 		 */
+		GEM_BUG_ON(INTEL_GEN(dev_priv) >= 11);
 		GEM_BUG_ON(!ctx_save_restore_disabled(ce));
 
 		cs = ce->ring->vaddr;
@@ -1075,7 +1442,9 @@ static int guc_clients_create(struct intel_guc *guc)
 		}
 		guc->preempt_client = client;
 
-		guc_fill_preempt_context(guc);
+		/* GEN11+ should rely on direct preempt-to-idle */
+		if (INTEL_GEN(dev_priv) < 11)
+			guc_fill_preempt_context(guc);
 	}
 
 	return 0;
@@ -1145,6 +1514,32 @@ void intel_guc_submission_fini(struct intel_guc *guc)
 	guc_stage_desc_pool_destroy(guc);
 }
 
+static void gen11_guc_interrupts_capture(struct drm_i915_private *dev_priv)
+{
+	struct intel_rps *rps = &dev_priv->gt_pm.rps;
+	u32 tmp;
+	u32 irqs = GT_CONTEXT_SWITCH_INTERRUPT;
+
+	/* Don't handle ctx switch interrupt in GuC submission mode */
+	tmp = I915_READ(GEN11_RENDER_COPY_INTR_ENABLE);
+	tmp &= ~(irqs << 16 | irqs);
+	I915_WRITE(GEN11_RENDER_COPY_INTR_ENABLE, tmp);
+
+	tmp = I915_READ(GEN11_VCS_VECS_INTR_ENABLE);
+	tmp &= ~(irqs << 16 | irqs);
+	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE, tmp);
+
+	if (HAS_CCS(dev_priv)) {
+		tmp = I915_READ(GEN12_CCS_RSVD_INTR_ENABLE);
+		tmp &= ~(irqs << 16);
+		I915_WRITE(GEN12_CCS_RSVD_INTR_ENABLE, tmp);
+	}
+
+	/* GuC needs ARAT expired interrupt unmasked hence we set it in
+	* pm_intrmsk_mbz */
+	rps->pm_intrmsk_mbz |= ARAT_EXPIRED_INTRMSK;
+}
+
 static void guc_interrupts_capture(struct drm_i915_private *dev_priv)
 {
 	struct intel_rps *rps = &dev_priv->gt_pm.rps;
@@ -1190,6 +1585,30 @@ static void guc_interrupts_capture(struct drm_i915_private *dev_priv)
 	rps->pm_intrmsk_mbz &= ~GEN8_PMINTR_DISABLE_REDIRECT_TO_GUC;
 }
 
+static void gen11_guc_interrupts_release(struct drm_i915_private *dev_priv)
+{
+	struct intel_rps *rps = &dev_priv->gt_pm.rps;
+	u32 tmp;
+	u32 irqs = GT_CONTEXT_SWITCH_INTERRUPT;
+
+	/* Handle ctx switch interrupts again */
+	tmp = I915_READ(GEN11_RENDER_COPY_INTR_ENABLE);
+	tmp |= (irqs << 16 | irqs);
+	I915_WRITE(GEN11_RENDER_COPY_INTR_ENABLE, tmp);
+
+	tmp = I915_READ(GEN11_VCS_VECS_INTR_ENABLE);
+	tmp |= (irqs << 16 | irqs);
+	I915_WRITE(GEN11_VCS_VECS_INTR_ENABLE, tmp);
+
+	if (HAS_CCS(dev_priv)) {
+		tmp = I915_READ(GEN12_CCS_RSVD_INTR_ENABLE);
+		tmp |= (irqs << 16);
+		I915_WRITE(GEN12_CCS_RSVD_INTR_ENABLE, tmp);
+	}
+
+	rps->pm_intrmsk_mbz &= ~ARAT_EXPIRED_INTRMSK;
+}
+
 static void guc_interrupts_release(struct drm_i915_private *dev_priv)
 {
 	struct intel_rps *rps = &dev_priv->gt_pm.rps;
@@ -1225,6 +1644,149 @@ static void guc_submission_unpark(struct intel_engine_cs *engine)
 	intel_engine_pin_breadcrumbs_irq(engine);
 }
 
+static void guc_ppal_stage_attach(struct i915_gem_context *ctx,
+				  struct intel_engine_cs *engine)
+{
+	struct intel_guc *guc = &ctx->i915->guc;
+	struct intel_context *ce = to_intel_context(ctx, engine);
+	struct gen11_guc_stage_desc *desc;
+
+	GEM_BUG_ON(ce->sw_context_id >= guc->max_stage_desc);
+
+	desc = __gen11_get_ppal_stage_desc(guc, ce->sw_context_id);
+
+	if (desc->lrc_count == 0) {
+		desc->attribute = GUC_STAGE_DESC_ATTR_ACTIVE |
+				  GUC_STAGE_DESC_ATTR_KERNEL;
+		desc->is_principal = true;
+		desc->stage_id = ce->sw_context_id;
+		/*
+		 * HACK: this, which  is a breakage of the proxy/ppal
+		 * abstraction, is actually required by the GuC starting
+		 * v23.122 to avoid a firmware crash. We have received a
+		 * promise to remove this limitation, but in the meantime
+		 * we need an up-to-date firmware for the PO (hence this
+		 * hack).
+		 */
+		desc->process_desc =
+			__gen11_get_proxy_stage_desc(guc->execbuf_client)->process_desc;
+	}
+
+	GEM_BUG_ON(test_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]));
+	__set_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]);
+	desc->lrc_count++;
+
+	/* GuC optimizations */
+	if (ce->sw_counter >= desc->max_lrc_per_class)
+		desc->max_lrc_per_class = ce->sw_counter + 1;
+	desc->engines_used |= (1 << engine->guc_class);
+	desc->engines_instance_used[engine->guc_class] |= (1 << engine->instance);
+}
+
+static void guc_recalculate_optimizations(struct gen11_guc_stage_desc *desc,
+					  struct intel_engine_cs *engine)
+{
+	int guc_class;
+	unsigned long bit;
+	u32 temp_max_lrc = desc->max_lrc_per_class;
+	u32 class_max_lrc = 0;
+
+	if (desc->lrc_count == 0) {
+		/* Simplest case */
+		desc->max_lrc_per_class = 0;
+		desc->engines_used = 0;
+		for (guc_class = 0; guc_class < GUC_MAX_ENGINE_CLASSES; guc_class++)
+			desc->engines_instance_used[guc_class] = 0;
+		return;
+	}
+
+	desc->max_lrc_per_class = 0;
+	for (guc_class = 0; guc_class < GUC_MAX_ENGINE_CLASSES; guc_class++) {
+		bit = find_last_bit(desc->lrc_bitmap[guc_class], temp_max_lrc);
+		if (bit != temp_max_lrc) {
+			if (bit >= desc->max_lrc_per_class)
+				desc->max_lrc_per_class = bit + 1;
+			if (guc_class == engine->guc_class)
+				class_max_lrc = bit + 1;
+		}
+	}
+
+	if (bitmap_empty(desc->lrc_bitmap[engine->guc_class], class_max_lrc)) {
+		desc->engines_used &= ~(1 << engine->guc_class);
+		desc->engines_instance_used[engine->guc_class] = 0;
+	} else {
+		u32 engine_shift_32b = GEN11_ENGINE_INSTANCE_SHIFT - 32;
+		struct guc_execlist_context *lrc;
+		u8 instance;
+
+		desc->engines_instance_used[engine->guc_class] &=
+		    ~(1 << engine->instance);
+
+		for_each_set_bit(bit, desc->lrc_bitmap[engine->guc_class], class_max_lrc) {
+			lrc = &desc->lrc[engine->guc_class][bit];
+			instance = (lrc->context_desc >> engine_shift_32b) &
+				   GEN11_ENGINE_INSTANCE_WIDTH;
+
+			if (instance == engine->instance) {
+				desc->engines_instance_used[engine->guc_class] |=
+					(1 << engine->instance);
+				return;
+			}
+		}
+	}
+}
+
+static void guc_ppal_stage_detach(struct i915_gem_context *ctx,
+				  struct intel_engine_cs *engine)
+{
+	struct intel_guc *guc = &ctx->i915->guc;
+	struct intel_context *ce = to_intel_context(ctx, engine);
+	struct gen11_guc_stage_desc *desc;
+	struct guc_execlist_context *lrc;
+
+	GEM_BUG_ON(ce->sw_context_id >= guc->max_stage_desc);
+
+	desc = __gen11_get_ppal_stage_desc(guc, ce->sw_context_id);
+
+	GEM_BUG_ON(!test_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]));
+	__clear_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]);
+	desc->lrc_count--;
+
+	if (desc->lrc_count == 0) {
+		desc->attribute = 0;
+		desc->is_principal = false;
+		desc->stage_id = 0;
+	}
+
+	guc_recalculate_optimizations(desc, engine);
+
+	lrc = &desc->lrc[engine->guc_class][ce->sw_counter];
+	memset(lrc, 0, sizeof(*lrc));
+}
+
+static void guc_ppal_stage_update(struct i915_gem_context *ctx,
+				  struct intel_engine_cs *engine)
+{
+	struct intel_guc *guc = &ctx->i915->guc;
+	struct intel_context *ce = to_intel_context(ctx, engine);
+	struct gen11_guc_stage_desc *desc;
+	struct guc_execlist_context *lrc;
+
+	GEM_BUG_ON(ce->sw_context_id >= guc->max_stage_desc);
+
+	desc = __gen11_get_ppal_stage_desc(guc, ce->sw_context_id);
+
+	GEM_BUG_ON(!test_bit(ce->sw_counter, desc->lrc_bitmap[engine->guc_class]));
+
+	lrc = &desc->lrc[engine->guc_class][ce->sw_counter];
+
+	lrc->context_desc = lower_32_bits(intel_lr_context_descriptor(ctx, engine));
+	lrc->context_id = upper_32_bits(intel_lr_context_descriptor(ctx, engine));
+	lrc->ring_lrca = intel_guc_ggtt_offset(guc, ce->state) + LRC_STATE_PN * PAGE_SIZE;
+	lrc->ring_begin = intel_guc_ggtt_offset(guc, ce->ring->vma);
+	lrc->ring_end = lrc->ring_begin + ce->ring->size - 1;
+}
+
 int intel_guc_submission_enable(struct intel_guc *guc)
 {
 	struct drm_i915_private *dev_priv = guc_to_i915(guc);
@@ -1247,20 +1809,35 @@ int intel_guc_submission_enable(struct intel_guc *guc)
 
 	GEM_BUG_ON(!guc->execbuf_client);
 
+	if (INTEL_GEN(dev_priv) >= 11) {
+		guc->ctx_alloc_hook = guc_ppal_stage_attach;
+		guc->ctx_free_hook = guc_ppal_stage_detach;
+		guc->ctx_update_hook = guc_ppal_stage_update;
+
+		for_each_engine(engine, dev_priv, id) {
+			guc_ppal_stage_attach(dev_priv->kernel_context, engine);
+			guc_ppal_stage_update(dev_priv->kernel_context, engine);
+		}
+	}
+
 	guc_reset_wq(guc->execbuf_client);
 	if (guc->preempt_client)
 		guc_reset_wq(guc->preempt_client);
 
 	err = intel_guc_sample_forcewake(guc);
 	if (err)
-		return err;
+		goto err_clear_ctx_hooks;
 
 	err = guc_clients_doorbell_init(guc);
 	if (err)
-		return err;
+		goto err_clear_ctx_hooks;
 
 	/* Take over from manual control of ELSP (execlists) */
-	guc_interrupts_capture(dev_priv);
+	if (INTEL_INFO(dev_priv)->gen >= 11)
+		gen11_guc_interrupts_capture(dev_priv);
+	else
+		guc_interrupts_capture(dev_priv);
+
 
 	for_each_engine(engine, dev_priv, id) {
 		struct intel_engine_execlists * const execlists =
@@ -1274,6 +1851,12 @@ int intel_guc_submission_enable(struct intel_guc *guc)
 	}
 
 	return 0;
+
+err_clear_ctx_hooks:
+	guc->ctx_alloc_hook = NULL;
+	guc->ctx_free_hook = NULL;
+	guc->ctx_update_hook = NULL;
+	return err;
 }
 
 void intel_guc_submission_disable(struct intel_guc *guc)
@@ -1282,11 +1865,18 @@ void intel_guc_submission_disable(struct intel_guc *guc)
 
 	GEM_BUG_ON(dev_priv->gt.awake); /* GT should be parked first */
 
-	guc_interrupts_release(dev_priv);
+	if (INTEL_INFO(dev_priv)->gen >= 11)
+		gen11_guc_interrupts_release(dev_priv);
+	else
+		guc_interrupts_release(dev_priv);
 	guc_clients_doorbell_fini(guc);
 
 	/* Revert back to manual ELSP submission */
 	intel_engines_reset_default_submission(dev_priv);
+
+	guc->ctx_alloc_hook = NULL;
+	guc->ctx_free_hook = NULL;
+	guc->ctx_update_hook = NULL;
 }
 
 #if IS_ENABLED(CONFIG_DRM_I915_SELFTEST)
