@@ -45,6 +45,23 @@ struct i2c_acpi_lookup {
 	u32 min_speed;
 };
 
+bool i2c_acpi_get_i2c_resource(struct acpi_resource *ares,
+			       struct acpi_resource_i2c_serialbus **i2c)
+{
+	struct acpi_resource_i2c_serialbus *sb;
+
+	if (ares->type != ACPI_RESOURCE_TYPE_SERIAL_BUS)
+		return false;
+
+	sb = &ares->data.i2c_serial_bus;
+	if (sb->type != ACPI_RESOURCE_SERIAL_TYPE_I2C)
+		return false;
+
+	*i2c = sb;
+	return true;
+}
+EXPORT_SYMBOL_GPL(i2c_acpi_get_i2c_resource);
+
 static int i2c_acpi_fill_info(struct acpi_resource *ares, void *data)
 {
 	struct i2c_acpi_lookup *lookup = data;
@@ -52,11 +69,7 @@ static int i2c_acpi_fill_info(struct acpi_resource *ares, void *data)
 	struct acpi_resource_i2c_serialbus *sb;
 	acpi_status status;
 
-	if (info->addr || ares->type != ACPI_RESOURCE_TYPE_SERIAL_BUS)
-		return 1;
-
-	sb = &ares->data.i2c_serial_bus;
-	if (sb->type != ACPI_RESOURCE_SERIAL_TYPE_I2C)
+	if (info->addr || !i2c_acpi_get_i2c_resource(ares, &sb))
 		return 1;
 
 	if (lookup->index != -1 && lookup->n++ != lookup->index)
@@ -92,8 +105,10 @@ static int i2c_acpi_do_lookup(struct acpi_device *adev,
 	struct list_head resource_list;
 	int ret;
 
-	if (acpi_bus_get_status(adev) || !adev->status.present ||
-	    acpi_device_enumerated(adev))
+	if (acpi_bus_get_status(adev) || !adev->status.present)
+		return -EINVAL;
+
+	if (lookup->index == -1 && acpi_device_enumerated(adev))
 		return -EINVAL;
 
 	if (acpi_match_device_ids(adev, i2c_acpi_ignored_device_ids) == 0)
@@ -116,17 +131,19 @@ static int i2c_acpi_do_lookup(struct acpi_device *adev,
 
 static int i2c_acpi_get_info(struct acpi_device *adev,
 			     struct i2c_board_info *info,
+			     int index,
 			     struct i2c_adapter *adapter,
 			     acpi_handle *adapter_handle)
 {
 	struct list_head resource_list;
 	struct resource_entry *entry;
 	struct i2c_acpi_lookup lookup;
+	unsigned int n;
 	int ret;
 
 	memset(&lookup, 0, sizeof(lookup));
 	lookup.info = info;
-	lookup.index = -1;
+	lookup.index = index;
 
 	ret = i2c_acpi_do_lookup(adev, &lookup);
 	if (ret)
@@ -157,10 +174,13 @@ static int i2c_acpi_get_info(struct acpi_device *adev,
 	if (ret < 0)
 		return -EINVAL;
 
+	n = 0;
 	resource_list_for_each_entry(entry, &resource_list) {
 		if (resource_type(entry->res) == IORESOURCE_IRQ) {
-			info->irq = entry->res->start;
-			break;
+			if (index == -1 || n++ == index) {
+				info->irq = entry->res->start;
+				break;
+			}
 		}
 	}
 
@@ -187,20 +207,74 @@ static void i2c_acpi_register_device(struct i2c_adapter *adapter,
 	}
 }
 
+static const struct acpi_device_id i2c_acpi_multiple_devices_ids[] = {
+	/*
+	 * Some devices are defined as a single ACPI entry while
+	 * providing more than one instance of the same IP. Try to
+	 * enumerate them all.
+	 */
+	{ "BOSC0200", 0 },
+	{ "INT3515", 0 },
+	{}
+};
+
+static int i2c_acpi_check_resource(struct acpi_resource *ares, void *data)
+{
+	struct acpi_resource_i2c_serialbus *sb;
+	int *count = data;
+
+	if (i2c_acpi_get_i2c_resource(ares, &sb))
+		*count = *count + 1;
+
+	return 1;
+}
+
+static int i2c_acpi_count_resource(struct acpi_device *adev)
+{
+	LIST_HEAD(r);
+	int count = 0;
+	int ret;
+
+	ret = acpi_dev_get_resources(adev, &r, i2c_acpi_check_resource, &count);
+	if (ret < 0)
+		return ret;
+
+	acpi_dev_free_resource_list(&r);
+	return count;
+}
+
 static acpi_status i2c_acpi_add_device(acpi_handle handle, u32 level,
 				       void *data, void **return_value)
 {
 	struct i2c_adapter *adapter = data;
 	struct acpi_device *adev;
 	struct i2c_board_info info;
+	int index, count;
 
 	if (acpi_bus_get_device(handle, &adev))
 		return AE_OK;
 
-	if (i2c_acpi_get_info(adev, &info, adapter, NULL))
-		return AE_OK;
+	if (!acpi_match_device_ids(adev, i2c_acpi_multiple_devices_ids)) {
+		count = i2c_acpi_count_resource(adev);
+		if (count < 0)
+			return AE_OK;
+	} else {
+		count = 1;
+	}
 
-	i2c_acpi_register_device(adapter, adev, &info);
+	for (index = 0; index < count; index++) {
+		char name[16];
+
+		if (i2c_acpi_get_info(adev, &info, index, adapter, NULL))
+			return AE_OK;
+
+		if (count > 1) {
+			sprintf(name, "%s.%d", acpi_dev_name(adev), index);
+			info.dev_name = name;
+		}
+
+		i2c_acpi_register_device(adapter, adev, &info);
+	}
 
 	return AE_OK;
 }
@@ -228,16 +302,6 @@ void i2c_acpi_register_devices(struct i2c_adapter *adap)
 				     adap, NULL);
 	if (ACPI_FAILURE(status))
 		dev_warn(&adap->dev, "failed to enumerate I2C slaves\n");
-}
-
-const struct acpi_device_id *
-i2c_acpi_match_device(const struct acpi_device_id *matches,
-		      struct i2c_client *client)
-{
-	if (!(client && matches))
-		return NULL;
-
-	return acpi_match_device(matches, &client->dev);
 }
 
 static acpi_status i2c_acpi_lookup_speed(acpi_handle handle, u32 level,
@@ -343,7 +407,7 @@ static int i2c_acpi_notify(struct notifier_block *nb, unsigned long value,
 
 	switch (value) {
 	case ACPI_RECONFIG_DEVICE_ADD:
-		if (i2c_acpi_get_info(adev, &info, NULL, &adapter_handle))
+		if (i2c_acpi_get_info(adev, &info, -1, NULL, &adapter_handle))
 			break;
 
 		adapter = i2c_acpi_find_adapter_by_handle(adapter_handle);
@@ -371,6 +435,36 @@ static int i2c_acpi_notify(struct notifier_block *nb, unsigned long value,
 struct notifier_block i2c_acpi_notifier = {
 	.notifier_call = i2c_acpi_notify,
 };
+
+const struct acpi_device_id *
+i2c_acpi_match_device(const struct acpi_device_id *matches,
+		      struct i2c_client *client)
+{
+	struct acpi_device *adev;
+
+	if (!(client && matches))
+		return NULL;
+
+	adev = ACPI_COMPANION(&client->dev);
+
+	/*
+	 * With multi devices, the first physical device must be used for
+	 * matching.
+	 */
+	if (!acpi_match_device_ids(adev, i2c_acpi_multiple_devices_ids)) {
+		const struct acpi_device_id *id;
+
+		client = i2c_acpi_find_client_by_adev(adev);
+		if (!client)
+			return NULL;
+
+		id = acpi_match_device(matches, &client->dev);
+		put_device(&client->dev);
+		return id;
+	}
+
+	return acpi_match_device(matches, &client->dev);
+}
 
 /**
  * i2c_acpi_new_device - Create i2c-client for the Nth I2cSerialBus resource
@@ -516,13 +610,7 @@ i2c_acpi_space_handler(u32 function, acpi_physical_address command,
 		goto err;
 	}
 
-	if (!value64 || ares->type != ACPI_RESOURCE_TYPE_SERIAL_BUS) {
-		ret = AE_BAD_PARAMETER;
-		goto err;
-	}
-
-	sb = &ares->data.i2c_serial_bus;
-	if (sb->type != ACPI_RESOURCE_SERIAL_TYPE_I2C) {
+	if (!value64 || !i2c_acpi_get_i2c_resource(ares, &sb)) {
 		ret = AE_BAD_PARAMETER;
 		goto err;
 	}
