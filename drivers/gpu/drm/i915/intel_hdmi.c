@@ -1597,6 +1597,8 @@ static bool hdmi_deep_color_possible(const struct intel_crtc_state *crtc_state,
 	struct drm_atomic_state *state = crtc_state->base.state;
 	struct drm_connector_state *connector_state;
 	struct drm_connector *connector;
+	const struct drm_display_mode *adjusted_mode =
+		&crtc_state->base.adjusted_mode;
 	int i;
 
 	if (HAS_GMCH_DISPLAY(dev_priv))
@@ -1645,7 +1647,13 @@ static bool hdmi_deep_color_possible(const struct intel_crtc_state *crtc_state,
 
 	/* Display WA #1139: glk */
 	if (bpc == 12 && IS_GLK_REVID(dev_priv, 0, GLK_REVID_A1) &&
-	    crtc_state->base.adjusted_mode.htotal > 5460)
+	    adjusted_mode->htotal > 5460)
+		return false;
+
+	/* Display Wa #1148:icl */
+	if (crtc_state->ycbcr420 && bpc == 10 && IS_ICELAKE(dev_priv) &&
+	    (adjusted_mode->crtc_hblank_end -
+	     adjusted_mode->crtc_hblank_start) % 8 == 2)
 		return false;
 
 	return true;
@@ -1911,22 +1919,26 @@ intel_hdmi_set_edid(struct drm_connector *connector)
 static enum drm_connector_status
 intel_hdmi_detect(struct drm_connector *connector, bool force)
 {
-	enum drm_connector_status status;
+	enum drm_connector_status status = connector_status_disconnected;
 	struct drm_i915_private *dev_priv = to_i915(connector->dev);
 	struct intel_hdmi *intel_hdmi = intel_attached_hdmi(connector);
+	struct intel_encoder *encoder = &hdmi_to_dig_port(intel_hdmi)->base;
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s]\n",
 		      connector->base.id, connector->name);
 
 	intel_display_power_get(dev_priv, POWER_DOMAIN_GMBUS);
 
+	if (IS_ICELAKE(dev_priv) &&
+	    !intel_digital_port_connected(encoder))
+		goto out;
+
 	intel_hdmi_unset_edid(connector);
 
 	if (intel_hdmi_set_edid(connector))
 		status = connector_status_connected;
-	else
-		status = connector_status_disconnected;
 
+out:
 	intel_display_power_put(dev_priv, POWER_DOMAIN_GMBUS);
 
 	if (status != connector_status_connected)
@@ -2253,6 +2265,18 @@ static u8 icl_port_to_ddc_pin(struct drm_i915_private *dev_priv, enum port port)
 	return ddc_pin;
 }
 
+static u8 icph_port_to_ddc_pin(struct drm_i915_private *dev_priv,
+			       enum port port)
+{
+	if (intel_is_port_combophy(dev_priv, port))
+		return GMBUS_PIN_1_BXT + port;
+	else if (intel_port_is_tc(dev_priv, port))
+		return GMBUS_PIN_9_TC1_ICP + intel_port_to_tc(dev_priv, port);
+
+	WARN(1, "Unknown port:%c\n", port_name(port));
+	return GMBUS_PIN_2_BXT;
+}
+
 static u8 g4x_port_to_ddc_pin(struct drm_i915_private *dev_priv,
 			      enum port port)
 {
@@ -2295,6 +2319,8 @@ static u8 intel_hdmi_ddc_pin(struct drm_i915_private *dev_priv,
 		ddc_pin = bxt_port_to_ddc_pin(dev_priv, port);
 	else if (HAS_PCH_CNP(dev_priv))
 		ddc_pin = cnp_port_to_ddc_pin(dev_priv, port);
+	else if (HAS_PCH_ICP_H(dev_priv) || HAS_PCH_TGP(dev_priv))
+		ddc_pin = icph_port_to_ddc_pin(dev_priv, port);
 	else if (HAS_PCH_ICP(dev_priv))
 		ddc_pin = icl_port_to_ddc_pin(dev_priv, port);
 	else

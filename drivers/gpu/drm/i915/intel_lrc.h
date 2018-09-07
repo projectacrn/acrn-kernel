@@ -46,6 +46,8 @@
 #define RING_EXECLIST_CONTROL(engine)		_MMIO((engine)->mmio_base + 0x550)
 #define	  EL_CTRL_LOAD				(1 << 0)
 
+#define GEN12_ENGINE_SEMAPHORE_TOKEN(engine)	_MMIO((engine)->mmio_base + 0x2b4)
+
 /* The docs specify that the write pointer wraps around after 5h, "After status
  * is written out to the last available status QW at offset 5h, this pointer
  * wraps to 0."
@@ -103,7 +105,10 @@ struct drm_i915_private;
 struct i915_gem_context;
 
 void intel_lr_context_resume(struct drm_i915_private *dev_priv);
+void context_descriptor_eu_priority_update(struct i915_request *rq, u64 *desc);
 
 void intel_execlists_set_default_submission(struct intel_engine_cs *engine);
+
+void intel_lr_update_ring_tail(u32 *reg_state, u32 tail);
 
 #endif /* _INTEL_LRC_H_ */
