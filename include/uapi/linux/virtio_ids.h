@@ -47,7 +47,7 @@
 #ifdef CONFIG_ACRN_VIRTIO_DEVICES
 /* ACRN virtio device types */
 #define	VIRTIO_ID_RPMB		0xFFFF
-#define	VIRTIO_ID_HECI		0xFFFE
+#define VIRTIO_ID_MEI          0xFFFE /* virtio mei */
 #define	VIRTIO_ID_AUDIO		0xFFFD
 #define	VIRTIO_ID_IPU		0xFFFC
 #define	VIRTIO_ID_TSN		0xFFFB
