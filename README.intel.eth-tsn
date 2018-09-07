@@ -1,0 +1,8 @@
+What part(s)/IP block(s)/feature(s) are enabled by this code?
+Synopsys DWC Ethernet QOS
+
+Which platform(s) are affected by this code?
+EHL,TGL
+
+Are any bugs fixed or introduced by this code?
+None
