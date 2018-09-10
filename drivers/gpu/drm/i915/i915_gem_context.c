@@ -117,6 +117,7 @@ static void lut_close(struct i915_gem_context *ctx)
 
 static void i915_gem_context_free(struct i915_gem_context *ctx)
 {
+	struct drm_i915_private *dev_priv = ctx->i915;
 	unsigned int n;
 
 	lockdep_assert_held(&ctx->i915->drm.struct_mutex);
@@ -126,9 +127,14 @@ static void i915_gem_context_free(struct i915_gem_context *ctx)
 
 	for (n = 0; n < ARRAY_SIZE(ctx->__engine); n++) {
 		struct intel_context *ce = &ctx->__engine[n];
+		struct intel_engine_cs *engine = dev_priv->engine[n];
 
-		if (ce->ops)
+		if (ce->ops) {
+			if (dev_priv->guc.ctx_free_hook)
+				dev_priv->guc.ctx_free_hook(ctx, engine);
+
 			ce->ops->destroy(ce);
+		}
 	}
 
 	kfree(ctx->name);
@@ -209,7 +215,12 @@ static int assign_hw_id(struct drm_i915_private *dev_priv, unsigned *out)
 	unsigned int max;
 
 	if (INTEL_GEN(dev_priv) >= 11) {
-		max = GEN11_MAX_CONTEXT_HW_ID;
+		if (USES_GUC_SUBMISSION(dev_priv))
+			max = GEN11_MAX_CONTEXT_HW_ID_WITH_GUC;
+		else if (INTEL_GEN(dev_priv) >= 12)
+			max = GEN12_MAX_CONTEXT_HW_ID;
+		else
+			max = GEN11_MAX_CONTEXT_HW_ID;
 	} else {
 		/*
 		 * When using GuC in proxy submission, GuC consumes the
@@ -255,6 +266,9 @@ static u32 default_desc_template(const struct drm_i915_private *i915,
 
 	if (IS_GEN8(i915))
 		desc |= GEN8_CTX_L3LLC_COHERENT;
+
+	if (HAS_CCS(i915))
+		desc |= GEN12_CTX_PRIORITY_LOW;
 
 	/* TODO: WaDisableLiteRestore when we start using semaphore
 	 * signalling between Command Streamers

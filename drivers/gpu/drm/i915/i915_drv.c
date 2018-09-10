@@ -128,6 +128,11 @@ __i915_printk(struct drm_i915_private *dev_priv, const char *level,
 static enum intel_pch
 intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 {
+	if (i915_modparams.force_pch >= 0) {
+		DRM_DEBUG_KMS("Forcing PCH type to %i\n",
+			      i915_modparams.force_pch);
+		return i915_modparams.force_pch;
+	}
 	switch (id) {
 	case INTEL_PCH_IBX_DEVICE_ID_TYPE:
 		DRM_DEBUG_KMS("Found Ibex Peak PCH\n");
@@ -189,6 +194,18 @@ intel_pch_type(const struct drm_i915_private *dev_priv, unsigned short id)
 		DRM_DEBUG_KMS("Found Ice Lake PCH\n");
 		WARN_ON(!IS_ICELAKE(dev_priv));
 		return PCH_ICP;
+	case INTEL_PCH_ICP_LP_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found Ice Lake LP PCH\n");
+		WARN_ON(!IS_ICELAKE(dev_priv));
+		return PCH_ICP;
+	case INTEL_PCH_ICP_H_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found Ice Lake H PCH\n");
+		WARN_ON(!IS_ICELAKE(dev_priv));
+		return PCH_ICP;
+	case INTEL_PCH_TGP_LP_DEVICE_ID_TYPE:
+		DRM_DEBUG_KMS("Found Tiger Lake LP PCH\n");
+		WARN_ON(!IS_TIGERLAKE(dev_priv));
+		return PCH_TGP;
 	default:
 		return PCH_NONE;
 	}
@@ -228,8 +245,12 @@ intel_virt_detect_pch(const struct drm_i915_private *dev_priv)
 		id = INTEL_PCH_SPT_DEVICE_ID_TYPE;
 	else if (IS_COFFEELAKE(dev_priv) || IS_CANNONLAKE(dev_priv))
 		id = INTEL_PCH_CNP_DEVICE_ID_TYPE;
+	else if (IS_ICL_11_5(dev_priv))
+		id = INTEL_PCH_ICP_H_DEVICE_ID_TYPE;
 	else if (IS_ICELAKE(dev_priv))
 		id = INTEL_PCH_ICP_DEVICE_ID_TYPE;
+	else if (IS_TIGERLAKE(dev_priv))
+		id = INTEL_PCH_TGP_LP_DEVICE_ID_TYPE;
 
 	if (id)
 		DRM_DEBUG_KMS("Assuming PCH ID %04x\n", id);
@@ -268,8 +289,11 @@ static void intel_detect_pch(struct drm_i915_private *dev_priv)
 			dev_priv->pch_type = pch_type;
 			dev_priv->pch_id = id;
 			break;
-		} else if (intel_is_virt_pch(id, pch->subsystem_vendor,
+		} else if (intel_presi_need_virt_pch(dev_priv, id) ||
+			   intel_is_virt_pch(id, pch->subsystem_vendor,
 					 pch->subsystem_device)) {
+			intel_detect_presi_env(dev_priv, id);
+
 			id = intel_virt_detect_pch(dev_priv);
 			pch_type = intel_pch_type(dev_priv, id);
 
@@ -337,6 +361,9 @@ static int i915_getparam_ioctl(struct drm_device *dev, void *data,
 		break;
 	case I915_PARAM_HAS_BSD2:
 		value = !!dev_priv->engine[VCS2];
+		break;
+	case I915_PARAM_HAS_CCS:
+		value = !!dev_priv->engine[CCS];
 		break;
 	case I915_PARAM_HAS_LLC:
 		value = HAS_LLC(dev_priv);
@@ -904,6 +931,8 @@ static int i915_driver_init_early(struct drm_i915_private *dev_priv,
 	mutex_init(&dev_priv->wm.wm_mutex);
 	mutex_init(&dev_priv->pps_mutex);
 
+	intel_presi_init(dev_priv);
+
 	i915_memcpy_init_early(dev_priv);
 
 	ret = i915_workqueues_init(dev_priv);
@@ -1015,6 +1044,12 @@ static int i915_driver_init_mmio(struct drm_i915_private *dev_priv)
 	ret = i915_mmio_setup(dev_priv);
 	if (ret < 0)
 		goto err_bridge;
+
+	/*
+	 * detect sim vs emu. Detection requires MMIO and needs to be done ASAP.
+	 * Need to call this on silicon as well to mark the detection as done.
+	 */
+	intel_detect_presi_mode(dev_priv);
 
 	intel_uncore_init(dev_priv);
 
@@ -1630,14 +1665,14 @@ static int i915_drm_suspend_late(struct drm_device *dev, bool hibernation)
 	 * also enable deeper system power states that would be blocked if the
 	 * firmware was inactive.
 	 */
-	if (IS_GEN9_LP(dev_priv) || hibernation || !suspend_to_idle(dev_priv) ||
-	    dev_priv->csr.dmc_payload == NULL) {
+	if (INTEL_GEN(dev_priv) >= 11 || IS_GEN9_LP(dev_priv) || hibernation ||
+	    !suspend_to_idle(dev_priv) || dev_priv->csr.dmc_payload == NULL) {
 		intel_power_domains_suspend(dev_priv);
 		dev_priv->power_domains_suspended = true;
 	}
 
 	ret = 0;
-	if (IS_GEN9_LP(dev_priv))
+	if (INTEL_GEN(dev_priv) >= 11 || IS_GEN9_LP(dev_priv))
 		bxt_enable_dc9(dev_priv);
 	else if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv))
 		hsw_enable_pc8(dev_priv);
@@ -1833,7 +1868,7 @@ static int i915_drm_resume_early(struct drm_device *dev)
 
 	intel_uncore_resume_early(dev_priv);
 
-	if (IS_GEN9_LP(dev_priv)) {
+	if (INTEL_GEN(dev_priv) >= 11 || IS_GEN9_LP(dev_priv)) {
 		gen9_sanitize_dc_state(dev_priv);
 		bxt_disable_dc9(dev_priv);
 	} else if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv)) {
@@ -2608,7 +2643,10 @@ static int intel_runtime_suspend(struct device *kdev)
 	intel_uncore_suspend(dev_priv);
 
 	ret = 0;
-	if (IS_GEN9_LP(dev_priv)) {
+	if (IS_ICELAKE(dev_priv)) {
+		icl_display_core_uninit(dev_priv);
+		bxt_enable_dc9(dev_priv);
+	} else if (IS_GEN9_LP(dev_priv)) {
 		bxt_display_core_uninit(dev_priv);
 		bxt_enable_dc9(dev_priv);
 	} else if (IS_HASWELL(dev_priv) || IS_BROADWELL(dev_priv)) {
@@ -2693,7 +2731,18 @@ static int intel_runtime_resume(struct device *kdev)
 	if (intel_uncore_unclaimed_mmio(dev_priv))
 		DRM_DEBUG_DRIVER("Unclaimed access during suspend, bios?\n");
 
-	if (IS_GEN9_LP(dev_priv)) {
+	if (IS_ICELAKE(dev_priv)) {
+		bxt_disable_dc9(dev_priv);
+		icl_display_core_init(dev_priv, true);
+		if (dev_priv->csr.dmc_payload) {
+			if (dev_priv->csr.allowed_dc_mask &
+			    DC_STATE_EN_UPTO_DC6)
+				skl_enable_dc6(dev_priv);
+			else if (dev_priv->csr.allowed_dc_mask &
+				 DC_STATE_EN_UPTO_DC5)
+				gen9_enable_dc5(dev_priv);
+		}
+	} else if (IS_GEN9_LP(dev_priv)) {
 		bxt_disable_dc9(dev_priv);
 		bxt_display_core_init(dev_priv, true);
 		if (dev_priv->csr.dmc_payload &&
