@@ -403,7 +403,12 @@ void xhci_free_endpoint_ring(struct xhci_hcd *xhci,
 		struct xhci_virt_device *virt_dev,
 		unsigned int ep_index)
 {
-	xhci_ring_free(xhci, virt_dev->eps[ep_index].ring);
+	struct xhci_ring *ep_ring = virt_dev->eps[ep_index].ring;
+
+	if (!list_empty(&ep_ring->td_list))
+		xhci_warn(xhci, "Freeing endpoint with td's still queued!");
+
+	xhci_ring_free(xhci, ep_ring);
 	virt_dev->eps[ep_index].ring = NULL;
 }
 

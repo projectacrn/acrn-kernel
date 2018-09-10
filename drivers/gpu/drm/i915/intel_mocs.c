@@ -179,7 +179,7 @@ static bool get_mocs_settings(struct drm_i915_private *dev_priv,
 	bool result = false;
 
 	if (IS_GEN9_BC(dev_priv) || IS_CANNONLAKE(dev_priv) ||
-	    IS_ICELAKE(dev_priv)) {
+	    IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv)) {
 		table->size  = ARRAY_SIZE(skylake_mocs_table);
 		table->table = skylake_mocs_table;
 		result = true;
@@ -193,13 +193,29 @@ static bool get_mocs_settings(struct drm_i915_private *dev_priv,
 	}
 
 	/* WaDisableSkipCaching:skl,bxt,kbl,glk */
-	if (IS_GEN9(dev_priv)) {
+	/* In Gen12+ LE_TGT_CACHE == 0 means 'eLLC only' instead of 'use PPAT
+	 * for Target Cache and LRU Age (LE_TC_PAGETABLE)'; warn but do not
+	 * disable MOCS. LE_TC_PAGETABLE is not used in the existing table so
+	 * this warning is only to find if a new table for gen12+ is needed.
+	 */
+	if (IS_GEN9(dev_priv) || INTEL_GEN(dev_priv) >= 12) {
 		int i;
 
-		for (i = 0; i < table->size; i++)
-			if (WARN_ON(table->table[i].l3cc_value &
-				    (L3_ESC(1) | L3_SCC(0x7))))
-				return false;
+		if (IS_GEN9(dev_priv)) {
+			for (i = 0; i < table->size; i++)
+				if (WARN_ON(table->table[i].l3cc_value &
+					    (L3_ESC(1) | L3_SCC(0x7))))
+					return false;
+		} else {
+			for (i = 0; i < table->size; i++) {
+				WARN_ONCE(!(table->table[i].control_value &
+					    LE_TGT_CACHE(0x3)),
+					  "Update MOCS table to not use LE_TC_PAGETABLE?\n");
+				WARN_ONCE(!(table->table[i].control_value &
+					    LE_CACHEABILITY(0x3)),
+					  "Update MOCS table to not use LE_PAGETABLE?\n");
+			}
+		}
 	}
 
 	return result;
@@ -241,6 +257,10 @@ int intel_mocs_init_engine(struct intel_engine_cs *engine)
 	struct drm_i915_mocs_table table;
 	unsigned int index;
 
+	/* Platforms with global MOCS do not need per-engine initialization. */
+	if (HAS_GLOBAL_MOCS_REGISTERS(dev_priv))
+		return 0;
+
 	if (!get_mocs_settings(dev_priv, &table))
 		return 0;
 
@@ -261,6 +281,47 @@ int intel_mocs_init_engine(struct intel_engine_cs *engine)
 	 */
 	for (; index < GEN9_NUM_MOCS_ENTRIES; index++)
 		I915_WRITE(mocs_register(engine->id, index),
+			   table.table[0].control_value);
+
+	return 0;
+}
+
+/**
+ * intel_mocs_init_global() - program the global mocs registers
+ * @dev_priv:      i915 device private.
+ *
+ * This function initializes the MOCS global registers.
+ * Must be used only in platforms with has_global_mocs.
+ *
+ * Return: 0 on success, otherwise the error status.
+ */
+int intel_mocs_init_global(struct drm_i915_private *dev_priv)
+{
+	struct drm_i915_mocs_table table;
+	unsigned int index;
+
+	GEM_BUG_ON(!HAS_GLOBAL_MOCS_REGISTERS(dev_priv));
+
+	if (!get_mocs_settings(dev_priv, &table))
+		return 0;
+
+	if (WARN_ON(table.size > GEN9_NUM_MOCS_ENTRIES))
+		return -ENODEV;
+
+	for (index = 0; index < table.size; index++)
+		I915_WRITE(GEN1X_GLOBAL_MOCS(dev_priv, index),
+			   table.table[index].control_value);
+
+	/*
+	 * Ok, now set the unused entries to uncached. These entries
+	 * are officially undefined and no contract for the contents
+	 * and settings is given for these entries.
+	 *
+	 * Entry 0 in the table is uncached - so we are just writing
+	 * that value to all the used entries.
+	 */
+	for (; index < GEN9_NUM_MOCS_ENTRIES; index++)
+		I915_WRITE(GEN1X_GLOBAL_MOCS(dev_priv, index),
 			   table.table[0].control_value);
 
 	return 0;
@@ -438,6 +499,9 @@ int intel_rcs_context_init_mocs(struct i915_request *rq)
 {
 	struct drm_i915_mocs_table t;
 	int ret;
+
+	if (HAS_GLOBAL_MOCS_REGISTERS(rq->i915))
+		return 0;
 
 	if (get_mocs_settings(rq->i915, &t)) {
 		/* Program the RCS control registers */
