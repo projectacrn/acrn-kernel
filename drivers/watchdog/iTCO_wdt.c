@@ -68,6 +68,9 @@
 #include <linux/io.h>			/* For inb/outb/... */
 #include <linux/platform_data/itco_wdt.h>
 
+#include <linux/nmi.h>
+#include <asm/nmi.h>
+#include <linux/perf_event.h>
 #include "iTCO_vendor.h"
 
 /* Address definitions for the TCO */
@@ -85,6 +88,11 @@
 #define TCO1_CNT(p)	(TCOBASE(p) + 0x08) /* TCO1 Control Register	*/
 #define TCO2_CNT(p)	(TCOBASE(p) + 0x0a) /* TCO2 Control Register	*/
 #define TCOv2_TMR(p)	(TCOBASE(p) + 0x12) /* TCOv2 Timer Initial Value*/
+
+#define TCO_RLD_sub(base)	(base + 0x00) /* TCO Timer Reload/Curr. Value */
+#define TCO1_STS_sub(base)	(base + 0x04) /* TCO1 Status Register	*/
+#define TCOv2_TMR_sub(base)	(base + 0x12) /* TCOv2 Timer Initial Value*/
+
 
 /* internal variables */
 struct iTCO_wdt_private {
@@ -112,6 +120,17 @@ struct iTCO_wdt_private {
 	int (*update_no_reboot_bit)(void *p, bool set);
 };
 
+static struct {
+	resource_size_t tco_base_address;
+	unsigned int iTCO_version;
+	bool pretimeout_occurred;
+	unsigned int second_to_ticks;
+#ifdef CONFIG_ITCO_NO_NMI_INTR
+	struct iTCO_wdt_private *wdt_priv;
+#endif
+} iTCO_wdt_sub;
+
+
 /* module parameters */
 #define WATCHDOG_TIMEOUT 30	/* 30 sec default heartbeat */
 static int heartbeat = WATCHDOG_TIMEOUT;  /* in seconds */
@@ -130,6 +149,11 @@ static int turn_SMI_watchdog_clear_off = 1;
 module_param(turn_SMI_watchdog_clear_off, int, 0);
 MODULE_PARM_DESC(turn_SMI_watchdog_clear_off,
 	"Turn off SMI clearing watchdog (depends on TCO-version)(default=1)");
+
+static bool force_no_reboot;
+module_param(force_no_reboot, bool, 0);
+MODULE_PARM_DESC(force_no_reboot,
+		 "Prevents the watchdog rebooting the platform (default=0)");
 
 /*
  * Some TCO specific functions
@@ -237,22 +261,92 @@ static void iTCO_wdt_no_reboot_bit_setup(struct iTCO_wdt_private *p,
 
 	p->no_reboot_priv = p;
 }
+/* iTCO need to wait for a NMI interrupt on first timeout, in order to dump kernel
+** logs in the interrupt handler-iTCO_pretimeout. But on some platforms iTCO timeout
+** can't triger NMI interrupts.These functions will trigger periodly NMI
+** interrupts by perf_event. In iTCO_pretimeout will check iTCO status, if timeout, then
+** dump logs and reboot.
+*/
+#ifdef CONFIG_ITCO_NO_NMI_INTR
+static struct perf_event_attr wd_hw_attr = {
+	.type		= PERF_TYPE_HARDWARE,
+	.config		= PERF_COUNT_HW_CPU_CYCLES,
+	.size		= sizeof(struct perf_event_attr),
+	.pinned		= 1,
+	.disabled	= 1,
+};
+static struct perf_event *itco_perf_evt = NULL;
+static unsigned int itco_perf_sample_period = 10; //default 10 seconds
+static int itco_perf_event_create(void)
+{
+	unsigned int cpu = smp_processor_id();
+	struct perf_event_attr *wd_attr;
+
+	wd_attr = &wd_hw_attr;
+	wd_attr->sample_period = (u64)(cpu_khz) * 1000 * itco_perf_sample_period;
+
+	/* Try to register using hardware perf events */
+	itco_perf_evt = perf_event_create_kernel_counter(wd_attr, cpu, NULL,
+					       NULL, NULL);
+	if (IS_ERR(itco_perf_evt)) {
+		pr_err("Perf event create on CPU %d failed with %ld\n", cpu,
+			PTR_ERR(itco_perf_evt));
+		return PTR_ERR(itco_perf_evt);
+	}
+	return 0;
+}
+static void itco_perf_event_enable(void)
+{
+	if (itco_perf_evt)
+		perf_event_enable(itco_perf_evt);
+}
+static void itco_perf_event_disable(void)
+{
+	if (itco_perf_evt)
+		perf_event_disable(itco_perf_evt);
+}
+static void itco_perf_event_remove(void)
+{
+	if (itco_perf_evt)
+		perf_event_release_kernel(itco_perf_evt);
+}
+#else
+static int itco_perf_event_create(void) { return 0; }
+static void itco_perf_event_enable(void) { }
+static void itco_perf_event_disable(void) { }
+static void itco_perf_event_remove(void) { }
+#endif
 
 static int iTCO_wdt_start(struct watchdog_device *wd_dev)
 {
 	struct iTCO_wdt_private *p = watchdog_get_drvdata(wd_dev);
 	unsigned int val;
 
+	/* force_no_reboot will prevent to unset NO_REBOOT bit */
+	if (force_no_reboot)
+		return -EIO;
+
+	itco_perf_event_enable();
+
 	spin_lock(&p->io_lock);
 
 	iTCO_vendor_pre_start(p->smi_res, wd_dev->timeout);
 
+#ifdef CONFIG_ITCO_NO_NMI_INTR
+	/* Set the NO_REBOOT bit to prevent reboots of first timeout */
+	if (p->update_no_reboot_bit(p->no_reboot_priv, true)) {
+		spin_unlock(&p->io_lock);
+		pr_err("failed to set NO_REBOOT flag\n");
+		return -EIO;
+	}
+#else
 	/* disable chipset's NO_REBOOT bit */
 	if (p->update_no_reboot_bit(p->no_reboot_priv, false)) {
 		spin_unlock(&p->io_lock);
-		pr_err("failed to reset NO_REBOOT flag, reboot disabled by hardware/BIOS\n");
+		pr_err("failed to reset NO_REBOOT flag, reboot disabled by hardware/BIOS/rc_cmd\n");
 		return -EIO;
 	}
+#endif
 
 	/* Force the timer to its reload value by writing to the TCO_RLD
 	   register */
@@ -277,6 +371,8 @@ static int iTCO_wdt_stop(struct watchdog_device *wd_dev)
 {
 	struct iTCO_wdt_private *p = watchdog_get_drvdata(wd_dev);
 	unsigned int val;
+
+	itco_perf_event_disable();
 
 	spin_lock(&p->io_lock);
 
@@ -422,6 +518,40 @@ static const struct watchdog_ops iTCO_wdt_ops = {
 	.get_timeleft =		iTCO_wdt_get_timeleft,
 };
 
+static int iTCO_pretimeout(unsigned int cmd, struct pt_regs *unused_regs)
+{
+	resource_size_t tco_base_address;
+#ifdef CONFIG_ITCO_NO_NMI_INTR
+	struct iTCO_wdt_private *p = iTCO_wdt_sub.wdt_priv;
+#endif
+
+	/* Prevent re-entrance */
+	if (iTCO_wdt_sub.pretimeout_occurred)
+		return NMI_HANDLED;
+
+	tco_base_address = iTCO_wdt_sub.tco_base_address;
+
+	/* Check the NMI is from the TCO first expiration */
+	if (inw(TCO1_STS_sub(tco_base_address)) & 0x8) {
+		iTCO_wdt_sub.pretimeout_occurred = true;
+#ifdef CONFIG_ITCO_NO_NMI_INTR
+		/*Enable reboot for the second timeout*/
+		p->update_no_reboot_bit(p->no_reboot_priv, false);
+#endif
+
+		/* Forward next expiration */
+		outw(iTCO_wdt_sub.second_to_ticks, TCOv2_TMR_sub(tco_base_address));
+		outw(0x01, TCO_RLD_sub(tco_base_address));
+
+		trigger_all_cpu_backtrace();
+		panic_timeout = 0;
+		panic("Kernel Watchdog");
+		return NMI_HANDLED;
+	}
+
+	return NMI_DONE;
+}
+
 /*
  *	Init & exit routines
  */
@@ -555,6 +685,26 @@ static int iTCO_wdt_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	/*create a perf_event to generate nmi interrupt*/
+	ret = itco_perf_event_create();
+	if (ret != 0) {
+		pr_err("cannot create perf event (err=%d)\n", ret);
+		return ret;
+	}
+
+    /* init vars that used for nmi handler */
+	iTCO_wdt_sub.iTCO_version = p->iTCO_version;
+	iTCO_wdt_sub.second_to_ticks = seconds_to_ticks(p, 10);
+	iTCO_wdt_sub.tco_base_address = TCOBASE(p);
+#ifdef CONFIG_ITCO_NO_NMI_INTR
+	iTCO_wdt_sub.wdt_priv = p;
+#endif
+	ret = register_nmi_handler(NMI_LOCAL, iTCO_pretimeout, 0 ,"iTCO_wdt");
+	if (ret != 0) {
+		pr_err("cannot register nmi handler (err=%d)\n", ret);
+		return ret;
+	}
+
 	pr_info("initialized. heartbeat=%d sec (nowayout=%d)\n",
 		heartbeat, nowayout);
 
@@ -566,8 +716,10 @@ static int iTCO_wdt_remove(struct platform_device *pdev)
 	struct iTCO_wdt_private *p = platform_get_drvdata(pdev);
 
 	/* Stop the timer before we leave */
-	if (!nowayout)
+	if (!nowayout) {
 		iTCO_wdt_stop(&p->wddev);
+		itco_perf_event_remove();
+	}
 
 	return 0;
 }
