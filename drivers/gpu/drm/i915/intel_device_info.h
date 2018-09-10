@@ -71,6 +71,9 @@ enum intel_platform {
 	INTEL_CANNONLAKE,
 	/* gen11 */
 	INTEL_ICELAKE,
+	/* gen12 */
+	INTEL_TIGERLAKE,
+	INTEL_ARTICSOUND,
 	INTEL_MAX_PLATFORMS
 };
 
@@ -89,9 +92,11 @@ enum intel_platform {
 	func(has_fpga_dbg); \
 	func(has_full_ppgtt); \
 	func(has_full_48bit_ppgtt); \
-	func(has_gmch_display); \
+	func(has_global_mocs); \
+	func(has_gmch_display);	\
 	func(has_guc); \
 	func(has_guc_ct); \
+	func(has_guc_dist_db); \
 	func(has_hotplug); \
 	func(has_l3_dpf); \
 	func(has_llc); \
@@ -140,7 +145,7 @@ struct sseu_dev_info {
 	u8 eu_mask[GEN_MAX_SLICES * GEN_MAX_SUBSLICES];
 };
 
-typedef u8 intel_ring_mask_t;
+typedef u16 intel_ring_mask_t;
 
 struct intel_device_info {
 	u16 device_id;
@@ -177,6 +182,9 @@ struct intel_device_info {
 	struct sseu_dev_info sseu;
 
 	u32 cs_timestamp_frequency_khz;
+
+	/* Media engine access to SFC per instance */
+	u8 vdbox_sfc_access;
 
 	struct color_luts {
 		u16 degamma_lut_size;

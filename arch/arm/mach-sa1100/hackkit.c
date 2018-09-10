@@ -51,7 +51,6 @@ static void __init hackkit_map_io(void);
 
 static u_int hackkit_get_mctrl(struct uart_port *port);
 static void hackkit_set_mctrl(struct uart_port *port, u_int mctrl);
-static void hackkit_uart_pm(struct uart_port *port, u_int state, u_int oldstate);
 
 /**********************************************************************
  *  global data
@@ -73,7 +72,6 @@ static struct map_desc hackkit_io_desc[] __initdata = {
 static struct sa1100_port_fns hackkit_port_fns __initdata = {
 	.set_mctrl	= hackkit_set_mctrl,
 	.get_mctrl	= hackkit_get_mctrl,
-	.pm		= hackkit_uart_pm,
 };
 
 /**********************************************************************
@@ -91,18 +89,6 @@ static void __init hackkit_map_io(void)
 	sa1100_register_uart(2, 3);	/* radio module */
 
 	Ser1SDCR0 |= SDCR0_SUS;
-}
-
-/**
- *	hackkit_uart_pm - powermgmt callback function for system 3 UART
- *	@port: uart port structure
- *	@state: pm state
- *	@oldstate: old pm state
- *
- */
-static void hackkit_uart_pm(struct uart_port *port, u_int state, u_int oldstate)
-{
-	/* TODO: switch on/off uart in powersave mode */
 }
 
 /*

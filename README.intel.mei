@@ -1,0 +1,63 @@
+=====================
+CSE post v4.18 changes
+=====================
+
+Affected IP: CSE/CSME
+----------------------
+
+=====================================
+Embargoed Supported MEI Devices
+=====================================
+
+Cedar Falls
+------------
+0x18D3  /* Cedar Falls */
+
+Ice Lake Point
+---------------
+0x34E0  /* Ice Lake Point LP */
+0x38E0  /* Ice Lake Point N */
+0x3DE0  /* Ice Lake Point N */
+
+Tiger Lake Point
+-----------------
+0xA0E0  /* Tiger Lake LP */
+0xA0E5  /* Tiger Lake LP 4 */
+0x42E0  /* Tiger Lake K */
+0x42E5  /* Tiger Lake K 4 */
+0x43E0  /* Tiger Lake H */
+0x43E5  /* Tiger Lake H 4 */
+
+Mule Creek Canyon
+-----------------
+0x4970  /* Mule Creek Canyon */
+0x4975  /* Mule Creek Canyon 4 SPD */
+
+Lake Field
+---------
+0x98E0  /* Lake Field */
+
+New Features
+=======================
+
+ * Whitelist HDCP2.2 client on MEI client bus.
+ * DMA support.
+ * Virtio HW layer.
+
+New Drivers:
+============
+KDI - Kernel DAL API module
+
+Bug Fixes:
+==========
+- KDI: DAL KDI driver does not work without JHI_Initialize
+  - HSD: https://hsdes.intel.com/appstore/article/#/1806041296
+  - HSD: https://hsdes.intel.com/resource/1305782817
+  - HSD: https://hsdes.intel.com/appstore/article/#/1806302146
+- MEI:
+  - None:  mei: fix use-after-free in mei_cl_write (kasan report)
+  - Bugzilla: https://bugzilla.redhat.com/show_bug.cgi?id=1597481
+  - Bugzilla: https://bugzilla.kernel.org/show_bug.cgi?id=200455
+
+Known Issues:
+==============

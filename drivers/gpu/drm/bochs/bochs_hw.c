@@ -8,6 +8,13 @@
 #include "bochs.h"
 
 /* ---------------------------------------------------------------------- */
+#if defined(CONFIG_X86_PRESI_ICL_SIMICS) || defined(CONFIG_X86_PRESI_TGL_SIMICS)\
+	|| defined(CONFIG_X86_PRESI_EHL_SIMICS)
+extern int defx;
+extern int defy;
+void bochs_hw_setmode(struct bochs_device *bochs,
+		      struct drm_display_mode *mode);
+#endif /* ICL || TGL SIMICS */
 
 static void bochs_vga_writeb(struct bochs_device *bochs, u16 ioport, u8 val)
 {
@@ -53,6 +60,12 @@ int bochs_hw_init(struct drm_device *dev, uint32_t flags)
 	struct pci_dev *pdev = dev->pdev;
 	unsigned long addr, size, mem, ioaddr, iosize, qext_size;
 	u16 id;
+#if defined(CONFIG_X86_PRESI_ICL_SIMICS) || defined(CONFIG_X86_PRESI_TGL_SIMICS)\
+	|| defined(CONFIG_X86_PRESI_EHL_SIMICS)
+	struct drm_display_mode mode;
+	mode.hdisplay = defx;
+	mode.vdisplay = defy;
+#endif /* ICL || TGL SIMICS */
 
 	if (pdev->resource[2].flags & IORESOURCE_MEM) {
 		/* mmio bar with vga and bochs registers present */
@@ -76,6 +89,11 @@ int bochs_hw_init(struct drm_device *dev, uint32_t flags)
 		}
 		bochs->ioports = 1;
 	}
+
+#if defined(CONFIG_X86_PRESI_ICL_SIMICS) || defined(CONFIG_X86_PRESI_TGL_SIMICS)\
+	|| defined(CONFIG_X86_PRESI_EHL_SIMICS)
+	bochs_hw_setmode(bochs, &mode);
+#endif /* ICL || TGL SIMICS */
 
 	id = bochs_dispi_read(bochs, VBE_DISPI_INDEX_ID);
 	mem = bochs_dispi_read(bochs, VBE_DISPI_INDEX_VIDEO_MEMORY_64K)
@@ -156,7 +174,12 @@ void bochs_hw_setmode(struct bochs_device *bochs,
 	bochs->yres = mode->vdisplay;
 	bochs->bpp = 32;
 	bochs->stride = mode->hdisplay * (bochs->bpp / 8);
+#if defined(CONFIG_X86_PRESI_ICL_SIMICS) || defined(CONFIG_X86_PRESI_TGL_SIMICS)\
+	|| defined(CONFIG_X86_PRESI_EHL_SIMICS)
+	bochs->yres_virtual = mode->vdisplay;
+#else /* !(ICL || TGL) SIMICS */
 	bochs->yres_virtual = bochs->fb_size / bochs->stride;
+#endif /* ICL || TGL SIMICS */
 
 	DRM_DEBUG_DRIVER("%dx%d @ %d bpp, vy %d\n",
 			 bochs->xres, bochs->yres, bochs->bpp,
