@@ -591,6 +591,11 @@ static void native_machine_emergency_restart(void)
 		switch (reboot_type) {
 		case BOOT_ACPI:
 			acpi_reboot();
+#if defined(CONFIG_X86_PRESI_ICL_SIMICS) || \
+	defined(CONFIG_X86_PRESI_TGL_SIMICS) || \
+	defined(CONFIG_X86_PRESI_EHL_SIMICS)
+			mdelay(500);
+#endif /* ICL || TGL || EHL */
 			reboot_type = BOOT_KBD;
 			break;
 
@@ -635,7 +640,13 @@ static void native_machine_emergency_restart(void)
 				udelay(50);
 				/* Actually do the reset */
 				outb(cf9|reboot_code, 0xcf9);
+#if defined(CONFIG_X86_PRESI_ICL_SIMICS) || \
+	defined(CONFIG_X86_PRESI_TGL_SIMICS) || \
+	defined(CONFIG_X86_PRESI_EHL_SIMICS)
+				mdelay(50);
+#else /* !(ICL || TGL || EHL) */
 				udelay(50);
+#endif /* ICL || TGL || EHL */
 			}
 			reboot_type = BOOT_TRIPLE;
 			break;

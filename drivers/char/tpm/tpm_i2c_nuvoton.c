@@ -370,6 +370,7 @@ static int i2c_nuvoton_send(struct tpm_chip *chip, u8 *buf, size_t len)
 	struct i2c_client *client = to_i2c_client(dev);
 	u32 ordinal;
 	size_t count = 0;
+	unsigned long duration;
 	int burst_count, bytes2write, retries, rc = -EIO;
 
 	for (retries = 0; retries < TPM_RETRY; retries++) {
@@ -455,12 +456,11 @@ static int i2c_nuvoton_send(struct tpm_chip *chip, u8 *buf, size_t len)
 		return rc;
 	}
 	ordinal = be32_to_cpu(*((__be32 *) (buf + 6)));
-	rc = i2c_nuvoton_wait_for_data_avail(chip,
-					     tpm_calc_ordinal_duration(chip,
-								       ordinal),
-					     &priv->read_queue);
+	duration = tpm1_calc_ordinal_duration(chip, ordinal);
+	rc = i2c_nuvoton_wait_for_data_avail(chip, duration, &priv->read_queue);
 	if (rc) {
-		dev_err(dev, "%s() timeout command duration\n", __func__);
+		dev_err(dev, "%s() timeout command duration %ld\n",
+			__func__, duration);
 		i2c_nuvoton_ready(chip);
 		return rc;
 	}

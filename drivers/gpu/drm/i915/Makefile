@@ -190,4 +190,7 @@ endif
 # LPE Audio for VLV and CHT
 i915-y += intel_lpe_audio.o
 
+# pre-silicon support
+i915-y += intel_presi.o
+
 obj-$(CONFIG_DRM_I915) += i915.o

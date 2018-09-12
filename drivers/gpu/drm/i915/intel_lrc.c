@@ -159,6 +159,16 @@
 #define GEN8_CTX_STATUS_COMPLETED_MASK \
 	 (GEN8_CTX_STATUS_COMPLETE | GEN8_CTX_STATUS_PREEMPTED)
 
+#define GEN12_CTX_STATUS_SWITCHED_TO_NEW_QUEUE	(0x1)
+#define GEN12_CTX_SWITCH_DETAIL(status)	((status >> 32) & 0xF)
+#define  GEN12_CTX_COMPLETE		(0x0)
+#define  GEN12_CTX_PREEMPTED		(0x5)
+#define GEN12_CTX_TO(status)		(((status) & GENMASK_ULL(31, 15)) >> 15)
+#define GEN12_CTX_AWAY(status)		(((status) & GENMASK_ULL(63, 47)) >> 47)
+#define GEN12_CTX_SW_ID(ctx)		((ctx) & GENMASK(10, 0))
+#define GEN12_CTX_SW_COUNTER(ctx)	(((ctx) & GENMASK(16, 11)) >> 11)
+#define GEN12_CTX_INVALID_ID		0x7FF
+
 /* Typical size of the average request (2 pipecontrols and a MI_BB) */
 #define EXECLISTS_REQUEST_SIZE 64 /* bytes */
 #define WA_TAIL_DWORDS 2
@@ -191,6 +201,44 @@ static inline bool need_preempt(const struct intel_engine_cs *engine,
 		!i915_request_completed(last));
 }
 
+static u32
+ctx_priority_to_lrc_desc_priority(int ctx_priority)
+{
+	if (ctx_priority < I915_CONTEXT_DEFAULT_PRIORITY)
+		return GEN12_CTX_PRIORITY_LOW;
+	else if (ctx_priority > I915_CONTEXT_DEFAULT_PRIORITY)
+		return GEN12_CTX_PRIORITY_HIGH;
+	else
+		return GEN12_CTX_PRIORITY_NORMAL;
+}
+
+/**
+ * context_descriptor_eu_priority_update() - set the context EU scheduling
+ * priority in lrc descriptor.
+ *
+ * @rq: the request.
+ * @desc: current lrc descriptor.
+ *
+ * Only certain platforms and engines support the context priority field
+ * in the lrc descriptor (to indicate the prioritization of the thread
+ * dispatch associated with the corresponding context).
+ */
+void context_descriptor_eu_priority_update(struct i915_request *rq, u64 *desc)
+{
+	struct intel_engine_cs *engine = rq->engine;
+
+	if (!HAS_CCS(engine->i915))
+		return;
+	if (!(engine->flags & I915_ENGINE_HAS_EU_PRIORITY))
+		return;
+	if (ctx_priority_to_lrc_desc_priority(rq->sched.attr.priority) ==
+	    (*desc & GEN12_CTX_PRIORITY_MASK))
+		return;
+
+	*desc &= ~GEN12_CTX_PRIORITY_MASK;
+	*desc |= ctx_priority_to_lrc_desc_priority(rq->sched.attr.priority);
+}
+
 /*
  * The context descriptor encodes various attributes of a context,
  * including its GTT address and some flags. Because it's fairly
@@ -217,6 +265,30 @@ static inline bool need_preempt(const struct intel_engine_cs *engine,
  * engine info, SW context ID and SW counter need to form a unique number
  * (Context ID) per lrc.
  */
+
+static void __gen11_ctx_desc_fill_upper_32_bits(struct intel_engine_cs *engine,
+						 u32 sw_context_id,
+						 u32 sw_counter, u64 *desc)
+{
+	*desc |= (u64)sw_context_id << GEN11_SW_CTX_ID_SHIFT; /* bits 37-47 */
+
+	*desc |= (u64)engine->instance << GEN11_ENGINE_INSTANCE_SHIFT;
+							/* bits 48-53 */
+
+	*desc |= (u64)sw_counter << GEN11_SW_COUNTER_SHIFT; /* bits 55-60 */
+
+	/*
+	 * Although GuC will never see this upper part as it fills
+	 * its own descriptor, using the guc_class here will help keep
+	 * the i915 and firmware logs in sync.
+	 */
+	if (HAS_GUC_SCHED(engine->i915))
+		*desc |= (u64)engine->guc_class << GEN11_ENGINE_CLASS_SHIFT;
+	else
+		*desc |= (u64)engine->class << GEN11_ENGINE_CLASS_SHIFT;
+							/* bits 61-63 */
+}
+
 static void
 intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 				   struct intel_engine_cs *engine,
@@ -240,23 +312,18 @@ intel_lr_context_descriptor_update(struct i915_gem_context *ctx,
 	 * anything below.
 	 */
 	if (INTEL_GEN(ctx->i915) >= 11) {
-		GEM_BUG_ON(ctx->hw_id >= BIT(GEN11_SW_CTX_ID_WIDTH));
-		desc |= (u64)ctx->hw_id << GEN11_SW_CTX_ID_SHIFT;
-								/* bits 37-47 */
-
-		desc |= (u64)engine->instance << GEN11_ENGINE_INSTANCE_SHIFT;
-								/* bits 48-53 */
-
-		/* TODO: decide what to do with SW counter (bits 55-60) */
-
-		desc |= (u64)engine->class << GEN11_ENGINE_CLASS_SHIFT;
-								/* bits 61-63 */
+		GEM_BUG_ON(ce->sw_context_id >= BIT(GEN11_SW_CTX_ID_WIDTH));
+		__gen11_ctx_desc_fill_upper_32_bits(engine, ce->sw_context_id,
+						    ce->sw_counter, &desc);
 	} else {
 		GEM_BUG_ON(ctx->hw_id >= BIT(GEN8_CTX_ID_WIDTH));
 		desc |= (u64)ctx->hw_id << GEN8_CTX_ID_SHIFT;	/* bits 32-52 */
 	}
 
 	ce->lrc_desc = desc;
+
+	if (ctx->i915->guc.ctx_update_hook)
+		ctx->i915->guc.ctx_update_hook(ctx, engine);
 }
 
 static struct i915_priolist *
@@ -415,6 +482,12 @@ execlists_update_context_pdps(struct i915_hw_ppgtt *ppgtt, u32 *reg_state)
 	ASSIGN_CTX_PDP(ppgtt, reg_state, 0);
 }
 
+void intel_lr_update_ring_tail(u32 *reg_state, u32 tail)
+{
+	GEM_BUG_ON(!reg_state);
+	reg_state[CTX_RING_TAIL+1] = tail;
+}
+
 static u64 execlists_update_context(struct i915_request *rq)
 {
 	struct intel_context *ce = rq->hw_context;
@@ -422,7 +495,8 @@ static u64 execlists_update_context(struct i915_request *rq)
 		rq->gem_context->ppgtt ?: rq->i915->mm.aliasing_ppgtt;
 	u32 *reg_state = ce->lrc_reg_state;
 
-	reg_state[CTX_RING_TAIL+1] = intel_ring_set_tail(rq->ring, rq->tail);
+	intel_lr_update_ring_tail(reg_state,
+				  intel_ring_set_tail(rq->ring, rq->tail));
 
 	/* True 32b PPGTT with dynamic page allocation: update PDP
 	 * registers and point the unallocated PDPs to scratch page.
@@ -431,6 +505,8 @@ static u64 execlists_update_context(struct i915_request *rq)
 	 */
 	if (ppgtt && !i915_vm_is_48bit(&ppgtt->vm))
 		execlists_update_context_pdps(ppgtt, reg_state);
+
+	context_descriptor_eu_priority_update(rq, &ce->lrc_desc);
 
 	return ce->lrc_desc;
 }
@@ -898,6 +974,91 @@ reset_in_progress(const struct intel_engine_execlists *execlists)
 	return unlikely(!__tasklet_is_enabled(&execlists->tasklet));
 }
 
+/*
+ * Starting with Gen12, the status has a new format:
+ *
+ * bit  0:     switched to new queue
+ * bit  1:     reserved
+ * bits 3-5:   engine class
+ * bits 6-11:  engine instance
+ * bits 12-14: reserved
+ * bits 15-25: sw context id of the lrc we're switching to
+ * bits 26-31: sw counter of the lrc we're switching to
+ * bits 32-35: context switch detail
+ *              - 0: ctx complete
+ *              - 1: wait on sync flip
+ *              - 2: wait on vblank
+ *              - 3: wait on scanline
+ *              - 4: wait on semaphore
+ *              - 5: context preempted (not on SEMAPHORE_WAIT or WAIT_FOR_EVENT)
+ * bit  36:    reserved
+ * bits 37-43: wait detail (for switch detail 1 to 4)
+ * bits 44-46: reserved
+ * bits 47-57: sw context id of the lrc we're switching away from
+ * bits 58-63: sw counter of the lrc we're switching away from
+ *
+ * To keep the logic simple, we convert the new gen12 format to the gen11
+ * format and re-use the legacy csb handling logic.
+ */
+static u64 gen12_convert_csb(struct intel_engine_cs *engine, u64 status)
+{
+	u64 legacy_status = 0;
+	u32 ctx_to = GEN12_CTX_TO(status);
+	u32 ctx_away = GEN12_CTX_AWAY(status);
+	u8 switch_detail = GEN12_CTX_SWITCH_DETAIL(status);
+	bool new_queue = status & GEN12_CTX_STATUS_SWITCHED_TO_NEW_QUEUE;
+	bool ctx_to_valid = GEN12_CTX_SW_ID(ctx_to) != GEN12_CTX_INVALID_ID;
+	bool ctx_away_valid = GEN12_CTX_SW_ID(ctx_away) != GEN12_CTX_INVALID_ID;
+
+	if (!ctx_away_valid && ctx_to_valid)
+		legacy_status |= GEN8_CTX_STATUS_IDLE_ACTIVE;
+
+	/*
+	 * ctx_ away valid and ctx_to !valid can indicate either a
+	 * ctx completion or a preempt-to-idle of a running ctx. The 2 cases
+	 * can be distinguished by the value of new_queue, but since the
+	 * GEN8_CTX_STATUS_ACTIVE_IDLE is set in both situation we don't
+	 * distiguish them here. Other flags related to preempt-to-idle are
+	 * handled below
+	 */
+	if (ctx_away_valid && !ctx_to_valid)
+		legacy_status |= GEN8_CTX_STATUS_ACTIVE_IDLE;
+
+	if ((ctx_away == ctx_to) && ctx_to_valid)
+		legacy_status |= GEN8_CTX_STATUS_LITE_RESTORE;
+
+	if ((ctx_away != ctx_to) && ctx_away_valid && ctx_to_valid && !new_queue)
+		legacy_status |= GEN8_CTX_STATUS_ELEMENT_SWITCH;
+
+	if ((switch_detail == GEN12_CTX_PREEMPTED) || (new_queue && ctx_away_valid))
+		legacy_status |= GEN8_CTX_STATUS_PREEMPTED;
+
+	if ((switch_detail == GEN12_CTX_COMPLETE) && ctx_away_valid)
+		legacy_status |= GEN8_CTX_STATUS_COMPLETE;
+
+	/* FIXME preempt to idle support - require gen11 patch to land first
+	if (!ctx_to_valid && new_queue) {
+		legacy_status |= GEN11_CTX_STATUS_PREEMPT_IDLE;
+
+		if (!ctx_away_valid)
+			legacy_status |= GEN8_CTX_STATUS_IDLE_ACTIVE;
+	}
+	*/
+
+	/* add other events as required (e.g. semaphore wait) */
+	GEM_BUG_ON(!legacy_status);
+
+	/*
+	 * the upper 32 bits of the legacy status match the upper 32 bits
+	 * of the descriptor of the ctx we're switching away from.
+	 */
+	__gen11_ctx_desc_fill_upper_32_bits(engine, GEN12_CTX_SW_ID(ctx_away),
+					    GEN12_CTX_SW_COUNTER(ctx_away),
+					    &legacy_status);
+
+	return legacy_status;
+}
+
 static void process_csb(struct intel_engine_cs *engine)
 {
 	struct intel_engine_execlists * const execlists = &engine->execlists;
@@ -933,7 +1094,7 @@ static void process_csb(struct intel_engine_cs *engine)
 
 	do {
 		struct i915_request *rq;
-		unsigned int status;
+		u64 status;
 		unsigned int count;
 
 		if (++head == GEN8_CSB_ENTRIES)
@@ -963,6 +1124,11 @@ static void process_csb(struct intel_engine_cs *engine)
 			  execlists->active);
 
 		status = buf[2 * head];
+		status |= (u64)buf[2 * head + 1] << 32;
+
+		if (INTEL_GEN(engine->i915) >= 12)
+			status = gen12_convert_csb(engine, status);
+
 		if (status & (GEN8_CTX_STATUS_IDLE_ACTIVE |
 			      GEN8_CTX_STATUS_PREEMPTED))
 			execlists_set_active(execlists,
@@ -978,7 +1144,7 @@ static void process_csb(struct intel_engine_cs *engine)
 		GEM_BUG_ON(status & GEN8_CTX_STATUS_IDLE_ACTIVE);
 
 		if (status & GEN8_CTX_STATUS_COMPLETE &&
-		    buf[2*head + 1] == execlists->preempt_complete_status) {
+		    upper_32_bits(status) == execlists->preempt_complete_status) {
 			GEM_TRACE("%s preempt-idle\n", engine->name);
 			complete_preempt_context(execlists);
 			continue;
@@ -1003,7 +1169,7 @@ static void process_csb(struct intel_engine_cs *engine)
 			  rq ? rq_prio(rq) : 0);
 
 		/* Check the context/desc id for this event matches */
-		GEM_DEBUG_BUG_ON(buf[2 * head + 1] != port->context_id);
+		GEM_DEBUG_BUG_ON(upper_32_bits(status) != port->context_id);
 
 		GEM_BUG_ON(count == 0);
 		if (--count == 0) {
@@ -1673,10 +1839,13 @@ static int intel_init_workaround_bb(struct intel_engine_cs *engine)
 	unsigned int i;
 	int ret;
 
-	if (GEM_WARN_ON(engine->id != RCS))
+	if (GEM_WARN_ON(engine->class != RENDER_CLASS &&
+			engine->class != COMPUTE_CLASS))
 		return -EINVAL;
 
 	switch (INTEL_GEN(engine->i915)) {
+	case 12:
+		return 0;
 	case 11:
 		return 0;
 	case 10:
@@ -1736,6 +1905,16 @@ static void enable_execlists(struct intel_engine_cs *engine)
 	struct drm_i915_private *dev_priv = engine->i915;
 
 	I915_WRITE(RING_HWSTAM(engine->mmio_base), 0xffffffff);
+
+	/*
+	 * HACK: advanced pre-fetch breaks the relocation logic. There is a bit
+	 * of unclearness regarding how to disable the pre-fetcher around the
+	 * relocation batch only, so disable it globally until the specs are
+	 * clarified.
+	 */
+	if (IS_GEN12(dev_priv))
+		I915_WRITE(RING_MODE_GEN7(engine),
+			   _MASKED_BIT_ENABLE(GEN12_GFX_DISABLE_PREFETCH));
 
 	/*
 	 * Make sure we're not enabling the new 12-deep CSB
@@ -1825,6 +2004,16 @@ static int gen9_init_render_ring(struct intel_engine_cs *engine)
 	ret = gen8_init_common_ring(engine);
 	if (ret)
 		return ret;
+
+	/* Dual Context extra programming */
+	if (engine->id == CCS) {
+		struct drm_i915_private *dev_priv = engine->i915;
+
+		I915_WRITE(GEN12_RCU_MODE,
+			   _MASKED_BIT_ENABLE(GEN12_RCU_MODE_CCS_ENABLE));
+		I915_WRITE(GEN12_GAM_MULT_CTXT_CTL,
+			   _MASKED_BIT_ENABLE(GEN12_GAM_MULT_CTXT_ENABLE));
+	}
 
 	intel_whitelist_workarounds_apply(engine);
 
@@ -2495,6 +2684,7 @@ static u32
 make_rpcs(struct drm_i915_private *dev_priv)
 {
 	u32 rpcs = 0;
+	u32 s_count, ss_count;
 
 	/*
 	 * No explicit RPCS request is needed to ensure full
@@ -2503,6 +2693,25 @@ make_rpcs(struct drm_i915_private *dev_priv)
 	if (INTEL_GEN(dev_priv) < 9)
 		return 0;
 
+	s_count = hweight8(INTEL_INFO(dev_priv)->sseu.slice_mask);
+	ss_count = hweight8(INTEL_INFO(dev_priv)->sseu.subslice_mask[0]);
+
+	/*
+	 * ICL 11 1x8 must be programmed as if GT consists of 2 slices with
+	 * 4 subslices in each slice (2x4). HW will map it to the 1x8 config.
+	 */
+	if (IS_GEN11(dev_priv) && s_count == 1 && ss_count > 4) {
+		s_count = 2;
+
+		/*
+		 * in Gen11 the subslice count only applies when slice count is
+		 * set to 1, so if it's known that we have more than 4 available
+		 * subslices in the 1x8 config we can set the default config for
+		 * 1 "virtual" slice to 4 subslices.
+		 */
+		ss_count = 4;
+	}
+
 	/*
 	 * Starting in Gen9, render power gating can leave
 	 * slice/subslice/EU in a partially enabled state. We
@@ -2510,16 +2719,17 @@ make_rpcs(struct drm_i915_private *dev_priv)
 	 * enablement.
 	*/
 	if (INTEL_INFO(dev_priv)->sseu.has_slice_pg) {
+		u32 shift = (INTEL_GEN(dev_priv) >= 11) ?
+			GEN11_RPCS_S_CNT_SHIFT : GEN8_RPCS_S_CNT_SHIFT;
+
 		rpcs |= GEN8_RPCS_S_CNT_ENABLE;
-		rpcs |= hweight8(INTEL_INFO(dev_priv)->sseu.slice_mask) <<
-			GEN8_RPCS_S_CNT_SHIFT;
+		rpcs |= s_count << shift;
 		rpcs |= GEN8_RPCS_ENABLE;
 	}
 
 	if (INTEL_INFO(dev_priv)->sseu.has_subslice_pg) {
 		rpcs |= GEN8_RPCS_SS_CNT_ENABLE;
-		rpcs |= hweight8(INTEL_INFO(dev_priv)->sseu.subslice_mask[0]) <<
-			GEN8_RPCS_SS_CNT_SHIFT;
+		rpcs |= ss_count << GEN8_RPCS_SS_CNT_SHIFT;
 		rpcs |= GEN8_RPCS_ENABLE;
 	}
 
@@ -2542,6 +2752,10 @@ static u32 intel_lr_indirect_ctx_offset(struct intel_engine_cs *engine)
 	default:
 		MISSING_CASE(INTEL_GEN(engine->i915));
 		/* fall through */
+	case 12:
+		indirect_ctx_offset =
+			GEN12_CTX_RCS_INDIRECT_CTX_OFFSET_DEFAULT;
+		break;
 	case 11:
 		indirect_ctx_offset =
 			GEN11_CTX_RCS_INDIRECT_CTX_OFFSET_DEFAULT;
@@ -2563,31 +2777,17 @@ static u32 intel_lr_indirect_ctx_offset(struct intel_engine_cs *engine)
 	return indirect_ctx_offset;
 }
 
-static void execlists_init_reg_state(u32 *regs,
-				     struct i915_gem_context *ctx,
-				     struct intel_engine_cs *engine,
-				     struct intel_ring *ring)
+static void init_common_reg_state(u32 *regs,
+				  struct intel_engine_cs *engine,
+				  struct intel_ring *ring)
 {
-	struct drm_i915_private *dev_priv = engine->i915;
-	struct i915_hw_ppgtt *ppgtt = ctx->ppgtt ?: dev_priv->mm.aliasing_ppgtt;
 	u32 base = engine->mmio_base;
-	bool rcs = engine->class == RENDER_CLASS;
-
-	/* A context is actually a big batch buffer with several
-	 * MI_LOAD_REGISTER_IMM commands followed by (reg, value) pairs. The
-	 * values we are setting here are only for the first context restore:
-	 * on a subsequent save, the GPU will recreate this batchbuffer with new
-	 * values (including all the missing MI_LOAD_REGISTER_IMM commands that
-	 * we are not initializing here).
-	 */
-	regs[CTX_LRI_HEADER_0] = MI_LOAD_REGISTER_IMM(rcs ? 14 : 11) |
-				 MI_LRI_FORCE_POSTED;
 
 	CTX_REG(regs, CTX_CONTEXT_CONTROL, RING_CONTEXT_CONTROL(engine),
 		_MASKED_BIT_DISABLE(CTX_CTRL_ENGINE_CTX_RESTORE_INHIBIT |
 				    CTX_CTRL_ENGINE_CTX_SAVE_INHIBIT) |
 		_MASKED_BIT_ENABLE(CTX_CTRL_INHIBIT_SYN_CTX_SWITCH |
-				   (HAS_RESOURCE_STREAMER(dev_priv) ?
+				   (HAS_RESOURCE_STREAMER(engine->i915) ?
 				   CTX_CTRL_RS_CTX_ENABLE : 0)));
 	CTX_REG(regs, CTX_RING_HEAD, RING_HEAD(base), 0);
 	CTX_REG(regs, CTX_RING_TAIL, RING_TAIL(base), 0);
@@ -2597,38 +2797,45 @@ static void execlists_init_reg_state(u32 *regs,
 	CTX_REG(regs, CTX_BB_HEAD_U, RING_BBADDR_UDW(base), 0);
 	CTX_REG(regs, CTX_BB_HEAD_L, RING_BBADDR(base), 0);
 	CTX_REG(regs, CTX_BB_STATE, RING_BBSTATE(base), RING_BB_PPGTT);
-	CTX_REG(regs, CTX_SECOND_BB_HEAD_U, RING_SBBADDR_UDW(base), 0);
-	CTX_REG(regs, CTX_SECOND_BB_HEAD_L, RING_SBBADDR(base), 0);
-	CTX_REG(regs, CTX_SECOND_BB_STATE, RING_SBBSTATE(base), 0);
-	if (rcs) {
-		struct i915_ctx_workarounds *wa_ctx = &engine->wa_ctx;
+}
 
-		CTX_REG(regs, CTX_RCS_INDIRECT_CTX, RING_INDIRECT_CTX(base), 0);
-		CTX_REG(regs, CTX_RCS_INDIRECT_CTX_OFFSET,
-			RING_INDIRECT_CTX_OFFSET(base), 0);
-		if (wa_ctx->indirect_ctx.size) {
-			u32 ggtt_offset = i915_ggtt_offset(wa_ctx->vma);
+static void init_wa_bb_reg_state(u32 *regs,
+				 struct intel_engine_cs *engine,
+				 u32 pos_bb_per_ctx)
+{
+	struct i915_ctx_workarounds *wa_ctx = &engine->wa_ctx;
+	u32 base = engine->mmio_base;
+	u32 pos_indirect_ctx = pos_bb_per_ctx + 2;
+	u32 pos_indirect_ctx_offset = pos_indirect_ctx + 2;
 
-			regs[CTX_RCS_INDIRECT_CTX + 1] =
-				(ggtt_offset + wa_ctx->indirect_ctx.offset) |
-				(wa_ctx->indirect_ctx.size / CACHELINE_BYTES);
+	GEM_BUG_ON(!(engine->flags & I915_ENGINE_HAS_RCS_REG_STATE));
+	CTX_REG(regs, pos_indirect_ctx, RING_INDIRECT_CTX(base), 0);
+	CTX_REG(regs, pos_indirect_ctx_offset,
+		RING_INDIRECT_CTX_OFFSET(base), 0);
+	if (wa_ctx->indirect_ctx.size) {
+		u32 ggtt_offset = i915_ggtt_offset(wa_ctx->vma);
 
-			regs[CTX_RCS_INDIRECT_CTX_OFFSET + 1] =
-				intel_lr_indirect_ctx_offset(engine) << 6;
-		}
+		regs[pos_indirect_ctx + 1] =
+			(ggtt_offset + wa_ctx->indirect_ctx.offset) |
+			(wa_ctx->indirect_ctx.size / CACHELINE_BYTES);
 
-		CTX_REG(regs, CTX_BB_PER_CTX_PTR, RING_BB_PER_CTX_PTR(base), 0);
-		if (wa_ctx->per_ctx.size) {
-			u32 ggtt_offset = i915_ggtt_offset(wa_ctx->vma);
-
-			regs[CTX_BB_PER_CTX_PTR + 1] =
-				(ggtt_offset + wa_ctx->per_ctx.offset) | 0x01;
-		}
+		regs[pos_indirect_ctx_offset + 1] =
+			intel_lr_indirect_ctx_offset(engine) << 6;
 	}
 
-	regs[CTX_LRI_HEADER_1] = MI_LOAD_REGISTER_IMM(9) | MI_LRI_FORCE_POSTED;
+	CTX_REG(regs, pos_bb_per_ctx, RING_BB_PER_CTX_PTR(base), 0);
+	if (wa_ctx->per_ctx.size) {
+		u32 ggtt_offset = i915_ggtt_offset(wa_ctx->vma);
 
-	CTX_REG(regs, CTX_CTX_TIMESTAMP, RING_CTX_TIMESTAMP(base), 0);
+		regs[pos_bb_per_ctx + 1] =
+			(ggtt_offset + wa_ctx->per_ctx.offset) | 0x01;
+	}
+}
+
+static void init_ppgtt_reg_state(u32 *regs,
+				 struct intel_engine_cs *engine,
+				 struct i915_hw_ppgtt *ppgtt)
+{
 	/* PDP values well be assigned later if needed */
 	CTX_REG(regs, CTX_PDP3_UDW, GEN8_RING_PDP_UDW(engine, 3), 0);
 	CTX_REG(regs, CTX_PDP3_LDW, GEN8_RING_PDP_LDW(engine, 3), 0);
@@ -2646,14 +2853,95 @@ static void execlists_init_reg_state(u32 *regs,
 		 */
 		ASSIGN_CTX_PML4(ppgtt, regs);
 	}
+}
+
+static void gen8_init_reg_state(u32 *regs,
+				struct i915_gem_context *ctx,
+				struct intel_engine_cs *engine,
+				struct intel_ring *ring)
+{
+	struct drm_i915_private *dev_priv = engine->i915;
+	struct i915_hw_ppgtt *ppgtt = ctx->ppgtt ?: dev_priv->mm.aliasing_ppgtt;
+	u32 base = engine->mmio_base;
+	bool rcs = engine->id == RCS;
+
+	regs[CTX_LRI_HEADER_0] = MI_LOAD_REGISTER_IMM(rcs ? 14 : 11) |
+				 MI_LRI_FORCE_POSTED;
+
+	init_common_reg_state(regs, engine, ring);
+	CTX_REG(regs, CTX_SECOND_BB_HEAD_U, RING_SBBADDR_UDW(base), 0);
+	CTX_REG(regs, CTX_SECOND_BB_HEAD_L, RING_SBBADDR(base), 0);
+	CTX_REG(regs, CTX_SECOND_BB_STATE, RING_SBBSTATE(base), 0);
+	if (rcs)
+		init_wa_bb_reg_state(regs, engine, CTX_BB_PER_CTX_PTR);
+
+	regs[CTX_LRI_HEADER_1] = MI_LOAD_REGISTER_IMM(9) | MI_LRI_FORCE_POSTED;
+
+	CTX_REG(regs, CTX_CTX_TIMESTAMP, RING_CTX_TIMESTAMP(base), 0);
+
+	init_ppgtt_reg_state(regs, engine, ppgtt);
 
 	if (rcs) {
 		regs[CTX_LRI_HEADER_2] = MI_LOAD_REGISTER_IMM(1);
-		CTX_REG(regs, CTX_R_PWR_CLK_STATE, GEN8_R_PWR_CLK_STATE,
+		CTX_REG(regs, CTX_R_PWR_CLK_STATE, GEN8_R_PWR_CLK_STATE(base),
 			make_rpcs(dev_priv));
 
 		i915_oa_init_reg_state(engine, ctx, regs);
 	}
+}
+
+static void gen12_init_reg_state(u32 *regs,
+				 struct i915_gem_context *ctx,
+				 struct intel_engine_cs *engine,
+				 struct intel_ring *ring)
+{
+	struct drm_i915_private *dev_priv = engine->i915;
+	u32 base = engine->mmio_base;
+	bool rcs = engine->flags & I915_ENGINE_HAS_RCS_REG_STATE;
+
+	GEM_BUG_ON(!ctx->ppgtt); /* GEN12 should be using full ppgtt! */
+	GEM_DEBUG_EXEC(DRM_INFO_ONCE("Using GEN12 Register State Context\n"));
+
+	regs[GEN12_CTX_LRI_HEADER_0] = MI_LOAD_REGISTER_IMM(13) |
+				       MI_LRI_FORCE_POSTED;
+
+	init_common_reg_state(regs, engine, ring);
+	if (rcs)
+		init_wa_bb_reg_state(regs, engine, GEN12_CTX_BB_PER_CTX_PTR);
+
+	regs[GEN12_CTX_LRI_HEADER_1] = MI_LOAD_REGISTER_IMM(9) |
+				       MI_LRI_FORCE_POSTED;
+
+	CTX_REG(regs, GEN12_CTX_CTX_TIMESTAMP, RING_CTX_TIMESTAMP(base), 0);
+
+	init_ppgtt_reg_state(regs, engine, ctx->ppgtt);
+
+	if (rcs) {
+		regs[GEN12_CTX_LRI_HEADER_3] = MI_LOAD_REGISTER_IMM(1);
+		CTX_REG(regs, GEN12_CTX_R_PWR_CLK_STATE,
+			GEN8_R_PWR_CLK_STATE(base),
+			make_rpcs(dev_priv));
+
+		/* TODO: oa_init_reg_state ? */
+	}
+}
+
+static void execlists_init_reg_state(u32 *regs,
+				     struct i915_gem_context *ctx,
+				     struct intel_engine_cs *engine,
+				     struct intel_ring *ring)
+{
+	/* A context is actually a big batch buffer with several
+	 * MI_LOAD_REGISTER_IMM commands followed by (reg, value) pairs. The
+	 * values we are setting here are only for the first context restore:
+	 * on a subsequent save, the GPU will recreate this batchbuffer with new
+	 * values (including all the missing MI_LOAD_REGISTER_IMM commands that
+	 * we are not initializing here).
+	 */
+	if (INTEL_GEN(engine->i915) >= 12)
+		gen12_init_reg_state(regs, ctx, engine, ring);
+	else
+		gen8_init_reg_state(regs, ctx, engine, ring);
 }
 
 static int
@@ -2721,6 +3009,7 @@ static int execlists_context_deferred_alloc(struct i915_gem_context *ctx,
 					    struct intel_engine_cs *engine,
 					    struct intel_context *ce)
 {
+	struct drm_i915_private *dev_priv = engine->i915;
 	struct drm_i915_gem_object *ctx_obj;
 	struct i915_vma *vma;
 	uint32_t context_size;
@@ -2770,6 +3059,14 @@ static int execlists_context_deferred_alloc(struct i915_gem_context *ctx,
 
 	ce->ring = ring;
 	ce->state = vma;
+
+	if (INTEL_GEN(ctx->i915) >= 11) {
+		ce->sw_context_id = ctx->hw_id;
+		ce->sw_counter = engine->instance;
+	}
+
+	if (dev_priv->guc.ctx_alloc_hook)
+		dev_priv->guc.ctx_alloc_hook(ctx, engine);
 
 	return 0;
 
