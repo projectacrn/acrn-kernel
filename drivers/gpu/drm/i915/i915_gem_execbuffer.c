@@ -1983,14 +1983,13 @@ gen8_dispatch_bsd_engine(struct drm_i915_private *dev_priv,
 	return file_priv->bsd_engine;
 }
 
-#define I915_USER_RINGS (4)
-
 static const enum intel_engine_id user_ring_map[I915_USER_RINGS + 1] = {
 	[I915_EXEC_DEFAULT]	= RCS,
 	[I915_EXEC_RENDER]	= RCS,
 	[I915_EXEC_BLT]		= BCS,
 	[I915_EXEC_BSD]		= VCS,
-	[I915_EXEC_VEBOX]	= VECS
+	[I915_EXEC_VEBOX]	= VECS,
+	[I915_EXEC_COMPUTE]	= CCS,
 };
 
 static struct intel_engine_cs *
@@ -2223,7 +2222,7 @@ i915_gem_do_execbuffer(struct drm_device *dev,
 
 	if (args->flags & I915_EXEC_RESOURCE_STREAMER) {
 		if (!HAS_RESOURCE_STREAMER(eb.i915)) {
-			DRM_DEBUG("RS is only allowed for Haswell, Gen8 and above\n");
+			DRM_DEBUG("RS is only allowed for Haswell and Gen8 - Gen10\n");
 			return -EINVAL;
 		}
 		if (eb.engine->id != RCS) {

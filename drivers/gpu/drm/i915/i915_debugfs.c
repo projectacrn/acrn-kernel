@@ -778,6 +778,10 @@ static int i915_interrupt_info(struct seq_file *m, void *data)
 			   I915_READ(GEN11_CRYPTO_RSVD_INTR_ENABLE));
 		seq_printf(m, "GUnit/CSME Intr Enable:\t   %08x\n",
 			   I915_READ(GEN11_GUNIT_CSME_INTR_ENABLE));
+		if (HAS_CCS(dev_priv)) {
+			seq_printf(m, "Compute Intr Enable:\t   %08x\n",
+				   I915_READ(GEN12_CCS_RSVD_INTR_ENABLE));
+		}
 
 		seq_printf(m, "Display Interrupt Control:\t%08x\n",
 			   I915_READ(GEN11_DISPLAY_INT_CTL));
@@ -898,6 +902,10 @@ static int i915_interrupt_info(struct seq_file *m, void *data)
 			   I915_READ(GEN11_CRYPTO_RSVD_INTR_MASK));
 		seq_printf(m, "Gunit/CSME Intr Mask:\t %08x\n",
 			   I915_READ(GEN11_GUNIT_CSME_INTR_MASK));
+		if (HAS_CCS(dev_priv)) {
+			seq_printf(m, "CCS Intr Mask:\t %08x\n",
+				   I915_READ(GEN12_CCS0_RSVD_INTR_MASK));
+		}
 
 	} else if (INTEL_GEN(dev_priv) >= 6) {
 		for_each_engine(engine, dev_priv, id) {
@@ -2420,7 +2428,13 @@ static int i915_guc_info(struct seq_file *m, void *data)
 
 	seq_printf(m, "\nDoorbell map:\n");
 	seq_printf(m, "\t%*pb\n", GUC_NUM_DOORBELLS, guc->doorbell_bitmap);
-	seq_printf(m, "Doorbell next cacheline: 0x%x\n", guc->db_cacheline);
+	if (!HAS_GUC_DIST_DB(dev_priv))
+		seq_printf(m, "Doorbell next cacheline: 0x%x\n",
+			   guc->db_cacheline);
+	else
+		seq_printf(m, "DDB Information: last sqidi: %u, num sqidi: %u, db per sqidi: %u\n",
+			   guc->last_sqidi_num_used, guc->num_sqidi_supported,
+			   guc->num_of_doorbells_per_sqidi);
 
 	seq_printf(m, "\nGuC execbuf client @ %p:\n", guc->execbuf_client);
 	i915_guc_client_info(m, dev_priv, guc->execbuf_client);
@@ -2435,7 +2449,90 @@ static int i915_guc_info(struct seq_file *m, void *data)
 	return 0;
 }
 
-static int i915_guc_stage_pool(struct seq_file *m, void *data)
+static void gen11_guc_proxy_stage_descriptor(struct seq_file *m,
+					     struct gen11_guc_stage_desc *desc)
+{
+	seq_printf(m, "\tIndex: %u\n", desc->stage_id);
+	seq_printf(m, "\tPriority: %d\n", desc->priority);
+	seq_printf(m, "\tDoorbell id: %d\n", desc->db_id);
+	seq_printf(m, "\tDoorbell trigger phy: 0x%llx, cpu: 0x%llx, uK: 0x%x\n",
+		   desc->db_trigger_phy, desc->db_trigger_cpu, desc->db_trigger_uk);
+	seq_printf(m, "\tProcess descriptor: 0x%x\n",
+		   desc->process_desc);
+	seq_printf(m, "\tWorkqueue adddress: 0x%x, size: 0x%x\n",
+		   desc->wq_addr, desc->wq_size);
+	seq_putc(m, '\n');
+}
+
+static void gen11_guc_ppal_stage_descriptor(struct seq_file *m,
+					    struct gen11_guc_stage_desc *desc)
+{
+	struct guc_execlist_context *lrc;
+	uint class;
+	unsigned long bit;
+
+	seq_printf(m, "\tIndex: %u\n", desc->stage_id);
+	seq_printf(m, "\tAttribute: 0x%x\n", desc->attribute);
+	seq_printf(m, "\tLRC count: %u\n", desc->lrc_count);
+	seq_printf(m, "\tMax LRC per class: 0x%x\n", desc->max_lrc_per_class);
+	seq_printf(m, "\tEngines used: 0x%x\n", desc->engines_used);
+	for (class = 0; class < GUC_MAX_ENGINE_CLASSES; class ++) {
+		seq_printf(m, "\tEngines instance used for class %u: 0x%x\n",
+			   class, desc->engines_instance_used[class]);
+	}
+	seq_putc(m, '\n');
+
+	for (class = 0; class < GUC_MAX_ENGINE_CLASSES; class ++) {
+		for_each_set_bit(bit, desc->lrc_bitmap[class], GUC_MAX_LRC_PER_CLASS)
+		{
+			lrc = &desc->lrc[class][bit];
+
+			seq_printf(m, "\tClass %u LRC %lu:\n", class, bit);
+			seq_printf(m, "\t\tContext desc: 0x%x\n",
+				   lrc->context_desc);
+			seq_printf(m, "\t\tContext id: 0x%x\n",
+				   lrc->context_id);
+			seq_printf(m, "\t\tLRCA: 0x%x\n",
+				   lrc->ring_lrca);
+			seq_printf(m, "\t\tRing begin: 0x%x\n",
+				   lrc->ring_begin);
+			seq_printf(m, "\t\tRing end: 0x%x\n",
+				   lrc->ring_end);
+			seq_printf(m, "\t\tRing next free location: 0x%x\n",
+				   lrc->ring_next_free_location);
+			seq_printf(m, "\t\tRing current tail pointer: 0x%x\n",
+				   lrc->ring_current_tail_pointer_value);
+			seq_putc(m, '\n');
+		}
+	}
+	seq_putc(m, '\n');
+}
+
+static int gen11_guc_stage_pool(struct seq_file *m)
+{
+	struct drm_i915_private *dev_priv = node_to_i915(m->private);
+	const struct intel_guc *guc = &dev_priv->guc;
+	struct gen11_guc_stage_desc *desc = guc->stage_desc_pool_vaddr;
+	int index;
+
+	for (index = 0; index < guc->max_stage_desc; index++, desc++) {
+		if (desc->is_proxy) {
+			seq_printf(m, "GuC stage descriptor %u is proxy:\n",
+				   index);
+			gen11_guc_proxy_stage_descriptor(m, desc);
+		}
+
+		if (desc->is_principal) {
+			seq_printf(m, "GuC stage descriptor %u is principal:\n",
+				   index);
+			gen11_guc_ppal_stage_descriptor(m, desc);
+		}
+	}
+
+	return 0;
+}
+
+static int gen9_guc_stage_pool(struct seq_file *m)
 {
 	struct drm_i915_private *dev_priv = node_to_i915(m->private);
 	const struct intel_guc *guc = &dev_priv->guc;
@@ -2447,7 +2544,7 @@ static int i915_guc_stage_pool(struct seq_file *m, void *data)
 	if (!USES_GUC_SUBMISSION(dev_priv))
 		return -ENODEV;
 
-	for (index = 0; index < GUC_MAX_STAGE_DESCRIPTORS; index++, desc++) {
+	for (index = 0; index < guc->max_stage_desc; index++, desc++) {
 		struct intel_engine_cs *engine;
 
 		if (!(desc->attribute & GUC_STAGE_DESC_ATTR_ACTIVE))
@@ -2487,6 +2584,19 @@ static int i915_guc_stage_pool(struct seq_file *m, void *data)
 	}
 
 	return 0;
+}
+
+static int i915_guc_stage_pool(struct seq_file *m, void *data)
+{
+	struct drm_i915_private *dev_priv = node_to_i915(m->private);
+
+	if (!USES_GUC_SUBMISSION(dev_priv))
+		return 0;
+
+	if (INTEL_GEN(dev_priv) >= 11)
+		return gen11_guc_stage_pool(m);
+	else
+		return gen9_guc_stage_pool(m);
 }
 
 static int i915_guc_log_dump(struct seq_file *m, void *data)
@@ -2850,7 +2960,8 @@ static int i915_power_domain_info(struct seq_file *m, void *unused)
 
 		for_each_power_domain(power_domain, power_well->domains)
 			seq_printf(m, "  %-23s %d\n",
-				 intel_display_power_domain_str(power_domain),
+				 intel_display_power_domain_str(dev_priv,
+								power_domain),
 				 power_domains->domain_use_count[power_domain]);
 	}
 
