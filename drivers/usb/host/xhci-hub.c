@@ -900,6 +900,7 @@ static u32 xhci_get_port_status(struct usb_hcd *hcd,
 				set_bit(wIndex, &bus_state->resuming_ports);
 				bus_state->resume_done[wIndex] = timeout;
 				mod_timer(&hcd->rh_timer, timeout);
+				usb_hcd_start_port_resume(&hcd->self, wIndex);
 			}
 		/* Has resume been signalled for USB_RESUME_TIME yet? */
 		} else if (time_after_eq(jiffies,
@@ -910,6 +911,7 @@ static u32 xhci_get_port_status(struct usb_hcd *hcd,
 					wIndex + 1);
 			bus_state->resume_done[wIndex] = 0;
 			clear_bit(wIndex, &bus_state->resuming_ports);
+			usb_hcd_end_port_resume(&hcd->self, wIndex);
 
 			set_bit(wIndex, &bus_state->rexit_ports);
 
@@ -1337,6 +1339,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 					goto error;
 
 				set_bit(wIndex, &bus_state->resuming_ports);
+				usb_hcd_start_port_resume(&hcd->self, wIndex);
 				xhci_set_link_state(xhci, ports[wIndex],
 						    XDEV_RESUME);
 				spin_unlock_irqrestore(&xhci->lock, flags);
@@ -1345,6 +1348,7 @@ int xhci_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 				xhci_set_link_state(xhci, ports[wIndex],
 							XDEV_U0);
 				clear_bit(wIndex, &bus_state->resuming_ports);
+				usb_hcd_end_port_resume(&hcd->self, wIndex);
 			}
 			bus_state->port_c_suspend |= 1 << wIndex;
 

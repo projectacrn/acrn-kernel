@@ -476,12 +476,14 @@ static int cnl_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 
 static int icl_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 {
-	/* Wa_1604370585:icl (pre-prod)
-	 * Formerly known as WaPushConstantDereferenceHoldDisable
-	 */
-	if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_B0))
-		WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2,
-				  PUSH_CONSTANT_DEREF_DISABLE);
+	if (!IS_ICL_11_5(dev_priv)) {
+		/* Wa_1604370585:icl (pre-prod)
+		 * Formerly known as WaPushConstantDereferenceHoldDisable
+		 */
+		if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_B0))
+			WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2,
+					  PUSH_CONSTANT_DEREF_DISABLE);
+	}
 
 	/* WaForceEnableNonCoherent:icl
 	 * This is not the same workaround as in early Gen9 platforms, where
@@ -492,12 +494,14 @@ static int icl_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 	 */
 	WA_SET_BIT_MASKED(ICL_HDC_MODE, HDC_FORCE_NON_COHERENT);
 
-	/* Wa_2006611047:icl (pre-prod)
-	 * Formerly known as WaDisableImprovedTdlClkGating
-	 */
-	if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_A0))
-		WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2,
-				  GEN11_TDL_CLOCK_GATING_FIX_DISABLE);
+	if (!IS_ICL_11_5(dev_priv)) {
+		/* Wa_2006611047:icl (pre-prod)
+		 * Formerly known as WaDisableImprovedTdlClkGating
+		 */
+		if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_A0))
+			WA_SET_BIT_MASKED(GEN7_ROW_CHICKEN2,
+					  GEN11_TDL_CLOCK_GATING_FIX_DISABLE);
+	}
 
 	/* WaEnableStateCacheRedirectToCS:icl */
 	WA_SET_BIT_MASKED(GEN9_SLICE_COMMON_ECO_CHICKEN1,
@@ -507,6 +511,19 @@ static int icl_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 	if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_A0))
 		WA_SET_BIT_MASKED(GEN11_COMMON_SLICE_CHICKEN3,
 				  GEN11_BLEND_EMB_FIX_DISABLE_IN_RCC);
+
+	return 0;
+}
+
+static int tgl_ctx_workarounds_init(struct drm_i915_private *dev_priv)
+{
+	u32 val;
+
+	/* Wa_1604555607:tgl */
+	val = I915_READ(FF_MODE2);
+	val &= ~FF_MODE2_TDS_TIMER_MASK;
+	val |= FF_MODE2_TDS_TIMER_128;
+	WA_REG(FF_MODE2, FF_MODE2_TDS_TIMER_MASK, val);
 
 	return 0;
 }
@@ -537,6 +554,8 @@ int intel_ctx_workarounds_init(struct drm_i915_private *dev_priv)
 		err = cnl_ctx_workarounds_init(dev_priv);
 	else if (IS_ICELAKE(dev_priv))
 		err = icl_ctx_workarounds_init(dev_priv);
+	else if (IS_TIGERLAKE(dev_priv))
+		err = tgl_ctx_workarounds_init(dev_priv);
 	else
 		MISSING_CASE(INTEL_GEN(dev_priv));
 	if (err)
@@ -749,7 +768,7 @@ static void wa_init_mcr(struct drm_i915_private *dev_priv)
 	 * something more complex that requires checking the range of every
 	 * MMIO read).
 	 */
-	if (INTEL_GEN(dev_priv) >= 10 &&
+	if (IS_GEN(dev_priv, 10, 11) &&
 	    is_power_of_2(sseu->slice_mask)) {
 		/*
 		 * read FUSE3 for enabled L3 Bank IDs, if L3 Bank matches
@@ -779,7 +798,7 @@ static void wa_init_mcr(struct drm_i915_private *dev_priv)
 		mcr_slice_subslice_mask = GEN8_MCR_SLICE_MASK |
 					  GEN8_MCR_SUBSLICE_MASK;
 	/*
-	 * WaProgramMgsrForCorrectSliceSpecificMmioReads:cnl,icl
+	 * WaProgramMgsrForCorrectSliceSpecificMmioReads:cnl,icl,tgl
 	 * Before any MMIO read into slice/subslice specific registers, MCR
 	 * packet control register needs to be programmed to point to any
 	 * enabled s/ss pair. Otherwise, incorrect values will be returned.
@@ -830,11 +849,13 @@ static void icl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 	I915_WRITE(GEN8_L3SQCREG4, I915_READ(GEN8_L3SQCREG4) |
 				   GEN8_LQSC_FLUSH_COHERENT_LINES);
 
-	/* Wa_1405543622:icl
-	 * Formerly known as WaGAPZPriorityScheme
-	 */
-	I915_WRITE(GEN8_GARBCNTL, I915_READ(GEN8_GARBCNTL) |
-				  GEN11_ARBITRATION_PRIO_ORDER_MASK);
+	if (!IS_ICL_11_5(dev_priv)) {
+		/* Wa_1405543622:icl
+		 * Formerly known as WaGAPZPriorityScheme
+		 */
+		I915_WRITE(GEN8_GARBCNTL, I915_READ(GEN8_GARBCNTL) |
+					  GEN11_ARBITRATION_PRIO_ORDER_MASK);
+	}
 
 	/* Wa_1604223664:icl
 	 * Formerly known as WaL3BankAddressHashing
@@ -851,11 +872,13 @@ static void icl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 		   (I915_READ(GEN11_GACB_PERF_CTRL) & ~GEN11_HASH_CTRL_MASK) |
 		   GEN11_HASH_CTRL_BIT0 | GEN11_HASH_CTRL_BIT4);
 
-	/* Wa_1405733216:icl
-	 * Formerly known as WaDisableCleanEvicts
-	 */
-	I915_WRITE(GEN8_L3SQCREG4, I915_READ(GEN8_L3SQCREG4) |
-				   GEN11_LQSC_CLEAN_EVICT_DISABLE);
+	if (!IS_ICL_11_5(dev_priv)) {
+		/* Wa_1405733216:icl
+		 * Formerly known as WaDisableCleanEvicts
+		 */
+		I915_WRITE(GEN8_L3SQCREG4, I915_READ(GEN8_L3SQCREG4) |
+					   GEN11_LQSC_CLEAN_EVICT_DISABLE);
+	}
 
 	/* Wa_1405766107:icl
 	 * Formerly known as WaCL2SFHalfMaxAlloc
@@ -864,11 +887,13 @@ static void icl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 				      GEN11_LSN_UNSLCVC_GAFS_HALF_SF_MAXALLOC |
 				      GEN11_LSN_UNSLCVC_GAFS_HALF_CL2_MAXALLOC);
 
-	/* Wa_220166154:icl
-	 * Formerly known as WaDisCtxReload
-	 */
-	I915_WRITE(GAMW_ECO_DEV_RW_IA_REG, I915_READ(GAMW_ECO_DEV_RW_IA_REG) |
-					   GAMW_ECO_DEV_CTX_RELOAD_DISABLE);
+	if (!IS_ICL_11_5(dev_priv)) {
+		/* Wa_220166154:icl
+		 * Formerly known as WaDisCtxReload
+		 */
+		I915_WRITE(GAMW_ECO_DEV_RW_IA_REG, I915_READ(GAMW_ECO_DEV_RW_IA_REG) |
+						   GAMW_ECO_DEV_CTX_RELOAD_DISABLE);
+	}
 
 	/* Wa_1405779004:icl (pre-prod) */
 	if (IS_ICL_REVID(dev_priv, ICL_REVID_A0, ICL_REVID_A0))
@@ -905,6 +930,26 @@ static void icl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 	I915_WRITE(GAMT_CHKN_BIT_REG,
 		   I915_READ(GAMT_CHKN_BIT_REG) |
 		   GAMT_CHKN_DISABLE_L3_COH_PIPE);
+
+	/* WaEnable32PlaneMode:icl */
+	I915_WRITE(GEN9_CSFE_CHICKEN1_RCS,
+		   _MASKED_BIT_ENABLE(GEN11_ENABLE_32_PLANE_MODE));
+}
+
+static void tgl_gt_workarounds_apply(struct drm_i915_private *dev_priv)
+{
+	wa_init_mcr(dev_priv);
+
+	/* WaPipelineFlushCoherentLines:tgl */
+	I915_WRITE(GEN12_L3SQCREG2, (I915_READ(GEN12_L3SQCREG2) |
+				     GEN12_LQSC_FLUSH_COHERENT_LINES));
+
+	/* WaDisableRenderComputeDataSharing:tgl (pre-prod?) */
+	I915_WRITE(GEN12_RCU_CHICKEN,
+		   _MASKED_BIT_ENABLE(GEN12_RCU_CHICKEN_FORCE_AID_NEQ));
+
+	/* Wa_1406941453:tgl */
+	I915_WRITE(SAMPLER_MODE, _MASKED_BIT_ENABLE(SAMPLER_ENABLE_SMALL_PL));
 }
 
 void intel_gt_workarounds_apply(struct drm_i915_private *dev_priv)
@@ -929,6 +974,8 @@ void intel_gt_workarounds_apply(struct drm_i915_private *dev_priv)
 		cnl_gt_workarounds_apply(dev_priv);
 	else if (IS_ICELAKE(dev_priv))
 		icl_gt_workarounds_apply(dev_priv);
+	else if (IS_TIGERLAKE(dev_priv))
+		tgl_gt_workarounds_apply(dev_priv);
 	else
 		MISSING_CASE(INTEL_GEN(dev_priv));
 }
@@ -1009,6 +1056,30 @@ static void cnl_whitelist_build(struct whitelist *w)
 
 static void icl_whitelist_build(struct whitelist *w)
 {
+	/* WaSendPushConstantsFromMMIO:icl */
+	whitelist_reg(w, COMMON_SLICE_CHICKEN2);
+
+	/* WaAllowUMDToModifyHalfSliceChicken2:icl */
+	whitelist_reg(w, HALF_SLICE_CHICKEN2);
+
+	/* WaAllowUMDToModifyHalfSliceChicken7:icl */
+	whitelist_reg(w, GEN9_HALF_SLICE_CHICKEN7);
+
+	/* WaAllowUmdWriteTRTTRootTable:icl */
+	whitelist_reg(w, TR_VA_TTL3_PTR_DW0);
+	whitelist_reg(w, TR_VA_TTL3_PTR_DW1);
+
+	/* WaAllowUMDToModifySamplerMode:icl */
+	whitelist_reg(w, GEN10_SAMPLER_MODE);
+}
+
+static void tgl_whitelist_build(struct whitelist *w)
+{
+	/* WaSendPushConstantsFromMMIO:tgl */
+	whitelist_reg(w, COMMON_SLICE_CHICKEN2);
+
+	/* WaAllowUMDToModifySamplerMode:tgl */
+	whitelist_reg(w, GEN10_SAMPLER_MODE);
 }
 
 static struct whitelist *whitelist_build(struct intel_engine_cs *engine,
@@ -1041,6 +1112,8 @@ static struct whitelist *whitelist_build(struct intel_engine_cs *engine,
 		cnl_whitelist_build(w);
 	else if (IS_ICELAKE(i915))
 		icl_whitelist_build(w);
+	else if (IS_TIGERLAKE(i915))
+		tgl_whitelist_build(w);
 	else
 		MISSING_CASE(INTEL_GEN(i915));
 
@@ -1073,6 +1146,9 @@ static void whitelist_apply(struct intel_engine_cs *engine,
 void intel_whitelist_workarounds_apply(struct intel_engine_cs *engine)
 {
 	struct whitelist w;
+
+	if (engine->id == CCS)
+		return;
 
 	whitelist_apply(engine, whitelist_build(engine, &w));
 }

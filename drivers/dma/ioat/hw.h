@@ -66,11 +66,14 @@
 
 #define PCI_DEVICE_ID_INTEL_IOAT_SKX	0x2021
 
+#define PCI_DEVICE_ID_INTEL_IOAT_ICX	0x0b00
+
 #define IOAT_VER_1_2            0x12    /* Version 1.2 */
 #define IOAT_VER_2_0            0x20    /* Version 2.0 */
 #define IOAT_VER_3_0            0x30    /* Version 3.0 */
 #define IOAT_VER_3_2            0x32    /* Version 3.2 */
 #define IOAT_VER_3_3            0x33    /* Version 3.3 */
+#define IOAT_VER_3_4		0x34	/* Version 3.4 */
 
 
 int system_has_dca_enabled(struct pci_dev *pdev);
@@ -277,4 +280,42 @@ struct ioat_sed_raw_descriptor {
 	uint64_t	c[8];
 };
 
+struct ioat_pgcmp_descriptor {
+	union {
+		uint32_t	size;
+		uint32_t	dwbes;
+		struct {
+			unsigned int rsvd:25;
+			unsigned int pgcmp_err:1;
+			unsigned int rsvd1:5;
+			unsigned int wbes:1;
+		} dwbes_f;
+	};
+	union {
+		uint32_t ctl;
+		struct {
+			unsigned int int_en:1;
+			unsigned int src_snoop_dis:1;
+			unsigned int rsvd:1;
+			unsigned int compl_write:1;
+			unsigned int fence:1;
+			unsigned int rsvd1:10;
+			unsigned int wb_en:1;
+			unsigned int rsvd2:8;
+			#define IOAT_OP_PGCMP 0x86
+			unsigned int op:8;
+		} ctl_f;
+	};
+	uint64_t	src_addr;
+	uint64_t	dst_addr;
+	uint64_t	next;
+	uint64_t	rsv1;
+	uint64_t	rsv2;
+	/* store some driver data in an unused portion of the descriptor */
+	union {
+		uint64_t	user1;
+		uint64_t	tx_cnt;
+	};
+	uint64_t	user2;
+};
 #endif

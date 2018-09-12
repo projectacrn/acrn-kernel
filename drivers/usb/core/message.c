@@ -1377,6 +1377,13 @@ int usb_set_interface(struct usb_device *dev, int interface, int alternate)
 		return -EINVAL;
 	}
 
+	/*
+	 * usb3 hosts configure the interface in usb_hcd_alloc_bandwidth,
+	 * including freeing dropped endpoint ring buffers.
+	 * Make sure the interface endpoints are flushed before that
+	 */
+	usb_disable_interface(dev, iface, false);
+
 	/* Make sure we have enough bandwidth for this alternate interface.
 	 * Remove the current alt setting and add the new alt setting.
 	 */
