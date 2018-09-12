@@ -1,0 +1,19 @@
+config ABL_BOOTLOADER_CONTROL
+        tristate "ABL Bootloader Control module"
+        depends on X86
+        default n
+        help
+          This driver installs a reboot hook, such that if reboot() is
+          invoked with a string argument, the corresponding ABL Action
+          is written in CMOS data, in order to be processed by ABL on
+          reboot.
+
+config SEND_SLCAN_ENABLE
+        bool "control slcan protocol"
+        depends on X86
+        default n
+        help
+          This option control slcan protocol enable/disable in ablbc driver
+          The IOC compononent on broxton IVI platform use slcan protocol to
+          communicate befor calling powerctl program.
+          If no use IOC, this option can be disabed.

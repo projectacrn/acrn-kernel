@@ -94,3 +94,4 @@ obj-$(CONFIG_INTEL_CHTDC_TI_PWRBTN)	+= intel_chtdc_ti_pwrbtn.o
 obj-$(CONFIG_I2C_MULTI_INSTANTIATE)	+= i2c-multi-instantiate.o
 obj-$(CONFIG_INTEL_SOCPERF) += socperf/
 obj-$(CONFIG_INTEL_SOCWATCH) += socwatch/
+obj-$(CONFIG_INTEL_PSTORE_PRAM)	+= intel_pstore_pram.o

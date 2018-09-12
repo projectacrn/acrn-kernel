@@ -1059,7 +1059,7 @@ config INTEL_MID_WATCHDOG
 	  To compile this driver as a module, choose M here.
 
 config ITCO_WDT
-	tristate "Intel TCO Timer/Watchdog"
+	bool "Intel TCO Timer/Watchdog"
 	depends on (X86 || IA64) && PCI
 	select WATCHDOG_CORE
 	depends on I2C || I2C=n
@@ -1082,6 +1082,15 @@ config ITCO_WDT
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called iTCO_wdt.
+
+config ITCO_NO_NMI_INTR
+	bool "Intel TCO Watchdog NMI interrupt state"
+	depends on ITCO_WDT
+	default n
+	help
+	  On some platforms, the iTCO watchdog can't trigger a NMI
+	  interrupt on the first timeout. Need to set this flag to enable
+	  another way instead.
 
 config ITCO_VENDOR_SUPPORT
 	bool "Intel TCO Timer/Watchdog Specific Vendor Support"
