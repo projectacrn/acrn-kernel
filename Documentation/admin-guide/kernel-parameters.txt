@@ -880,6 +880,9 @@
 
 	dis_ucode_ldr	[X86] Disable the microcode loader.
 
+	dm=		[DM] Allows early creation of a device-mapper device.
+			See Documentation/device-mapper/boot.txt.
+
 	dma_debug=off	If the kernel is compiled with DMA_API_DEBUG support,
 			this option disables the debugging code at boot.
 
@@ -3898,6 +3901,9 @@
 			      reboot_force is either force or not specified,
 			      reboot_cpu is s[mp]#### with #### being the processor
 					to be used for rebooting.
+
+	reboot_panic=	[KNL]
+			Same as reboot parameter above but only in case of panic.
 
 	relax_domain_level=
 			[KNL, SMP] Set scheduler's default relax_domain_level.
