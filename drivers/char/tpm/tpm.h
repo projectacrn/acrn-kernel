@@ -134,22 +134,31 @@ enum tpm2_algorithms {
 };
 
 enum tpm2_command_codes {
-	TPM2_CC_FIRST		= 0x011F,
-	TPM2_CC_CREATE_PRIMARY  = 0x0131,
-	TPM2_CC_SELF_TEST	= 0x0143,
-	TPM2_CC_STARTUP		= 0x0144,
-	TPM2_CC_SHUTDOWN	= 0x0145,
-	TPM2_CC_CREATE		= 0x0153,
-	TPM2_CC_LOAD		= 0x0157,
-	TPM2_CC_UNSEAL		= 0x015E,
-	TPM2_CC_CONTEXT_LOAD	= 0x0161,
-	TPM2_CC_CONTEXT_SAVE	= 0x0162,
-	TPM2_CC_FLUSH_CONTEXT	= 0x0165,
-	TPM2_CC_GET_CAPABILITY	= 0x017A,
-	TPM2_CC_GET_RANDOM	= 0x017B,
-	TPM2_CC_PCR_READ	= 0x017E,
-	TPM2_CC_PCR_EXTEND	= 0x0182,
-	TPM2_CC_LAST		= 0x018F,
+	TPM2_CC_FIRST		        = 0x011F,
+	TPM2_CC_HIERARCHY_CONTROL       = 0x0121,
+	TPM2_CC_HIERARCHY_CHANGE_AUTH   = 0x0129,
+	TPM2_CC_CREATE_PRIMARY          = 0x0131,
+	TPM2_CC_SEQUENCE_COMPLETE       = 0x013E,
+	TPM2_CC_SELF_TEST	        = 0x0143,
+	TPM2_CC_STARTUP		        = 0x0144,
+	TPM2_CC_SHUTDOWN	        = 0x0145,
+	TPM2_CC_NV_READ                 = 0x014E,
+	TPM2_CC_CREATE		        = 0x0153,
+	TPM2_CC_LOAD		        = 0x0157,
+	TPM2_CC_SEQUENCE_UPDATE         = 0x015C,
+	TPM2_CC_UNSEAL		        = 0x015E,
+	TPM2_CC_CONTEXT_LOAD	        = 0x0161,
+	TPM2_CC_CONTEXT_SAVE	        = 0x0162,
+	TPM2_CC_FLUSH_CONTEXT	        = 0x0165,
+	TPM2_CC_VERIFY_SIGNATURE        = 0x0177,
+	TPM2_CC_GET_CAPABILITY	        = 0x017A,
+	TPM2_CC_GET_RANDOM	        = 0x017B,
+	TPM2_CC_PCR_READ	        = 0x017E,
+	TPM2_CC_PCR_EXTEND	        = 0x0182,
+	TPM2_CC_EVENT_SEQUENCE_COMPLETE = 0x0185,
+	TPM2_CC_HASH_SEQUENCE_START     = 0x0186,
+	TPM2_CC_CREATE_LOADED           = 0x0191,
+	TPM2_CC_LAST		        = 0x0193, /* Spec 1.36 */
 };
 
 enum tpm2_permanent_handles {
@@ -537,7 +546,7 @@ ssize_t tpm_getcap(struct tpm_chip *chip, u32 subcap_id, cap_t *cap,
 int tpm_get_timeouts(struct tpm_chip *);
 int tpm1_auto_startup(struct tpm_chip *chip);
 int tpm_do_selftest(struct tpm_chip *chip);
-unsigned long tpm_calc_ordinal_duration(struct tpm_chip *chip, u32 ordinal);
+unsigned long tpm1_calc_ordinal_duration(struct tpm_chip *chip, u32 ordinal);
 int tpm_pm_suspend(struct device *dev);
 int tpm_pm_resume(struct device *dev);
 

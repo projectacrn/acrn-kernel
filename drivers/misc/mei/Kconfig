@@ -45,3 +45,21 @@ config INTEL_MEI_TXE
 	  Intel Bay Trail
 
 source "drivers/misc/mei/spd/Kconfig"
+config INTEL_MEI_DAL
+	tristate "Dynamic Application Loader for ME"
+	depends on INTEL_MEI
+	help
+	  Dynamic Application Loader enables downloading java applets
+	  to DAL FW and run it in a secure environment.
+	  The DAL module exposes both user space api and kernel space api.
+
+
+config INTEL_MEI_VIRTIO
+	tristate "Intel MEI interface emulation with virtio framework"
+	select INTEL_MEI
+	depends on X86 && PCI && VIRTIO_PCI
+	help
+	  This module implements mei hw emulation over virtio transport.
+	  The module will be called mei_virtio.
+	  Enable this if your virtual machine supports virtual mei
+	  device over virtio.
