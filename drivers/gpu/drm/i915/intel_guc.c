@@ -36,6 +36,13 @@ static void gen8_guc_raise_irq(struct intel_guc *guc)
 	I915_WRITE(GUC_SEND_INTERRUPT, GUC_SEND_TRIGGER);
 }
 
+static void gen11_guc_raise_irq(struct intel_guc *guc)
+{
+	struct drm_i915_private *dev_priv = guc_to_i915(guc);
+
+	I915_WRITE(GEN11_GUC_HOST_INTERRUPT, GUC_SEND_TRIGGER);
+}
+
 static inline i915_reg_t guc_send_reg(struct intel_guc *guc, u32 i)
 {
 	GEM_BUG_ON(!guc->send_regs.base);
@@ -51,8 +58,15 @@ void intel_guc_init_send_regs(struct intel_guc *guc)
 	enum forcewake_domains fw_domains = 0;
 	unsigned int i;
 
-	guc->send_regs.base = i915_mmio_reg_offset(SOFT_SCRATCH(0));
-	guc->send_regs.count = SOFT_SCRATCH_COUNT - 1;
+	/* For GuC CT we need to use Gen11 registers */
+	if (HAS_GUC_CT(dev_priv)) {
+		guc->send_regs.base =
+				i915_mmio_reg_offset(GEN11_SOFT_SCRATCH(0));
+		guc->send_regs.count = GEN11_SOFT_SCRATCH_COUNT;
+	} else {
+		guc->send_regs.base = i915_mmio_reg_offset(SOFT_SCRATCH(0));
+		guc->send_regs.count = SOFT_SCRATCH_COUNT - 1;
+	}
 
 	for (i = 0; i < guc->send_regs.count; i++) {
 		fw_domains |= intel_uncore_forcewake_for_reg(dev_priv,
@@ -64,6 +78,8 @@ void intel_guc_init_send_regs(struct intel_guc *guc)
 
 void intel_guc_init_early(struct intel_guc *guc)
 {
+	struct drm_i915_private *dev_priv = guc_to_i915(guc);
+
 	intel_guc_fw_init_early(guc);
 	intel_guc_ct_init_early(&guc->ct);
 	intel_guc_log_init_early(&guc->log);
@@ -72,7 +88,10 @@ void intel_guc_init_early(struct intel_guc *guc)
 	spin_lock_init(&guc->irq_lock);
 	guc->send = intel_guc_send_nop;
 	guc->handler = intel_guc_to_host_event_handler_nop;
-	guc->notify = gen8_guc_raise_irq;
+	if (INTEL_GEN(dev_priv) >= 11)
+		guc->notify = gen11_guc_raise_irq;
+	else
+		guc->notify = gen8_guc_raise_irq;
 }
 
 static int guc_init_wq(struct intel_guc *guc)
@@ -200,7 +219,10 @@ int intel_guc_init(struct intel_guc *guc)
 	if (ret)
 		goto err_shared;
 
-	ret = intel_guc_ads_create(guc);
+	if (INTEL_GEN(dev_priv) >= 11)
+		ret = gen11_guc_ads_create(guc);
+	else
+		ret = intel_guc_ads_create(guc);
 	if (ret)
 		goto err_log;
 	GEM_BUG_ON(!guc->ads_vma);
@@ -230,14 +252,15 @@ void intel_guc_fini(struct intel_guc *guc)
 	intel_uc_fw_fini(&guc->fw);
 }
 
+static inline u32 guc_ctl_ads_gtt_offset(struct intel_guc *guc)
+{
+	return intel_guc_ggtt_offset(guc, guc->ads_vma) >> PAGE_SHIFT;
+}
+
 static u32 guc_ctl_debug_flags(struct intel_guc *guc)
 {
 	u32 level = intel_guc_log_get_level(&guc->log);
-	u32 flags;
-	u32 ads;
-
-	ads = intel_guc_ggtt_offset(guc, guc->ads_vma) >> PAGE_SHIFT;
-	flags = ads << GUC_ADS_ADDR_SHIFT | GUC_ADS_ENABLED;
+	u32 flags = 0;
 
 	if (!GUC_LOG_LEVEL_IS_ENABLED(level))
 		flags |= GUC_LOG_DEFAULT_DISABLED;
@@ -248,6 +271,12 @@ static u32 guc_ctl_debug_flags(struct intel_guc *guc)
 		flags |= GUC_LOG_LEVEL_TO_VERBOSITY(level) <<
 			 GUC_LOG_VERBOSITY_SHIFT;
 
+	if (INTEL_GEN(guc_to_i915(guc)) < 11) {
+		u32 ads = guc_ctl_ads_gtt_offset(guc);
+
+		flags |= ads << GUC_ADS_ADDR_SHIFT | GUC_ADS_ENABLED;
+	}
+
 	return flags;
 }
 
@@ -255,12 +284,28 @@ static u32 guc_ctl_feature_flags(struct intel_guc *guc)
 {
 	u32 flags = 0;
 
-	flags |=  GUC_CTL_VCS2_ENABLED;
+	if (INTEL_GEN(guc_to_i915(guc)) >= 11) {
+		if (!USES_GUC_SUBMISSION(guc_to_i915(guc)))
+			flags |= GEN11_GUC_CTL_DISABLE_SCHEDULER;
+	} else {
+		flags |=  GUC_CTL_VCS2_ENABLED;
 
-	if (USES_GUC_SUBMISSION(guc_to_i915(guc)))
-		flags |= GUC_CTL_KERNEL_SUBMISSIONS;
-	else
-		flags |= GUC_CTL_DISABLE_SCHEDULER;
+		if (USES_GUC_SUBMISSION(guc_to_i915(guc)))
+			flags |= GUC_CTL_KERNEL_SUBMISSIONS;
+		else
+			flags |= GUC_CTL_DISABLE_SCHEDULER;
+	}
+
+	/* temp flags required by fw to enable WIP hw features */
+#define FTR_ENABLE_HW_SEMAPHORE_PHASE_1 BIT(8)
+#define FTR_ENABLE_HW_SEMAPHORE_PHASE_2 BIT(9)
+#define FTR_ENABLE_DISTRIBUTED_DOORBELL BIT(11)
+#define FTR_ENABLE_DUAL_CONTEXT		BIT(13)
+	if (INTEL_GEN(guc_to_i915(guc)) >= 12)
+		flags |= FTR_ENABLE_HW_SEMAPHORE_PHASE_1 |
+			FTR_ENABLE_HW_SEMAPHORE_PHASE_2 |
+			FTR_ENABLE_DISTRIBUTED_DOORBELL |
+				 FTR_ENABLE_DUAL_CONTEXT;
 
 	return flags;
 }
@@ -273,7 +318,7 @@ static u32 guc_ctl_ctxinfo_flags(struct intel_guc *guc)
 		u32 ctxnum, base;
 
 		base = intel_guc_ggtt_offset(guc, guc->stage_desc_pool);
-		ctxnum = GUC_MAX_STAGE_DESCRIPTORS / 16;
+		ctxnum = guc->max_stage_desc / 16;
 
 		base >>= PAGE_SHIFT;
 		flags |= (base << GUC_CTL_BASE_ADDR_SHIFT) |
@@ -323,6 +368,18 @@ static u32 guc_ctl_log_params_flags(struct intel_guc *guc)
 	return flags;
 }
 
+static u32 gen11_guc_ctl_ads_flags(struct intel_guc *guc)
+{
+	u32 ads = guc_ctl_ads_gtt_offset(guc);
+	u32 flags = 0;
+
+	GEM_BUG_ON(INTEL_GEN(guc_to_i915(guc)) < 11);
+
+	flags |= ads << GEN11_GUC_ADS_ADDR_SHIFT | GEN11_GUC_ADS_ENABLE;
+
+	return flags;
+}
+
 /*
  * Initialise the GuC parameter block before starting the firmware
  * transfer. These parameters are read by the firmware on startup
@@ -350,6 +407,9 @@ void intel_guc_init_params(struct intel_guc *guc)
 	params[GUC_CTL_LOG_PARAMS]  = guc_ctl_log_params_flags(guc);
 	params[GUC_CTL_DEBUG] = guc_ctl_debug_flags(guc);
 	params[GUC_CTL_CTXINFO] = guc_ctl_ctxinfo_flags(guc);
+
+	if (INTEL_GEN(dev_priv) >= 11)
+		params[GEN11_GUC_ADS_CTL] = gen11_guc_ctl_ads_flags(guc);
 
 	for (i = 0; i < GUC_CTL_MAX_DWORDS; i++)
 		DRM_DEBUG_DRIVER("param[%2d] = %#x\n", i, params[i]);
@@ -474,17 +534,7 @@ void intel_guc_to_host_event_handler_mmio(struct intel_guc *guc)
 	spin_unlock(&guc->irq_lock);
 	enable_rpm_wakeref_asserts(dev_priv);
 
-	intel_guc_to_host_process_recv_msg(guc, msg);
-}
-
-void intel_guc_to_host_process_recv_msg(struct intel_guc *guc, u32 msg)
-{
-	/* Make sure to handle only enabled messages */
-	msg &= guc->msg_enabled_mask;
-
-	if (msg & (INTEL_GUC_RECV_MSG_FLUSH_LOG_BUFFER |
-		   INTEL_GUC_RECV_MSG_CRASH_DUMP_POSTED))
-		intel_guc_log_handle_flush_event(&guc->log);
+	intel_guc_to_host_process_recv_msg(guc, &msg, 1);
 }
 
 int intel_guc_sample_forcewake(struct intel_guc *guc)
@@ -539,27 +589,119 @@ int intel_guc_suspend(struct intel_guc *guc)
 	return intel_guc_send(guc, data, ARRAY_SIZE(data));
 }
 
+static inline void
+guc_set_class_under_reset(struct intel_guc *guc,
+			  unsigned int guc_class)
+{
+	GEM_BUG_ON(guc_class >= GUC_MAX_ENGINE_CLASSES);
+	__set_bit(guc_class, (unsigned long *)&guc->engine_class_under_reset);
+	intel_guc_enable_msg(guc,
+			     INTEL_GUC_RECV_MSG_ENGINE_RESET_COMPLETE);
+}
+
+static inline void
+guc_clear_class_under_reset(struct intel_guc *guc,
+			    unsigned int guc_class)
+{
+	GEM_BUG_ON(guc_class >= GUC_MAX_ENGINE_CLASSES);
+	__clear_bit(guc_class, (unsigned long *)&guc->engine_class_under_reset);
+	intel_guc_disable_msg(guc,
+			      INTEL_GUC_RECV_MSG_ENGINE_RESET_COMPLETE);
+}
+
+static inline bool
+guc_is_class_under_reset(struct intel_guc *guc,
+			 unsigned int guc_class)
+{
+	return test_bit(guc_class,
+			(unsigned long *)&guc->engine_class_under_reset);
+}
+
+#define GUC_ENGINE_RESET_COMPLETE_WAIT_MS 100
+
 /**
  * intel_guc_reset_engine() - ask GuC to reset an engine
  * @guc:	intel_guc structure
  * @engine:	engine to be reset
+ *
+ * From Gen11 onwards, the firmware will send a G2H ENGINE_RESET_COMPLETE
+ * message (with the engine's guc_class in data[2]) to confirm that the
+ * reset has been completed.
  */
 int intel_guc_reset_engine(struct intel_guc *guc,
 			   struct intel_engine_cs *engine)
 {
+	struct drm_i915_private *dev_priv = guc_to_i915(guc);
+	struct intel_guc_client *client = guc->execbuf_client;
 	u32 data[7];
+	u32 len;
+	int ret;
 
-	GEM_BUG_ON(!guc->execbuf_client);
+	GEM_BUG_ON(!client);
 
 	data[0] = INTEL_GUC_ACTION_REQUEST_ENGINE_RESET;
-	data[1] = engine->guc_id;
-	data[2] = 0;
-	data[3] = 0;
-	data[4] = 0;
-	data[5] = guc->execbuf_client->stage_id;
-	data[6] = intel_guc_ggtt_offset(guc, guc->shared_data);
+	if (INTEL_GEN(dev_priv) < 11) {
+		data[1] = engine->guc_id;
+		data[2] = 0; /* options */
+		data[3] = 0; /* pagefault recovery in progress?*/
+		data[4] = 0; /* unused */
+		data[5] = client->stage_id;
+		data[6] = intel_guc_ggtt_offset(guc, guc->shared_data);
+		len = 7;
 
-	return intel_guc_send(guc, data, ARRAY_SIZE(data));
+		return intel_guc_send(guc, data, len);
+	}
+
+	/* otherwise GEN11+ style */
+	GEM_BUG_ON(guc_is_class_under_reset(guc, engine->guc_class));
+	data[1] = engine->guc_class;
+	data[2] = client->stage_id;
+	len = 3;
+
+	guc_set_class_under_reset(guc, engine->guc_class);
+	ret = intel_guc_send(guc, data, len);
+	if (ret)
+		goto out;
+
+	if ((wait_for(!guc_is_class_under_reset(guc,
+						engine->guc_class),
+		      GUC_ENGINE_RESET_COMPLETE_WAIT_MS))) {
+		DRM_ERROR("reset_complete timed out, engine class %d\n",
+			  engine->guc_class);
+		ret = -ETIMEDOUT;
+	}
+
+out:
+	/*
+	 * Clear flag on any failure, we fall back to full reset in
+	 * case of timeout/error.
+	 */
+	if (ret)
+		guc_clear_class_under_reset(guc, engine->guc_class);
+
+	return ret;
+}
+
+/**
+ * intel_guc_reset_engine_completed() - GuC notifies host that reset
+ * engine has completed, this message should only be received after
+ * a request-reset h2g, so check that and clear the engine_class_under_reset
+ * flag.
+ *
+ * @guc:		intel_guc structure
+ * @engine_class:	Engine class in the Guc2Host message received
+ */
+static void intel_guc_reset_engine_completed(struct intel_guc *guc,
+					     const u32 engine_class)
+{
+	GEM_BUG_ON(INTEL_GEN(guc_to_i915(guc)) < 11);
+	GEM_BUG_ON(engine_class >= GUC_MAX_ENGINE_CLASSES);
+
+	if (!guc_is_class_under_reset(guc, engine_class))
+		DRM_WARN("Unexpected reset-complete for engine class: %d",
+			 engine_class);
+	else
+		guc_clear_class_under_reset(guc, engine_class);
 }
 
 /**
@@ -670,4 +812,24 @@ struct i915_vma *intel_guc_allocate_vma(struct intel_guc *guc, u32 size)
 err:
 	i915_gem_object_put(obj);
 	return vma;
+}
+
+void intel_guc_to_host_process_recv_msg(struct intel_guc *guc,
+					const u32 *payload, u32 len)
+{
+	u32 msg;
+
+	GEM_BUG_ON(!len);
+
+	/* Make sure to handle only enabled messages */
+	msg = payload[0] & guc->msg_enabled_mask;
+
+	if (msg & (INTEL_GUC_RECV_MSG_CRASH_DUMP_POSTED |
+		   INTEL_GUC_RECV_MSG_FLUSH_LOG_BUFFER))
+		intel_guc_log_handle_flush_event(&guc->log);
+
+	if (msg & INTEL_GUC_RECV_MSG_ENGINE_RESET_COMPLETE) {
+		GEM_BUG_ON(len != 3);
+		intel_guc_reset_engine_completed(guc, payload[1]);
+	}
 }

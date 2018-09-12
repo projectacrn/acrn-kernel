@@ -5877,6 +5877,9 @@ static void i9xx_pfit_enable(struct intel_crtc *crtc)
 
 bool intel_port_is_tc(struct drm_i915_private *dev_priv, enum port port)
 {
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
+		return port >= PORT_D && port <= PORT_I;
+
 	if (IS_ICELAKE(dev_priv))
 		return port >= PORT_C && port <= PORT_F;
 
@@ -5888,7 +5891,13 @@ enum tc_port intel_port_to_tc(struct drm_i915_private *dev_priv, enum port port)
 	if (!intel_port_is_tc(dev_priv, port))
 		return PORT_TC_NONE;
 
-	return port - PORT_C;
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv))
+		return port - PORT_D;
+
+	if (IS_ICELAKE(dev_priv))
+	    return port - PORT_C;
+
+	return PORT_TC_NONE;
 }
 
 enum intel_display_power_domain intel_port_to_power_domain(enum port port)
@@ -9229,30 +9238,17 @@ static void icelake_get_ddi_pll(struct drm_i915_private *dev_priv,
 	u32 temp;
 
 	/* TODO: TBT pll not implemented. */
-	switch (port) {
-	case PORT_A:
-	case PORT_B:
+	if (intel_is_port_combophy(dev_priv, port)) {
 		temp = I915_READ(DPCLKA_CFGCR0_ICL) &
 		       DPCLKA_CFGCR0_DDI_CLK_SEL_MASK(port);
 		id = temp >> DPCLKA_CFGCR0_DDI_CLK_SEL_SHIFT(port);
 
-		if (WARN_ON(id != DPLL_ID_ICL_DPLL0 && id != DPLL_ID_ICL_DPLL1))
+		if (WARN_ON(!intel_is_dpll_combophy(dev_priv, id)))
 			return;
-		break;
-	case PORT_C:
-		id = DPLL_ID_ICL_MGPLL1;
-		break;
-	case PORT_D:
-		id = DPLL_ID_ICL_MGPLL2;
-		break;
-	case PORT_E:
-		id = DPLL_ID_ICL_MGPLL3;
-		break;
-	case PORT_F:
-		id = DPLL_ID_ICL_MGPLL4;
-		break;
-	default:
-		MISSING_CASE(port);
+	} else if (intel_port_is_tc(dev_priv, port)) {
+		id = icl_port_to_mg_pll_id(dev_priv, port);
+	} else {
+		WARN(1, "Invalid port %x\n", port);
 		return;
 	}
 
@@ -9447,7 +9443,7 @@ static void haswell_get_ddi_port_state(struct intel_crtc *crtc,
 
 	port = (tmp & TRANS_DDI_PORT_MASK) >> TRANS_DDI_PORT_SHIFT;
 
-	if (IS_ICELAKE(dev_priv))
+	if (IS_ICELAKE(dev_priv) || IS_TIGERLAKE(dev_priv))
 		icelake_get_ddi_pll(dev_priv, port, pipe_config);
 	else if (IS_CANNONLAKE(dev_priv))
 		cannonlake_get_ddi_pll(dev_priv, port, pipe_config);
@@ -11534,7 +11530,8 @@ intel_pipe_config_compare(struct drm_i915_private *dev_priv,
 		}
 
 		PIPE_CONF_CHECK_I(scaler_state.scaler_id);
-		PIPE_CONF_CHECK_CLOCK_FUZZY(pixel_rate);
+		if (!IS_PRESILICON(dev_priv))
+			PIPE_CONF_CHECK_CLOCK_FUZZY(pixel_rate);
 	}
 
 	PIPE_CONF_CHECK_BOOL(double_wide);
@@ -11578,8 +11575,10 @@ intel_pipe_config_compare(struct drm_i915_private *dev_priv,
 	if (IS_G4X(dev_priv) || INTEL_GEN(dev_priv) >= 5)
 		PIPE_CONF_CHECK_I(pipe_bpp);
 
-	PIPE_CONF_CHECK_CLOCK_FUZZY(base.adjusted_mode.crtc_clock);
-	PIPE_CONF_CHECK_CLOCK_FUZZY(port_clock);
+	if (!IS_PRESILICON(dev_priv)) {
+		PIPE_CONF_CHECK_CLOCK_FUZZY(base.adjusted_mode.crtc_clock);
+		PIPE_CONF_CHECK_CLOCK_FUZZY(port_clock);
+	}
 
 	PIPE_CONF_CHECK_I(min_voltage_level);
 
@@ -13262,6 +13261,8 @@ static void intel_begin_crtc_commit(struct drm_crtc *crtc,
 		intel_color_load_luts(&intel_cstate->base);
 	}
 
+	intel_update_crtc_isoc_req(crtc, intel_cstate, old_intel_cstate, true);
+
 	/* Perform vblank evasion around commit operation */
 	intel_pipe_update_start(intel_cstate);
 
@@ -13299,6 +13300,8 @@ static void intel_finish_crtc_commit(struct drm_crtc *crtc,
 				     struct drm_crtc_state *old_crtc_state)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
+	struct intel_crtc_state *old_intel_cstate =
+		to_intel_crtc_state(old_crtc_state);
 	struct intel_atomic_state *old_intel_state =
 		to_intel_atomic_state(old_crtc_state->state);
 	struct intel_crtc_state *new_crtc_state =
@@ -13306,6 +13309,8 @@ static void intel_finish_crtc_commit(struct drm_crtc *crtc,
 
 	intel_pipe_update_end(new_crtc_state);
 
+	intel_update_crtc_isoc_req(crtc, new_crtc_state,
+				   old_intel_cstate, false);
 	if (new_crtc_state->update_pipe &&
 	    !needs_modeset(&new_crtc_state->base) &&
 	    old_crtc_state->mode.private_flags & I915_MODE_FLAG_INHERITED)
@@ -13988,6 +13993,9 @@ static int intel_crtc_init(struct drm_i915_private *dev_priv, enum pipe pipe)
 
 	WARN_ON(drm_crtc_index(&intel_crtc->base) != intel_crtc->pipe);
 
+	/* Initialize completion for isoc_response */
+	init_completion(&dev_priv->isocreq_rsp[pipe]);
+
 	return 0;
 
 fail:
@@ -14139,13 +14147,19 @@ static void intel_setup_outputs(struct drm_i915_private *dev_priv)
 	if (intel_crt_present(dev_priv))
 		intel_crt_init(dev_priv);
 
-	if (IS_ICELAKE(dev_priv)) {
+	if (IS_ICL_11_5(dev_priv) || IS_TIGERLAKE(dev_priv)) {
+		/* TODO: initialize TC ports as well */
+		intel_ddi_init(dev_priv, PORT_A);
+		intel_ddi_init(dev_priv, PORT_B);
+		intel_ddi_init(dev_priv, PORT_C);
+	} else if (IS_ICELAKE(dev_priv)) {
 		intel_ddi_init(dev_priv, PORT_A);
 		intel_ddi_init(dev_priv, PORT_B);
 		intel_ddi_init(dev_priv, PORT_C);
 		intel_ddi_init(dev_priv, PORT_D);
 		intel_ddi_init(dev_priv, PORT_E);
 		intel_ddi_init(dev_priv, PORT_F);
+		intel_gen11_dsi_init(dev_priv);
 	} else if (IS_GEN9_LP(dev_priv)) {
 		/*
 		 * FIXME: Broxton doesn't support port detection via the
@@ -16108,11 +16122,22 @@ intel_display_capture_error_state(struct drm_i915_private *dev_priv)
 
 	/* Note: this does not include DSI transcoders. */
 	error->num_transcoders = INTEL_INFO(dev_priv)->num_pipes;
-	if (HAS_DDI(dev_priv))
-		error->num_transcoders++; /* Account for eDP. */
+
+	/*
+	 * Account for eDP - GEN 11.5 onwards have
+	 * num_transcoders == num_pipes (not counting DSI).
+	 */
+	if (!(IS_ICL_11_5(dev_priv) || INTEL_GEN(dev_priv) > 11) &&
+	    HAS_DDI(dev_priv))
+		error->num_transcoders++;
 
 	for (i = 0; i < error->num_transcoders; i++) {
-		enum transcoder cpu_transcoder = transcoders[i];
+		enum transcoder cpu_transcoder;
+
+		if (WARN_ON_ONCE(i >= ARRAY_SIZE(transcoders)))
+		    break;
+
+		cpu_transcoder = transcoders[i];
 
 		error->transcoder[i].power_domain_on =
 			__intel_display_power_is_enabled(dev_priv,

@@ -57,10 +57,16 @@ struct intel_guc {
 
 	/* intel_guc_recv interrupt related state */
 	spinlock_t irq_lock;
-	bool interrupts_enabled;
+	struct {
+		bool enabled;
+		void (*reset)(struct drm_i915_private *dev_priv);
+		void (*enable)(struct drm_i915_private *dev_priv);
+		void (*disable)(struct drm_i915_private *dev_priv);
+	} interrupts;
 	unsigned int msg_enabled_mask;
 
 	struct i915_vma *ads_vma;
+	uint32_t max_stage_desc;
 	struct i915_vma *stage_desc_pool;
 	void *stage_desc_pool_vaddr;
 	struct ida stage_ids;
@@ -76,6 +82,17 @@ struct intel_guc {
 	DECLARE_BITMAP(doorbell_bitmap, GUC_NUM_DOORBELLS);
 	/* Cyclic counter mod pagesize	*/
 	u32 db_cacheline;
+
+	/* distributted doorbell information */
+	u8 last_sqidi_num_used;
+	u8 num_sqidi_supported;
+	u16 num_of_doorbells_per_sqidi;
+
+	/*
+	 * Track outstanding request-engine-reset h2g commands,
+	 * accessed by set/clear/is_engine_class_under_reset
+	 */
+	unsigned int engine_class_under_reset;
 
 	/* GuC's FW specific registers used in MMIO send */
 	struct {
@@ -96,6 +113,17 @@ struct intel_guc {
 
 	/* GuC's FW specific notify function */
 	void (*notify)(struct intel_guc *guc);
+
+	/*
+	 * Hooks for context (per-engine context, not gem context) allocation,
+	 * deallocation and descriptor update.
+	 */
+	void (*ctx_alloc_hook)(struct i915_gem_context *ctx,
+			       struct intel_engine_cs *engine);
+	void (*ctx_free_hook)(struct i915_gem_context *ctx,
+			      struct intel_engine_cs *engine);
+	void (*ctx_update_hook)(struct i915_gem_context *ctx,
+				struct intel_engine_cs *engine);
 };
 
 static
@@ -162,7 +190,8 @@ int intel_guc_send_mmio(struct intel_guc *guc, const u32 *action, u32 len,
 void intel_guc_to_host_event_handler(struct intel_guc *guc);
 void intel_guc_to_host_event_handler_nop(struct intel_guc *guc);
 void intel_guc_to_host_event_handler_mmio(struct intel_guc *guc);
-void intel_guc_to_host_process_recv_msg(struct intel_guc *guc, u32 msg);
+void intel_guc_to_host_process_recv_msg(struct intel_guc *guc,
+					const u32 *payload, u32 len);
 int intel_guc_sample_forcewake(struct intel_guc *guc);
 int intel_guc_auth_huc(struct intel_guc *guc, u32 rsa_offset);
 int intel_guc_suspend(struct intel_guc *guc);
