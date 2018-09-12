@@ -25,9 +25,13 @@
 #include <linux/phy.h>
 #include <linux/net_tstamp.h>
 #include <asm/io.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
+#include <net/udp.h>
 
 #include "stmmac.h"
 #include "dwmac_dma.h"
+#include "dw_tsn_lib.h"
 
 #define REG_SPACE_SIZE	0x1060
 #define MAC100_ETHTOOL_NAME	"st_mac100"
@@ -90,6 +94,14 @@ static const struct stmmac_stats stmmac_gstrings_stats[] = {
 	STMMAC_STAT(threshold),
 	STMMAC_STAT(tx_pkt_n),
 	STMMAC_STAT(rx_pkt_n),
+	STMMAC_STAT(q0_rx_pkt_n),
+	STMMAC_STAT(q1_rx_pkt_n),
+	STMMAC_STAT(q2_rx_pkt_n),
+	STMMAC_STAT(q3_rx_pkt_n),
+	STMMAC_STAT(q4_rx_pkt_n),
+	STMMAC_STAT(q5_rx_pkt_n),
+	STMMAC_STAT(q6_rx_pkt_n),
+	STMMAC_STAT(q7_rx_pkt_n),
 	STMMAC_STAT(normal_irq_n),
 	STMMAC_STAT(rx_normal_irq_n),
 	STMMAC_STAT(napi_poll),
@@ -97,6 +109,22 @@ static const struct stmmac_stats stmmac_gstrings_stats[] = {
 	STMMAC_STAT(tx_clean),
 	STMMAC_STAT(tx_set_ic_bit),
 	STMMAC_STAT(irq_receive_pmt_irq_n),
+	STMMAC_STAT(q0_rx_irq_n),
+	STMMAC_STAT(q1_rx_irq_n),
+	STMMAC_STAT(q2_rx_irq_n),
+	STMMAC_STAT(q3_rx_irq_n),
+	STMMAC_STAT(q4_rx_irq_n),
+	STMMAC_STAT(q5_rx_irq_n),
+	STMMAC_STAT(q6_rx_irq_n),
+	STMMAC_STAT(q7_rx_irq_n),
+	STMMAC_STAT(q0_tx_irq_n),
+	STMMAC_STAT(q1_tx_irq_n),
+	STMMAC_STAT(q2_tx_irq_n),
+	STMMAC_STAT(q3_tx_irq_n),
+	STMMAC_STAT(q4_tx_irq_n),
+	STMMAC_STAT(q5_tx_irq_n),
+	STMMAC_STAT(q6_tx_irq_n),
+	STMMAC_STAT(q7_tx_irq_n),
 	/* MMC info */
 	STMMAC_STAT(mmc_tx_irq_n),
 	STMMAC_STAT(mmc_rx_irq_n),
@@ -256,6 +284,40 @@ static const struct stmmac_stats stmmac_mmc[] = {
 };
 #define STMMAC_MMC_STATS_LEN ARRAY_SIZE(stmmac_mmc)
 
+static const struct stmmac_stats stmmac_mmc_tsn[] = {
+	STMMAC_MMC_STAT(mmc_tx_fpe_fragment),
+	STMMAC_MMC_STAT(mmc_tx_hold_req),
+	STMMAC_MMC_STAT(mmc_rx_packet_assembly_err),
+	STMMAC_MMC_STAT(mmc_rx_packet_smd_err),
+	STMMAC_MMC_STAT(mmc_rx_packet_assembly_ok),
+	STMMAC_MMC_STAT(mmc_rx_fpe_fragment),
+};
+
+#define STMMAC_MMC_TSN_STATS_LEN ARRAY_SIZE(stmmac_mmc_tsn)
+
+/* All test entries will be added before MAX_TEST_CASES */
+enum stmmac_diagnostics_cases {
+	TEST_MAC_LOOP,
+	TEST_PHY_LOOP,
+	TEST_EXT_LOOP,
+	MAX_TEST_CASES,
+	TOTAL_PASSED,
+	TOTAL_FAILED,
+	TOTAL_NOT_TESTED
+};
+
+static const char stmmac_gstrings_test[][ETH_GSTRING_LEN] = {
+	[TEST_MAC_LOOP]    = "MAC loopback test     (online)",
+	[TEST_PHY_LOOP]    = "PHY loopback test     (online)",
+	[TEST_EXT_LOOP]    = "EXT loopback test  (external_lb)",
+	[MAX_TEST_CASES]   = "8888888888888888888888888888888",
+	[TOTAL_PASSED]     = "Total test passed             ",
+	[TOTAL_FAILED]     = "Total test failed             ",
+	[TOTAL_NOT_TESTED] = "Total not tested              ",
+};
+
+#define STMMAC_TEST_LEN (sizeof(stmmac_gstrings_test) / ETH_GSTRING_LEN)
+
 static void stmmac_ethtool_getdrvinfo(struct net_device *dev,
 				      struct ethtool_drvinfo *info)
 {
@@ -392,6 +454,7 @@ stmmac_ethtool_set_link_ksettings(struct net_device *dev,
 
 		mutex_lock(&priv->lock);
 		stmmac_pcs_ctrl_ane(priv, priv->ioaddr, 1, priv->hw->ps, 0);
+		stmmac_xpcs_ctrl_ane(priv, dev, 1, 0);
 		mutex_unlock(&priv->lock);
 
 		return 0;
@@ -443,6 +506,40 @@ static void stmmac_ethtool_gregs(struct net_device *dev,
 	       NUM_DWMAC1000_DMA_REGS * 4);
 }
 
+static void stmmac_get_ringparam(struct net_device *netdev,
+				 struct ethtool_ringparam *ring)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+
+	ring->rx_max_pending = DMA_MAX_RX_SIZE;
+	ring->tx_max_pending = DMA_MAX_TX_SIZE;
+	ring->rx_pending = priv->dma_rx_size;
+	ring->tx_pending = priv->dma_tx_size;
+}
+
+static int stmmac_set_ringparam(struct net_device *netdev,
+				struct ethtool_ringparam *ring)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+	int ret;
+
+	if (ring->rx_mini_pending || ring->rx_jumbo_pending ||
+	    ring->rx_pending < DMA_MIN_RX_SIZE ||
+	    ring->rx_pending > DMA_MAX_RX_SIZE ||
+	    !is_power_of_2(ring->rx_pending) ||
+	    ring->tx_pending < DMA_MIN_TX_SIZE ||
+	    ring->tx_pending > DMA_MAX_TX_SIZE ||
+	    !is_power_of_2(ring->tx_pending))
+		return -EINVAL;
+
+	netdev->netdev_ops->ndo_stop(netdev);
+	priv->dma_rx_size = ring->rx_pending;
+	priv->dma_tx_size = ring->tx_pending;
+	ret = netdev->netdev_ops->ndo_open(netdev);
+
+	return ret;
+}
+
 static void
 stmmac_get_pauseparam(struct net_device *netdev,
 		      struct ethtool_pauseparam *pause)
@@ -454,6 +551,11 @@ stmmac_get_pauseparam(struct net_device *netdev,
 	pause->tx_pause = 0;
 
 	if (priv->hw->pcs && !stmmac_pcs_get_adv_lp(priv, priv->ioaddr, &adv_lp)) {
+		pause->autoneg = 1;
+		if (!adv_lp.pause)
+			return;
+	} else if (priv->plat->has_xpcs &&
+		   !stmmac_xpcs_get_adv_lp(priv, netdev, &adv_lp)) {
 		pause->autoneg = 1;
 		if (!adv_lp.pause)
 			return;
@@ -481,8 +583,19 @@ stmmac_set_pauseparam(struct net_device *netdev,
 	struct phy_device *phy = netdev->phydev;
 	int new_pause = FLOW_OFF;
 	struct rgmii_adv adv_lp;
+	struct est_gc_config *gcc;
+	int ret;
+
+	ret = stmmac_get_est_gcc(priv, priv->ioaddr, &gcc, 1);
+	if (ret)
+		gcc->enable = 0;
 
 	if (priv->hw->pcs && !stmmac_pcs_get_adv_lp(priv, priv->ioaddr, &adv_lp)) {
+		pause->autoneg = 1;
+		if (!adv_lp.pause)
+			return -EOPNOTSUPP;
+	} else if (priv->plat->has_xpcs &&
+		   !stmmac_xpcs_get_adv_lp(priv, netdev, &adv_lp)) {
 		pause->autoneg = 1;
 		if (!adv_lp.pause)
 			return -EOPNOTSUPP;
@@ -500,6 +613,9 @@ stmmac_set_pauseparam(struct net_device *netdev,
 	priv->flow_ctrl = new_pause;
 	phy->autoneg = pause->autoneg;
 
+	if (priv->flow_ctrl && gcc->enable)
+		pr_warn("stmmac: EST & PAUSE cannot co-exist!\n");
+
 	if (phy->autoneg) {
 		if (netif_running(netdev))
 			return phy_start_aneg(phy);
@@ -508,6 +624,274 @@ stmmac_set_pauseparam(struct net_device *netdev,
 	stmmac_flow_ctrl(priv, priv->hw, phy->duplex, priv->flow_ctrl,
 			priv->pause, tx_cnt);
 	return 0;
+}
+
+struct stmmac_lbst_priv {
+	struct packet_type pt;
+	struct completion comp;
+};
+
+static const char test_text[] = "STMMAC LOOPBACK SELF TEST";
+
+#define STMMAC_LB_TIMEOUT (msecs_to_jiffies(200))
+
+static struct sk_buff *stmmac_lb_create_udp_skb(struct net_device *netdev)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+	struct sk_buff *skb;
+	struct ethhdr *ethh;
+	struct udphdr *udph;
+	struct iphdr *iph;
+	int datalen, iplen;
+
+	datalen = sizeof(test_text);
+	iplen = sizeof(*iph) + sizeof(*udph) + datalen;
+	skb = netdev_alloc_skb_ip_align(netdev, iplen);
+	if (!skb)
+		return NULL;
+
+	/* Reserve for ethernet and IP header */
+	ethh = (struct ethhdr *)skb_push(skb, ETH_HLEN);
+	skb_reset_mac_header(skb);
+
+	skb_set_network_header(skb, skb->len);
+	iph = (struct iphdr *)skb_put(skb, sizeof(*iph));
+
+	skb_set_transport_header(skb, skb->len);
+	udph = (struct udphdr *)skb_put(skb, sizeof(*udph));
+
+	/* Fill ETH header */
+	ether_addr_copy(ethh->h_dest, priv->dev->dev_addr);
+	eth_zero_addr(ethh->h_source);
+	ethh->h_proto = htons(ETH_P_IP);
+
+	/* Fill IP header */
+	iph->ihl = 5;
+	iph->ttl = 32;
+	iph->version = 4;
+	iph->protocol = IPPROTO_UDP;
+	iph->tot_len = htons(iplen);
+	iph->frag_off = 0;
+	iph->saddr = 0;
+	iph->daddr = 0;
+	iph->tos = 0;
+	iph->id = 0;
+	ip_send_check(iph);
+
+	/* Fill UDP header */
+	udph->source = htons(9);
+	udph->dest = htons(9); /* Discard Protocol Port */
+	udph->len = htons(datalen + sizeof(*udph));
+	udph->check = 0;
+
+	/* Fill UDP data - test string */
+	memcpy(skb_put(skb, sizeof(test_text)), test_text, sizeof(test_text));
+
+	skb->csum = 0;
+	skb->ip_summed = CHECKSUM_PARTIAL;
+	udp4_hwcsum(skb, iph->saddr, iph->daddr);
+
+	skb->protocol = htons(ETH_P_IP);
+	skb->pkt_type = PACKET_HOST;
+
+	return skb;
+}
+
+static int stmmac_lb_validate_udp_skb(struct sk_buff *skb,
+				      struct net_device *netdev,
+				      struct packet_type *pt,
+				      struct net_device *orig_netdev)
+{
+	struct stmmac_lbst_priv *lbstp = pt->af_packet_priv;
+	struct ethhdr *ethh;
+	struct udphdr *udph;
+	struct iphdr *iph;
+	char *rx_text;
+
+	if (skb->protocol != htons(ETH_P_IP))
+		goto out;
+
+	ethh = (struct ethhdr *)skb_mac_header(skb);
+	if (!ether_addr_equal(ethh->h_dest, orig_netdev->dev_addr))
+		goto out;
+
+	iph = ip_hdr(skb);
+	if (iph->protocol != IPPROTO_UDP)
+		goto out;
+
+	udph = udp_hdr(skb);
+	if (udph->dest != htons(9))
+		goto out;
+
+	rx_text = ((char *)udph + sizeof(*udph));
+	if (strncmp(rx_text, test_text, sizeof(test_text)))
+		goto out;
+
+	complete(&lbstp->comp);
+out:
+	kfree_skb(skb);
+	return 0;
+}
+
+static void stmmac_lb_set_mode(struct net_device *netdev,
+			       char *type, bool mode)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+	struct phy_device *phy = priv->dev->phydev;
+
+	if (!strcmp(type, "MAC")) {
+		mutex_lock(&priv->lock);
+		stmmac_set_loopback_mode(priv, priv->hw, mode);
+		mutex_unlock(&priv->lock);
+	} else if (!strcmp(type, "PHY")) {
+		phy_loopback(phy, mode);
+	} else if (!strcmp(type, "EXT")) {
+		phy_ext_loopback(phy, mode);
+	}
+
+	/* add small delay to avoid loopback test failure */
+	msleep(50);
+}
+
+static void stmmac_lb_setup(struct net_device *netdev,
+			    struct stmmac_lbst_priv *lbstp,
+			    char *type)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+
+	init_completion(&lbstp->comp);
+
+	lbstp->pt.type = htons(ETH_P_ALL);
+	lbstp->pt.func = stmmac_lb_validate_udp_skb;
+	lbstp->pt.dev = priv->dev;
+	lbstp->pt.af_packet_priv = lbstp;
+	dev_add_pack(&lbstp->pt);
+
+	stmmac_lb_set_mode(netdev, type, true);
+}
+
+static void stmmac_lb_clean(struct net_device *netdev,
+			    struct stmmac_lbst_priv *lbstp,
+			    char *type)
+{
+	dev_remove_pack(&lbstp->pt);
+	stmmac_lb_set_mode(netdev, type, false);
+}
+
+static int stmmac_loopback_test(struct net_device *netdev, u64 *data,
+				char *type)
+{
+	struct stmmac_priv *priv = netdev_priv(netdev);
+	const struct stmmac_ops *mac_dev_ops = priv->hw->mac;
+	struct sk_buff *skb;
+	struct stmmac_lbst_priv *lbstp;
+	struct phy_driver *phydrv = to_phy_driver(netdev->phydev
+						  ->mdio.dev.driver);
+	int err;
+
+	if (!strcmp(type, "MAC")) {
+		if (!mac_dev_ops->set_loopback_mode) {
+			netdev_err(priv->dev, "MAC loopback self test function %s\n",
+				   "is not supported");
+			return 0;
+		}
+
+		/* Dwmac MAC level loopback hw limitaion:
+		 * 1.) only work in full duplex mode
+		 * 2.) link partner is required to supply rx clk
+		 * 3.) big packet loopback is not supported
+		 */
+		if (!netdev->phydev->duplex) {
+			netdev_err(priv->dev, "Cannot perform MAC loopback test %s\n",
+				   "while not in full duplex mode");
+			return 0;
+		}
+	} else if (!strcmp(type, "PHY")) {
+		if (!phydrv->set_loopback) {
+			netdev_err(priv->dev, "PHY loopback self test function %s\n",
+				   "is not supported");
+			return 0;
+		}
+	}
+
+	data[TOTAL_NOT_TESTED]--;
+
+	lbstp = kzalloc(sizeof(*lbstp), GFP_KERNEL);
+	if (!lbstp)
+		return -ENOMEM;
+
+	skb = stmmac_lb_create_udp_skb(netdev);
+	if (!skb) {
+		err = -ENOMEM;
+		goto out;
+	}
+
+	stmmac_lb_setup(netdev, lbstp, type);
+
+	err = netdev->netdev_ops->ndo_start_xmit(skb, netdev);
+	if (err)
+		goto cleanup;
+
+	err = wait_for_completion_interruptible_timeout(&lbstp->comp,
+							STMMAC_LB_TIMEOUT);
+	if (!err) {
+		err = -ETIME;
+		goto cleanup;
+	} else if (err == -ERESTARTSYS) {
+		goto cleanup;
+	} else {
+		err = 0;
+	}
+
+	data[TOTAL_PASSED]++;
+
+cleanup:
+	stmmac_lb_clean(netdev, lbstp, type);
+out:
+	kfree(lbstp);
+	if (!strcmp(type, "MAC"))
+		data[TEST_MAC_LOOP] = err;
+	else if (!strcmp(type, "PHY"))
+		data[TEST_PHY_LOOP] = err;
+	else if (!strcmp(type, "EXT"))
+		data[TEST_EXT_LOOP] = err;
+
+	return err;
+}
+
+static void stmmac_diag_test(struct net_device *netdev,
+			     struct ethtool_test *eth_test, u64 *data)
+{
+	char *MAC = "MAC";
+	char *PHY = "PHY";
+	char *EXT = "EXT";
+
+	/* ToDo: self-test mechanism */
+	data[TEST_MAC_LOOP] = 0;
+	data[TEST_PHY_LOOP] = 0;
+	data[TEST_EXT_LOOP] = 0;
+	data[MAX_TEST_CASES] = 888888;
+	data[TOTAL_PASSED] = 0;
+	data[TOTAL_FAILED] = 0;
+	data[TOTAL_NOT_TESTED] = MAX_TEST_CASES;
+
+	if (!(eth_test->flags & ETH_TEST_FL_OFFLINE)) {
+		if (stmmac_loopback_test(netdev, data, MAC)) {
+			eth_test->flags |= ETH_TEST_FL_FAILED;
+			data[TOTAL_FAILED]++;
+		}
+		if (stmmac_loopback_test(netdev, data, PHY)) {
+			eth_test->flags |= ETH_TEST_FL_FAILED;
+			data[TOTAL_FAILED]++;
+		}
+	} else if (ETH_TEST_FL_EXTERNAL_LB) {
+		if (stmmac_loopback_test(netdev, data, EXT)) {
+			eth_test->flags |= ETH_TEST_FL_FAILED;
+			data[TOTAL_FAILED]++;
+		} else {
+			eth_test->flags |= ETH_TEST_FL_EXTERNAL_LB_DONE;
+		}
+	}
 }
 
 static void stmmac_get_ethtool_stats(struct net_device *dev,
@@ -542,6 +926,21 @@ static void stmmac_get_ethtool_stats(struct net_device *dev,
 				data[j++] = (stmmac_mmc[i].sizeof_stat ==
 					     sizeof(u64)) ? (*(u64 *)p) :
 					     (*(u32 *)p);
+			}
+		}
+		if ((priv->hw->tsn_cap & TSN_CAP_FPE) == TSN_CAP_FPE) {
+			dwmac_mmc_tsn_read(priv->mmcaddr, &priv->mmc);
+
+			for (i = 0; i < STMMAC_MMC_TSN_STATS_LEN; i++) {
+				char *p;
+				int ss = stmmac_mmc_tsn[i].sizeof_stat;
+
+				p = (char *)priv +
+				    stmmac_mmc_tsn[i].stat_offset;
+
+				data[j++] = (ss ==
+					    sizeof(u64)) ?
+					    (*(u64 *)p) : (*(u32 *)p);
 			}
 		}
 		if (priv->eee_enabled) {
@@ -584,7 +983,12 @@ static int stmmac_get_sset_count(struct net_device *netdev, int sset)
 			len += safety_len;
 		}
 
+		if ((priv->hw->tsn_cap & TSN_CAP_FPE) == TSN_CAP_FPE)
+			len += STMMAC_MMC_TSN_STATS_LEN;
+
 		return len;
+	case ETH_SS_TEST:
+		return STMMAC_TEST_LEN;
 	default:
 		return -EOPNOTSUPP;
 	}
@@ -615,11 +1019,22 @@ static void stmmac_get_strings(struct net_device *dev, u32 stringset, u8 *data)
 				       ETH_GSTRING_LEN);
 				p += ETH_GSTRING_LEN;
 			}
+		if ((priv->hw->tsn_cap & TSN_CAP_FPE) == TSN_CAP_FPE) {
+			for (i = 0; i < STMMAC_MMC_TSN_STATS_LEN; i++) {
+				memcpy(p, stmmac_mmc_tsn[i].stat_string,
+				       ETH_GSTRING_LEN);
+				p += ETH_GSTRING_LEN;
+			}
+		}
 		for (i = 0; i < STMMAC_STATS_LEN; i++) {
 			memcpy(p, stmmac_gstrings_stats[i].stat_string,
 				ETH_GSTRING_LEN);
 			p += ETH_GSTRING_LEN;
 		}
+		break;
+	case ETH_SS_TEST:
+		memcpy(data, *stmmac_gstrings_test,
+		       STMMAC_TEST_LEN * ETH_GSTRING_LEN);
 		break;
 	default:
 		WARN_ON(1);
@@ -795,6 +1210,38 @@ static int stmmac_set_coalesce(struct net_device *dev,
 	return 0;
 }
 
+static void stmmac_get_channels(struct net_device *dev,
+				struct ethtool_channels *chan)
+{
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	chan->rx_count = priv->plat->rx_queues_to_use;
+	chan->tx_count = priv->plat->tx_queues_to_use;
+	chan->max_rx = priv->dma_cap.number_rx_queues;
+	chan->max_tx = priv->dma_cap.number_tx_queues;
+}
+
+static int stmmac_set_channels(struct net_device *dev,
+			       struct ethtool_channels *chan)
+{
+	struct stmmac_priv *priv = netdev_priv(dev);
+	int ret = 0;
+
+	if (chan->rx_count > priv->dma_cap.number_rx_queues ||
+	    chan->tx_count > priv->dma_cap.number_tx_queues ||
+	    !chan->rx_count || !chan->tx_count)
+		return -EINVAL;
+
+	ret = dev->netdev_ops->ndo_stop(dev);
+	if (ret == 0) {
+		priv->plat->rx_queues_to_use = chan->rx_count;
+		priv->plat->tx_queues_to_use = chan->tx_count;
+		ret = dev->netdev_ops->ndo_open(dev);
+	}
+
+	return ret;
+}
+
 static int stmmac_get_ts_info(struct net_device *dev,
 			      struct ethtool_ts_info *info)
 {
@@ -840,6 +1287,30 @@ static int stmmac_get_tunable(struct net_device *dev,
 	case ETHTOOL_RX_COPYBREAK:
 		*(u32 *)data = priv->rx_copybreak;
 		break;
+	case ETHTOOL_TX_EST_TILS:
+		ret = stmmac_get_tsn_hwtunable(priv, TSN_HWTUNA_TX_EST_TILS,
+					       data);
+		break;
+	case ETHTOOL_TX_EST_PTOV:
+		ret = stmmac_get_tsn_hwtunable(priv, TSN_HWTUNA_TX_EST_PTOV,
+					       data);
+		break;
+	case ETHTOOL_TX_EST_CTOV:
+		ret = stmmac_get_tsn_hwtunable(priv, TSN_HWTUNA_TX_EST_CTOV,
+					       data);
+		break;
+	case ETHTOOL_TX_FPE_AFSZ:
+		ret = stmmac_get_tsn_hwtunable(priv, TSN_HWTUNA_TX_FPE_AFSZ,
+					       data);
+		break;
+	case ETHTOOL_TX_FPE_HADV:
+		ret = stmmac_get_tsn_hwtunable(priv, TSN_HWTUNA_TX_FPE_HADV,
+					       data);
+		break;
+	case ETHTOOL_TX_FPE_RADV:
+		ret = stmmac_get_tsn_hwtunable(priv, TSN_HWTUNA_TX_FPE_RADV,
+					       data);
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -859,12 +1330,482 @@ static int stmmac_set_tunable(struct net_device *dev,
 	case ETHTOOL_RX_COPYBREAK:
 		priv->rx_copybreak = *(u32 *)data;
 		break;
+	case ETHTOOL_TX_EST_TILS:
+		ret = stmmac_set_tsn_hwtunable(priv, priv->ioaddr,
+					       TSN_HWTUNA_TX_EST_TILS,
+					       data);
+		break;
+	case ETHTOOL_TX_EST_PTOV:
+		ret = stmmac_set_tsn_hwtunable(priv, priv->ioaddr,
+					       TSN_HWTUNA_TX_EST_PTOV,
+					       data);
+		break;
+	case ETHTOOL_TX_EST_CTOV:
+		ret = stmmac_set_tsn_hwtunable(priv, priv->ioaddr,
+					       TSN_HWTUNA_TX_EST_CTOV,
+					       data);
+		break;
+	case ETHTOOL_TX_FPE_AFSZ:
+		ret = stmmac_set_tsn_hwtunable(priv, priv->ioaddr,
+					       TSN_HWTUNA_TX_FPE_AFSZ,
+					       data);
+		break;
+	case ETHTOOL_TX_FPE_HADV:
+		ret = stmmac_set_tsn_hwtunable(priv, priv->ioaddr,
+					       TSN_HWTUNA_TX_FPE_HADV,
+					       data);
+		break;
+	case ETHTOOL_TX_FPE_RADV:
+		ret = stmmac_set_tsn_hwtunable(priv, priv->ioaddr,
+					       TSN_HWTUNA_TX_FPE_RADV,
+					       data);
+		break;
 	default:
 		ret = -EINVAL;
 		break;
 	}
 
 	return ret;
+}
+
+static int stmmac_ethtool_get_est_gcl_depth(struct net_device *dev)
+{
+	struct stmmac_priv *priv = netdev_priv(dev);
+	struct tsn_hw_cap *tsn_hwcap;
+
+	stmmac_get_tsn_hwcap(priv, &tsn_hwcap);
+
+	return tsn_hwcap->gcl_depth;
+}
+
+static int stmmac_ethtool_get_est_gcl_length(struct net_device *dev, int own)
+{
+	int bank, ret;
+	int gcl_length;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, own);
+
+	ret = stmmac_get_est_gcrr_llr(priv, priv->ioaddr, &gcl_length,
+				      bank, 1);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC length.\n");
+
+		return 0;
+	}
+
+	return gcl_length;
+}
+
+static int stmmac_ethtool_get_est_gcl(struct net_device *dev,
+				      struct ethtool_gcl *gcl,
+				      void *gclbuf)
+{
+	struct est_gc_config *gcc;
+	struct fpe_config *fpecfg;
+	struct ethtool_gc_entry *egce;
+	struct est_gc_entry *sgce;
+	int i, bank, ret;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (gcl->cmd != ETHTOOL_GGCL ||
+	    gcl->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	ret = stmmac_get_est_gcc(priv, priv->ioaddr, &gcc, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC config.\n");
+
+		return ret;
+	}
+
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, gcl->own);
+
+	if (gcl->len != gcc->gcb[bank].gcrr.llr) {
+		dev_err(priv->device, "GC length request invalid.\n");
+
+		return -EINVAL;
+	}
+
+	ret = stmmac_get_fpe_config(priv, priv->ioaddr, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
+	egce = (struct ethtool_gc_entry *)gclbuf;
+	sgce = gcc->gcb[bank].gcl;
+	for (i = 0; i < gcl->len; i++) {
+		egce->gates = sgce->gates;
+		egce->ti_ns = sgce->ti_nsec;
+		egce->opid = ETH_GATEOP_SET_GATE_STATES;
+
+		if (!fpecfg->enable)
+			egce->opid = ETH_GATEOP_SET_GATE_STATES;
+		else if (sgce->gates & FPE_PMAC_BIT)
+			egce->opid = ETH_GATEOP_SET_N_HOLD_MAC;
+		else
+			egce->opid = ETH_GATEOP_SET_N_RELS_MAC;
+
+		egce++;
+		sgce++;
+	}
+
+	return 0;
+}
+
+static int stmmac_ethtool_set_est_gcl(struct net_device *dev,
+				      struct ethtool_gcl *gcl,
+				      void *gclbuf)
+{
+	struct ethtool_gc_entry *egce;
+	struct fpe_config *fpecfg;
+	int i, bank;
+	struct stmmac_priv *priv = netdev_priv(dev);
+	u32 fpe_in_gcl = 0;
+	int ret = -1;
+
+	if (gcl->cmd != ETHTOOL_SGCL ||
+	    gcl->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, gcl->own);
+
+	/* Parse GCL for Hold/Release MAC cmd */
+	egce = (struct ethtool_gc_entry *)gclbuf;
+	for (i = 0; i < gcl->len; i++) {
+		if (egce->opid != ETH_GATEOP_SET_GATE_STATES) {
+			fpe_in_gcl = 1;
+		break;
+		}
+		egce++;
+	}
+	ret = stmmac_get_fpe_config(priv, priv->ioaddr, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
+	/* Ensure that FPE is enabled for GC entry contains
+	 * ETH_GATEOP_SET_N_{HOLD,RELS}_MAC opid.
+	 */
+	if (!fpecfg->enable && fpe_in_gcl) {
+		dev_err(priv->device,
+			"FPE is not enabled for hold/release GCE cmd\n");
+
+		return -EINVAL;
+	}
+
+	/* Finally, handle the translation for FPE-related cmd:
+	 * ETH_GATEOP_SET_N_{HOLD,RELS}_MAC by setting/clearing
+	 * least significant bit of GC entry.
+	 */
+	egce = (struct ethtool_gc_entry *)gclbuf;
+	for (i = 0; i < gcl->len; i++) {
+		struct est_gc_entry sgce;
+
+		sgce.gates = egce->gates;
+		sgce.ti_nsec = egce->ti_ns;
+		if (egce->opid == ETH_GATEOP_SET_N_HOLD_MAC)
+			sgce.gates |= FPE_PMAC_BIT;
+		else if (egce->opid == ETH_GATEOP_SET_N_RELS_MAC)
+			sgce.gates &= ~FPE_PMAC_BIT;
+
+		ret = stmmac_set_est_gce(priv, priv->ioaddr, &sgce,
+					 i, bank, 1);
+		if (ret) {
+			dev_err(priv->device,
+				"fail to program GC entry(%d).\n", i);
+
+			return ret;
+		}
+		egce++;
+	}
+
+	return stmmac_set_est_gcrr_llr(priv, priv->ioaddr, gcl->len,
+				       bank, 1);
+}
+
+static int stmmac_ethtool_get_est_gce(struct net_device *dev,
+				      struct ethtool_gce *gce)
+{
+	struct est_gc_config *gcc;
+	struct fpe_config *fpecfg;
+	struct est_gc_entry *sgce;
+	int bank, ret;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (gce->cmd != ETHTOOL_GGCE ||
+	    gce->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	ret = stmmac_get_est_gcc(priv, priv->ioaddr, &gcc, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC config.\n");
+
+		return ret;
+	}
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, gce->own);
+
+	if (gce->row >= gcc->gcb[bank].gcrr.llr) {
+		dev_err(priv->device, "GC entry row >= length.\n");
+
+		return -EINVAL;
+	}
+
+	ret = stmmac_get_fpe_config(priv, priv->ioaddr, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
+	sgce = gcc->gcb[bank].gcl + gce->row;
+	gce->gce.gates = sgce->gates;
+	gce->gce.ti_ns = sgce->ti_nsec;
+	if (!fpecfg->enable)
+		gce->gce.opid = ETH_GATEOP_SET_GATE_STATES;
+	else if (sgce->gates & FPE_PMAC_BIT)
+		gce->gce.opid = ETH_GATEOP_SET_N_HOLD_MAC;
+	else
+		gce->gce.opid = ETH_GATEOP_SET_N_RELS_MAC;
+
+	return 0;
+}
+
+static int stmmac_ethtool_set_est_gce(struct net_device *dev,
+				      struct ethtool_gce *gce)
+{
+	struct est_gc_entry sgce;
+	struct fpe_config *fpecfg;
+	int bank, gcl_length, ret;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (gce->cmd != ETHTOOL_SGCE ||
+	    gce->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, gce->own);
+
+	ret = stmmac_get_est_gcrr_llr(priv, priv->ioaddr, &gcl_length,
+				      bank, 1);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC length.\n");
+
+		return ret;
+	}
+
+	if (gce->row >= gcl_length) {
+		dev_err(priv->device,
+			"row exceeds GCL length set in SGCL.\n");
+
+		return -EINVAL;
+	}
+
+	if (!gcl_length) {
+		dev_err(priv->device,
+			"GCL length is zero. Use SGCL first.\n");
+
+		return -EINVAL;
+	}
+
+	ret = stmmac_get_fpe_config(priv, priv->ioaddr, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
+	/* Ensure that FPE is enabled for GC entry contains
+	 * ETH_GATEOP_SET_N_{HOLD,RELS}_MAC opid.
+	 */
+	if (!fpecfg->enable && gce->gce.opid != ETH_GATEOP_SET_GATE_STATES) {
+		dev_err(priv->device,
+			"FPE is not enabled for hold/release GCE cmd\n");
+
+		return -EINVAL;
+	}
+
+	/* Finally, handle the translation for FPE-related cmd:
+	 * ETH_GATEOP_SET_N_{HOLD,RELS}_MAC by setting/clearing
+	 * least significant bit of GC entry.
+	 */
+	sgce.gates = gce->gce.gates;
+	sgce.ti_nsec = gce->gce.ti_ns;
+	if (gce->gce.opid == ETH_GATEOP_SET_N_HOLD_MAC)
+		sgce.gates |= FPE_PMAC_BIT;
+	else if (gce->gce.opid == ETH_GATEOP_SET_N_RELS_MAC)
+		sgce.gates &= ~FPE_PMAC_BIT;
+
+	ret = stmmac_set_est_gce(priv, priv->ioaddr, &sgce, gce->row,
+				 bank, 1);
+	if (ret) {
+		dev_err(priv->device,
+			"fail to program GC entry(%d).\n", gce->row);
+
+			return ret;
+	}
+
+	return 0;
+}
+
+static int stmmac_ethtool_get_est_info(struct net_device *dev,
+				       struct ethtool_est_info *esti)
+{
+	struct est_gc_config *gcc;
+	struct est_gcrr *egcrr;
+	struct tsn_err_stat *erstat;
+	struct stmmac_priv *priv = netdev_priv(dev);
+	int bank, ret;
+
+	if (esti->cmd != ETHTOOL_GESTINFO ||
+	    esti->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	ret = stmmac_get_est_gcc(priv, priv->ioaddr, &gcc, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST GC config.\n");
+
+		return ret;
+	}
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, esti->own);
+	egcrr = &gcc->gcb[bank].gcrr;
+
+	esti->cycle_s = egcrr->cycle_sec;
+	esti->cycle_ns = egcrr->cycle_nsec;
+	esti->base_s = egcrr->base_sec;
+	esti->base_ns = egcrr->base_nsec;
+	esti->extension_s = 0;
+	esti->extension_ns = egcrr->ter_nsec;
+
+	ret = stmmac_get_est_err_stat(priv, &erstat);
+	if (ret) {
+		dev_err(priv->device, "fail to get EST error status.\n");
+
+		return ret;
+	}
+
+	esti->cgce_n = erstat->cgce_n;
+	esti->hlbs_q = erstat->hlbs_q;
+	esti->btre_n = erstat->btre_n;
+	esti->btre_max_n = esti->btre_max_n;
+	esti->btrl = esti->btrl;
+	memcpy(esti->hlbf_sz, erstat->hlbf_sz, sizeof(esti->hlbf_sz));
+
+	return 0;
+}
+
+static int stmmac_ethtool_set_est_info(struct net_device *dev,
+				       struct ethtool_est_info *esti)
+{
+	struct est_gcrr egcrr;
+	struct stmmac_priv *priv = netdev_priv(dev);
+	u32 txq_cnt = priv->plat->tx_queues_to_use;
+	int bank;
+	int ret;
+
+	if (esti->cmd != ETHTOOL_SESTINFO ||
+	    esti->own >= EST_GCL_BANK_MAX)
+		return -EINVAL;
+
+	if (esti->extension_s) {
+		dev_err(priv->device, "extension in seconds not supported.\n");
+
+		return -EINVAL;
+	}
+	bank = stmmac_get_est_bank(priv, priv->ioaddr, esti->own);
+
+	egcrr.cycle_sec = esti->cycle_s;
+	egcrr.cycle_nsec = esti->cycle_ns;
+	egcrr.base_sec = esti->base_s;
+	egcrr.base_nsec = esti->base_ns;
+	egcrr.ter_nsec = esti->extension_ns;
+
+	ret = stmmac_set_est_gcrr_times(priv, priv->ioaddr, &egcrr, bank, 1);
+
+	if (!ret && txq_cnt > 1) {
+		u32 queue;
+
+		for (queue = 1; queue < txq_cnt; queue++) {
+			u32 new_idle_slope;
+			struct stmmac_txq_cfg *txqcfg =
+				&priv->plat->tx_queues_cfg[queue];
+
+			if (txqcfg->mode_to_use == MTL_QUEUE_DCB)
+				continue;
+
+			new_idle_slope = txqcfg->idle_slope;
+			ret = stmmac_cbs_recal_idleslope(priv, priv->ioaddr,
+							 queue,
+							 &new_idle_slope);
+
+			if (ret) {
+				dev_err(priv->device,
+					"Recal idleslope failed.\n");
+				break;
+			}
+
+			stmmac_config_cbs(priv, priv->hw,
+					  txqcfg->send_slope,
+					  new_idle_slope,
+					  txqcfg->high_credit,
+					  txqcfg->low_credit,
+					  queue);
+		}
+	}
+
+	return ret;
+}
+
+static int stmmac_ethtool_get_fpe_info(struct net_device *dev,
+				       struct ethtool_fpe_info *fpei)
+{
+	struct fpe_config *fpecfg;
+	u32 hrs;
+	struct stmmac_priv *priv = netdev_priv(dev);
+	int ret;
+
+	if (fpei->cmd != ETHTOOL_GFPEINFO)
+		return -EINVAL;
+
+	ret = stmmac_get_fpe_config(priv, priv->ioaddr, &fpecfg, 0);
+	if (ret) {
+		dev_err(priv->device, "fail to get FPE config.\n");
+
+		return ret;
+	}
+
+	ret = stmmac_get_fpe_pmac_sts(priv, priv->ioaddr, &hrs);
+	if (ret) {
+		dev_err(priv->device, "fail to get pMAC status.\n");
+
+		return ret;
+	}
+
+	fpei->sts_map = fpecfg->txqpec;
+	fpei->hold_req = hrs;
+	fpei->lp_fpe = fpecfg->lp_fpe_support;
+
+	return 0;
+}
+
+static int stmmac_ethtool_set_fpe_info(struct net_device *dev,
+				       struct ethtool_fpe_info *fpei)
+{
+	struct fpe_config fpecfg;
+	struct stmmac_priv *priv = netdev_priv(dev);
+
+	if (fpei->cmd != ETHTOOL_SFPEINFO)
+		return -EINVAL;
+
+	fpecfg.txqpec = fpei->sts_map;
+
+	return stmmac_set_fpe_config(priv, priv->ioaddr, &fpecfg);
 }
 
 static const struct ethtool_ops stmmac_ethtool_ops = {
@@ -876,8 +1817,11 @@ static const struct ethtool_ops stmmac_ethtool_ops = {
 	.get_regs_len = stmmac_ethtool_get_regs_len,
 	.get_link = ethtool_op_get_link,
 	.nway_reset = phy_ethtool_nway_reset,
+	.get_ringparam = stmmac_get_ringparam,
+	.set_ringparam = stmmac_set_ringparam,
 	.get_pauseparam = stmmac_get_pauseparam,
 	.set_pauseparam = stmmac_set_pauseparam,
+	.self_test = stmmac_diag_test,
 	.get_ethtool_stats = stmmac_get_ethtool_stats,
 	.get_strings = stmmac_get_strings,
 	.get_wol = stmmac_get_wol,
@@ -888,10 +1832,22 @@ static const struct ethtool_ops stmmac_ethtool_ops = {
 	.get_ts_info = stmmac_get_ts_info,
 	.get_coalesce = stmmac_get_coalesce,
 	.set_coalesce = stmmac_set_coalesce,
+	.get_channels = stmmac_get_channels,
+	.set_channels = stmmac_set_channels,
 	.get_tunable = stmmac_get_tunable,
 	.set_tunable = stmmac_set_tunable,
 	.get_link_ksettings = stmmac_ethtool_get_link_ksettings,
 	.set_link_ksettings = stmmac_ethtool_set_link_ksettings,
+	.get_est_gcl_depth = stmmac_ethtool_get_est_gcl_depth,
+	.get_est_gcl_length = stmmac_ethtool_get_est_gcl_length,
+	.get_est_gcl = stmmac_ethtool_get_est_gcl,
+	.set_est_gcl = stmmac_ethtool_set_est_gcl,
+	.get_est_gce = stmmac_ethtool_get_est_gce,
+	.set_est_gce = stmmac_ethtool_set_est_gce,
+	.get_est_info = stmmac_ethtool_get_est_info,
+	.set_est_info = stmmac_ethtool_set_est_info,
+	.get_fpe_info = stmmac_ethtool_get_fpe_info,
+	.set_fpe_info = stmmac_ethtool_set_fpe_info,
 };
 
 void stmmac_set_ethtool_ops(struct net_device *netdev)
