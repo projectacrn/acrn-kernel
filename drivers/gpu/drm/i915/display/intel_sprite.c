@@ -2495,6 +2495,11 @@ static const u32 *skl_get_plane_formats(struct drm_i915_private *dev_priv,
 					enum pipe pipe, enum plane_id plane_id,
 					int *num_formats)
 {
+	if (intel_gvt_active(dev_priv) || intel_vgpu_active(dev_priv)) {
+		*num_formats = ARRAY_SIZE(skl_plane_formats);
+		return skl_plane_formats;
+	}
+
 	if (skl_plane_has_planar(dev_priv, pipe, plane_id)) {
 		*num_formats = ARRAY_SIZE(skl_planar_formats);
 		return skl_planar_formats;
@@ -2597,10 +2602,16 @@ skl_universal_plane_create(struct drm_i915_private *dev_priv,
 						plane_id, &num_formats);
 
 	plane->has_ccs = skl_plane_has_ccs(dev_priv, pipe, plane_id);
+	if (intel_gvt_active(dev_priv) || intel_vgpu_active(dev_priv))
+		plane->has_ccs = false;
+
 	if (plane->has_ccs)
 		modifiers = skl_plane_format_modifiers_ccs;
 	else
 		modifiers = skl_plane_format_modifiers_noccs;
+
+	if (intel_gvt_active(dev_priv) || intel_vgpu_active(dev_priv))
+		modifiers = i9xx_plane_format_modifiers;
 
 	if (plane_id == PLANE_PRIMARY)
 		plane_type = DRM_PLANE_TYPE_PRIMARY;
