@@ -13729,10 +13729,7 @@ intel_primary_plane_create(struct drm_i915_private *dev_priv, enum pipe pipe)
 			num_formats = ARRAY_SIZE(skl_primary_formats);
 		}
 
-		if (primary->has_ccs)
-			modifiers = skl_format_modifiers_ccs;
-		else
-			modifiers = skl_format_modifiers_noccs;
+		modifiers = i9xx_format_modifiers;
 
 		primary->update_plane = skl_update_plane;
 		primary->disable_plane = skl_disable_plane;
