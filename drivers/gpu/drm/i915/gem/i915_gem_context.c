@@ -76,6 +76,7 @@
 #include "i915_globals.h"
 #include "i915_trace.h"
 #include "i915_user_extensions.h"
+#include "i915_vgpu.h"
 
 #define ALL_L3_SLICES(dev) (1 << NUM_L3_SLICES(dev)) - 1
 
@@ -183,6 +184,8 @@ static inline int new_hw_id(struct drm_i915_private *i915, gfp_t gfp)
 		 * highest bit in the context id to indicate proxy submission.
 		 */
 		max = MAX_GUC_CONTEXT_HW_ID;
+	else if (intel_vgpu_active(i915) || intel_gvt_active(i915))
+		max = MAX_CONTEXT_HW_ID_GVT;
 	else
 		max = MAX_CONTEXT_HW_ID;
 
@@ -221,6 +224,7 @@ static int steal_hw_id(struct drm_i915_private *i915)
 static int assign_hw_id(struct drm_i915_private *i915, unsigned int *out)
 {
 	int ret;
+	struct drm_i915_private *dev_priv = i915;
 
 	lockdep_assert_held(&i915->contexts.mutex);
 
@@ -239,6 +243,11 @@ static int assign_hw_id(struct drm_i915_private *i915, unsigned int *out)
 			return ret;
 	}
 
+	if (intel_vgpu_active(dev_priv)) {
+		/* add vgpu_id to context hw_id */
+		ret = ret | (I915_READ(vgtif_reg(vgt_id)) << SIZE_CONTEXT_HW_ID_GVT);
+	}
+
 	*out = ret;
 	return 0;
 }
@@ -252,7 +261,11 @@ static void release_hw_id(struct i915_gem_context *ctx)
 
 	mutex_lock(&i915->contexts.mutex);
 	if (!list_empty(&ctx->hw_id_link)) {
-		ida_simple_remove(&i915->contexts.hw_ida, ctx->hw_id);
+		if (intel_vgpu_active(i915))
+			ida_simple_remove(&i915->contexts.hw_ida, ctx->hw_id &
+					~(0x7 << SIZE_CONTEXT_HW_ID_GVT));
+		else
+			ida_simple_remove(&i915->contexts.hw_ida, ctx->hw_id);
 		list_del_init(&ctx->hw_id_link);
 	}
 	mutex_unlock(&i915->contexts.mutex);
