@@ -99,7 +99,7 @@ static inline int bxt_get_port_from_gmbus0(u32 gmbus0)
 	else if (port_select == GMBUS_PIN_2_BXT)
 		port = PORT_C;
 	else if (port_select == GMBUS_PIN_3_BXT)
-		port = PORT_D;
+		port = PORT_A;
 	return port;
 }
 
