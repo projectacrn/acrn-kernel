@@ -2123,6 +2123,25 @@ intel_uncore_forcewake_for_reg(struct intel_uncore *uncore,
 	return fw_domains;
 }
 
+#define __raw_read(x__, s__) \
+u##x__ __raw_uncore_read##x__(const struct intel_uncore *uncore, \
+						i915_reg_t reg) \
+{ \
+	struct drm_i915_private *dev_priv; \
+	dev_priv = uncore->i915; \
+	if (!intel_vgpu_active(dev_priv) || !i915_modparams.enable_pvmmio || \
+		likely(!in_mmio_read_trap_list((reg).reg))) \
+		return read##s__(uncore->regs + i915_mmio_reg_offset(reg)); \
+	dev_priv->shared_page->reg_addr = i915_mmio_reg_offset(reg); \
+	return read##s__(uncore->regs + i915_mmio_reg_offset(vgtif_reg(pv_mmio))); \
+}
+
+__raw_read(8, b)
+__raw_read(16, w)
+__raw_read(32, l)
+__raw_read(64, q)
+#undef __raw_read
+
 #if IS_ENABLED(CONFIG_DRM_I915_SELFTEST)
 #include "selftests/mock_uncore.c"
 #include "selftests/intel_uncore.c"
