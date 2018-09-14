@@ -1624,10 +1624,7 @@ intel_sprite_plane_create(struct drm_i915_private *dev_priv,
 			num_plane_formats = ARRAY_SIZE(skl_plane_formats);
 		}
 
-		if (intel_plane->has_ccs)
-			modifiers = skl_plane_format_modifiers_ccs;
-		else
-			modifiers = skl_plane_format_modifiers_noccs;
+		modifiers = i9xx_plane_format_modifiers;
 
 		plane_funcs = &skl_plane_funcs;
 	} else if (IS_VALLEYVIEW(dev_priv) || IS_CHERRYVIEW(dev_priv)) {
