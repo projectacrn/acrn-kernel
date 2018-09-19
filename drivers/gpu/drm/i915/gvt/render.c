@@ -134,7 +134,7 @@ static struct render_mmio gen9_render_mmio_list[] __cacheline_aligned = {
 	{RCS, _MMIO(0x4ab8), 0x0, false},
 
 	{RCS, _MMIO(0x4ab0), 0x0, false},
-	{RCS, _MMIO(0x20d4), 0x0, false},
+	{RCS, _MMIO(0x20d4), 0xffff, false},
 
 	{RCS, _MMIO(0xb004), 0x0, false},
 	{RCS, _MMIO(0x20a0), 0x0, false},
