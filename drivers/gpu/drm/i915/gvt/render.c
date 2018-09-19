@@ -428,9 +428,6 @@ void intel_gvt_switch_mmio(struct intel_vgpu *pre,
 	intel_uncore_forcewake_put(dev_priv, FORCEWAKE_ALL);
 }
 
-#define gvt_host_reg(gvt, reg) 	\
-	(*(u32 *)(gvt->mmio.mmio_host_cache + reg))	\
-
 #define MMIO_COMPARE(vgpu, reg, mask) ({			\
 	int ret;						\
 	u32 value = vgpu_vreg(vgpu, reg);			\

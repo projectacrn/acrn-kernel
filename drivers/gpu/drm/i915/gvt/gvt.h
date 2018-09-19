@@ -247,6 +247,10 @@ struct intel_gvt_mmio {
 	unsigned int num_tracked_mmio;
 };
 
+/* Macro for easily access host engine mmio cached register */
+#define gvt_host_reg(gvt, reg)				\
+	(*(u32 *)(gvt->mmio.mmio_host_cache + reg))	\
+
 struct intel_gvt_firmware {
 	void *cfg_space;
 	void *mmio;
