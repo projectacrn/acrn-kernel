@@ -92,7 +92,7 @@ static struct intel_gvt_mmio_info *find_mmio_info(struct intel_gvt *gvt,
 }
 
 static int new_mmio_info(struct intel_gvt *gvt,
-		u32 offset, u8 flags, u32 size,
+		u32 offset, u16 flags, u32 size,
 		u32 addr_mask, u32 ro_mask, u32 device,
 		gvt_mmio_func read, gvt_mmio_func write)
 {
@@ -3268,6 +3268,9 @@ void intel_gvt_clean_mmio_info(struct intel_gvt *gvt)
 
 	vfree(gvt->mmio.mmio_attribute);
 	gvt->mmio.mmio_attribute = NULL;
+
+	vfree(gvt->mmio.mmio_host_cache);
+	gvt->mmio.mmio_host_cache = NULL;
 }
 
 /* Special MMIO blocks. */
@@ -3301,6 +3304,12 @@ int intel_gvt_setup_mmio_info(struct intel_gvt *gvt)
 	gvt->mmio.mmio_attribute = vzalloc(size);
 	if (!gvt->mmio.mmio_attribute)
 		return -ENOMEM;
+
+	gvt->mmio.mmio_host_cache = vzalloc(info->mmio_size);
+	if (!gvt->mmio.mmio_host_cache) {
+		vfree(gvt->mmio.mmio_attribute);
+		return -ENOMEM;
+	}
 
 	ret = init_generic_mmio_info(gvt);
 	if (ret)

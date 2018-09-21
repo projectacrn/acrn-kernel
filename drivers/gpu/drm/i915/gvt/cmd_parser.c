@@ -808,7 +808,7 @@ static bool is_shadowed_mmio(unsigned int offset)
 	return ret;
 }
 
-static inline bool is_force_nonpriv_mmio(unsigned int offset)
+bool is_force_nonpriv_mmio(unsigned int offset)
 {
 	return (offset >= 0x24d0 && offset < 0x2500);
 }
@@ -918,6 +918,15 @@ static int cmd_reg_handler(struct parser_exec_state *s,
 		}
 	}
 
+	/* Re-direct the non-context MMIO access to VGT_SCRATCH_REG, it
+	 * has no functional impact to HW.
+	 */
+	if (!strcmp(cmd, "lri") || !strcmp(cmd, "lrr-dst")
+		|| !strcmp(cmd, "lrm") || !strcmp(cmd, "pipe_ctrl")) {
+		if (intel_gvt_mmio_is_non_context(gvt, offset))
+			patch_value(s, cmd_ptr(s, index), VGT_SCRATCH_REG);
+	}
+
 	/* TODO: Update the global mask if this MMIO is a masked-MMIO */
 	intel_gvt_mmio_set_cmd_accessed(gvt, offset);
 	return 0;
@@ -957,6 +966,35 @@ static int cmd_handler_lri(struct parser_exec_state *s)
 		ret |= cmd_reg_handler(s, cmd_reg(s, i), i, "lri");
 		if (ret)
 			break;
+
+		if (s->vgpu->entire_nonctxmmio_checked
+				&& intel_gvt_mmio_is_non_context(s->vgpu->gvt,
+				cmd_reg(s, i))) {
+			int offset = cmd_reg(s, i);
+			int value = cmd_val(s, i + 1);
+			u32 *host_cache = s->vgpu->gvt->mmio.mmio_host_cache;
+
+			if (intel_gvt_mmio_has_mode_mask(s->vgpu->gvt, offset)) {
+				u32 mask = value >> 16;
+
+				vgpu_vreg(s->vgpu, offset) =
+					(vgpu_vreg(s->vgpu, offset) & ~mask)
+					| (value & mask);
+			} else {
+				vgpu_vreg(s->vgpu, offset) = value;
+			}
+
+			if (host_cache[cmd_reg(s, i) >> 2] !=
+					vgpu_vreg(s->vgpu, offset)) {
+
+				gvt_err("vgpu%d unexpected non-context MMIOs"
+					"access by cmd 0x%x:0x%x,0x%x\n",
+					s->vgpu->id,
+					(u32)cmd_reg(s, i),
+					cmd_val(s, i + 1),
+					host_cache[cmd_reg(s, i) >> 2]);
+			}
+		}
 	}
 	return ret;
 }

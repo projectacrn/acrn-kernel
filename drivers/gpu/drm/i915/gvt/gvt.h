@@ -232,6 +232,8 @@ struct intel_vgpu {
 	struct completion vblank_done;
 
 	u32 scan_nonprivbb;
+
+	bool entire_nonctxmmio_checked;
 };
 
 /* validating GM healthy status*/
@@ -259,7 +261,7 @@ struct gvt_mmio_block {
 #define INTEL_GVT_MMIO_HASH_BITS 11
 
 struct intel_gvt_mmio {
-	u8 *mmio_attribute;
+	u16 *mmio_attribute;
 /* Register contains RO bits */
 #define F_RO		(1 << 0)
 /* Register contains graphics address */
@@ -276,10 +278,14 @@ struct intel_gvt_mmio {
 #define F_UNALIGN	(1 << 6)
 /* This reg is saved/restored in context */
 #define F_IN_CTX	(1 << 7)
+/* This reg is not in the context */
+#define F_NON_CONTEXT	(1 << 8)
 
 	struct gvt_mmio_block *mmio_block;
 	unsigned int num_mmio_block;
 
+	void *mmio_host_cache;
+	bool host_cache_initialized;
 	DECLARE_HASHTABLE(mmio_info_table, INTEL_GVT_MMIO_HASH_BITS);
 	unsigned long num_tracked_mmio;
 };
@@ -669,7 +675,7 @@ static inline bool intel_gvt_mmio_has_mode_mask(
  *
  */
 static inline bool intel_gvt_mmio_is_in_ctx(
-			struct intel_gvt *gvt, unsigned int offset)
+		struct intel_gvt *gvt, unsigned int offset)
 {
 	return gvt->mmio.mmio_attribute[offset >> 2] & F_IN_CTX;
 }
@@ -681,9 +687,34 @@ static inline bool intel_gvt_mmio_is_in_ctx(
  *
  */
 static inline void intel_gvt_mmio_set_in_ctx(
-			struct intel_gvt *gvt, unsigned int offset)
+		struct intel_gvt *gvt, unsigned int offset)
 {
 	gvt->mmio.mmio_attribute[offset >> 2] |= F_IN_CTX;
+}
+
+/**
+ * intel_gvt_mmio_is_non_context - check a MMIO is non-context
+ * @gvt: a GVT device
+ * @offset: register offset
+ *
+ */
+static inline bool intel_gvt_mmio_is_non_context(
+		struct intel_gvt *gvt, unsigned int offset)
+{
+	return gvt->mmio.mmio_attribute[offset >> 2] & F_NON_CONTEXT;
+}
+
+/**
+ * intel_gvt_mmio_set_non_context - mark a MMIO is non-context
+
+ * @gvt: a GVT device
+ * @offset: register offset
+ *
+ */
+static inline void intel_gvt_mmio_set_non_context(
+		struct intel_gvt *gvt, unsigned int offset)
+{
+	gvt->mmio.mmio_attribute[offset >> 2] |= F_NON_CONTEXT;
 }
 
 int intel_gvt_debugfs_add_vgpu(struct intel_vgpu *vgpu);
@@ -691,6 +722,8 @@ void intel_gvt_debugfs_remove_vgpu(struct intel_vgpu *vgpu);
 int intel_gvt_debugfs_init(struct intel_gvt *gvt);
 void intel_gvt_debugfs_clean(struct intel_gvt *gvt);
 
+
+bool is_force_nonpriv_mmio(unsigned int offset);
 
 #include "trace.h"
 #include "mpt.h"

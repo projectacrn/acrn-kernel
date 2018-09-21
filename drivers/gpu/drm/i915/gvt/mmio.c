@@ -213,6 +213,15 @@ int intel_vgpu_emulate_mmio_write(struct intel_vgpu *vgpu, uint64_t pa,
 	if (ret < 0)
 		goto err;
 
+	if (vgpu->entire_nonctxmmio_checked
+		&& intel_gvt_mmio_is_non_context(vgpu->gvt, offset)
+		&& vgpu_vreg(vgpu, offset)
+			!= *(u32 *)(vgpu->gvt->mmio.mmio_host_cache + offset)) {
+		gvt_err("vgpu%d unexpected non-context MMIO change at 0x%x:0x%x,0x%x\n",
+			vgpu->id, offset, vgpu_vreg(vgpu, offset),
+			*(u32 *)(vgpu->gvt->mmio.mmio_host_cache + offset));
+	}
+
 	intel_gvt_mmio_set_accessed(gvt, offset);
 	ret = 0;
 	goto out;
@@ -254,6 +263,8 @@ void intel_vgpu_reset_mmio(struct intel_vgpu *vgpu, bool dmlr)
 		memcpy(vgpu->mmio.sreg, mmio, GVT_GEN8_MMIO_RESET_OFFSET);
 	}
 
+	/* Non-context MMIOs need entire check again if mmio/vgpu reset */
+	vgpu->entire_nonctxmmio_checked = false;
 }
 
 /**
