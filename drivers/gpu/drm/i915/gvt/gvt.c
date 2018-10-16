@@ -328,7 +328,7 @@ void intel_gvt_allocate_ddb(struct intel_gvt *gvt,
 	int i = 0;
 	int num_active = hweight32(active_crtcs);
 
-	if (WARN_ON(!num_active))
+	if (!num_active)
 		return;
 
 	ddb_size = INTEL_INFO(dev_priv)->ddb_size;
