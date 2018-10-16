@@ -418,6 +418,15 @@ struct intel_connector {
 	uint64_t hdcp_value; /* protected by hdcp_mutex */
 	struct delayed_work hdcp_check_work;
 	struct work_struct hdcp_prop_work;
+	struct work_struct hdcp_enable_work;
+
+	/* list of Revocated KSVs and their count from SRM blob Parsing */
+	unsigned int revocated_ksv_cnt;
+	u8 *revocated_ksv_list;
+	u32 srm_blob_id;
+
+	/* Downstream info like, depth, device_count, bksv and ksv_list etc */
+	struct cp_downstream_info *downstream_info;
 };
 
 struct intel_digital_connector_state {
@@ -1931,10 +1940,13 @@ static inline void intel_backlight_device_unregister(struct intel_connector *con
 void intel_hdcp_atomic_check(struct drm_connector *connector,
 			     struct drm_connector_state *old_state,
 			     struct drm_connector_state *new_state);
+void intel_hdcp_atomic_pre_commit(struct drm_connector *connector,
+				  struct drm_connector_state *old_state,
+				  struct drm_connector_state *new_state);
+void intel_hdcp_atomic_commit(struct drm_connector *connector,
+			      struct drm_connector_state *new_state);
 int intel_hdcp_init(struct intel_connector *connector,
 		    const struct intel_hdcp_shim *hdcp_shim);
-int intel_hdcp_enable(struct intel_connector *connector);
-int intel_hdcp_disable(struct intel_connector *connector);
 int intel_hdcp_check_link(struct intel_connector *connector);
 bool is_hdcp_supported(struct drm_i915_private *dev_priv, enum port port);
 
