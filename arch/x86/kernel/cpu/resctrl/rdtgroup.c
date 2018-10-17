@@ -1306,10 +1306,8 @@ static int rdtgroup_size_show(struct kernfs_open_file *of,
 		} else {
 			seq_printf(s, "%*s:", max_name_width,
 				   rdtgrp->plr->r->name);
-			size = rdtgroup_cbm_to_size(rdtgrp->plr->r,
-						    rdtgrp->plr->d,
-						    rdtgrp->plr->cbm);
-			seq_printf(s, "%d=%u\n", rdtgrp->plr->d->id, size);
+			seq_printf(s, "%d=%u\n", rdtgrp->plr->d->id,
+				   rdtgrp->plr->size);
 		}
 		goto out;
 	}
