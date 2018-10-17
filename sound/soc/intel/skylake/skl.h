@@ -23,6 +23,7 @@
 
 #include <sound/hda_register.h>
 #include <sound/hdaudio_ext.h>
+#include <linux/timer.h>
 #include <sound/soc.h>
 #include "skl-nhlt.h"
 #include "skl-ssp-clk.h"
@@ -44,8 +45,16 @@
 #define DMA_CLK_CONTROLS	1
 #define DMA_TRANSMITION_START	2
 #define DMA_TRANSMITION_STOP	3
+#define AZX_EM2_DUM_MASK		(1 << 23)
 
 #define AZX_REG_VS_EM2_L1SEN		BIT(13)
+#define SKL_MAX_DMACTRL		7
+#define SKL_MAX_DMA_CFG		24
+#define BXT_INSTANCE_ID		0
+#define BXT_BASE_FW_MODULE_ID	0
+
+#define SKL_MAX_TIME_INTERVAL 1000
+#define SKL_MIN_TIME_INTERVAL 10
 
 struct skl_dsp_resource {
 	u32 max_mcps;
@@ -66,8 +75,63 @@ struct skl_astate_config {
 	struct skl_astate_param astate_table[0];
 };
 
+struct skl_dma_config {
+	u32 min_size;
+	u32 max_size;
+} __packed;
+
+struct skl_dma_buff_cfg {
+	u32 type;
+	u32 size;
+	struct skl_dma_config dma_cfg[SKL_MAX_DMA_CFG];
+} __packed;
+
+struct skl_sch_config {
+	u32 type;
+	u32 length;
+	u32 sys_tick_mul;
+	u32 sys_tick_div;
+	u32 sys_tick_ll_src;
+	u32 sys_tick_cfg_len;
+	u32 sys_tick_cfg;
+};
+
+struct skl_dmctrl_hdr {
+	u32 vbus_id;
+	u32 freq;
+	u32 tdm_slot;
+	u32 fmt;
+	u32 direction;
+	u32 ch;
+	u32 data_size;
+	u32 *data;
+} __packed;
+
+struct skl_dmactrl_config {
+	u32 type;
+	u32 size;
+	u32 idx;
+	struct skl_dmctrl_hdr hdr[SKL_MAX_DMACTRL];
+} __packed;
+
 struct skl_fw_config {
+	struct skl_dma_buff_cfg dmacfg;
+	struct skl_sch_config sch_cfg;
+	struct skl_dmactrl_config dmactrl_cfg;
 	struct skl_astate_config *astate_cfg;
+};
+
+struct ep_group_cnt {
+	int cnt;
+	int *vbus_id;
+};
+
+/* For crash recovery */
+struct skl_monitor {
+	struct work_struct mwork;
+	struct timer_list timer;
+	u32 interval;
+	u32 *intervals;
 };
 
 struct skl {
@@ -81,9 +145,11 @@ struct skl {
 	struct snd_soc_component *component;
 	struct snd_soc_dai_driver *dais;
 
+	unsigned int nhlt_version;
 	struct nhlt_acpi_table *nhlt; /* nhlt ptr */
 	struct skl_sst *skl_sst; /* sst skl ctx */
 
+	struct skl_monitor monitor_dsp;
 	struct skl_dsp_resource resource;
 	struct list_head ppl_list;
 	struct list_head bind_list;
@@ -103,6 +169,9 @@ struct skl {
 	bool use_tplg_pcm;
 	struct skl_fw_config cfg;
 	struct snd_soc_acpi_mach *mach;
+	bool nhlt_override;
+	bool mod_set_get_status;
+	struct ep_group_cnt grp_cnt;
 };
 
 #define skl_to_bus(s)  (&(s)->hbus)
@@ -119,26 +188,19 @@ struct skl_machine_pdata {
 	bool use_tplg_pcm; /* use dais and dai links from topology */
 };
 
-struct skl_dsp_ops {
-	int id;
-	unsigned int num_cores;
-	struct skl_dsp_loader_ops (*loader_ops)(void);
-	int (*init)(struct device *dev, void __iomem *mmio_base,
-			int irq, const char *fw_name,
-			struct skl_dsp_loader_ops loader_ops,
-			struct skl_sst **skl_sst);
-	int (*init_fw)(struct device *dev, struct skl_sst *ctx);
-	void (*cleanup)(struct device *dev, struct skl_sst *ctx);
-};
-
 int skl_platform_unregister(struct device *dev);
 int skl_platform_register(struct device *dev);
 
+int skl_get_nhlt_version(struct device *dev);
+void skl_nhlt_get_ep_cnt(struct skl *skl, int link_type);
 struct nhlt_acpi_table *skl_nhlt_init(struct device *dev);
 void skl_nhlt_free(struct nhlt_acpi_table *addr);
 struct nhlt_specific_cfg *skl_get_ep_blob(struct skl *skl, u32 instance,
 					u8 link_type, u8 s_fmt, u8 no_ch,
 					u32 s_rate, u8 dirn, u8 dev_type);
+struct nhlt_specific_cfg *
+skl_get_nhlt_specific_cfg(struct skl *skl, u32 instance, u8 link_type,
+		u8 s_fmt, u8 num_ch, u32 s_rate, u8 dir, u8 dev_type);
 
 int skl_get_dmic_geo(struct skl *skl);
 int skl_nhlt_update_topology_bin(struct skl *skl);
@@ -148,7 +210,6 @@ int skl_suspend_late_dsp(struct skl *skl);
 int skl_suspend_dsp(struct skl *skl);
 int skl_resume_dsp(struct skl *skl);
 void skl_cleanup_resources(struct skl *skl);
-const struct skl_dsp_ops *skl_get_dsp_ops(int pci_id);
 void skl_update_d0i3c(struct device *dev, bool enable);
 int skl_nhlt_create_sysfs(struct skl *skl);
 void skl_nhlt_remove_sysfs(struct skl *skl);
@@ -157,6 +218,8 @@ struct skl_clk_parent_src *skl_get_parent_clk(u8 clk_id);
 int skl_dsp_set_dma_control(struct skl_sst *ctx, u32 *caps,
 				u32 caps_size, u32 node_id);
 
+void skl_timer_cb(struct timer_list *t);
+void skl_trigger_recovery(struct work_struct *work);
 struct skl_module_cfg;
 
 #ifdef CONFIG_DEBUG_FS
@@ -164,6 +227,10 @@ struct skl_debug *skl_debugfs_init(struct skl *skl);
 void skl_debug_init_module(struct skl_debug *d,
 			struct snd_soc_dapm_widget *w,
 			struct skl_module_cfg *mconfig);
+struct nhlt_specific_cfg
+*skl_nhlt_get_debugfs_blob(struct skl_debug *d, u8 link_type, u32 instance,
+			u8 stream);
+void skl_dbg_event(struct skl_sst *ctx, int type);
 #else
 static inline struct skl_debug *skl_debugfs_init(struct skl *skl)
 {
@@ -173,6 +240,15 @@ static inline void skl_debug_init_module(struct skl_debug *d,
 					 struct snd_soc_dapm_widget *w,
 					 struct skl_module_cfg *mconfig)
 {}
+static inline struct nhlt_specific_cfg
+*skl_nhlt_get_debugfs_blob(struct skl_debug *d, u8 link_type, u32 instance,
+			u8 stream)
+{
+	return NULL;
+}
+void skl_dbg_event(struct skl_sst *ctx, int type)
+{
+}
 #endif
 
 #endif /* __SOUND_SOC_SKL_H */

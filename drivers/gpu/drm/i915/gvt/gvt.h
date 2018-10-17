@@ -55,6 +55,7 @@
 enum {
 	INTEL_GVT_HYPERVISOR_XEN = 0,
 	INTEL_GVT_HYPERVISOR_KVM,
+	INTEL_GVT_HYPERVISOR_ACRN,
 };
 
 struct intel_gvt_host {
@@ -70,6 +71,7 @@ struct intel_gvt_device_info {
 	u32 max_support_vgpus;
 	u32 cfg_space_size;
 	u32 mmio_size;
+	u32 mmio_size_order;
 	u32 mmio_bar;
 	unsigned long msi_cap_offset;
 	u32 gtt_start_offset;
@@ -83,6 +85,7 @@ struct intel_gvt_device_info {
 struct intel_vgpu_gm {
 	u64 aperture_sz;
 	u64 hidden_sz;
+	struct sg_table *st;
 	struct drm_mm_node low_gm_node;
 	struct drm_mm_node high_gm_node;
 };
@@ -99,6 +102,7 @@ struct intel_vgpu_fence {
 struct intel_vgpu_mmio {
 	void *vreg;
 	void *sreg;
+	struct gvt_shared_page *shared_page;
 };
 
 #define INTEL_GVT_MAX_BAR_NUM 4
@@ -182,7 +186,7 @@ struct intel_vgpu {
 	 * scheduler structure. So below 2 vgpu data are protected
 	 * by sched_lock, not vgpu_lock.
 	 */
-	void *sched_data;
+	void *sched_data[I915_NUM_ENGINES];
 	struct vgpu_sched_ctl sched_ctl;
 
 	struct intel_vgpu_fence fence;
@@ -232,6 +236,9 @@ struct intel_vgpu {
 	struct completion vblank_done;
 
 	u32 scan_nonprivbb;
+
+	unsigned long long *cached_guest_entry;
+	bool ge_cache_enable;
 };
 
 /* validating GM healthy status*/
@@ -291,6 +298,7 @@ struct intel_gvt_firmware {
 };
 
 #define NR_MAX_INTEL_VGPU_TYPES 20
+
 struct intel_vgpu_type {
 	char name[16];
 	unsigned int avail_instance;
@@ -299,6 +307,15 @@ struct intel_vgpu_type {
 	unsigned int fence;
 	unsigned int weight;
 	enum intel_vgpu_edid resolution;
+};
+
+struct intel_gvt_pipe_info {
+	enum pipe pipe_num;
+	int owner;
+	struct intel_gvt *gvt;
+	struct work_struct vblank_work;
+	int plane_owner[I915_MAX_PLANES];
+	int scaler_owner[SKL_NUM_SCALERS];
 };
 
 struct intel_gvt {
@@ -333,6 +350,10 @@ struct intel_gvt {
 	 * use it with atomic bit ops so that no need to use gvt big lock.
 	 */
 	unsigned long service_request;
+
+	struct intel_gvt_pipe_info pipe_info[I915_MAX_PIPES];
+
+	struct skl_ddb_allocation ddb;
 
 	struct {
 		struct engine_mmio *mmio;
@@ -458,6 +479,11 @@ void intel_vgpu_write_fence(struct intel_vgpu *vgpu,
 	idr_for_each_entry((&(gvt)->vgpu_idr), (vgpu), (id)) \
 		for_each_if(vgpu->active)
 
+#define for_each_universal_scaler(__dev_priv, __pipe, __s)		\
+	for ((__s) = 0;							\
+	     (__s) < INTEL_INFO(__dev_priv)->num_scalers[(__pipe)] + 1; \
+	     (__s)++)
+
 static inline void intel_vgpu_write_pci_bar(struct intel_vgpu *vgpu,
 					    u32 offset, u32 val, bool low)
 {
@@ -530,6 +556,8 @@ void intel_vgpu_init_cfg_space(struct intel_vgpu *vgpu,
 		bool primary);
 void intel_vgpu_reset_cfg_space(struct intel_vgpu *vgpu);
 
+int set_pvmmio(struct intel_vgpu *vgpu, bool map);
+
 int intel_vgpu_emulate_cfg_read(struct intel_vgpu *vgpu, unsigned int offset,
 		void *p_data, unsigned int bytes);
 
@@ -542,6 +570,8 @@ static inline u64 intel_vgpu_get_bar_gpa(struct intel_vgpu *vgpu, int bar)
 	return (*(u64 *)(vgpu->cfg_space.virtual_cfg_space + bar)) &
 			PCI_BASE_ADDRESS_MEM_MASK;
 }
+
+int map_gttmmio(struct intel_vgpu *vgpu, bool map);
 
 void intel_vgpu_clean_opregion(struct intel_vgpu *vgpu);
 int intel_vgpu_init_opregion(struct intel_vgpu *vgpu);
@@ -579,6 +609,9 @@ struct intel_gvt_ops {
 				     unsigned int);
 };
 
+int gvt_dom0_ready(struct drm_i915_private *dev_priv);
+void intel_gvt_allocate_ddb(struct intel_gvt *gvt,
+		struct skl_ddb_allocation *ddb, unsigned int active_crtcs);
 
 enum {
 	GVT_FAILSAFE_UNSUPPORTED_GUEST,

@@ -1840,6 +1840,8 @@ static int cmd_handler_mi_batch_buffer_start(struct parser_exec_state *s)
 	return ret;
 }
 
+static int mi_noop_index;
+
 static struct cmd_info cmd_info[] = {
 	{"MI_NOOP", OP_MI_NOOP, F_LEN_CONST, R_ALL, D_ALL, 0, 1, NULL},
 
@@ -2525,7 +2527,12 @@ static int cmd_parser_exec(struct parser_exec_state *s)
 
 	cmd = cmd_val(s, 0);
 
-	info = get_cmd_info(s->vgpu->gvt, cmd, s->ring_id);
+	/* fastpath for MI_NOOP */
+	if (cmd == MI_NOOP)
+		info = &cmd_info[mi_noop_index];
+	else
+		info = get_cmd_info(s->vgpu->gvt, cmd, s->ring_id);
+
 	if (info == NULL) {
 		gvt_vgpu_err("unknown cmd 0x%x, opcode=0x%x, addr_type=%s, ring %d, workload=%p\n",
 				cmd, get_opcode(cmd, s->ring_id),
@@ -2708,6 +2715,33 @@ static int scan_wa_ctx(struct intel_shadow_wa_ctx *wa_ctx)
 		wa_ctx->indirect_ctx.guest_gma, ring_size);
 out:
 	return ret;
+}
+
+#define GEN8_PDPES    4
+int gvt_emit_pdps(struct intel_vgpu_workload *workload)
+{
+	const int num_cmds = GEN8_PDPES * 2;
+	struct i915_request *req = workload->req;
+	struct intel_engine_cs *engine = req->engine;
+	u32 *cs;
+	u32 *pdps = (u32 *)(workload->shadow_mm->ppgtt_mm.shadow_pdps);
+	int i;
+
+	cs = intel_ring_begin(req, num_cmds * 2 + 2);
+	if (IS_ERR(cs))
+		return PTR_ERR(cs);
+
+	*cs++ = MI_LOAD_REGISTER_IMM(num_cmds);
+	for (i = 0; i < GEN8_PDPES; i++) {
+		*cs++ = i915_mmio_reg_offset(GEN8_RING_PDP_LDW(engine, i));
+		*cs++ = pdps[i * 2];
+		*cs++ = i915_mmio_reg_offset(GEN8_RING_PDP_UDW(engine, i));
+		*cs++ = pdps[i * 2 + 1];
+	}
+	*cs++ = MI_NOOP;
+	intel_ring_advance(req, cs);
+
+	return 0;
 }
 
 static int shadow_workload_ring_buffer(struct intel_vgpu_workload *workload)
@@ -2928,6 +2962,8 @@ static int init_cmd_table(struct intel_gvt *gvt)
 			kfree(e);
 			return -EEXIST;
 		}
+		if (cmd_info[i].opcode == OP_MI_NOOP)
+			mi_noop_index = i;
 
 		INIT_HLIST_NODE(&e->hlist);
 		add_cmd_entry(gvt, e);
