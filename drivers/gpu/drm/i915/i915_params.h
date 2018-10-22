@@ -80,7 +80,8 @@ struct drm_printer;
 	param(int, domain_scaler_owner, 0x11100) \
 	param(unsigned int, enable_pvmmio, \
 			PVMMIO_ELSP_SUBMIT | PVMMIO_PPGTT_UPDATE) \
-	param(bool, enable_gvt, false)
+	param(bool, enable_gvt, false) \
+	param(int, gvt_workload_priority, 0)
 
 #define MEMBER(T, member, ...) T member;
 struct i915_params {
