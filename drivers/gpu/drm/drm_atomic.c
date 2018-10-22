@@ -569,6 +569,14 @@ int drm_atomic_crtc_set_property(struct drm_crtc *crtc,
 					&replaced);
 		state->color_mgmt_changed |= replaced;
 		return ret;
+	} else if (property == config->ctm_post_offset_property) {
+		ret = drm_atomic_replace_property_blob_from_id(dev,
+					&state->ctm_post_offset,
+					val,
+					sizeof(struct drm_color_ctm_post_offset), -1,
+					&replaced);
+		state->color_mgmt_changed |= replaced;
+		return ret;
 	} else if (property == config->gamma_lut_property) {
 		ret = drm_atomic_replace_property_blob_from_id(dev,
 					&state->gamma_lut,
@@ -631,6 +639,8 @@ drm_atomic_crtc_get_property(struct drm_crtc *crtc,
 		*val = (state->degamma_lut) ? state->degamma_lut->base.id : 0;
 	else if (property == config->ctm_property)
 		*val = (state->ctm) ? state->ctm->base.id : 0;
+	else if (property == config->ctm_post_offset_property)
+		*val = (state->ctm_post_offset) ? state->ctm_post_offset->base.id : 0;
 	else if (property == config->gamma_lut_property)
 		*val = (state->gamma_lut) ? state->gamma_lut->base.id : 0;
 	else if (property == config->prop_out_fence_ptr)
@@ -1416,6 +1426,8 @@ static int drm_atomic_connector_set_property(struct drm_connector *connector,
 
 		return set_out_fence_for_connector(state->state, connector,
 						   fence_ptr);
+	} else if (property == connector->cp_srm_property) {
+		state->cp_srm_blob_id = val;
 	} else if (connector->funcs->atomic_set_property) {
 		return connector->funcs->atomic_set_property(connector,
 				state, property, val);
@@ -1506,11 +1518,11 @@ drm_atomic_connector_get_property(struct drm_connector *connector,
 		*val = state->scaling_mode;
 	} else if (property == connector->content_protection_property) {
 		*val = state->content_protection;
-	} else if (property == config->writeback_fb_id_property) {
-		/* Writeback framebuffer is one-shot, write and forget */
-		*val = 0;
-	} else if (property == config->writeback_out_fence_ptr_property) {
-		*val = 0;
+	} else if (property == connector->cp_srm_property) {
+		*val = state->cp_srm_blob_id;
+	} else if (property == connector->cp_downstream_property) {
+		*val = connector->cp_downstream_blob_ptr ?
+			connector->cp_downstream_blob_ptr->base.id : 0;
 	} else if (connector->funcs->atomic_get_property) {
 		return connector->funcs->atomic_get_property(connector,
 				state, property, val);
