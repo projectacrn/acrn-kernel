@@ -217,7 +217,7 @@ int parse_cbm(struct rdt_parse_data *data, struct rdt_resource *r,
 
 	if ((rdtgrp->mode == RDT_MODE_EXCLUSIVE ||
 	     rdtgrp->mode == RDT_MODE_SHAREABLE) &&
-	    rdtgroup_cbm_overlaps_pseudo_locked(d, cbm_val)) {
+	    rdtgroup_cbm_overlaps_pseudo_locked(r, d, cbm_val)) {
 		rdt_last_cmd_puts("CBM overlaps with pseudo-locked region\n");
 		return -EINVAL;
 	}
@@ -293,7 +293,6 @@ next:
 				rdtgrp->plr->r = r;
 				rdtgrp->plr->d_id = d->id;
 				rdtgrp->plr->cbm = d->new_ctrl;
-				d->plr = rdtgrp->plr;
 				return 0;
 			}
 			goto next;

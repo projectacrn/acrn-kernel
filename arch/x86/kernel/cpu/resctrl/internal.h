@@ -310,7 +310,6 @@ struct mbm_state {
  * @mbps_val:	When mba_sc is enabled, this holds the bandwidth in MBps
  * @new_ctrl:	new ctrl value to be loaded
  * @have_new_ctrl: did user provide new_ctrl for this domain
- * @plr:	pseudo-locked region (if any) associated with domain
  */
 struct rdt_domain {
 	struct list_head		list;
@@ -327,7 +326,6 @@ struct rdt_domain {
 	u32				*mbps_val;
 	u32				new_ctrl;
 	bool				have_new_ctrl;
-	struct pseudo_lock_region	*plr;
 };
 
 /**
@@ -568,7 +566,9 @@ enum rdtgrp_mode rdtgroup_mode_by_closid(int closid);
 int rdtgroup_tasks_assigned(struct rdtgroup *r);
 int rdtgroup_locksetup_enter(struct rdtgroup *rdtgrp);
 int rdtgroup_locksetup_exit(struct rdtgroup *rdtgrp);
-bool rdtgroup_cbm_overlaps_pseudo_locked(struct rdt_domain *d, unsigned long cbm);
+bool rdtgroup_cbm_overlaps_pseudo_locked(struct rdt_resource *r,
+					 struct rdt_domain *d,
+					 unsigned long cbm);
 u32 rdtgroup_pseudo_locked_bits(struct rdt_resource *r, struct rdt_domain *d);
 bool rdtgroup_pseudo_locked_in_hierarchy(struct rdt_domain *d);
 int rdt_pseudo_lock_init(void);

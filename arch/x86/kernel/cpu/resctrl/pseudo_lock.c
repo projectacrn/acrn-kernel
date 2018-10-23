@@ -272,17 +272,10 @@ out_err:
  */
 static void pseudo_lock_region_clear(struct pseudo_lock_region *plr)
 {
-	struct rdt_domain *d;
-
 	plr->size = 0;
 	plr->line_size = 0;
 	kfree(plr->kmem);
 	plr->kmem = NULL;
-	if (plr->r && plr->d_id >= 0) {
-		d = rdt_find_domain(plr->r, plr->d_id, NULL);
-		if (!IS_ERR_OR_NULL(d))
-			d->plr = NULL;
-	}
 	plr->r = NULL;
 	plr->d_id = -1;
 	plr->cbm = 0;
@@ -822,6 +815,7 @@ int rdtgroup_locksetup_exit(struct rdtgroup *rdtgrp)
 
 /**
  * rdtgroup_cbm_overlaps_pseudo_locked - Test if CBM or portion is pseudo-locked
+ * @r: RDT resource to which @d belongs
  * @d: RDT domain
  * @cbm: CBM to test
  *
@@ -835,17 +829,17 @@ int rdtgroup_locksetup_exit(struct rdtgroup *rdtgrp)
  * Return: true if @cbm overlaps with pseudo-locked region on @d, false
  * otherwise.
  */
-bool rdtgroup_cbm_overlaps_pseudo_locked(struct rdt_domain *d, unsigned long cbm)
+bool rdtgroup_cbm_overlaps_pseudo_locked(struct rdt_resource *r,
+					 struct rdt_domain *d,
+					 unsigned long cbm)
 {
+	unsigned long pseudo_locked;
 	unsigned int cbm_len;
-	unsigned long cbm_b;
 
-	if (d->plr) {
-		cbm_len = d->plr->r->cache.cbm_len;
-		cbm_b = d->plr->cbm;
-		if (bitmap_intersects(&cbm, &cbm_b, cbm_len))
-			return true;
-	}
+	pseudo_locked = rdtgroup_pseudo_locked_bits(r, d);
+	cbm_len = r->cache.cbm_len;
+	if (bitmap_intersects(&cbm, &pseudo_locked, cbm_len))
+		return true;
 	return false;
 }
 
@@ -859,13 +853,13 @@ bool rdtgroup_cbm_overlaps_pseudo_locked(struct rdt_domain *d, unsigned long cbm
  * attempts to create new pseudo-locked regions in the same hierarchy.
  *
  * Return: true if a pseudo-locked region exists in the hierarchy of @d or
- *         if it is not possible to test due to memory allocation issue,
- *         false otherwise.
+ *         if it is not possible to test due to memory allocation or other
+ *         failure, false otherwise.
  */
 bool rdtgroup_pseudo_locked_in_hierarchy(struct rdt_domain *d)
 {
 	cpumask_var_t cpu_with_psl;
-	struct rdt_resource *r;
+	struct rdtgroup *rdtgrp;
 	struct rdt_domain *d_i;
 	bool ret = false;
 
@@ -876,11 +870,16 @@ bool rdtgroup_pseudo_locked_in_hierarchy(struct rdt_domain *d)
 	 * First determine which cpus have pseudo-locked regions
 	 * associated with them.
 	 */
-	for_each_alloc_enabled_rdt_resource(r) {
-		list_for_each_entry(d_i, &r->domains, list) {
-			if (d_i->plr)
-				cpumask_or(cpu_with_psl, cpu_with_psl,
-					   &d_i->cpu_mask);
+	list_for_each_entry(rdtgrp, &rdt_all_groups, rdtgroup_list) {
+		if (rdtgrp->plr && rdtgrp->plr->d_id >= 0) {
+			d_i = rdt_find_domain(rdtgrp->plr->r, rdtgrp->plr->d_id,
+					      NULL);
+			if (IS_ERR_OR_NULL(d_i)) {
+				ret = true;
+				goto out;
+			}
+			cpumask_or(cpu_with_psl, cpu_with_psl,
+				   &d_i->cpu_mask);
 		}
 	}
 
@@ -891,6 +890,7 @@ bool rdtgroup_pseudo_locked_in_hierarchy(struct rdt_domain *d)
 	if (cpumask_intersects(&d->cpu_mask, cpu_with_psl))
 		ret = true;
 
+out:
 	free_cpumask_var(cpu_with_psl);
 	return ret;
 }
