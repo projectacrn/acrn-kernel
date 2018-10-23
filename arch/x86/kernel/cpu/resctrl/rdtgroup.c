@@ -843,8 +843,10 @@ static int rdt_bit_usage_show(struct kernfs_open_file *of,
 				break;
 			}
 		}
+
+		pseudo_locked = rdtgroup_pseudo_locked_bits(r, dom);
+
 		for (i = r->cache.cbm_len - 1; i >= 0; i--) {
-			pseudo_locked = dom->plr ? dom->plr->cbm : 0;
 			hwb = test_bit(i, &hw_shareable);
 			swb = test_bit(i, &sw_shareable);
 			excl = test_bit(i, &exclusive);
@@ -2547,8 +2549,8 @@ static int __init_one_rdt_domain(struct rdt_domain *d, struct rdt_resource *r,
 				d->new_ctrl |= *ctrl | peer_ctl;
 		}
 	}
-	if (d->plr && d->plr->cbm > 0)
-		used_b |= d->plr->cbm;
+
+	used_b |= rdtgroup_pseudo_locked_bits(r, d);
 	unused_b = used_b ^ (BIT_MASK(r->cache.cbm_len) - 1);
 	unused_b &= BIT_MASK(r->cache.cbm_len) - 1;
 	d->new_ctrl |= unused_b;
