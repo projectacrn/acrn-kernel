@@ -569,6 +569,7 @@ int rdtgroup_tasks_assigned(struct rdtgroup *r);
 int rdtgroup_locksetup_enter(struct rdtgroup *rdtgrp);
 int rdtgroup_locksetup_exit(struct rdtgroup *rdtgrp);
 bool rdtgroup_cbm_overlaps_pseudo_locked(struct rdt_domain *d, unsigned long cbm);
+u32 rdtgroup_pseudo_locked_bits(struct rdt_resource *r, struct rdt_domain *d);
 bool rdtgroup_pseudo_locked_in_hierarchy(struct rdt_domain *d);
 int rdt_pseudo_lock_init(void);
 void rdt_pseudo_lock_release(void);

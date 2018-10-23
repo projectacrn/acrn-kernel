@@ -1626,3 +1626,26 @@ void rdt_pseudo_lock_release(void)
 	unregister_chrdev(pseudo_lock_major, "pseudo_lock");
 	pseudo_lock_major = 0;
 }
+
+/**
+ * rdt_pseudo_locked_bits - Portions of cache instance used for pseudo-locking
+ * @r:		RDT resource to which cache instance belongs
+ * @d:		Cache instance
+ *
+ * Return: bits in CBM of @d that are used for cache pseudo-locking
+ */
+u32 rdtgroup_pseudo_locked_bits(struct rdt_resource *r, struct rdt_domain *d)
+{
+	struct rdtgroup *rdtgrp;
+	u32 pseudo_locked = 0;
+
+	list_for_each_entry(rdtgrp, &rdt_all_groups, rdtgroup_list) {
+		if (!rdtgrp->plr)
+			continue;
+		if (rdtgrp->plr->r && rdtgrp->plr->r->rid == r->rid &&
+		    rdtgrp->plr->d_id == d->id)
+			pseudo_locked |= rdtgrp->plr->cbm;
+	}
+
+	return pseudo_locked;
+}
