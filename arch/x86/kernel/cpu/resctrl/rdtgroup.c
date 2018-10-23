@@ -262,22 +262,23 @@ static int rdtgroup_cpus_show(struct kernfs_open_file *of,
 			      struct seq_file *s, void *v)
 {
 	struct rdtgroup *rdtgrp;
-	struct cpumask *mask;
+	struct rdt_domain *d;
 	int ret = 0;
 
 	rdtgrp = rdtgroup_kn_lock_live(of->kn);
 
 	if (rdtgrp) {
 		if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED) {
-			if (!rdtgrp->plr->d) {
+			d = rdt_find_domain(rdtgrp->plr->r, rdtgrp->plr->d_id,
+					    NULL);
+			if (IS_ERR_OR_NULL(d)) {
 				rdt_last_cmd_clear();
 				rdt_last_cmd_puts("Cache domain offline\n");
 				ret = -ENODEV;
 			} else {
-				mask = &rdtgrp->plr->d->cpu_mask;
 				seq_printf(s, is_cpu_list(of) ?
 					   "%*pbl\n" : "%*pb\n",
-					   cpumask_pr_args(mask));
+					   cpumask_pr_args(&d->cpu_mask));
 			}
 		} else {
 			seq_printf(s, is_cpu_list(of) ? "%*pbl\n" : "%*pb\n",
@@ -1299,16 +1300,8 @@ static int rdtgroup_size_show(struct kernfs_open_file *of,
 	}
 
 	if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED) {
-		if (!rdtgrp->plr->d) {
-			rdt_last_cmd_clear();
-			rdt_last_cmd_puts("Cache domain offline\n");
-			ret = -ENODEV;
-		} else {
-			seq_printf(s, "%*s:", max_name_width,
-				   rdtgrp->plr->r->name);
-			seq_printf(s, "%d=%u\n", rdtgrp->plr->d->id,
-				   rdtgrp->plr->size);
-		}
+		seq_printf(s, "%*s:", max_name_width, rdtgrp->plr->r->name);
+		seq_printf(s, "%d=%u\n", rdtgrp->plr->d_id, rdtgrp->plr->size);
 		goto out;
 	}
 

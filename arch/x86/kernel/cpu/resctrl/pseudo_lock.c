@@ -272,14 +272,19 @@ out_err:
  */
 static void pseudo_lock_region_clear(struct pseudo_lock_region *plr)
 {
+	struct rdt_domain *d;
+
 	plr->size = 0;
 	plr->line_size = 0;
 	kfree(plr->kmem);
 	plr->kmem = NULL;
+	if (plr->r && plr->d_id >= 0) {
+		d = rdt_find_domain(plr->r, plr->d_id, NULL);
+		if (!IS_ERR_OR_NULL(d))
+			d->plr = NULL;
+	}
 	plr->r = NULL;
-	if (plr->d)
-		plr->d->plr = NULL;
-	plr->d = NULL;
+	plr->d_id = -1;
 	plr->cbm = 0;
 	pseudo_lock_cstates_relax(plr);
 	plr->debugfs_dir = NULL;
@@ -305,10 +310,18 @@ static void pseudo_lock_region_clear(struct pseudo_lock_region *plr)
  */
 static int pseudo_lock_region_init(struct pseudo_lock_region *plr)
 {
+	struct rdt_domain *d;
 	int ret;
 
 	/* Pick the first cpu we find that is associated with the cache. */
-	plr->cpu = cpumask_first(&plr->d->cpu_mask);
+	d = rdt_find_domain(plr->r, plr->d_id, NULL);
+	if (IS_ERR_OR_NULL(d)) {
+		rdt_last_cmd_puts("Cache domain offline\n");
+		ret = -ENODEV;
+		goto out_region;
+	}
+
+	plr->cpu = cpumask_first(&d->cpu_mask);
 
 	if (!cpu_online(plr->cpu)) {
 		rdt_last_cmd_printf("CPU %u associated with cache not online\n",
@@ -324,9 +337,9 @@ static int pseudo_lock_region_init(struct pseudo_lock_region *plr)
 		goto out_region;
 	}
 
-	plr->size = rdtgroup_cbm_to_size(plr->r, plr->d, plr->cbm);
+	plr->size = rdtgroup_cbm_to_size(plr->r, d, plr->cbm);
 
-	ret = pseudo_lock_cstates_constrain(plr, &plr->d->cpu_mask);
+	ret = pseudo_lock_cstates_constrain(plr, &d->cpu_mask);
 	if (ret < 0)
 		goto out_region;
 
@@ -358,6 +371,7 @@ static int pseudo_lock_init(struct rdtgroup *rdtgrp)
 
 	init_waitqueue_head(&plr->lock_thread_wq);
 	INIT_LIST_HEAD(&plr->pm_reqs);
+	plr->d_id = -1;
 	rdtgrp->plr = plr;
 	return 0;
 }
@@ -1183,6 +1197,7 @@ static int pseudo_lock_measure_cycles(struct rdtgroup *rdtgrp, int sel)
 {
 	struct pseudo_lock_region *plr = rdtgrp->plr;
 	struct task_struct *thread;
+	struct rdt_domain *d;
 	unsigned int cpu;
 	int ret = -1;
 
@@ -1194,13 +1209,14 @@ static int pseudo_lock_measure_cycles(struct rdtgroup *rdtgrp, int sel)
 		goto out;
 	}
 
-	if (!plr->d) {
+	d = rdt_find_domain(plr->r, plr->d_id, NULL);
+	if (IS_ERR_OR_NULL(d)) {
 		ret = -ENODEV;
 		goto out;
 	}
 
 	plr->thread_done = 0;
-	cpu = cpumask_first(&plr->d->cpu_mask);
+	cpu = cpumask_first(&d->cpu_mask);
 	if (!cpu_online(cpu)) {
 		ret = -ENODEV;
 		goto out;
@@ -1497,6 +1513,7 @@ static int pseudo_lock_dev_mmap(struct file *filp, struct vm_area_struct *vma)
 	struct pseudo_lock_region *plr;
 	struct rdtgroup *rdtgrp;
 	unsigned long physical;
+	struct rdt_domain *d;
 	unsigned long psize;
 
 	mutex_lock(&rdtgroup_mutex);
@@ -1510,7 +1527,8 @@ static int pseudo_lock_dev_mmap(struct file *filp, struct vm_area_struct *vma)
 
 	plr = rdtgrp->plr;
 
-	if (!plr->d) {
+	d = rdt_find_domain(plr->r, plr->d_id, NULL);
+	if (IS_ERR_OR_NULL(d)) {
 		mutex_unlock(&rdtgroup_mutex);
 		return -ENODEV;
 	}
@@ -1521,7 +1539,7 @@ static int pseudo_lock_dev_mmap(struct file *filp, struct vm_area_struct *vma)
 	 * may be scheduled elsewhere and invalidate entries in the
 	 * pseudo-locked region.
 	 */
-	if (!cpumask_subset(current->cpus_ptr, &plr->d->cpu_mask)) {
+	if (!cpumask_subset(current->cpus_ptr, &d->cpu_mask)) {
 		mutex_unlock(&rdtgroup_mutex);
 		return -EINVAL;
 	}

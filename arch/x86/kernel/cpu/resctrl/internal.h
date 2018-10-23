@@ -150,7 +150,7 @@ struct mongroup {
  * struct pseudo_lock_region - pseudo-lock region information
  * @r:			RDT resource to which this pseudo-locked region
  *			belongs
- * @d:			RDT domain to which this pseudo-locked region
+ * @d_id:		ID of cache instance to which this pseudo-locked region
  *			belongs
  * @cbm:		bitmask of the pseudo-locked region
  * @lock_thread_wq:	waitqueue used to wait on the pseudo-locking thread
@@ -170,7 +170,7 @@ struct mongroup {
  */
 struct pseudo_lock_region {
 	struct rdt_resource	*r;
-	struct rdt_domain	*d;
+	int			d_id;
 	u32			cbm;
 	wait_queue_head_t	lock_thread_wq;
 	int			thread_done;
