@@ -102,6 +102,30 @@ static u64 get_prefetch_disable_bits(void)
 }
 
 /**
+ * get_cache_line_size - Determine the cache coherency line size
+ * @cpu: CPU with which cache is associated
+ * @level: Cache level
+ *
+ * Context: @cpu has to be online.
+ * Return: The cache coherency line size for cache level @level associated
+ * with CPU @cpu. Zero on failure.
+ */
+static unsigned int get_cache_line_size(unsigned int cpu, int level)
+{
+	struct cpu_cacheinfo *ci;
+	int i;
+
+	ci = get_cpu_cacheinfo(cpu);
+
+	for (i = 0; i < ci->num_leaves; i++) {
+		if (ci->info_list[i].level == level)
+			return ci->info_list[i].coherency_line_size;
+	}
+
+	return 0;
+}
+
+/**
  * pseudo_lock_minor_get - Obtain available minor number
  * @minor: Pointer to where new minor number will be stored
  *
@@ -281,9 +305,7 @@ static void pseudo_lock_region_clear(struct pseudo_lock_region *plr)
  */
 static int pseudo_lock_region_init(struct pseudo_lock_region *plr)
 {
-	struct cpu_cacheinfo *ci;
 	int ret;
-	int i;
 
 	/* Pick the first cpu we find that is associated with the cache. */
 	plr->cpu = cpumask_first(&plr->d->cpu_mask);
@@ -295,7 +317,12 @@ static int pseudo_lock_region_init(struct pseudo_lock_region *plr)
 		goto out_region;
 	}
 
-	ci = get_cpu_cacheinfo(plr->cpu);
+	plr->line_size = get_cache_line_size(plr->cpu, plr->r->cache_level);
+	if (plr->line_size == 0) {
+		rdt_last_cmd_puts("Unable to determine cache line size\n");
+		ret = -1;
+		goto out_region;
+	}
 
 	plr->size = rdtgroup_cbm_to_size(plr->r, plr->d, plr->cbm);
 
@@ -303,15 +330,8 @@ static int pseudo_lock_region_init(struct pseudo_lock_region *plr)
 	if (ret < 0)
 		goto out_region;
 
-	for (i = 0; i < ci->num_leaves; i++) {
-		if (ci->info_list[i].level == plr->r->cache_level) {
-			plr->line_size = ci->info_list[i].coherency_line_size;
-			return 0;
-		}
-	}
+	return 0;
 
-	ret = -1;
-	rdt_last_cmd_puts("Unable to determine cache line size\n");
 out_region:
 	pseudo_lock_region_clear(plr);
 	return ret;
