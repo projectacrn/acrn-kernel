@@ -147,12 +147,26 @@ struct mongroup {
 };
 
 /**
+ * struct pseudo_lock_portion - portion of a pseudo-lock region on one resource
+ * @r:		RDT resource to which this pseudo-locked portion
+ *		belongs
+ * @d_id:	ID of cache instance to which this pseudo-locked portion
+ *		belongs
+ * @cbm:	bitmask of the pseudo-locked portion
+ * @list:	Entry in the list of pseudo-locked portion
+ *		belonging to the pseudo-locked region
+ */
+struct pseudo_lock_portion {
+	struct rdt_resource	*r;
+	int			d_id;
+	u32			cbm;
+	struct list_head	list;
+};
+
+/**
  * struct pseudo_lock_region - pseudo-lock region information
- * @r:			RDT resource to which this pseudo-locked region
- *			belongs
- * @d_id:		ID of cache instance to which this pseudo-locked region
- *			belongs
- * @cbm:		bitmask of the pseudo-locked region
+ * @portions:		list of portions across different resources that
+ *			are associated with this pseudo-locked region
  * @lock_thread_wq:	waitqueue used to wait on the pseudo-locking thread
  *			completion
  * @thread_done:	variable used by waitqueue to test if pseudo-locking
@@ -169,9 +183,7 @@ struct mongroup {
  * @pm_reqs:		Power management QoS requests related to this region
  */
 struct pseudo_lock_region {
-	struct rdt_resource	*r;
-	int			d_id;
-	u32			cbm;
+	struct list_head	portions;
 	wait_queue_head_t	lock_thread_wq;
 	int			thread_done;
 	int			cpu;
@@ -570,11 +582,13 @@ bool rdtgroup_cbm_overlaps_pseudo_locked(struct rdt_resource *r,
 					 struct rdt_domain *d,
 					 unsigned long cbm);
 u32 rdtgroup_pseudo_locked_bits(struct rdt_resource *r, struct rdt_domain *d);
-bool rdtgroup_pseudo_locked_in_hierarchy(struct rdt_domain *d);
+bool rdtgroup_pseudo_locked_in_hierarchy(struct rdtgroup *selfgrp,
+					 struct rdt_domain *d);
 int rdt_pseudo_lock_init(void);
 void rdt_pseudo_lock_release(void);
 int rdtgroup_pseudo_lock_create(struct rdtgroup *rdtgrp);
 void rdtgroup_pseudo_lock_remove(struct rdtgroup *rdtgrp);
+void pseudo_lock_region_clear(struct pseudo_lock_region *plr);
 struct rdt_domain *get_domain_from_cpu(int cpu, struct rdt_resource *r);
 int update_domains(struct rdt_resource *r, int closid);
 int closids_supported(void);

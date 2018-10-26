@@ -269,17 +269,31 @@ static int rdtgroup_cpus_show(struct kernfs_open_file *of,
 
 	if (rdtgrp) {
 		if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED) {
-			d = rdt_find_domain(rdtgrp->plr->r, rdtgrp->plr->d_id,
-					    NULL);
+			struct pseudo_lock_portion *p;
+
+			/*
+			 * User space needs to know all CPUs associated
+			 * with the pseudo-locked region. When the
+			 * pseudo-locked region spans multiple resources it
+			 * is possible that not all CPUs are associated with
+			 * all portions of the pseudo-locked region.
+			 * Only display CPUs that are associated with _all_
+			 * portions of the region. The first portion in the
+			 * list will be the L2 cache if the region spans
+			 * multiple resource, it is thus only needed to
+			 * print CPUs associated with the first portion.
+			 */
+			p = list_first_entry(&rdtgrp->plr->portions,
+					     struct pseudo_lock_portion, list);
+			d = rdt_find_domain(p->r, p->d_id, NULL);
 			if (IS_ERR_OR_NULL(d)) {
 				rdt_last_cmd_clear();
 				rdt_last_cmd_puts("Cache domain offline\n");
 				ret = -ENODEV;
-			} else {
-				seq_printf(s, is_cpu_list(of) ?
-					   "%*pbl\n" : "%*pb\n",
-					   cpumask_pr_args(&d->cpu_mask));
+				goto out;
 			}
+			seq_printf(s, is_cpu_list(of) ?  "%*pbl\n" : "%*pb\n",
+				   cpumask_pr_args(&d->cpu_mask));
 		} else {
 			seq_printf(s, is_cpu_list(of) ? "%*pbl\n" : "%*pb\n",
 				   cpumask_pr_args(&rdtgrp->cpu_mask));
@@ -287,8 +301,9 @@ static int rdtgroup_cpus_show(struct kernfs_open_file *of,
 	} else {
 		ret = -ENOENT;
 	}
-	rdtgroup_kn_unlock(of->kn);
 
+out:
+	rdtgroup_kn_unlock(of->kn);
 	return ret;
 }
 
@@ -1302,8 +1317,19 @@ static int rdtgroup_size_show(struct kernfs_open_file *of,
 	}
 
 	if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED) {
-		seq_printf(s, "%*s:", max_name_width, rdtgrp->plr->r->name);
-		seq_printf(s, "%d=%u\n", rdtgrp->plr->d_id, rdtgrp->plr->size);
+		struct pseudo_lock_portion *portion;
+
+		/*
+		 * While the portions of the L2 and L3 caches allocated for a
+		 * pseudo-locked region may be different, the size used for
+		 * the pseudo-locked region is the same.
+		 */
+		list_for_each_entry(portion, &rdtgrp->plr->portions, list) {
+			seq_printf(s, "%*s:", max_name_width,
+				   portion->r->name);
+			seq_printf(s, "%d=%u\n", portion->d_id,
+				   rdtgrp->plr->size);
+		}
 		goto out;
 	}
 
