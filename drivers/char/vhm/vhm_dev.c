@@ -562,11 +562,13 @@ create_vm_fail:
 			(void *)ioctl_param, sizeof(msix_remap)))
 			return -EFAULT;
 
+#if 0
 		ret = hcall_remap_pci_msix(vm->vmid, virt_to_phys(&msix_remap));
 
 		if (copy_to_user((void *)ioctl_param,
 				&msix_remap, sizeof(msix_remap)))
 			return -EFAULT;
+#endif
 
 		if (msix_remap.msix) {
 			void __iomem *msix_entry;
