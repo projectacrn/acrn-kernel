@@ -175,6 +175,9 @@ static void pseudo_lock_cstates_relax(struct pseudo_lock_region *plr)
 {
 	struct pseudo_lock_pm_req *pm_req, *next;
 
+	if (list_empty(&plr->pm_reqs))
+		return;
+
 	list_for_each_entry_safe(pm_req, next, &plr->pm_reqs, list) {
 		dev_pm_qos_remove_request(&pm_req->req);
 		list_del(&pm_req->list);
@@ -184,6 +187,8 @@ static void pseudo_lock_cstates_relax(struct pseudo_lock_region *plr)
 
 /**
  * pseudo_lock_cstates_constrain - Restrict cores from entering C6
+ * @plr: pseudo-lock region requiring the C-states to be restricted
+ * @cpu_mask: the CPUs that should have their C-states restricted
  *
  * To prevent the cache from being affected by power management entering
  * C6 has to be avoided. This is accomplished by requesting a latency
@@ -197,13 +202,14 @@ static void pseudo_lock_cstates_relax(struct pseudo_lock_region *plr)
  * may be set to map to deeper sleep states. In this case the latency
  * requirement needs to prevent entering C2 also.
  */
-static int pseudo_lock_cstates_constrain(struct pseudo_lock_region *plr)
+static int pseudo_lock_cstates_constrain(struct pseudo_lock_region *plr,
+					 struct cpumask *cpu_mask)
 {
 	struct pseudo_lock_pm_req *pm_req;
 	int cpu;
 	int ret;
 
-	for_each_cpu(cpu, &plr->d->cpu_mask) {
+	for_each_cpu(cpu, cpu_mask) {
 		pm_req = kzalloc(sizeof(*pm_req), GFP_KERNEL);
 		if (!pm_req) {
 			rdt_last_cmd_puts("Failure to allocate memory for PM QoS\n");
@@ -251,6 +257,7 @@ static void pseudo_lock_region_clear(struct pseudo_lock_region *plr)
 		plr->d->plr = NULL;
 	plr->d = NULL;
 	plr->cbm = 0;
+	pseudo_lock_cstates_relax(plr);
 	plr->debugfs_dir = NULL;
 }
 
@@ -291,6 +298,10 @@ static int pseudo_lock_region_init(struct pseudo_lock_region *plr)
 	ci = get_cpu_cacheinfo(plr->cpu);
 
 	plr->size = rdtgroup_cbm_to_size(plr->r, plr->d, plr->cbm);
+
+	ret = pseudo_lock_cstates_constrain(plr, &plr->d->cpu_mask);
+	if (ret < 0)
+		goto out_region;
 
 	for (i = 0; i < ci->num_leaves; i++) {
 		if (ci->info_list[i].level == plr->r->cache_level) {
@@ -1280,12 +1291,6 @@ int rdtgroup_pseudo_lock_create(struct rdtgroup *rdtgrp)
 	if (ret < 0)
 		return ret;
 
-	ret = pseudo_lock_cstates_constrain(plr);
-	if (ret < 0) {
-		ret = -EINVAL;
-		goto out_region;
-	}
-
 	plr->thread_done = 0;
 
 	thread = kthread_create_on_node(pseudo_lock_fn, rdtgrp,
@@ -1294,7 +1299,7 @@ int rdtgroup_pseudo_lock_create(struct rdtgroup *rdtgrp)
 	if (IS_ERR(thread)) {
 		ret = PTR_ERR(thread);
 		rdt_last_cmd_printf("Locking thread returned error %d\n", ret);
-		goto out_cstates;
+		goto out_region;
 	}
 
 	kthread_bind(thread, plr->cpu);
@@ -1312,13 +1317,13 @@ int rdtgroup_pseudo_lock_create(struct rdtgroup *rdtgrp)
 		 * empty pseudo-locking loop.
 		 */
 		rdt_last_cmd_puts("Locking thread interrupted\n");
-		goto out_cstates;
+		goto out_region;
 	}
 
 	ret = pseudo_lock_minor_get(&new_minor);
 	if (ret < 0) {
 		rdt_last_cmd_puts("Unable to obtain a new minor number\n");
-		goto out_cstates;
+		goto out_region;
 	}
 
 	/*
@@ -1375,8 +1380,6 @@ out_device:
 out_debugfs:
 	debugfs_remove_recursive(plr->debugfs_dir);
 	pseudo_lock_minor_release(new_minor);
-out_cstates:
-	pseudo_lock_cstates_relax(plr);
 out_region:
 	pseudo_lock_region_clear(plr);
 out:
@@ -1410,7 +1413,6 @@ void rdtgroup_pseudo_lock_remove(struct rdtgroup *rdtgrp)
 		goto free;
 	}
 
-	pseudo_lock_cstates_relax(plr);
 	debugfs_remove_recursive(rdtgrp->plr->debugfs_dir);
 	device_destroy(pseudo_lock_class, MKDEV(pseudo_lock_major, plr->minor));
 	pseudo_lock_minor_release(plr->minor);
