@@ -340,12 +340,103 @@ err_cpu:
 }
 
 /**
+ * pseudo_lock_l2_l3_portions_valid - Verify region across L2 and L3
+ * @plr: Pseudo-Locked region
+ * @l2_portion: L2 Cache portion of pseudo-locked region
+ * @l3_portion: L3 Cache portion of pseudo-locked region
+ *
+ * User requested a pseudo-locked region consisting of a L2 as well as L3
+ * cache portion. The portions are tested as follows:
+ *   - L2 and L3 cache instances have to be in the same cache hierarchy.
+ *     This is tested by ensuring that the L2 portion's cpumask is a
+ *     subset of the L3 portion's cpumask.
+ *   - L3 portion must be same size or larger than L2 portion.
+ *
+ * Return: -1 if the portions are unable to be used for a pseudo-locked
+ *         region, 0 if the portions could be used for a pseudo-locked
+ *         region. When returning 0:
+ *         - the pseudo-locked region's size, line_size (cache line length)
+ *           and CPU on which locking thread will be run are set.
+ *         - CPUs associated with L2 cache portion are constrained from
+ *           entering C-state that will affect the pseudo-locked region.
+ */
+static int pseudo_lock_l2_l3_portions_valid(struct pseudo_lock_region *plr,
+					    struct pseudo_lock_portion *l2_p,
+					    struct pseudo_lock_portion *l3_p)
+{
+	struct rdt_domain *l2_d, *l3_d;
+	unsigned int l2_size, l3_size;
+
+	l2_d = rdt_find_domain(l2_p->r, l2_p->d_id, NULL);
+	if (IS_ERR_OR_NULL(l2_d)) {
+		rdt_last_cmd_puts("Cannot locate L2 cache domain\n");
+		return -1;
+	}
+
+	l3_d = rdt_find_domain(l3_p->r, l3_p->d_id, NULL);
+	if (IS_ERR_OR_NULL(l3_d)) {
+		rdt_last_cmd_puts("Cannot locate L3 cache domain\n");
+		return -1;
+	}
+
+	if (!cpumask_subset(&l2_d->cpu_mask, &l3_d->cpu_mask)) {
+		rdt_last_cmd_puts("L2 and L3 caches need to be in same hierarchy\n");
+		return -1;
+	}
+
+	if (pseudo_lock_cstates_constrain(plr, &l2_d->cpu_mask)) {
+		rdt_last_cmd_puts("Cannot limit C-states\n");
+		return -1;
+	}
+
+	l2_size = rdtgroup_cbm_to_size(l2_p->r, l2_d, l2_p->cbm);
+	l3_size = rdtgroup_cbm_to_size(l3_p->r, l3_d, l3_p->cbm);
+
+	if (l2_size > l3_size) {
+		rdt_last_cmd_puts("L3 cache portion has to be same size or larger than L2 cache portion\n");
+		goto err_size;
+	}
+
+	plr->size = l2_size;
+
+	l2_size = get_cache_line_size(cpumask_first(&l2_d->cpu_mask),
+				      l2_p->r->cache_level);
+	l3_size = get_cache_line_size(cpumask_first(&l3_d->cpu_mask),
+				      l3_p->r->cache_level);
+	if (l2_size != l3_size) {
+		rdt_last_cmd_puts("L2 and L3 caches have different coherency cache line sizes\n");
+		goto err_line;
+	}
+
+	plr->line_size = l2_size;
+
+	plr->cpu = cpumask_first(&l2_d->cpu_mask);
+
+	if (!cpu_online(plr->cpu)) {
+		rdt_last_cmd_printf("CPU %u associated with cache not online\n",
+				    plr->cpu);
+		goto err_cpu;
+	}
+
+	return 0;
+
+err_cpu:
+	plr->line_size = 0;
+	plr->cpu = 0;
+err_line:
+	plr->size = 0;
+err_size:
+	pseudo_lock_cstates_relax(plr);
+	return -1;
+}
+
+/**
  * pseudo_lock_region_init - Initialize pseudo-lock region information
  * @plr: pseudo-lock region
  *
  * Called after user provided a schemata to be pseudo-locked. From the
  * schemata the &struct pseudo_lock_region is on entry already initialized
- * with the resource, domain, and capacity bitmask. Here the
+ * with the resource(s), domain(s), and capacity bitmask(s). Here the
  * provided data is validated and information required for pseudo-locking
  * deduced, and &struct pseudo_lock_region initialized further. This
  * information includes:
@@ -355,13 +446,24 @@ err_cpu:
  * - a cpu associated with the cache instance on which the pseudo-locking
  *   flow can be executed
  *
+ * A user provides a schemata for a pseudo-locked region. This schemata may
+ * contain portions that span different resources, for example, a cache
+ * pseudo-locked region that spans L2 and L3 cache. After the schemata is
+ * parsed into portions it needs to be verified that the provided portions
+ * are valid with the following tests:
+ *
+ * - L2 only portion on system that has only L2 resource - OK
+ * - L3 only portion on any system that supports it - OK
+ * - L2 portion on system that has L3 resource - require L3 portion
+ **
+ *
  * Return: 0 on success, <0 on failure. Descriptive error will be written
  * to last_cmd_status buffer.
  */
 static int pseudo_lock_region_init(struct pseudo_lock_region *plr)
 {
 	struct rdt_resource *l3_resource = &rdt_resources_all[RDT_RESOURCE_L3];
-	struct pseudo_lock_portion *p;
+	struct pseudo_lock_portion *p, *n_p, *tmp;
 	int ret;
 
 	if (list_empty(&plr->portions)) {
@@ -397,8 +499,42 @@ static int pseudo_lock_region_init(struct pseudo_lock_region *plr)
 			rdt_last_cmd_puts("Invalid resource or just L2 provided when L3 is required\n");
 			goto out_region;
 		}
+	}
+
+	/*
+	 * List is neither empty nor singular, process first and second portions
+	 */
+	p = list_first_entry(&plr->portions, struct pseudo_lock_portion, list);
+	n_p = list_next_entry(p, list);
+
+	/*
+	 * If the second portion is not also the last portion user provided
+	 * more portions than can be supported.
+	 */
+	tmp = list_last_entry(&plr->portions, struct pseudo_lock_portion, list);
+	if (n_p != tmp) {
+		rdt_last_cmd_puts("Only two pseudo-lock portions supported\n");
+		goto out_region;
+	}
+
+	if (p->r->rid == RDT_RESOURCE_L2 && n_p->r->rid == RDT_RESOURCE_L3) {
+		ret = pseudo_lock_l2_l3_portions_valid(plr, p, n_p);
+		if (ret < 0)
+			goto out_region;
+		return 0;
+	} else if (p->r->rid == RDT_RESOURCE_L3 &&
+		   n_p->r->rid == RDT_RESOURCE_L2) {
+		if (pseudo_lock_l2_l3_portions_valid(plr, n_p, p) == 0) {
+			/*
+			 * Let L2 and L3 portions appear in order in the
+			 * portions list in support of consistent output to
+			 * user space.
+			 */
+			list_rotate_left(&plr->portions);
+			return 0;
+		}
 	} else {
-		rdt_last_cmd_puts("Multiple pseudo-lock portions unsupported\n");
+		rdt_last_cmd_puts("Invalid combination of resources\n");
 	}
 
 out_region:
