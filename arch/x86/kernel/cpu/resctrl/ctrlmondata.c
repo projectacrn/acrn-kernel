@@ -207,7 +207,7 @@ int parse_cbm(struct rdt_parse_data *data, struct rdt_resource *r,
 	 * hierarchy.
 	 */
 	if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP &&
-	    rdtgroup_pseudo_locked_in_hierarchy(d)) {
+	    rdtgroup_pseudo_locked_in_hierarchy(rdtgrp, d)) {
 		rdt_last_cmd_puts("Pseudo-locked region in hierarchy\n");
 		return -EINVAL;
 	}
@@ -282,6 +282,7 @@ next:
 			if (r->parse_ctrlval(&data, r, d))
 				return -EINVAL;
 			if (rdtgrp->mode ==  RDT_MODE_PSEUDO_LOCKSETUP) {
+				struct pseudo_lock_portion *p;
 				/*
 				 * In pseudo-locking setup mode and just
 				 * parsed a valid CBM that should be
@@ -290,9 +291,15 @@ next:
 				 * the required initialization for single
 				 * region and return.
 				 */
-				rdtgrp->plr->r = r;
-				rdtgrp->plr->d_id = d->id;
-				rdtgrp->plr->cbm = d->new_ctrl;
+				p = kzalloc(sizeof(*p), GFP_KERNEL);
+				if (!p) {
+					rdt_last_cmd_puts("Unable to allocate memory for pseudo-lock portion\n");
+					return -ENOMEM;
+				}
+				p->r = r;
+				p->d_id = d->id;
+				p->cbm = d->new_ctrl;
+				list_add(&p->list, &rdtgrp->plr->portions);
 				return 0;
 			}
 			goto next;
@@ -410,8 +417,11 @@ ssize_t rdtgroup_schemata_write(struct kernfs_open_file *of,
 			goto out;
 		}
 		ret = rdtgroup_parse_resource(resname, tok, rdtgrp);
-		if (ret)
+		if (ret) {
+			if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKSETUP)
+				pseudo_lock_region_clear(rdtgrp->plr);
 			goto out;
+		}
 	}
 
 	for_each_alloc_enabled_rdt_resource(r) {
@@ -459,6 +469,7 @@ static void show_doms(struct seq_file *s, struct rdt_resource *r, int closid)
 int rdtgroup_schemata_show(struct kernfs_open_file *of,
 			   struct seq_file *s, void *v)
 {
+	struct pseudo_lock_portion *p;
 	struct rdtgroup *rdtgrp;
 	struct rdt_resource *r;
 	int ret = 0;
@@ -470,8 +481,9 @@ int rdtgroup_schemata_show(struct kernfs_open_file *of,
 			for_each_alloc_enabled_rdt_resource(r)
 				seq_printf(s, "%s:uninitialized\n", r->name);
 		} else if (rdtgrp->mode == RDT_MODE_PSEUDO_LOCKED) {
-			seq_printf(s, "%s:%d=%x\n", rdtgrp->plr->r->name,
-				   rdtgrp->plr->d_id, rdtgrp->plr->cbm);
+			list_for_each_entry(p, &rdtgrp->plr->portions, list)
+				seq_printf(s, "%s:%d=%x\n", p->r->name, p->d_id,
+					   p->cbm);
 		} else {
 			closid = rdtgrp->closid;
 			for_each_alloc_enabled_rdt_resource(r) {
