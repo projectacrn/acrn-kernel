@@ -253,6 +253,38 @@ static inline void cache_alloc_8C_probe(void)
 	r->alloc_enabled = true;
 }
 
+/*
+ * cache_alloc_96_probe() - Have to probe for Intel 0x96 systems
+ * as they do not have CPUID enumeration support for L3 cache allocation
+ * (the L2 cache allocation does have CPUID enumeration support).
+ * All SKUs should support L3 CAT but the probe is maintained as a
+ * verification of the support. Max CLOSids is 4 and max CBM length is 16.
+ * CDP is not supported.
+ *
+ * The global rdt_alloc_capable is not set here so that the enumeration of
+ * L2 CAT can proceed.
+ */
+static inline void cache_alloc_96_probe(void)
+{
+	struct rdt_resource *r  = &rdt_resources_all[RDT_RESOURCE_L3];
+	u32 l, h, max_cbm = BIT_MASK(16) - 1;
+
+	if (wrmsr_safe(MSR_IA32_L3_CBM_BASE, max_cbm, 0))
+		return;
+	rdmsr(MSR_IA32_L3_CBM_BASE, l, h);
+
+	if (l != max_cbm)
+		return;
+
+	r->num_closid = 4;
+	r->default_ctrl = max_cbm;
+	r->cache.cbm_len = 16;
+	r->cache.shareable_bits = 0x0;
+	r->cache.min_cbm_bits = 1;
+	r->alloc_capable = true;
+	r->alloc_enabled = true;
+}
+
 bool is_mba_sc(struct rdt_resource *r)
 {
 	if (!r)
@@ -936,6 +968,10 @@ static __init void __check_quirks_intel(void)
 	case 0x8C:
 		if (!rdt_options[RDT_FLAG_L3_CAT].force_off)
 			cache_alloc_8C_probe();
+		break;
+	case 0x96:
+		if (!rdt_options[RDT_FLAG_L3_CAT].force_off)
+			cache_alloc_96_probe();
 		break;
 	}
 }
