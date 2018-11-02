@@ -74,7 +74,9 @@ static u64 get_prefetch_disable_bits(void)
 		return 0;
 
 	switch (boot_cpu_data.x86_model) {
+	/* Assume that 0x8C follows register use of Skylake Architecture */
 	case INTEL_FAM6_BROADWELL_X:
+	case 0x8C:
 		/*
 		 * SDM defines bits of MSR_MISC_FEATURE_CONTROL register
 		 * as:
@@ -972,6 +974,22 @@ int rdtgroup_locksetup_enter(struct rdtgroup *rdtgrp)
 		return -EINVAL;
 	}
 
+	/*
+	 * Add extra check for 0x8C platform until all SKUs are
+	 * understood.
+	 * Prefetch disable bits will be known but only
+	 * some of its SKUs support Cache Pseudo-Locking. Goal is to have
+	 * this be determined generically (L2 CAT and L3 CAT supported and
+	 * cache is inclusive) but some SKUs that do not support cache
+	 * pseudo-locking only support L2 CAT, which is
+	 * a valid resource to pseudo-lock.
+	 */
+	if (boot_cpu_data.x86_model == 0x8C &&
+	    !get_cache_inclusive(0, 3)) {
+		rdt_last_cmd_puts("Pseudo-locking not supported\n");
+		return -EINVAL;
+	}
+
 	if (rdtgroup_monitor_in_progress(rdtgrp)) {
 		rdt_last_cmd_puts("Monitoring in progress\n");
 		return -EINVAL;
@@ -1342,6 +1360,7 @@ static int measure_l2_residency(void *_plr)
 	switch (boot_cpu_data.x86_model) {
 	case INTEL_FAM6_ATOM_GOLDMONT:
 	case INTEL_FAM6_ATOM_GOLDMONT_PLUS:
+	case 0x8C:
 		perf_miss_attr.config = X86_CONFIG(.event = 0xd1,
 						   .umask = 0x10);
 		perf_hit_attr.config = X86_CONFIG(.event = 0xd1,
@@ -1385,6 +1404,12 @@ static int measure_l3_residency(void *_plr)
 						  .umask = 0x4f);
 		perf_miss_attr.config = X86_CONFIG(.event = 0x2e,
 						   .umask = 0x41);
+		break;
+	case 0x8C:
+		perf_miss_attr.config = X86_CONFIG(.event = 0xd1,
+						   .umask = 0x20);
+		perf_hit_attr.config = X86_CONFIG(.event = 0xd1,
+						  .umask = 0x4);
 		break;
 	default:
 		goto out;
