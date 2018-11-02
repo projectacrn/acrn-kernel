@@ -55,6 +55,7 @@
 
 #include "i915_params.h"
 #include "i915_reg.h"
+#include "i915_pvinfo.h"
 #include "i915_utils.h"
 
 #include "intel_bios.h"
@@ -1306,6 +1307,7 @@ struct i915_workarounds {
 struct i915_virtual_gpu {
 	bool active;
 	u32 caps;
+	u32 scaler_owned;
 };
 
 /* used in computing the new watermarks state */
@@ -1589,6 +1591,8 @@ struct drm_i915_private {
 	resource_size_t stolen_usable_size;	/* Total size minus reserved ranges */
 
 	void __iomem *regs;
+	struct gvt_shared_page *shared_page;
+	spinlock_t shared_page_lock;
 
 	struct intel_uncore uncore;
 
@@ -1837,6 +1841,10 @@ struct drm_i915_private {
 		 * This is limited in execlists to 21 bits.
 		 */
 		struct ida hw_ida;
+
+	/* In case of virtualization, 3-bits of vgt-id will be added to hw_id */
+#define SIZE_CONTEXT_HW_ID_GVT (18)
+#define MAX_CONTEXT_HW_ID_GVT (1<<SIZE_CONTEXT_HW_ID_GVT)
 #define MAX_CONTEXT_HW_ID (1<<21) /* exclusive */
 #define MAX_GUC_CONTEXT_HW_ID (1 << 20) /* exclusive */
 #define GEN11_MAX_CONTEXT_HW_ID (1<<11) /* exclusive */
@@ -2664,6 +2672,11 @@ intel_info(const struct drm_i915_private *dev_priv)
 #define GT_FREQUENCY_MULTIPLIER 50
 #define GEN9_FREQ_SCALER 3
 
+#define BITS_PER_PIPE 8
+#define AVAIL_PLANE_PER_PIPE(dev_priv, mask, pipe)  \
+	(((mask) >> (pipe) * BITS_PER_PIPE) & \
+	   ((1 << ((INTEL_INFO(dev_priv)->num_sprites[pipe]) + 1)) - 1))
+
 #include "i915_trace.h"
 
 static inline bool intel_vtd_active(void)
@@ -2780,7 +2793,7 @@ static inline bool intel_gvt_active(struct drm_i915_private *dev_priv)
 	return dev_priv->gvt;
 }
 
-static inline bool intel_vgpu_active(struct drm_i915_private *dev_priv)
+static inline bool intel_vgpu_active(const struct drm_i915_private *dev_priv)
 {
 	return dev_priv->vgpu.active;
 }
@@ -2814,18 +2827,18 @@ ilk_disable_display_irq(struct drm_i915_private *dev_priv, uint32_t bits)
 	ilk_update_display_irq(dev_priv, bits, 0);
 }
 void bdw_update_pipe_irq(struct drm_i915_private *dev_priv,
-			 enum pipe pipe,
+			 unsigned int crtc_index,
 			 uint32_t interrupt_mask,
 			 uint32_t enabled_irq_mask);
 static inline void bdw_enable_pipe_irq(struct drm_i915_private *dev_priv,
-				       enum pipe pipe, uint32_t bits)
+				       unsigned int crtc_index, uint32_t bits)
 {
-	bdw_update_pipe_irq(dev_priv, pipe, bits, bits);
+	bdw_update_pipe_irq(dev_priv, crtc_index, bits, bits);
 }
 static inline void bdw_disable_pipe_irq(struct drm_i915_private *dev_priv,
-					enum pipe pipe, uint32_t bits)
+					unsigned int crtc_index, uint32_t bits)
 {
-	bdw_update_pipe_irq(dev_priv, pipe, bits, 0);
+	bdw_update_pipe_irq(dev_priv, crtc_index, bits, 0);
 }
 void ibx_display_interrupt_update(struct drm_i915_private *dev_priv,
 				  uint32_t interrupt_mask,
@@ -3242,6 +3255,16 @@ int i915_perf_remove_config_ioctl(struct drm_device *dev, void *data,
 void i915_oa_init_reg_state(struct intel_engine_cs *engine,
 			    struct i915_gem_context *ctx,
 			    uint32_t *reg_state);
+#ifdef CONFIG_DRM_I915_GVT
+int i915_gem_gvtbuffer_ioctl(struct drm_device *dev, void *data,
+			     struct drm_file *file);
+#else
+static inline int i915_gem_gvtbuffer_ioctl(struct drm_device *dev, void *data,
+			     struct drm_file *file)
+{
+	return -EINVAL;
+}
+#endif
 
 /* i915_gem_evict.c */
 int __must_check i915_gem_evict_something(struct i915_address_space *vm,
@@ -3578,7 +3601,11 @@ static inline u64 intel_rc6_residency_us(struct drm_i915_private *dev_priv,
 static inline uint##x##_t __raw_i915_read##x(const struct drm_i915_private *dev_priv, \
 					     i915_reg_t reg) \
 { \
-	return read##s(dev_priv->regs + i915_mmio_reg_offset(reg)); \
+	if (!intel_vgpu_active(dev_priv) || !i915_modparams.enable_pvmmio || \
+		likely(!in_mmio_read_trap_list((reg).reg))) \
+		return read##s(dev_priv->regs + i915_mmio_reg_offset(reg)); \
+	dev_priv->shared_page->reg_addr = i915_mmio_reg_offset(reg); \
+	return read##s(dev_priv->regs + i915_mmio_reg_offset(vgtif_reg(pv_mmio))); \
 }
 
 #define __raw_write(x, s) \
