@@ -9,6 +9,7 @@ mei-objs += hbm.o
 mei-objs += interrupt.o
 mei-objs += client.o
 mei-objs += main.o
+mei-objs += dma-ring.o
 mei-objs += bus.o
 mei-objs += bus-fixup.o
 mei-$(CONFIG_DEBUG_FS) += debugfs.o
@@ -21,5 +22,11 @@ obj-$(CONFIG_INTEL_MEI_TXE) += mei-txe.o
 mei-txe-objs := pci-txe.o
 mei-txe-objs += hw-txe.o
 
+obj-$(CONFIG_INTEL_MEI_VIRTIO) += mei-virtio.o
+mei-virtio-objs := hw-virtio.o
+
 mei-$(CONFIG_EVENT_TRACING) += mei-trace.o
 CFLAGS_mei-trace.o = -I$(src)
+
+obj-$(CONFIG_INTEL_MEI_DAL) += dal/
+obj-$(CONFIG_INTEL_MEI_SPD) += spd/

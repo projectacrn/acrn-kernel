@@ -741,6 +741,10 @@
 			Format: <port#>,<type>
 			See also Documentation/input/devices/joystick-parport.rst
 
+	dev_sec_info.param_addr=
+			[BOOT] address of automotive bootloader (abl)
+			security parameters.
+
 	ddebug_query=	[KNL,DYNAMIC_DEBUG] Enable debug messages at early boot
 			time. See
 			Documentation/admin-guide/dynamic-debug-howto.rst for
@@ -3898,6 +3902,9 @@
 			      reboot_force is either force or not specified,
 			      reboot_cpu is s[mp]#### with #### being the processor
 					to be used for rebooting.
+
+	reboot_panic=	[KNL]
+			Same as reboot parameter above but only in case of panic.
 
 	relax_domain_level=
 			[KNL, SMP] Set scheduler's default relax_domain_level.
