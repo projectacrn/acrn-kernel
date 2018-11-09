@@ -186,7 +186,8 @@ static inline bool need_preempt(const struct intel_engine_cs *engine,
 				const struct i915_request *last,
 				int prio)
 {
-	return (intel_engine_has_preemption(engine) &&
+	return (!intel_vgpu_active(engine->i915) &&
+		intel_engine_has_preemption(engine) &&
 		__execlists_need_preempt(prio, rq_prio(last)) &&
 		!i915_request_completed(last));
 }
@@ -451,6 +452,8 @@ static void execlists_submit_ports(struct intel_engine_cs *engine)
 	struct intel_engine_execlists *execlists = &engine->execlists;
 	struct execlist_port *port = execlists->port;
 	unsigned int n;
+	u32 descs[4];
+	int i = 0;
 
 	/*
 	 * We can skip acquiring intel_runtime_pm_get() here as it was taken
@@ -493,10 +496,27 @@ static void execlists_submit_ports(struct intel_engine_cs *engine)
 			GEM_BUG_ON(!n);
 			desc = 0;
 		}
+		if (intel_vgpu_active(engine->i915) &&
+				PVMMIO_LEVEL(engine->i915, PVMMIO_ELSP_SUBMIT)) {
+			BUG_ON(i >= 4);
+			descs[i] = upper_32_bits(desc);
+			descs[i + 1] = lower_32_bits(desc);
+			i += 2;
+			continue;
+		}
 
 		write_desc(execlists, desc, n);
 	}
-
+	if (intel_vgpu_active(engine->i915) &&
+			PVMMIO_LEVEL(engine->i915, PVMMIO_ELSP_SUBMIT)) {
+		u32 __iomem *elsp_data = engine->i915->shared_page->elsp_data;
+		spin_lock(&engine->i915->shared_page_lock);
+		writel(descs[0], elsp_data);
+		writel(descs[1], elsp_data + 1);
+		writel(descs[2], elsp_data + 2);
+		writel(descs[3], execlists->submit_reg);
+		spin_unlock(&engine->i915->shared_page_lock);
+	}
 	/* we need to manually load the submit queue */
 	if (execlists->ctrl_reg)
 		writel(EL_CTRL_LOAD, execlists->ctrl_reg);
@@ -552,10 +572,24 @@ static void inject_preempt_context(struct intel_engine_cs *engine)
 	 * the state of the GPU is known (idle).
 	 */
 	GEM_TRACE("%s\n", engine->name);
-	for (n = execlists_num_ports(execlists); --n; )
-		write_desc(execlists, 0, n);
 
-	write_desc(execlists, ce->lrc_desc, n);
+	if (intel_vgpu_active(engine->i915) &&
+			PVMMIO_LEVEL(engine->i915, PVMMIO_ELSP_SUBMIT)) {
+		u32 __iomem *elsp_data = engine->i915->shared_page->elsp_data;
+
+		spin_lock(&engine->i915->shared_page_lock);
+		writel(0, elsp_data);
+		writel(0, elsp_data + 1);
+		writel(upper_32_bits(ce->lrc_desc), elsp_data + 2);
+		writel(lower_32_bits(ce->lrc_desc), execlists->submit_reg);
+		spin_unlock(&engine->i915->shared_page_lock);
+
+	} else {
+		for (n = execlists_num_ports(execlists); --n; )
+			write_desc(execlists, 0, n);
+
+		write_desc(execlists, ce->lrc_desc, n);
+	}
 
 	/* we need to manually load the submit queue */
 	if (execlists->ctrl_reg)
@@ -2369,6 +2403,16 @@ logical_ring_default_irqs(struct intel_engine_cs *engine)
 	engine->irq_keep_mask = GT_CONTEXT_SWITCH_INTERRUPT << shift;
 }
 
+static void i915_error_reset(struct work_struct *work) {
+	struct intel_engine_cs *engine =
+		container_of(work, struct intel_engine_cs,
+			     reset_work);
+	i915_handle_error(engine->i915, 1 << engine->id,
+			I915_ERROR_CAPTURE,
+			"Received error interrupt from engine %d",
+			engine->id);
+}
+
 static void
 logical_ring_setup(struct intel_engine_cs *engine)
 {
@@ -2382,6 +2426,8 @@ logical_ring_setup(struct intel_engine_cs *engine)
 
 	logical_ring_default_vfuncs(engine);
 	logical_ring_default_irqs(engine);
+
+	INIT_WORK(&engine->reset_work, i915_error_reset);
 }
 
 static bool csb_force_mmio(struct drm_i915_private *i915)
@@ -2711,6 +2757,14 @@ populate_lr_context(struct i915_gem_context *ctx,
 		regs[CTX_CONTEXT_CONTROL + 1] |=
 			_MASKED_BIT_ENABLE(CTX_CTRL_ENGINE_CTX_RESTORE_INHIBIT |
 					   CTX_CTRL_ENGINE_CTX_SAVE_INHIBIT);
+
+	/* write the context's pid and hw_id/cid to the per-context HWS page */
+	if(intel_vgpu_active(engine->i915) && pid_nr(ctx->pid)) {
+		*(u32*)(vaddr + LRC_PPHWSP_PN * PAGE_SIZE + I915_GEM_HWS_PID_ADDR)
+			= pid_nr(ctx->pid) & 0x3fffff;
+		*(u32*)(vaddr + LRC_PPHWSP_PN * PAGE_SIZE + I915_GEM_HWS_CID_ADDR)
+			= ctx->hw_id & 0x3fffff;
+	}
 
 err_unpin_ctx:
 	i915_gem_object_unpin_map(ctx_obj);

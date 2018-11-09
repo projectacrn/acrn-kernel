@@ -5027,7 +5027,8 @@ void i915_gem_sanitize(struct drm_i915_private *i915)
 	 * of the reset, so this could be applied to even earlier gen.
 	 */
 	err = -ENODEV;
-	if (INTEL_GEN(i915) >= 5 && intel_has_gpu_reset(i915))
+	if (INTEL_GEN(i915) >= 5 && intel_has_gpu_reset(i915) &&
+		!intel_vgpu_active(i915))
 		err = WARN_ON(intel_gpu_reset(i915, ALL_ENGINES));
 	if (!err)
 		intel_engines_sanitize(i915);
@@ -5461,7 +5462,8 @@ int i915_gem_init(struct drm_i915_private *dev_priv)
 	int ret;
 
 	/* We need to fallback to 4K pages if host doesn't support huge gtt. */
-	if (intel_vgpu_active(dev_priv) && !intel_vgpu_has_huge_gtt(dev_priv))
+	if ((intel_vgpu_active(dev_priv) && !intel_vgpu_has_huge_gtt(dev_priv))
+			|| PVMMIO_LEVEL(dev_priv, PVMMIO_PPGTT_UPDATE))
 		mkwrite_device_info(dev_priv)->page_sizes =
 			I915_GTT_PAGE_SIZE_4K;
 
