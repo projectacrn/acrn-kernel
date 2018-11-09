@@ -755,10 +755,17 @@ static struct attribute_group vhm_attr_group = {
 
 #define SUPPORT_HV_API_VERSION_MAJOR	1
 #define SUPPORT_HV_API_VERSION_MINOR	0
+static int force_disabled;
+module_param(force_disabled, int, S_IRUGO);
+MODULE_PARM_DESC(force_disabled, "Force disable vhm module");
+
 static int __init vhm_init(void)
 {
 	unsigned long flag;
 	struct hc_api_version api_version = {0, 0};
+
+	if (force_disabled)
+		return -ENODEV;
 
 	if (x86_hyper_type != X86_HYPER_ACRN)
 		return -ENODEV;
