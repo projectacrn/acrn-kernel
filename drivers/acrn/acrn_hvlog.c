@@ -124,12 +124,14 @@ early_param("hvlog", early_hvlog);
 static inline shared_buf_t *hvlog_mark_unread(shared_buf_t *sbuf)
 {
 	/* sbuf must point to valid data.
-	 * clear the lowest bit in the magic to indicate that
-	 * the sbuf point to the last boot valid data, we should
-	 * read it later.
+	 * clear the lowest bit in the magic to indicate that the sbuf point
+	 * to the last boot valid data. We will read all of valid data in the
+	 * sbuf later from 0 offset to sbuf->tail.
 	 */
-	if (sbuf != NULL)
+	if (sbuf != NULL) {
 		sbuf->magic &= ~1;
+		sbuf->head = 0;
+	}
 
 	return sbuf;
 }
