@@ -9,6 +9,8 @@
 extern const unsigned char pcie_link_speed[];
 extern bool pci_early_dump;
 
+struct msi_desc;
+
 bool pcie_cap_has_lnkctl(const struct pci_dev *dev);
 
 /* Functions internal to the PCI core code */
@@ -167,6 +169,8 @@ static inline void pci_msix_clear_and_set_ctrl(struct pci_dev *dev, u16 clear, u
 	ctrl |= set;
 	pci_write_config_word(dev, dev->msix_cap + PCI_MSIX_FLAGS, ctrl);
 }
+
+void __iomem *pci_msix_desc_addr(struct msi_desc *desc);
 
 void pci_realloc_get_opt(char *);
 

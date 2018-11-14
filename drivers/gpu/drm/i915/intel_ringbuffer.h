@@ -567,6 +567,7 @@ struct intel_engine_cs {
 	} semaphore;
 
 	struct intel_engine_execlists execlists;
+	struct work_struct reset_work;
 
 	/* Contexts are pinned whilst they are active on the GPU. The last
 	 * context executed remains active whilst the GPU is idle - the
@@ -788,6 +789,11 @@ intel_write_status_page(struct intel_engine_cs *engine, int reg, u32 value)
 #define I915_GEM_HWS_PREEMPT_ADDR (I915_GEM_HWS_PREEMPT_INDEX << MI_STORE_DWORD_INDEX_SHIFT)
 #define I915_GEM_HWS_SCRATCH_INDEX	0x40
 #define I915_GEM_HWS_SCRATCH_ADDR (I915_GEM_HWS_SCRATCH_INDEX << MI_STORE_DWORD_INDEX_SHIFT)
+
+#define I915_GEM_HWS_PID_INDEX 0x50
+#define I915_GEM_HWS_PID_ADDR (I915_GEM_HWS_PID_INDEX << MI_STORE_DWORD_INDEX_SHIFT)
+#define I915_GEM_HWS_CID_INDEX 0x58
+#define I915_GEM_HWS_CID_ADDR (I915_GEM_HWS_CID_INDEX << MI_STORE_DWORD_INDEX_SHIFT)
 
 #define I915_HWS_CSB_BUF0_INDEX		0x10
 #define I915_HWS_CSB_WRITE_INDEX	0x1f
