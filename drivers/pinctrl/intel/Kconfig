@@ -130,4 +130,13 @@ config PINCTRL_TIGERLAKE
 	help
 	  This pinctrl driver provides an interface that allows configuring
 	  of Intel Tiger Lake PCH pins and using them as GPIOs.
+
+config PINCTRL_WHITLEY
+	tristate "Intel Whitley pinctrl and GPIO driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  This pinctrl driver provides an interface that allows configuring
+	  of Intel Whitley pins and using them as GPIOs.
+
 endif
