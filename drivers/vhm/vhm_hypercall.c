@@ -97,6 +97,11 @@ inline long hcall_setup_hv_npk_log(unsigned long hv_npk_log)
 	return acrn_hypercall1(HC_SETUP_HV_NPK_LOG, hv_npk_log);
 }
 
+inline long hcall_get_hw_info(unsigned long hw_info)
+{
+	return acrn_hypercall1(HC_GET_HW_INFO, hw_info);
+}
+
 inline long hcall_set_sstate_data(unsigned long sx_data_addr)
 {
 	return acrn_hypercall1(HC_PM_SET_SSTATE_DATA, sx_data_addr);
