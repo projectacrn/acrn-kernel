@@ -115,6 +115,7 @@
 #define HC_SETUP_SBUF               _HC_ID(HC_ID, HC_ID_DBG_BASE + 0x00)
 #define HC_SETUP_HV_NPK_LOG         _HC_ID(HC_ID, HC_ID_DBG_BASE + 0x01)
 #define HC_PROFILING_OPS            _HC_ID(HC_ID, HC_ID_DBG_BASE + 0x02)
+#define HC_GET_HW_INFO              _HC_ID(HC_ID, HC_ID_DBG_BASE + 0x03)
 
 /* Power management */
 #define HC_ID_PM_BASE               0x80UL
@@ -210,6 +211,11 @@ struct hv_npk_log_param {
 
 	/* the MMIO address for the hypervisor NPK log */
 	uint64_t mmio_addr;
+} __attribute__((aligned(8)));
+
+struct acrn_hw_info {
+	uint16_t cpu_num; /* Physical CPU number */
+	uint16_t reserved[3];
 } __attribute__((aligned(8)));
 
 struct vm_gpa2hpa {
