@@ -214,6 +214,48 @@ static const struct file_operations acrn_hvlog_fops = {
 	.read = acrn_hvlog_read,
 };
 
+/**
+ * base0 = hvlog_buf_base;
+ * base1 = hvlog_buf_base + (hvlog_buf_size >> 1)
+ * if there is valid data in base0, cur_logbuf = base1, last_logbuf = base0.
+ * if there is valid data in base1, cur_logbuf = base0, last_logbuf = base1.
+ * if there is no valid data both in base0 and base1, cur_logbuf = base0,
+ * last_logbuf = 0.
+ */
+void assign_hvlog_buf_base(uint64_t *cur_logbuf, uint64_t *last_logbuf)
+{
+	uint64_t base0, base1;
+	uint32_t ele_num, size;
+	uint16_t pcpu_id;
+
+	base0 = hvlog_buf_base;
+	base1 = hvlog_buf_base + (hvlog_buf_size >> 1);
+	size = (hvlog_buf_size >> 1) / pcpu_nr;
+	ele_num = (size - SBUF_HEAD_SIZE) / LOG_ENTRY_SIZE;
+
+	foreach_cpu (pcpu_id, pcpu_nr) {
+		if (sbuf_check_valid(ele_num, LOG_ENTRY_SIZE,
+					base0 + (size * pcpu_id))) {
+			*last_logbuf = base0;
+			*cur_logbuf = base1;
+			return;
+		}
+	}
+
+	foreach_cpu (pcpu_id, pcpu_nr) {
+		if (sbuf_check_valid(ele_num, LOG_ENTRY_SIZE,
+					base1 + (size * pcpu_id))) {
+			*last_logbuf = base1;
+			*cur_logbuf = base0;
+			return;
+		}
+	}
+
+	/* No last logbuf found */
+	*last_logbuf = 0;
+	*cur_logbuf = base0;
+}
+
 static int __init acrn_hvlog_init(void)
 {
 	int ret = 0;
