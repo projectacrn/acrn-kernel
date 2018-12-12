@@ -82,11 +82,13 @@ enum sbuf_hvlog_index {
 
 struct acrn_hvlog {
 	struct miscdevice miscdev;
+	char name[24];
 	shared_buf_t *sbuf;
 	atomic_t open_cnt;
 	int pcpu_num;
 };
 
+static struct acrn_hvlog *acrn_hvlog_devs[SBUF_HVLOG_TYPES];
 static unsigned long long hvlog_buf_size;
 static unsigned long long hvlog_buf_base;
 
@@ -209,77 +211,6 @@ static const struct file_operations acrn_hvlog_fops = {
 	.read = acrn_hvlog_read,
 };
 
-static struct acrn_hvlog acrn_hvlog_devs[SBUF_HVLOG_TYPES][PCPU_NRS] = {
-	[SBUF_CUR_HVLOG] = {
-		{
-			.miscdev = {
-				.name   = "acrn_hvlog_cur_0",
-				.minor  = MISC_DYNAMIC_MINOR,
-				.fops   = &acrn_hvlog_fops,
-			},
-			.pcpu_num = 0,
-		},
-		{
-			.miscdev = {
-				.name   = "acrn_hvlog_cur_1",
-				.minor  = MISC_DYNAMIC_MINOR,
-				.fops   = &acrn_hvlog_fops,
-			},
-			.pcpu_num = 1,
-		},
-		{
-			.miscdev = {
-				.name   = "acrn_hvlog_cur_2",
-				.minor  = MISC_DYNAMIC_MINOR,
-				.fops   = &acrn_hvlog_fops,
-			},
-			.pcpu_num = 2,
-		},
-		{
-			.miscdev = {
-				.name   = "acrn_hvlog_cur_3",
-				.minor  = MISC_DYNAMIC_MINOR,
-				.fops   = &acrn_hvlog_fops,
-			},
-			.pcpu_num = 3,
-		},
-	},
-	[SBUF_LAST_HVLOG] = {
-		{
-			.miscdev = {
-				.name   = "acrn_hvlog_last_0",
-				.minor  = MISC_DYNAMIC_MINOR,
-				.fops   = &acrn_hvlog_fops,
-			},
-			.pcpu_num = 0,
-		},
-		{
-			.miscdev = {
-				.name   = "acrn_hvlog_last_1",
-				.minor  = MISC_DYNAMIC_MINOR,
-				.fops   = &acrn_hvlog_fops,
-			},
-			.pcpu_num = 1,
-		},
-		{
-			.miscdev = {
-				.name   = "acrn_hvlog_last_2",
-				.minor  = MISC_DYNAMIC_MINOR,
-				.fops   = &acrn_hvlog_fops,
-			},
-			.pcpu_num = 2,
-		},
-		{
-			.miscdev = {
-				.name   = "acrn_hvlog_last_3",
-				.minor  = MISC_DYNAMIC_MINOR,
-				.fops   = &acrn_hvlog_fops,
-			},
-			.pcpu_num = 3,
-		},
-	}
-};
-
 static int __init acrn_hvlog_init(void)
 {
 	int ret = 0;
@@ -292,6 +223,7 @@ static int __init acrn_hvlog_init(void)
 	uint32_t ele_num;
 	uint32_t size;
 	bool sbuf_constructed = false;
+	struct acrn_hvlog *hvlog;
 
 	shared_buf_t **sbuf0;
 	shared_buf_t **sbuf1;
@@ -315,6 +247,16 @@ static int __init acrn_hvlog_init(void)
 		pr_err("Failed to alloc mem for sbuf1\n");
 		ret = -ENOMEM;
 		goto sbuf1_err;
+	}
+
+	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES) {
+		acrn_hvlog_devs[idx] = (struct acrn_hvlog *)kzalloc(
+			(sizeof(struct acrn_hvlog) * PCPU_NRS), GFP_KERNEL);
+		if (!acrn_hvlog_devs[idx]) {
+			pr_err("Failed to alloc mem for hvlog dev %d\n", idx);
+			ret = -ENOMEM;
+			goto hvlog_dev_err;
+		}
 	}
 
 	logbuf_base0 = hvlog_buf_base;
@@ -370,8 +312,8 @@ static int __init acrn_hvlog_init(void)
 			ret = sbuf_share_setup(pcpu_id, ACRN_HVLOG,
 					acrn_hvlog_devs[idx][pcpu_id].sbuf);
 			if (ret < 0) {
-				pr_err("Failed to setup %s, errno %d\n",
-				acrn_hvlog_devs[idx][pcpu_id].miscdev.name, ret);
+				pr_err("Failed to setup sbuf%u, errno %d\n",
+						pcpu_id, ret);
 				goto setup_err;
 			}
 		}
@@ -379,7 +321,16 @@ static int __init acrn_hvlog_init(void)
 
 	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES) {
 		foreach_cpu(pcpu_id, PCPU_NRS) {
-			atomic_set(&acrn_hvlog_devs[idx][pcpu_id].open_cnt, 0);
+			hvlog = &acrn_hvlog_devs[idx][pcpu_id];
+
+			atomic_set(&hvlog->open_cnt, 0);
+			snprintf(hvlog->name, sizeof(hvlog->name),
+				"acrn_hvlog_%s_%u", (idx ? "last" : "cur"),
+				pcpu_id);
+			hvlog->miscdev.name = hvlog->name;
+			hvlog->miscdev.minor = MISC_DYNAMIC_MINOR;
+			hvlog->miscdev.fops = &acrn_hvlog_fops;
+			hvlog->pcpu_num = pcpu_id;
 
 			ret = misc_register(
 					&acrn_hvlog_devs[idx][pcpu_id].miscdev);
@@ -416,6 +367,12 @@ setup_err:
 			sbuf_deconstruct(acrn_hvlog_devs[idx][j].sbuf);
 		}
 	}
+hvlog_dev_err:
+	i = 0;
+	foreach_hvlog_type(i, idx)
+		kfree(acrn_hvlog_devs[i]);
+
+	kfree(sbuf1);
 sbuf1_err:
 	kfree(sbuf0);
 
@@ -442,6 +399,10 @@ static void __exit acrn_hvlog_exit(void)
 			sbuf_deconstruct(acrn_hvlog_devs[idx][pcpu_id].sbuf);
 		}
 	}
+
+	idx = 0;
+	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES)
+		kfree(acrn_hvlog_devs[idx]);
 }
 
 module_init(acrn_hvlog_init);
