@@ -256,6 +256,89 @@ void assign_hvlog_buf_base(uint64_t *cur_logbuf, uint64_t *last_logbuf)
 	*cur_logbuf = base0;
 }
 
+int init_hvlog_dev(uint64_t base, uint32_t hvlog_type)
+{
+	int err = 0;
+	uint16_t idx, i;
+	shared_buf_t *sbuf;
+	struct acrn_hvlog *hvlog;
+	uint32_t ele_size, ele_num, size;
+
+	if (!base)
+		return -ENODEV;
+
+	size = (hvlog_buf_size >> 1) / pcpu_nr;
+	ele_size = LOG_ENTRY_SIZE;
+	ele_num = (size - SBUF_HEAD_SIZE) / ele_size;
+
+	foreach_cpu(idx, pcpu_nr) {
+		hvlog = &acrn_hvlog_devs[hvlog_type][idx];
+		switch (hvlog_type) {
+		case SBUF_CUR_HVLOG:
+			snprintf(hvlog->name, sizeof(hvlog->name),
+						"acrn_hvlog_cur_%hu", idx);
+			sbuf = sbuf_construct(ele_num, ele_size,
+						base + (size * idx));
+			sbuf_share_setup(idx, ACRN_HVLOG, sbuf);
+			break;
+		case SBUF_LAST_HVLOG:
+			snprintf(hvlog->name, sizeof(hvlog->name),
+						"acrn_hvlog_last_%hu", idx);
+			sbuf = sbuf_check_valid(ele_num, ele_size,
+						base + (size * idx));
+			hvlog_mark_unread(sbuf);
+			break;
+		default:
+			return -EINVAL;
+		}
+
+		hvlog->miscdev.name = hvlog->name;
+		hvlog->miscdev.minor = MISC_DYNAMIC_MINOR;
+		hvlog->miscdev.fops = &acrn_hvlog_fops;
+		hvlog->pcpu_num = idx;
+		hvlog->sbuf = sbuf;
+
+		err = misc_register(&(hvlog->miscdev));
+		if (err < 0) {
+			pr_err("Failed to register %s, errno %d\n",
+							hvlog->name, err);
+			goto err_reg;
+		}
+	}
+
+	return 0;
+
+err_reg:
+	for(i = --idx; i >= 0; i--)
+		misc_deregister(&acrn_hvlog_devs[hvlog_type][i].miscdev);
+
+	return err;
+}
+
+void deinit_hvlog_dev(uint32_t hvlog_type)
+{
+	uint16_t idx;
+	struct acrn_hvlog *hvlog;
+
+	foreach_cpu(idx, pcpu_nr) {
+		hvlog = &acrn_hvlog_devs[hvlog_type][idx];
+		switch (hvlog_type) {
+		case SBUF_CUR_HVLOG:
+			sbuf_share_setup(idx, ACRN_HVLOG, 0);
+			sbuf_deconstruct(hvlog->sbuf);
+			break;
+		case SBUF_LAST_HVLOG:
+			break;
+		default:
+			break;
+		}
+
+		misc_deregister(&(hvlog->miscdev));
+	}
+
+	kfree(acrn_hvlog_devs[hvlog_type]);
+}
+
 static int __init acrn_hvlog_init(void)
 {
 	int ret = 0;
