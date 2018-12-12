@@ -57,6 +57,7 @@
 #include <linux/memblock.h>
 #include <linux/kernel.h>
 #include <linux/fs.h>
+#include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/module.h>
 #include <linux/major.h>
@@ -292,13 +293,28 @@ static int __init acrn_hvlog_init(void)
 	uint32_t size;
 	bool sbuf_constructed = false;
 
-	shared_buf_t *sbuf0[PCPU_NRS];
-	shared_buf_t *sbuf1[PCPU_NRS];
+	shared_buf_t **sbuf0;
+	shared_buf_t **sbuf1;
 
 	pr_info("%s\n", __func__);
 	if (!hvlog_buf_base || !hvlog_buf_size) {
 		pr_warn("no fixed memory reserve for hvlog.\n");
 		return 0;
+	}
+
+	sbuf0 = (shared_buf_t **)kzalloc(
+			(sizeof(shared_buf_t *) * PCPU_NRS), GFP_KERNEL);
+	if (!sbuf0) {
+		pr_err("Failed to alloc mem for sbuf0\n");
+		return -ENOMEM;
+	}
+
+	sbuf1 = (shared_buf_t **)kzalloc(
+			(sizeof(shared_buf_t *) * PCPU_NRS), GFP_KERNEL);
+	if (!sbuf1) {
+		pr_err("Failed to alloc mem for sbuf1\n");
+		ret = -ENOMEM;
+		goto sbuf1_err;
 	}
 
 	logbuf_base0 = hvlog_buf_base;
@@ -375,6 +391,9 @@ static int __init acrn_hvlog_init(void)
 		}
 	}
 
+	kfree(sbuf0);
+	kfree(sbuf1);
+
 	return 0;
 
 reg_err:
@@ -397,6 +416,8 @@ setup_err:
 			sbuf_deconstruct(acrn_hvlog_devs[idx][j].sbuf);
 		}
 	}
+sbuf1_err:
+	kfree(sbuf0);
 
 	return ret;
 }
