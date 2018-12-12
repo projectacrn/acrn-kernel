@@ -62,11 +62,13 @@
 #include <linux/module.h>
 #include <linux/major.h>
 #include <linux/miscdevice.h>
+#include <linux/vhm/vhm_hypercall.h>
+#include <linux/vhm/acrn_hv_defs.h>
 
 #include "sbuf.h"
 
 #define LOG_ENTRY_SIZE		80
-#define PCPU_NRS		4
+#define DEFAULT_PCPU_NR		4
 
 #define foreach_cpu(cpu, cpu_num)					\
 	for ((cpu) = 0; (cpu) < (cpu_num); (cpu)++)
@@ -89,6 +91,7 @@ struct acrn_hvlog {
 };
 
 static struct acrn_hvlog *acrn_hvlog_devs[SBUF_HVLOG_TYPES];
+static uint16_t pcpu_nr = DEFAULT_PCPU_NR;
 static unsigned long long hvlog_buf_size;
 static unsigned long long hvlog_buf_base;
 
@@ -139,7 +142,7 @@ static int acrn_hvlog_open(struct inode *inode, struct file *filp)
 				struct acrn_hvlog, miscdev);
 	pr_debug("%s, %s\n", __func__, acrn_hvlog->miscdev.name);
 
-	if (acrn_hvlog->pcpu_num >= PCPU_NRS) {
+	if (acrn_hvlog->pcpu_num >= pcpu_nr) {
 		pr_err("%s, invalid pcpu_num: %d\n",
 				__func__, acrn_hvlog->pcpu_num);
 		return -EIO;
@@ -162,7 +165,7 @@ static int acrn_hvlog_release(struct inode *inode, struct file *filp)
 
 	pr_debug("%s, %s\n", __func__, acrn_hvlog->miscdev.name);
 
-	if (acrn_hvlog->pcpu_num >= PCPU_NRS) {
+	if (acrn_hvlog->pcpu_num >= pcpu_nr) {
 		pr_err("%s, invalid pcpu_num: %d\n",
 				__func__, acrn_hvlog->pcpu_num);
 		return -EIO;
@@ -185,7 +188,7 @@ static ssize_t acrn_hvlog_read(struct file *filp, char __user *buf,
 
 	pr_debug("%s, %s\n", __func__, acrn_hvlog->miscdev.name);
 
-	if (acrn_hvlog->pcpu_num >= PCPU_NRS) {
+	if (acrn_hvlog->pcpu_num >= pcpu_nr) {
 		pr_err("%s, invalid pcpu_num: %d\n",
 				__func__, acrn_hvlog->pcpu_num);
 		return -EIO;
@@ -223,26 +226,30 @@ static int __init acrn_hvlog_init(void)
 	uint32_t ele_num;
 	uint32_t size;
 	bool sbuf_constructed = false;
+	struct acrn_hw_info hw_info;
 	struct acrn_hvlog *hvlog;
 
 	shared_buf_t **sbuf0;
 	shared_buf_t **sbuf1;
 
-	pr_info("%s\n", __func__);
 	if (!hvlog_buf_base || !hvlog_buf_size) {
 		pr_warn("no fixed memory reserve for hvlog.\n");
 		return 0;
 	}
 
+	ret = hcall_get_hw_info(virt_to_phys(&hw_info));
+	if (!ret)
+		pcpu_nr = hw_info.cpu_num;
+
 	sbuf0 = (shared_buf_t **)kzalloc(
-			(sizeof(shared_buf_t *) * PCPU_NRS), GFP_KERNEL);
+			(sizeof(shared_buf_t *) * pcpu_nr), GFP_KERNEL);
 	if (!sbuf0) {
 		pr_err("Failed to alloc mem for sbuf0\n");
 		return -ENOMEM;
 	}
 
 	sbuf1 = (shared_buf_t **)kzalloc(
-			(sizeof(shared_buf_t *) * PCPU_NRS), GFP_KERNEL);
+			(sizeof(shared_buf_t *) * pcpu_nr), GFP_KERNEL);
 	if (!sbuf1) {
 		pr_err("Failed to alloc mem for sbuf1\n");
 		ret = -ENOMEM;
@@ -251,7 +258,7 @@ static int __init acrn_hvlog_init(void)
 
 	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES) {
 		acrn_hvlog_devs[idx] = (struct acrn_hvlog *)kzalloc(
-			(sizeof(struct acrn_hvlog) * PCPU_NRS), GFP_KERNEL);
+			(sizeof(struct acrn_hvlog) * pcpu_nr), GFP_KERNEL);
 		if (!acrn_hvlog_devs[idx]) {
 			pr_err("Failed to alloc mem for hvlog dev %d\n", idx);
 			ret = -ENOMEM;
@@ -263,22 +270,22 @@ static int __init acrn_hvlog_init(void)
 	logbuf_size = (hvlog_buf_size >> 1);
 	logbuf_base1 = hvlog_buf_base + logbuf_size;
 
-	size = (logbuf_size / PCPU_NRS);
+	size = (logbuf_size / pcpu_nr);
 	ele_size = LOG_ENTRY_SIZE;
 	ele_num = (size - SBUF_HEAD_SIZE) / ele_size;
 
-	foreach_cpu(pcpu_id, PCPU_NRS) {
+	foreach_cpu(pcpu_id, pcpu_nr) {
 		sbuf0[pcpu_id] = sbuf_check_valid(ele_num, ele_size,
 					logbuf_base0 + size * pcpu_id);
 		sbuf1[pcpu_id] = sbuf_check_valid(ele_num, ele_size,
 					logbuf_base1 + size * pcpu_id);
 	}
 
-	foreach_cpu(pcpu_id, PCPU_NRS) {
+	foreach_cpu(pcpu_id, pcpu_nr) {
 		if (sbuf0[pcpu_id] == NULL)
 			continue;
 
-		foreach_cpu(pcpu_id, PCPU_NRS) {
+		foreach_cpu(pcpu_id, pcpu_nr) {
 			acrn_hvlog_devs[SBUF_LAST_HVLOG][pcpu_id].sbuf =
 					hvlog_mark_unread(sbuf0[pcpu_id]);
 			acrn_hvlog_devs[SBUF_CUR_HVLOG][pcpu_id].sbuf =
@@ -289,16 +296,16 @@ static int __init acrn_hvlog_init(void)
 	}
 
 	if (sbuf_constructed == false) {
-		foreach_cpu(pcpu_id, PCPU_NRS) {
+		foreach_cpu(pcpu_id, pcpu_nr) {
 			if (sbuf1[pcpu_id] == NULL)
 				continue;
 
-			foreach_cpu(pcpu_id, PCPU_NRS) {
+			foreach_cpu(pcpu_id, pcpu_nr) {
 				acrn_hvlog_devs[SBUF_LAST_HVLOG][pcpu_id].sbuf =
 					hvlog_mark_unread(sbuf1[pcpu_id]);
 			}
 		}
-		foreach_cpu(pcpu_id, PCPU_NRS) {
+		foreach_cpu(pcpu_id, pcpu_nr) {
 			acrn_hvlog_devs[SBUF_CUR_HVLOG][pcpu_id].sbuf =
 				sbuf_construct(ele_num, ele_size,
 					logbuf_base0 + size * pcpu_id);
@@ -308,7 +315,7 @@ static int __init acrn_hvlog_init(void)
 
 	idx = SBUF_CUR_HVLOG;
 	{
-		foreach_cpu(pcpu_id, PCPU_NRS) {
+		foreach_cpu(pcpu_id, pcpu_nr) {
 			ret = sbuf_share_setup(pcpu_id, ACRN_HVLOG,
 					acrn_hvlog_devs[idx][pcpu_id].sbuf);
 			if (ret < 0) {
@@ -320,7 +327,7 @@ static int __init acrn_hvlog_init(void)
 	}
 
 	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES) {
-		foreach_cpu(pcpu_id, PCPU_NRS) {
+		foreach_cpu(pcpu_id, pcpu_nr) {
 			hvlog = &acrn_hvlog_devs[idx][pcpu_id];
 
 			atomic_set(&hvlog->open_cnt, 0);
@@ -345,11 +352,12 @@ static int __init acrn_hvlog_init(void)
 	kfree(sbuf0);
 	kfree(sbuf1);
 
+	pr_info("Initialized hvlog module with %u cpu\n", pcpu_nr);
 	return 0;
 
 reg_err:
 	foreach_hvlog_type(i, idx) {
-		foreach_cpu(j, PCPU_NRS) {
+		foreach_cpu(j, pcpu_nr) {
 			misc_deregister(&acrn_hvlog_devs[i][j].miscdev);
 		}
 	}
@@ -358,7 +366,7 @@ reg_err:
 		misc_deregister(&acrn_hvlog_devs[idx][j].miscdev);
 	}
 
-	pcpu_id = PCPU_NRS;
+	pcpu_id = pcpu_nr;
 setup_err:
 	idx = SBUF_CUR_HVLOG;
 	{
@@ -387,14 +395,14 @@ static void __exit acrn_hvlog_exit(void)
 	pr_info("%s\n", __func__);
 
 	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES) {
-		foreach_cpu(pcpu_id, PCPU_NRS) {
+		foreach_cpu(pcpu_id, pcpu_nr) {
 			misc_deregister(&acrn_hvlog_devs[idx][pcpu_id].miscdev);
 		}
 	}
 
 	idx = SBUF_CUR_HVLOG;
 	{
-		foreach_cpu(pcpu_id, PCPU_NRS) {
+		foreach_cpu(pcpu_id, pcpu_nr) {
 			sbuf_share_setup(pcpu_id, ACRN_HVLOG, 0);
 			sbuf_deconstruct(acrn_hvlog_devs[idx][pcpu_id].sbuf);
 		}
