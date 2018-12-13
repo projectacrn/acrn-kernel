@@ -222,7 +222,7 @@ static const struct file_operations acrn_hvlog_fops = {
  * if there is no valid data both in base0 and base1, cur_logbuf = base0,
  * last_logbuf = 0.
  */
-void assign_hvlog_buf_base(uint64_t *cur_logbuf, uint64_t *last_logbuf)
+static void assign_hvlog_buf_base(uint64_t *cur_logbuf, uint64_t *last_logbuf)
 {
 	uint64_t base0, base1;
 	uint32_t ele_num, size;
@@ -256,7 +256,7 @@ void assign_hvlog_buf_base(uint64_t *cur_logbuf, uint64_t *last_logbuf)
 	*cur_logbuf = base0;
 }
 
-int init_hvlog_dev(uint64_t base, uint32_t hvlog_type)
+static int init_hvlog_dev(uint64_t base, uint32_t hvlog_type)
 {
 	int err = 0;
 	uint16_t idx, i;
@@ -273,6 +273,7 @@ int init_hvlog_dev(uint64_t base, uint32_t hvlog_type)
 
 	foreach_cpu(idx, pcpu_nr) {
 		hvlog = &acrn_hvlog_devs[hvlog_type][idx];
+
 		switch (hvlog_type) {
 		case SBUF_CUR_HVLOG:
 			snprintf(hvlog->name, sizeof(hvlog->name),
@@ -315,7 +316,7 @@ err_reg:
 	return err;
 }
 
-void deinit_hvlog_dev(uint32_t hvlog_type)
+static void deinit_hvlog_dev(uint32_t hvlog_type)
 {
 	uint16_t idx;
 	struct acrn_hvlog *hvlog;
@@ -341,21 +342,9 @@ void deinit_hvlog_dev(uint32_t hvlog_type)
 
 static int __init acrn_hvlog_init(void)
 {
-	int ret = 0;
-	int i, j, idx;
-	uint32_t pcpu_id;
-	uint64_t logbuf_base0;
-	uint64_t logbuf_base1;
-	uint64_t logbuf_size;
-	uint32_t ele_size;
-	uint32_t ele_num;
-	uint32_t size;
-	bool sbuf_constructed = false;
+	int idx, ret = 0;
 	struct acrn_hw_info hw_info;
-	struct acrn_hvlog *hvlog;
-
-	shared_buf_t **sbuf0;
-	shared_buf_t **sbuf1;
+	uint64_t cur_logbuf, last_logbuf;
 
 	if (!hvlog_buf_base || !hvlog_buf_size) {
 		pr_warn("no fixed memory reserve for hvlog.\n");
@@ -366,176 +355,39 @@ static int __init acrn_hvlog_init(void)
 	if (!ret)
 		pcpu_nr = hw_info.cpu_num;
 
-	sbuf0 = (shared_buf_t **)kzalloc(
-			(sizeof(shared_buf_t *) * pcpu_nr), GFP_KERNEL);
-	if (!sbuf0) {
-		pr_err("Failed to alloc mem for sbuf0\n");
-		return -ENOMEM;
-	}
-
-	sbuf1 = (shared_buf_t **)kzalloc(
-			(sizeof(shared_buf_t *) * pcpu_nr), GFP_KERNEL);
-	if (!sbuf1) {
-		pr_err("Failed to alloc mem for sbuf1\n");
-		ret = -ENOMEM;
-		goto sbuf1_err;
-	}
-
 	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES) {
 		acrn_hvlog_devs[idx] = (struct acrn_hvlog *)kzalloc(
 			(sizeof(struct acrn_hvlog) * pcpu_nr), GFP_KERNEL);
 		if (!acrn_hvlog_devs[idx]) {
 			pr_err("Failed to alloc mem for hvlog dev %d\n", idx);
-			ret = -ENOMEM;
-			goto hvlog_dev_err;
+			return -ENOMEM;
 		}
 	}
 
-	logbuf_base0 = hvlog_buf_base;
-	logbuf_size = (hvlog_buf_size >> 1);
-	logbuf_base1 = hvlog_buf_base + logbuf_size;
-
-	size = (logbuf_size / pcpu_nr);
-	ele_size = LOG_ENTRY_SIZE;
-	ele_num = (size - SBUF_HEAD_SIZE) / ele_size;
-
-	foreach_cpu(pcpu_id, pcpu_nr) {
-		sbuf0[pcpu_id] = sbuf_check_valid(ele_num, ele_size,
-					logbuf_base0 + size * pcpu_id);
-		sbuf1[pcpu_id] = sbuf_check_valid(ele_num, ele_size,
-					logbuf_base1 + size * pcpu_id);
+	assign_hvlog_buf_base(&cur_logbuf, &last_logbuf);
+	ret = init_hvlog_dev(cur_logbuf, SBUF_CUR_HVLOG);
+	if (ret) {
+		pr_err("Failed to init cur hvlog devs, errno %d\n", ret);
+		return ret;
 	}
 
-	foreach_cpu(pcpu_id, pcpu_nr) {
-		if (sbuf0[pcpu_id] == NULL)
-			continue;
-
-		foreach_cpu(pcpu_id, pcpu_nr) {
-			acrn_hvlog_devs[SBUF_LAST_HVLOG][pcpu_id].sbuf =
-					hvlog_mark_unread(sbuf0[pcpu_id]);
-			acrn_hvlog_devs[SBUF_CUR_HVLOG][pcpu_id].sbuf =
-				sbuf_construct(ele_num, ele_size,
-					logbuf_base1 + size * pcpu_id);
-		}
-		sbuf_constructed = true;
-	}
-
-	if (sbuf_constructed == false) {
-		foreach_cpu(pcpu_id, pcpu_nr) {
-			if (sbuf1[pcpu_id] == NULL)
-				continue;
-
-			foreach_cpu(pcpu_id, pcpu_nr) {
-				acrn_hvlog_devs[SBUF_LAST_HVLOG][pcpu_id].sbuf =
-					hvlog_mark_unread(sbuf1[pcpu_id]);
-			}
-		}
-		foreach_cpu(pcpu_id, pcpu_nr) {
-			acrn_hvlog_devs[SBUF_CUR_HVLOG][pcpu_id].sbuf =
-				sbuf_construct(ele_num, ele_size,
-					logbuf_base0 + size * pcpu_id);
-		}
-		sbuf_constructed = true;
-	}
-
-	idx = SBUF_CUR_HVLOG;
-	{
-		foreach_cpu(pcpu_id, pcpu_nr) {
-			ret = sbuf_share_setup(pcpu_id, ACRN_HVLOG,
-					acrn_hvlog_devs[idx][pcpu_id].sbuf);
-			if (ret < 0) {
-				pr_err("Failed to setup sbuf%u, errno %d\n",
-						pcpu_id, ret);
-				goto setup_err;
-			}
-		}
-	}
-
-	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES) {
-		foreach_cpu(pcpu_id, pcpu_nr) {
-			hvlog = &acrn_hvlog_devs[idx][pcpu_id];
-
-			atomic_set(&hvlog->open_cnt, 0);
-			snprintf(hvlog->name, sizeof(hvlog->name),
-				"acrn_hvlog_%s_%u", (idx ? "last" : "cur"),
-				pcpu_id);
-			hvlog->miscdev.name = hvlog->name;
-			hvlog->miscdev.minor = MISC_DYNAMIC_MINOR;
-			hvlog->miscdev.fops = &acrn_hvlog_fops;
-			hvlog->pcpu_num = pcpu_id;
-
-			ret = misc_register(
-					&acrn_hvlog_devs[idx][pcpu_id].miscdev);
-			if (ret < 0) {
-				pr_err("Failed to register %s, errno %d\n",
-				acrn_hvlog_devs[idx][pcpu_id].miscdev.name, ret);
-				goto reg_err;
-			}
-		}
-	}
-
-	kfree(sbuf0);
-	kfree(sbuf1);
+	/* If error happens for last hvlog devs setup, just print out an warn */
+	ret = init_hvlog_dev(last_logbuf, SBUF_LAST_HVLOG);
+	if (ret)
+		pr_warn("Failed to init last hvlog devs, errno %d\n", ret);
 
 	pr_info("Initialized hvlog module with %u cpu\n", pcpu_nr);
 	return 0;
-
-reg_err:
-	foreach_hvlog_type(i, idx) {
-		foreach_cpu(j, pcpu_nr) {
-			misc_deregister(&acrn_hvlog_devs[i][j].miscdev);
-		}
-	}
-
-	foreach_cpu(j, pcpu_id) {
-		misc_deregister(&acrn_hvlog_devs[idx][j].miscdev);
-	}
-
-	pcpu_id = pcpu_nr;
-setup_err:
-	idx = SBUF_CUR_HVLOG;
-	{
-		foreach_cpu(j, pcpu_id) {
-			sbuf_share_setup(j, ACRN_HVLOG, 0);
-			sbuf_deconstruct(acrn_hvlog_devs[idx][j].sbuf);
-		}
-	}
-hvlog_dev_err:
-	i = 0;
-	foreach_hvlog_type(i, idx)
-		kfree(acrn_hvlog_devs[i]);
-
-	kfree(sbuf1);
-sbuf1_err:
-	kfree(sbuf0);
-
-	return ret;
 }
 
 static void __exit acrn_hvlog_exit(void)
 {
-	int idx;
-	uint32_t pcpu_id;
+	int i;
 
-	pr_info("%s\n", __func__);
+	foreach_hvlog_type(i, SBUF_HVLOG_TYPES)
+		deinit_hvlog_dev(i);
 
-	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES) {
-		foreach_cpu(pcpu_id, pcpu_nr) {
-			misc_deregister(&acrn_hvlog_devs[idx][pcpu_id].miscdev);
-		}
-	}
-
-	idx = SBUF_CUR_HVLOG;
-	{
-		foreach_cpu(pcpu_id, pcpu_nr) {
-			sbuf_share_setup(pcpu_id, ACRN_HVLOG, 0);
-			sbuf_deconstruct(acrn_hvlog_devs[idx][pcpu_id].sbuf);
-		}
-	}
-
-	idx = 0;
-	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES)
-		kfree(acrn_hvlog_devs[idx]);
+	pr_info("Exit hvlog module\n");
 }
 
 module_init(acrn_hvlog_init);
