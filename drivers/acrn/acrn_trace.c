@@ -80,11 +80,16 @@
 /* actual physical cpu number, initialized by module init */
 static int pcpu_num;
 
+struct acrn_trace {
+	struct miscdevice miscdev;
+	shared_buf_t *sbuf;
+};
+
 static int nr_cpus = MAX_NR_CPUS;
 module_param(nr_cpus, int, S_IRUSR | S_IWUSR);
 
 static atomic_t open_cnt[MAX_NR_CPUS];
-static shared_buf_t *sbuf_per_cpu[MAX_NR_CPUS];
+static struct acrn_trace acrn_trace_devs[4];
 
 static inline int get_id_from_devname(struct file *filep)
 {
@@ -153,8 +158,8 @@ static int acrn_trace_mmap(struct file *filep, struct vm_area_struct *vma)
 	if (cpuid < 0)
 		return -ENXIO;
 
-	BUG_ON(!virt_addr_valid(sbuf_per_cpu[cpuid]));
-	paddr = virt_to_phys(sbuf_per_cpu[cpuid]);
+	BUG_ON(!virt_addr_valid(acrn_trace_devs[cpuid].sbuf));
+	paddr = virt_to_phys(acrn_trace_devs[cpuid].sbuf);
 
 	if (remap_pfn_range(vma, vma->vm_start,
 				paddr >> PAGE_SHIFT,
@@ -174,35 +179,35 @@ static const struct file_operations acrn_trace_fops = {
 	.mmap   = acrn_trace_mmap,
 };
 
-static struct miscdevice acrn_trace_dev0 = {
-	.name   = "acrn_trace_0",
-	.minor  = MISC_DYNAMIC_MINOR,
-	.fops   = &acrn_trace_fops,
-};
-
-static struct miscdevice acrn_trace_dev1 = {
-	.name   = "acrn_trace_1",
-	.minor  = MISC_DYNAMIC_MINOR,
-	.fops   = &acrn_trace_fops,
-};
-
-static struct miscdevice acrn_trace_dev2 = {
-	.name   = "acrn_trace_2",
-	.minor  = MISC_DYNAMIC_MINOR,
-	.fops   = &acrn_trace_fops,
-};
-
-static struct miscdevice acrn_trace_dev3 = {
-	.name   = "acrn_trace_3",
-	.minor  = MISC_DYNAMIC_MINOR,
-	.fops   = &acrn_trace_fops,
-};
-
-static struct miscdevice *acrn_trace_devs[4] = {
-	&acrn_trace_dev0,
-	&acrn_trace_dev1,
-	&acrn_trace_dev2,
-	&acrn_trace_dev3,
+static struct acrn_trace acrn_trace_devs[4] = {
+	{
+		.miscdev = {
+			.name = "acrn_trace_0",
+			.minor = MISC_DYNAMIC_MINOR,
+			.fops = &acrn_trace_fops,
+		},
+	},
+	{
+		.miscdev = {
+			.name = "acrn_trace_1",
+			.minor = MISC_DYNAMIC_MINOR,
+			.fops = &acrn_trace_fops,
+		},
+	},
+	{
+		.miscdev = {
+			.name = "acrn_trace_2",
+			.minor = MISC_DYNAMIC_MINOR,
+			.fops = &acrn_trace_fops,
+		},
+	},
+	{
+		.miscdev = {
+			.name = "acrn_trace_3",
+			.minor = MISC_DYNAMIC_MINOR,
+			.fops = &acrn_trace_fops,
+		},
+	},
 };
 
 /*
@@ -212,6 +217,7 @@ static int __init acrn_trace_init(void)
 {
 	int ret = 0;
 	int i, cpu;
+	shared_buf_t *sbuf;
 
 	if (x86_hyper_type != X86_HYPER_ACRN) {
 		pr_err("acrn_trace: not support acrn hypervisor!\n");
@@ -229,17 +235,18 @@ static int __init acrn_trace_init(void)
 
 	foreach_cpu(cpu, pcpu_num) {
 		/* allocate shared_buf */
-		sbuf_per_cpu[cpu] = sbuf_allocate(TRACE_ELEMENT_NUM,
-							TRACE_ELEMENT_SIZE);
-		if (!sbuf_per_cpu[cpu]) {
+		sbuf = sbuf_allocate(TRACE_ELEMENT_NUM, TRACE_ELEMENT_SIZE);
+		if (!sbuf) {
 			pr_err("Failed alloc SBuf, cpuid %d\n", cpu);
 			ret = -ENOMEM;
 			goto out_free;
 		}
+		acrn_trace_devs[cpu].sbuf = sbuf;
 	}
 
 	foreach_cpu(cpu, pcpu_num) {
-		ret = sbuf_share_setup(cpu, ACRN_TRACE, sbuf_per_cpu[cpu]);
+		sbuf = acrn_trace_devs[cpu].sbuf;
+		ret = sbuf_share_setup(cpu, ACRN_TRACE, sbuf);
 		if (ret < 0) {
 			pr_err("Failed to setup SBuf, cpuid %d\n", cpu);
 			goto out_sbuf;
@@ -247,7 +254,7 @@ static int __init acrn_trace_init(void)
 	}
 
 	foreach_cpu(cpu, pcpu_num) {
-		ret = misc_register(acrn_trace_devs[cpu]);
+		ret = misc_register(&acrn_trace_devs[cpu].miscdev);
 		if (ret < 0) {
 			pr_err("Failed to register acrn_trace_%d, errno %d\n",
 				cpu, ret);
@@ -259,7 +266,7 @@ static int __init acrn_trace_init(void)
 
 out_dereg:
 	for (i = --cpu; i >= 0; i--)
-		misc_deregister(acrn_trace_devs[i]);
+		misc_deregister(&acrn_trace_devs[i].miscdev);
 	cpu = pcpu_num;
 
 out_sbuf:
@@ -269,7 +276,7 @@ out_sbuf:
 
 out_free:
 	for (i = --cpu; i >= 0; i--)
-		sbuf_free(sbuf_per_cpu[i]);
+		sbuf_free(acrn_trace_devs[i].sbuf);
 
 	return ret;
 }
@@ -285,13 +292,13 @@ static void __exit acrn_trace_exit(void)
 
 	foreach_cpu(cpu, pcpu_num) {
 		/* deregister devices */
-		misc_deregister(acrn_trace_devs[cpu]);
+		misc_deregister(&acrn_trace_devs[cpu].miscdev);
 
 		/* set sbuf pointer to NULL in HV */
 		sbuf_share_setup(cpu, ACRN_TRACE, NULL);
 
-		/* free sbuf, sbuf_per_cpu[cpu] should be set NULL */
-		sbuf_free(sbuf_per_cpu[cpu]);
+		/* free sbuf, per-cpu sbuf should be set NULL */
+		sbuf_free(acrn_trace_devs[cpu].sbuf);
 	}
 }
 
