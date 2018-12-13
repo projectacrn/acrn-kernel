@@ -59,6 +59,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/major.h>
+#include <linux/slab.h>
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
@@ -82,6 +83,7 @@ static int pcpu_num;
 
 struct acrn_trace {
 	struct miscdevice miscdev;
+	char name[24];
 	shared_buf_t *sbuf;
 	atomic_t open_cnt;
 	uint16_t pcpu_id;
@@ -90,7 +92,7 @@ struct acrn_trace {
 static int nr_cpus = MAX_NR_CPUS;
 module_param(nr_cpus, int, S_IRUSR | S_IWUSR);
 
-static struct acrn_trace acrn_trace_devs[4];
+static struct acrn_trace *acrn_trace_devs;
 
 /************************************************************************
  *
@@ -168,41 +170,6 @@ static const struct file_operations acrn_trace_fops = {
 	.mmap   = acrn_trace_mmap,
 };
 
-static struct acrn_trace acrn_trace_devs[4] = {
-	{
-		.miscdev = {
-			.name = "acrn_trace_0",
-			.minor = MISC_DYNAMIC_MINOR,
-			.fops = &acrn_trace_fops,
-		},
-		.pcpu_id = 0,
-	},
-	{
-		.miscdev = {
-			.name = "acrn_trace_1",
-			.minor = MISC_DYNAMIC_MINOR,
-			.fops = &acrn_trace_fops,
-		},
-		.pcpu_id = 1,
-	},
-	{
-		.miscdev = {
-			.name = "acrn_trace_2",
-			.minor = MISC_DYNAMIC_MINOR,
-			.fops = &acrn_trace_fops,
-		},
-		.pcpu_id = 2,
-	},
-	{
-		.miscdev = {
-			.name = "acrn_trace_3",
-			.minor = MISC_DYNAMIC_MINOR,
-			.fops = &acrn_trace_fops,
-		},
-		.pcpu_id = 3,
-	},
-};
-
 /*
  * acrn_trace_init()
  */
@@ -211,6 +178,7 @@ static int __init acrn_trace_init(void)
 	int ret = 0;
 	int i, cpu;
 	shared_buf_t *sbuf;
+	struct miscdevice *miscdev;
 
 	if (x86_hyper_type != X86_HYPER_ACRN) {
 		pr_err("acrn_trace: not support acrn hypervisor!\n");
@@ -225,6 +193,13 @@ static int __init acrn_trace_init(void)
 		return -EINVAL;
 	}
 	pcpu_num = nr_cpus;
+
+	acrn_trace_devs = (struct acrn_trace *)kzalloc(
+			sizeof(struct acrn_trace) * pcpu_num, GFP_KERNEL);
+	if (!acrn_trace_devs) {
+		pr_err("Failed to alloc mem for acrntrace devices\n");
+		return -ENOMEM;
+	}
 
 	foreach_cpu(cpu, pcpu_num) {
 		/* allocate shared_buf */
@@ -247,6 +222,16 @@ static int __init acrn_trace_init(void)
 	}
 
 	foreach_cpu(cpu, pcpu_num) {
+		acrn_trace_devs[cpu].pcpu_id = cpu;
+
+		miscdev = &acrn_trace_devs[cpu].miscdev;
+		snprintf(acrn_trace_devs[cpu].name,
+				sizeof(acrn_trace_devs[cpu].name),
+				"acrn_trace_%d", cpu);
+		miscdev->name = acrn_trace_devs[cpu].name;
+		miscdev->minor = MISC_DYNAMIC_MINOR;
+		miscdev->fops = &acrn_trace_fops;
+
 		ret = misc_register(&acrn_trace_devs[cpu].miscdev);
 		if (ret < 0) {
 			pr_err("Failed to register acrn_trace_%d, errno %d\n",
@@ -255,6 +240,7 @@ static int __init acrn_trace_init(void)
 		}
 	}
 
+	pr_info("Initialized acrn trace module with %u cpu\n", pcpu_num);
 	return ret;
 
 out_dereg:
@@ -270,6 +256,7 @@ out_sbuf:
 out_free:
 	for (i = --cpu; i >= 0; i--)
 		sbuf_free(acrn_trace_devs[i].sbuf);
+	kfree(acrn_trace_devs);
 
 	return ret;
 }
@@ -293,6 +280,8 @@ static void __exit acrn_trace_exit(void)
 		/* free sbuf, per-cpu sbuf should be set NULL */
 		sbuf_free(acrn_trace_devs[cpu].sbuf);
 	}
+
+	kfree(acrn_trace_devs);
 }
 
 module_init(acrn_trace_init);
