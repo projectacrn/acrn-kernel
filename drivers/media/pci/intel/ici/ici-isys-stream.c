@@ -141,13 +141,15 @@ static int intel_ipu4_isys_library_close(struct ici_isys *isys)
 	struct device *dev = &isys->adev->dev;
 	int timeout = IPU_ISYS_TURNOFF_TIMEOUT;
 	int rval;
-
+	unsigned long flags;
 	/*
 	 * Ask library to stop the isys fw. Actual close takes
 	 * some time as the FW must stop its actions including code fetch
 	 * to SP icache.
 	*/
+	spin_lock_irqsave(&isys->power_lock, flags);
 	rval = ipu_lib_call(device_close, isys);
+	spin_unlock_irqrestore(&isys->power_lock, flags);
 	if (rval)
 		dev_err(dev, "Device close failure: %d\n", rval);
 
@@ -159,10 +161,12 @@ static int intel_ipu4_isys_library_close(struct ici_isys *isys)
 		timeout--;
 	} while (rval != 0 && timeout);
 
+	spin_lock_irqsave(&isys->power_lock, flags);
 	if (!rval)
 		isys->fwcom = NULL; /* No further actions needed */
 	else
 		dev_err(dev, "Device release time out %d\n", rval);
+	spin_unlock_irqrestore(&isys->power_lock, flags);
 	return rval;
 }
 
