@@ -83,12 +83,12 @@ static int pcpu_num;
 struct acrn_trace {
 	struct miscdevice miscdev;
 	shared_buf_t *sbuf;
+	atomic_t open_cnt;
 };
 
 static int nr_cpus = MAX_NR_CPUS;
 module_param(nr_cpus, int, S_IRUSR | S_IWUSR);
 
-static atomic_t open_cnt[MAX_NR_CPUS];
 static struct acrn_trace acrn_trace_devs[4];
 
 static inline int get_id_from_devname(struct file *filep)
@@ -128,10 +128,10 @@ static int acrn_trace_open(struct inode *inode, struct file *filep)
 		return -ENXIO;
 
 	/* More than one reader at the same time could get data messed up */
-	if (atomic_read(&open_cnt[cpuid]))
+	if (atomic_read(&acrn_trace_devs[cpuid].open_cnt))
 		return -EBUSY;
 
-	atomic_inc(&open_cnt[cpuid]);
+	atomic_inc(&acrn_trace_devs[cpuid].open_cnt);
 
 	return 0;
 }
@@ -144,7 +144,7 @@ static int acrn_trace_release(struct inode *inode, struct file *filep)
 	if (cpuid < 0)
 		return -ENXIO;
 
-	atomic_dec(&open_cnt[cpuid]);
+	atomic_dec(&acrn_trace_devs[cpuid].open_cnt);
 
 	return 0;
 }
