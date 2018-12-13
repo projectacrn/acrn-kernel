@@ -63,6 +63,8 @@
 #include <linux/miscdevice.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
+#include <linux/vhm/vhm_hypercall.h>
+#include <linux/vhm/acrn_hv_defs.h>
 
 #include <asm/hypervisor.h>
 
@@ -77,9 +79,9 @@
 #define foreach_cpu(cpu, cpu_num)					\
 	for ((cpu) = 0; (cpu) < (cpu_num); (cpu)++)
 
-#define MAX_NR_CPUS	4
+#define DEFAULT_NR_CPUS	4
 /* actual physical cpu number, initialized by module init */
-static int pcpu_num;
+static int pcpu_num = DEFAULT_NR_CPUS;
 
 struct acrn_trace {
 	struct miscdevice miscdev;
@@ -88,9 +90,6 @@ struct acrn_trace {
 	atomic_t open_cnt;
 	uint16_t pcpu_id;
 };
-
-static int nr_cpus = MAX_NR_CPUS;
-module_param(nr_cpus, int, S_IRUSR | S_IWUSR);
 
 static struct acrn_trace *acrn_trace_devs;
 
@@ -179,20 +178,16 @@ static int __init acrn_trace_init(void)
 	int i, cpu;
 	shared_buf_t *sbuf;
 	struct miscdevice *miscdev;
+	struct acrn_hw_info hw_info;
 
 	if (x86_hyper_type != X86_HYPER_ACRN) {
 		pr_err("acrn_trace: not support acrn hypervisor!\n");
 		return -EINVAL;
 	}
 
-	/* TBD: we could get the native cpu number by hypercall later */
-	pr_info("%s, cpu_num %d\n", __func__, nr_cpus);
-	if (nr_cpus > MAX_NR_CPUS) {
-		pr_err("nr_cpus %d exceed MAX_NR_CPUS %d !\n",
-			nr_cpus, MAX_NR_CPUS);
-		return -EINVAL;
-	}
-	pcpu_num = nr_cpus;
+	ret = hcall_get_hw_info(virt_to_phys(&hw_info));
+	if (!ret)
+		pcpu_num = hw_info.cpu_num;
 
 	acrn_trace_devs = (struct acrn_trace *)kzalloc(
 			sizeof(struct acrn_trace) * pcpu_num, GFP_KERNEL);
