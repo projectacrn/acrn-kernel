@@ -84,35 +84,13 @@ struct acrn_trace {
 	struct miscdevice miscdev;
 	shared_buf_t *sbuf;
 	atomic_t open_cnt;
+	uint16_t pcpu_id;
 };
 
 static int nr_cpus = MAX_NR_CPUS;
 module_param(nr_cpus, int, S_IRUSR | S_IWUSR);
 
 static struct acrn_trace acrn_trace_devs[4];
-
-static inline int get_id_from_devname(struct file *filep)
-{
-	uint32_t cpuid;
-	int err;
-	char id_str[16];
-	struct miscdevice *dev = filep->private_data;
-
-	strncpy(id_str, (void *)dev->name + sizeof("acrn_trace_") - 1, 16);
-	id_str[15] = '\0';
-	err = kstrtoul(&id_str[0], 10, (unsigned long *)&cpuid);
-
-	if (err)
-		return err;
-
-	if (cpuid >= pcpu_num) {
-		pr_err("%s, failed to get cpuid, cpuid %d\n",
-			__func__, cpuid);
-		return -1;
-	}
-
-	return cpuid;
-}
 
 /************************************************************************
  *
@@ -121,51 +99,62 @@ static inline int get_id_from_devname(struct file *filep)
  ***********************************************************************/
 static int acrn_trace_open(struct inode *inode, struct file *filep)
 {
-	int cpuid = get_id_from_devname(filep);
+	struct acrn_trace *dev;
 
-	pr_debug("%s, cpu %d\n", __func__, cpuid);
-	if (cpuid < 0)
-		return -ENXIO;
+	dev = container_of(filep->private_data, struct acrn_trace, miscdev);
+	if (!dev) {
+		pr_err("No such dev\n");
+		return -ENODEV;
+	}
+	pr_debug("%s, cpu %d\n", __func__, dev->pcpu_id);
 
 	/* More than one reader at the same time could get data messed up */
-	if (atomic_read(&acrn_trace_devs[cpuid].open_cnt))
+	if (atomic_read(&dev->open_cnt))
 		return -EBUSY;
 
-	atomic_inc(&acrn_trace_devs[cpuid].open_cnt);
+	atomic_inc(&dev->open_cnt);
 
 	return 0;
 }
 
 static int acrn_trace_release(struct inode *inode, struct file *filep)
 {
-	int cpuid = get_id_from_devname(filep);
+	struct acrn_trace *dev;
 
-	pr_debug("%s, cpu %d\n", __func__, cpuid);
-	if (cpuid < 0)
-		return -ENXIO;
+	dev = container_of(filep->private_data, struct acrn_trace, miscdev);
+	if (!dev) {
+		pr_err("No such dev\n");
+		return -ENODEV;
+	}
 
-	atomic_dec(&acrn_trace_devs[cpuid].open_cnt);
+	pr_debug("%s, cpu %d\n", __func__, dev->pcpu_id);
+
+	atomic_dec(&dev->open_cnt);
 
 	return 0;
 }
 
 static int acrn_trace_mmap(struct file *filep, struct vm_area_struct *vma)
 {
-	int cpuid = get_id_from_devname(filep);
 	phys_addr_t paddr;
+	struct acrn_trace *dev;
 
-	pr_debug("%s, cpu %d\n", __func__, cpuid);
-	if (cpuid < 0)
-		return -ENXIO;
+	dev = container_of(filep->private_data, struct acrn_trace, miscdev);
+	if (!dev) {
+		pr_err("No such dev\n");
+		return -ENODEV;
+	}
 
-	BUG_ON(!virt_addr_valid(acrn_trace_devs[cpuid].sbuf));
-	paddr = virt_to_phys(acrn_trace_devs[cpuid].sbuf);
+	pr_debug("%s, cpu %d\n", __func__, dev->pcpu_id);
+
+	BUG_ON(!virt_addr_valid(dev->sbuf));
+	paddr = virt_to_phys(dev->sbuf);
 
 	if (remap_pfn_range(vma, vma->vm_start,
 				paddr >> PAGE_SHIFT,
 				vma->vm_end - vma->vm_start,
 				vma->vm_page_prot)) {
-		pr_err("Failed to mmap sbuf for cpu%d\n", cpuid);
+		pr_err("Failed to mmap sbuf for cpu%d\n", dev->pcpu_id);
 		return -EAGAIN;
 	}
 
@@ -186,6 +175,7 @@ static struct acrn_trace acrn_trace_devs[4] = {
 			.minor = MISC_DYNAMIC_MINOR,
 			.fops = &acrn_trace_fops,
 		},
+		.pcpu_id = 0,
 	},
 	{
 		.miscdev = {
@@ -193,6 +183,7 @@ static struct acrn_trace acrn_trace_devs[4] = {
 			.minor = MISC_DYNAMIC_MINOR,
 			.fops = &acrn_trace_fops,
 		},
+		.pcpu_id = 1,
 	},
 	{
 		.miscdev = {
@@ -200,6 +191,7 @@ static struct acrn_trace acrn_trace_devs[4] = {
 			.minor = MISC_DYNAMIC_MINOR,
 			.fops = &acrn_trace_fops,
 		},
+		.pcpu_id = 2,
 	},
 	{
 		.miscdev = {
@@ -207,6 +199,7 @@ static struct acrn_trace acrn_trace_devs[4] = {
 			.minor = MISC_DYNAMIC_MINOR,
 			.fops = &acrn_trace_fops,
 		},
+		.pcpu_id = 3,
 	},
 };
 
