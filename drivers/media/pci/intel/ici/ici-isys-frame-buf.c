@@ -577,6 +577,7 @@ int ici_isys_put_buf(struct ici_isys_stream *as,
 	struct ici_isys_frame_buf_list *buf_list = &as->buf_list;
 	unsigned long flags = 0;
 	int rval;
+	bool bFoundBufferIndex = false;
 
 	spin_lock_irqsave(&buf_list->lock, flags);
 	if (list_empty(&buf_list->putbuf_list)) {
@@ -597,18 +598,26 @@ int ici_isys_put_buf(struct ici_isys_stream *as,
 		return -ENODATA;
 	}
 
-	buf = list_entry(buf_list->putbuf_list.next,
-			struct ici_frame_buf_wrapper, node);
-	list_del(&buf->node);
-	spin_unlock_irqrestore(&buf_list->lock, flags);
+	list_for_each_entry(buf, &buf_list->putbuf_list, node) {
+		if (buf->state == ICI_BUF_READY  && buf->frame_info.frame_buf_id ==
+			frame_info->frame_buf_id) {
+			bFoundBufferIndex = true;
+			list_del(&buf->node);
+			spin_unlock_irqrestore(&buf_list->lock, flags);
+			memcpy(frame_info, &buf->frame_info, sizeof(buf->frame_info));
+			mutex_lock(&buf_list->mutex);
+			buf->state = ICI_BUF_DONE;
+			list_add_tail(&buf->node,
+				&buf_list->getbuf_list);
+			mutex_unlock(&buf_list->mutex);
+			break;
+		}
+	}
 
-	mutex_lock(&buf_list->mutex);
-	buf->state = ICI_BUF_DONE;
-	list_add_tail(&buf->node,
-						&buf_list->getbuf_list);
-	mutex_unlock(&buf_list->mutex);
-
-	memcpy(frame_info, &buf->frame_info, sizeof(buf->frame_info));
+	if (!bFoundBufferIndex) {
+		spin_unlock_irqrestore(&buf_list->lock, flags);
+		//return -ENODATA;
+	}
 	return 0;
 }
 
