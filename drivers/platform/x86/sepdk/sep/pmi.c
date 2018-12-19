@@ -422,7 +422,7 @@ pmi_cleanup:
  *
  * <I>Special Notes</I>
  */
-VOID PMI_Buffer_Handler(PVOID data)
+S32 PMI_Buffer_Handler(PVOID data)
 {
 	SampleRecordPC *psamp;
 	CPU_STATE pcpu;
@@ -442,10 +442,10 @@ VOID PMI_Buffer_Handler(PVOID data)
 	U64 overflow_status = 0;
 
 	if (!pcb || !cpu_buf || !devices) {
-		return;
+		return 0;
 	}
+	cpu_id = (S32)(size_t)data;
 
-	cpu_id = (S32)CONTROL_THIS_CPU();
 	pcpu = &pcb[cpu_id];
 	bd = &cpu_buf[cpu_id];
 	dev_idx = core_to_dev_map[cpu_id];
@@ -456,6 +456,8 @@ VOID PMI_Buffer_Handler(PVOID data)
 
 	while (1) {
 		if ((GLOBAL_STATE_current_phase(driver_state) ==
+		     DRV_STATE_PREPARE_STOP) ||
+		    (GLOBAL_STATE_current_phase(driver_state) ==
 		     DRV_STATE_TERMINATING) ||
 		    (GLOBAL_STATE_current_phase(driver_state) ==
 		     DRV_STATE_STOPPED)) {
@@ -465,8 +467,8 @@ VOID PMI_Buffer_Handler(PVOID data)
 		data_size =
 			sbuf_get(samp_buf_per_cpu[cpu_id], (uint8_t *)&header);
 		if (data_size <= 0) {
-			goto handler_cleanup;
-                }
+			continue;
+		}
 		payload_size = 0;
 		if ((header.data_type == (1 << CORE_PMU_SAMPLING)) ||
 		    (header.data_type == (1 << LBR_PMU_SAMPLING))) {
@@ -480,35 +482,51 @@ VOID PMI_Buffer_Handler(PVOID data)
 				expected_payload_size = 0;
 			}
 			for (j = 0; j < (expected_payload_size - 1) /
-					TRACE_ELEMENT_SIZE + 1; j++) {
+							TRACE_ELEMENT_SIZE +
+						1;
+			     j++) {
+				while (1) {
 					data_size = sbuf_get(
 						samp_buf_per_cpu[cpu_id],
 						(uint8_t *)&psample +
 							j * TRACE_ELEMENT_SIZE);
 					if (data_size <= 0) {
+						if ((GLOBAL_STATE_current_phase(
+							     driver_state) ==
+						     DRV_STATE_PREPARE_STOP) ||
+						    (GLOBAL_STATE_current_phase(
+							     driver_state) ==
+						     DRV_STATE_TERMINATING) ||
+						    (GLOBAL_STATE_current_phase(
+							     driver_state) ==
+						     DRV_STATE_STOPPED)) {
+							goto handler_cleanup;
+						}
+					} else {
 						break;
 					}
+				}
+
 				payload_size += data_size;
 			}
-			SEP_DRV_LOG_TRACE("payload_size = %x\n", payload_size);
 			if (header.payload_size > payload_size) {
 				// Mismatch in payload size in header info
 				SEP_PRINT_ERROR(
 					"Mismatch in data size: header=%llu, payload_size=%d\n",
 					header.payload_size, payload_size);
-				goto handler_cleanup;
+				break;
 			}
 			if (header.cpu_id != cpu_id) {
 				// Mismatch in cpu index in header info
 				SEP_PRINT_ERROR(
 					"Mismatch in cpu idx: header=%u, buffer=%d\n",
 					header.cpu_id, cpu_id);
-				goto handler_cleanup;
+				break;
 			}
 
 			// Now, handle the sample data in buffer
 			overflow_status = psample.csample.overflow_status;
-			SEP_DRV_LOG_TRACE("overflow_status cpu%d, value=0x%llx\n",
+			SEP_PRINT_DEBUG("overflow_status cpu%d, value=0x%llx\n",
 					cpu_id, overflow_status);
 
 			FOR_EACH_DATA_REG_CPU(pecb, i, cpu_id)
@@ -528,7 +546,7 @@ VOID PMI_Buffer_Handler(PVOID data)
 						ECB_entries_event_id_index(pecb,
 									   i));
 					evt_desc = desc_data[desc_id];
-					SEP_DRV_LOG_TRACE(
+					SEP_PRINT_DEBUG(
 						"In Interrupt handler: event_id_index=%u, desc_id=%u\n",
 						ECB_entries_event_id_index(pecb,
 									   i),
@@ -543,7 +561,7 @@ VOID PMI_Buffer_Handler(PVOID data)
 							!SEP_IN_NOTIFICATION,
 							cpu_id);
 					if (!psamp) {
-						SEP_DRV_LOG_TRACE(
+						SEP_PRINT_DEBUG(
 							"In Interrupt handler: psamp is NULL. No output buffer allocated\n");
 						continue;
 					}
@@ -593,34 +611,30 @@ VOID PMI_Buffer_Handler(PVOID data)
 							&psample.lsample);
 					}
 
-					SEP_DRV_LOG_TRACE(
+					SEP_PRINT_DEBUG(
 						"SAMPLE_RECORD_cpu_num(psamp) %x\n",
 						SAMPLE_RECORD_cpu_num(psamp));
-					SEP_DRV_LOG_TRACE(
+					SEP_PRINT_DEBUG(
 						"SAMPLE_RECORD_iip(psamp) %x\n",
 						SAMPLE_RECORD_iip(psamp));
-					SEP_DRV_LOG_TRACE(
+					SEP_PRINT_DEBUG(
 						"SAMPLE_RECORD_cs(psamp) %x\n",
 						SAMPLE_RECORD_cs(psamp));
-					SEP_DRV_LOG_TRACE(
+					SEP_PRINT_DEBUG(
 						"SAMPLE_RECORD_csd(psamp).lowWord %x\n",
 						SAMPLE_RECORD_csd(psamp)
 							.u1.lowWord);
-					SEP_DRV_LOG_TRACE(
+					SEP_PRINT_DEBUG(
 						"SAMPLE_RECORD_csd(psamp).highWord %x\n",
 						SAMPLE_RECORD_csd(psamp)
 							.u2.highWord);
 				}
 			}
 			END_FOR_EACH_DATA_REG_CPU;
-		} else if (header.data_type == (1 << VM_SWITCH_TRACING)) {
-			SEP_DRV_LOG_TRACE("Ignoring VM switch trace data\n");
-		} else {
-			SEP_DRV_LOG_TRACE("Unknown data_type %x\n", header.data_type);
 		}
 	}
 
 handler_cleanup:
-	return;
+	return 0;
 }
 #endif
