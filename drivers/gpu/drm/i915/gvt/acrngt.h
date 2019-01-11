@@ -45,7 +45,6 @@ struct acrngt_hvm_dev {
 	struct intel_vgpu *vgpu;
 
 	int nr_vcpu;
-	struct task_struct *emulation_thread;
 
 	int client;
 	struct vhm_request *req_buf;
