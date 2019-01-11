@@ -553,18 +553,22 @@ EXPORT_SYMBOL_GPL(acrn_ioreq_get_reqbuf);
 static int ioreq_client_thread(void *data)
 {
 	struct ioreq_client *client;
-	int ret, client_id = (unsigned long)data;
+	int ret;
 	struct vhm_vm *vm;
 
-	client = acrn_ioreq_get_client(client_id);
+	client = (struct ioreq_client *)data;
 
-	if (!client)
+	/* This should never happen */
+	if (unlikely(client == NULL)) {
+		pr_err("vhm-ioreq: pass the NULL parameter\n");
 		return 0;
+	}
 
 	vm = client->ref_vm;
 	if (unlikely(vm == NULL)) {
 		pr_err("vhm-ioreq: failed to find vm from vmid %ld\n",
 			client->vmid);
+		set_bit(IOREQ_CLIENT_EXIT, &client->flags);
 		acrn_ioreq_put_client(client);
 		return -EINVAL;
 	}
@@ -619,12 +623,13 @@ int acrn_ioreq_attach_client(int client_id, bool check_kthread_stop)
 			return 0;
 		}
 		client->thread = kthread_run(ioreq_client_thread,
-				(void *)(unsigned long)client_id,
-				"ioreq_client[%ld]:%s",
+				client,
+				"VM%ld:%s",
 				client->vmid, client->name);
 		if (IS_ERR(client->thread)) {
 			pr_err("vhm-ioreq: failed to run kthread "
 					"for client %s\n", client->name);
+			client->thread = NULL;
 			acrn_ioreq_put_client(client);
 			return -ENOMEM;
 		}
@@ -651,9 +656,9 @@ int acrn_ioreq_attach_client(int client_id, bool check_kthread_stop)
 			acrn_ioreq_put_client(client);
 			return 1;
 		}
+		acrn_ioreq_put_client(client);
 	}
 
-	acrn_ioreq_put_client(client);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(acrn_ioreq_attach_client);
