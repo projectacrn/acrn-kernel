@@ -79,7 +79,6 @@ struct ioreq_range {
 
 enum IOREQ_CLIENT_BITS {
         IOREQ_CLIENT_DESTROYING = 0,
-        IOREQ_CLIENT_EXIT,
 };
 
 struct ioreq_client {
@@ -172,7 +171,6 @@ static int alloc_client(void)
 	}
 
 	client->id = ret;
-	set_bit(IOREQ_CLIENT_EXIT, &client->flags);
 
 	return ret;
 }
@@ -360,11 +358,18 @@ static void acrn_ioreq_destroy_client_pervm(struct ioreq_client *client,
 {
 	struct list_head *pos, *tmp;
 
-	set_bit(IOREQ_CLIENT_DESTROYING, &client->flags);
-	acrn_ioreq_notify_client(client);
-
-	while (client->vhm_create_kthread && !test_bit(IOREQ_CLIENT_EXIT, &client->flags))
-		msleep(10);
+	if (client->vhm_create_kthread) {
+		/* when the kthread is already started, the kthread_stop is
+		 * used to terminate the ioreq_client_thread
+		 */
+		if (client->thread) {
+			kthread_stop(client->thread);
+			acrn_ioreq_put_client(client);
+		}
+	} else {
+		set_bit(IOREQ_CLIENT_DESTROYING, &client->flags);
+		acrn_ioreq_notify_client(client);
+	}
 
 	spin_lock_bh(&client->range_lock);
 	list_for_each_safe(pos, tmp, &client->range_list) {
@@ -568,16 +573,10 @@ static int ioreq_client_thread(void *data)
 	if (unlikely(vm == NULL)) {
 		pr_err("vhm-ioreq: failed to find vm from vmid %ld\n",
 			client->vmid);
-		set_bit(IOREQ_CLIENT_EXIT, &client->flags);
-		acrn_ioreq_put_client(client);
 		return -EINVAL;
 	}
 
-	while (1) {
-		if (is_destroying(client)) {
-			pr_info("vhm-ioreq: client destroying->stop thread\n");
-			break;
-		}
+	while (!kthread_should_stop()) {
 		if (has_pending_request(client)) {
 			if (client->handler) {
 				ret = client->handler(client->id,
@@ -593,11 +592,9 @@ static int ioreq_client_thread(void *data)
 		} else
 			wait_event_freezable(client->wq,
 				(has_pending_request(client) ||
-				is_destroying(client)));
+				kthread_should_stop()));
 	}
 
-	set_bit(IOREQ_CLIENT_EXIT, &client->flags);
-	acrn_ioreq_put_client(client);
 	return 0;
 }
 
@@ -633,9 +630,7 @@ int acrn_ioreq_attach_client(int client_id, bool check_kthread_stop)
 			acrn_ioreq_put_client(client);
 			return -ENOMEM;
 		}
-		clear_bit(IOREQ_CLIENT_EXIT, &client->flags);
 	} else {
-		clear_bit(IOREQ_CLIENT_EXIT, &client->flags);
 		might_sleep();
 
 		if (check_kthread_stop) {
@@ -643,8 +638,6 @@ int acrn_ioreq_attach_client(int client_id, bool check_kthread_stop)
 				(kthread_should_stop() ||
 				has_pending_request(client) ||
 				is_destroying(client)));
-			if (kthread_should_stop())
-				set_bit(IOREQ_CLIENT_EXIT, &client->flags);
 		} else {
 			wait_event_freezable(client->wq,
 				(has_pending_request(client) ||
@@ -652,7 +645,6 @@ int acrn_ioreq_attach_client(int client_id, bool check_kthread_stop)
 		}
 
 		if (is_destroying(client)) {
-			set_bit(IOREQ_CLIENT_EXIT, &client->flags);
 			acrn_ioreq_put_client(client);
 			return 1;
 		}
