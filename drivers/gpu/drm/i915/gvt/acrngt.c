@@ -83,9 +83,6 @@ void acrngt_instance_destroy(struct intel_vgpu *vgpu)
 	if (vgpu) {
 		info = (struct acrngt_hvm_dev *)vgpu->handle;
 
-		if (info && info->emulation_thread != NULL)
-			kthread_stop(info->emulation_thread);
-
                 for_each_pipe(gvt->dev_priv, pipe) {
                         for_each_universal_plane(gvt->dev_priv, pipe, plane) {
                                 if (gvt->pipe_info[pipe].plane_owner[plane] ==
@@ -223,60 +220,60 @@ static void handle_request_error(struct intel_vgpu *vgpu)
        mutex_unlock(&vgpu->gvt->lock);
 }
 
-static int acrngt_emulation_thread(void *priv)
+static int acrngt_emulate_ioreq(int client_id,
+			unsigned long *ioreqs_map,
+			void *client_priv)
 {
-	struct intel_vgpu *vgpu = (struct intel_vgpu *)priv;
-	struct acrngt_hvm_dev *info = (struct acrngt_hvm_dev *)vgpu->handle;
 	struct vhm_request *req;
+	struct acrngt_hvm_dev *info = NULL;
+	int vcpu;
+	int ret = 0;
+	struct intel_vgpu *vgpu = NULL;
 
-	int vcpu, ret;
-	int nr_vcpus = info->nr_vcpu;
+	info = (struct acrngt_hvm_dev *)client_priv;
+	if (!info || !info->vgpu) {
+		gvt_err("Unknown vgpu for client %d\n",
+						client_id);
+		return -EINVAL;
+	}
+	vgpu = info->vgpu;
 
-	gvt_dbg_core("start kthread for VM%d\n", info->vm_id);
-	ASSERT(info->nr_vcpu <= MAX_HVM_VCPUS_SUPPORTED);
-
-	set_freezable();
 	while (1) {
-		acrn_ioreq_attach_client(info->client, 1);
+		vcpu = find_first_bit(ioreqs_map, info->nr_vcpu);
+		if (vcpu == info->nr_vcpu)
+			break;
 
-		if (kthread_should_stop())
-			return 0;
-
-		for (vcpu = 0; vcpu < nr_vcpus; vcpu++) {
-			req = &info->req_buf[vcpu];
-			if (atomic_read(&req->processed) ==
-				REQ_STATE_PROCESSING &&
-				req->client == info->client) {
-				gvt_dbg_core("handle ioreq type %d\n",
-						req->type);
-				switch (req->type) {
-				case REQ_PCICFG:
-					ret = acrngt_hvm_pio_emulation(vgpu, req);
-					break;
-				case REQ_MMIO:
-				case REQ_WP:
-					ret = acrngt_hvm_mmio_emulation(vgpu, req);
-					break;
-				default:
-					gvt_err("Unknown ioreq type %x\n",
-						req->type);
-					ret = -EINVAL;
-					break;
-				}
-				/* error handling */
-				if (ret)
-					handle_request_error(vgpu);
-
-				/* complete request */
-				if (acrn_ioreq_complete_request(info->client,
-						vcpu, req))
-					gvt_err("failed complete request\n");
+		req = &info->req_buf[vcpu];
+		if ((atomic_read(&req->processed) == REQ_STATE_PROCESSING) &&
+		    (req->client == info->client)) {
+			gvt_dbg_core("handle ioreq type %d\n",
+					req->type);
+			switch (req->type) {
+			case REQ_PCICFG:
+				ret = acrngt_hvm_pio_emulation(vgpu, req);
+				break;
+			case REQ_MMIO:
+			case REQ_WP:
+				ret = acrngt_hvm_mmio_emulation(vgpu, req);
+				break;
+			default:
+				gvt_err("Unknown ioreq type %x\n",
+					req->type);
+				ret = -EINVAL;
+				break;
 			}
+			/* error handling */
+			if (ret)
+				handle_request_error(vgpu);
+
+			/* complete request */
+			if (acrn_ioreq_complete_request(info->client,
+					vcpu, req))
+				gvt_err("failed complete request\n");
 		}
 	}
 
-	BUG(); /* It's actually impossible to reach here */
-	return 0;
+	return ret;
 }
 
 struct intel_vgpu *acrngt_instance_create(domid_t vm_id,
@@ -285,7 +282,6 @@ struct intel_vgpu *acrngt_instance_create(domid_t vm_id,
 	struct acrngt_hvm_dev *info;
 	struct intel_vgpu *vgpu;
 	int ret = 0;
-	struct task_struct *thread;
 	struct vm_info vm_info;
 
 	gvt_dbg_core("acrngt_instance_create enter\n");
@@ -320,8 +316,8 @@ struct intel_vgpu *acrngt_instance_create(domid_t vm_id,
 	gvt_dbg_core("get vm req_buf from vm_id %d\n", vm_id);
 
 	/* create client: no handler -> handle request by itself */
-	info->client = acrn_ioreq_create_client(vm_id, NULL,
-					NULL, "ioreq gvt-g");
+	info->client = acrn_ioreq_create_client(vm_id, acrngt_emulate_ioreq,
+					info, "ioreq gvt-g");
 	if (info->client < 0) {
 		gvt_err("failed to create ioreq client for vm id %d\n", vm_id);
 		goto err;
@@ -345,14 +341,8 @@ struct intel_vgpu *acrngt_instance_create(domid_t vm_id,
 
 	/* trap config space access */
 	acrn_ioreq_intercept_bdf(info->client, 0, 2, 0);
+	acrn_ioreq_attach_client(info->client, 0);
 
-	thread = kthread_run(acrngt_emulation_thread, vgpu,
-			"acrngt_emulation:%d", vm_id);
-	if (IS_ERR(thread)) {
-		gvt_err("failed to run emulation thread for vm %d\n", vm_id);
-		goto err;
-	}
-	info->emulation_thread = thread;
 	gvt_dbg_core("create vgpu instance success, vm_id %d, client %d,"
 		" nr_vcpu %d\n", info->vm_id,info->client, info->nr_vcpu);
 
