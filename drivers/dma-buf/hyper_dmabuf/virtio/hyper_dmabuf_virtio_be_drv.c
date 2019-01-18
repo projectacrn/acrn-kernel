@@ -162,14 +162,15 @@ static void virtio_be_handle_vq_kick(
 /*
  *  Received new buffer in virtqueue
  */
-static int virtio_be_handle_kick(int client_id, unsigned long *ioreqs_map)
+static int virtio_be_handle_kick(int client_id, unsigned long *ioreqs_map,
+				 void *client_priv)
 {
 	int val = -1;
 	struct vhm_request *req;
 	struct virtio_fe_info *fe_info;
 	int vcpu;
 
-	fe_info = virtio_fe_find(client_id);
+	fe_info = (struct virtio_fe_info *)client_priv;
 	if (fe_info == NULL) {
 		dev_warn(hy_drv_priv->dev, "Client %d not found\n", client_id);
 		return -EINVAL;
@@ -224,6 +225,7 @@ static int virtio_be_register_vhm_client(struct virtio_dev_info *d)
 	fe_info->client_id =
 		acrn_ioreq_create_client(vmid,
 					virtio_be_handle_kick,
+					fe_info,
 					"hyper dmabuf kick");
 	if (fe_info->client_id < 0) {
 		dev_err(hy_drv_priv->dev,

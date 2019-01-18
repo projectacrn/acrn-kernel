@@ -320,7 +320,8 @@ struct intel_vgpu *acrngt_instance_create(domid_t vm_id,
 	gvt_dbg_core("get vm req_buf from vm_id %d\n", vm_id);
 
 	/* create client: no handler -> handle request by itself */
-	info->client = acrn_ioreq_create_client(vm_id, NULL, "ioreq gvt-g");
+	info->client = acrn_ioreq_create_client(vm_id, NULL,
+					NULL, "ioreq gvt-g");
 	if (info->client < 0) {
 		gvt_err("failed to create ioreq client for vm id %d\n", vm_id);
 		goto err;

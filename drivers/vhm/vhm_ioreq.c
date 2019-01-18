@@ -133,6 +133,7 @@ struct ioreq_client {
 	atomic_t refcnt;
 	/* Add the vhm_vm that contains the ioreq_client */
 	struct vhm_vm *ref_vm;
+	void *client_priv;
 };
 
 #define MAX_CLIENT 1024
@@ -201,12 +202,17 @@ static void acrn_ioreq_put_client(struct ioreq_client *client)
 }
 
 int acrn_ioreq_create_client(unsigned long vmid, ioreq_handler_t handler,
-	char *name)
+				void *client_priv, char *name)
 {
 	struct vhm_vm *vm;
 	struct ioreq_client *client;
 	int client_id;
 
+	if (handler && (client_priv == NULL)) {
+		pr_err("client_priv is NULL for non-null handler %s\n",
+			name);
+		return -EINVAL;
+	}
 	might_sleep();
 
 	vm = find_get_vm(vmid);
@@ -242,6 +248,7 @@ int acrn_ioreq_create_client(unsigned long vmid, ioreq_handler_t handler,
 		client->vhm_create_kthread = true;
 	}
 
+	client->client_priv = client_priv;
 	client->vmid = vmid;
 	client->ref_vm = vm;
 	if (name)
@@ -330,7 +337,7 @@ int acrn_ioreq_create_fallback_client(unsigned long vmid, char *name)
 		return -EINVAL;
 	}
 
-	client_id = acrn_ioreq_create_client(vmid, NULL, name);
+	client_id = acrn_ioreq_create_client(vmid, NULL, NULL, name);
 	if (unlikely(client_id < 0)) {
 		put_vm(vm);
 		return -EINVAL;
@@ -580,7 +587,8 @@ static int ioreq_client_thread(void *data)
 		if (has_pending_request(client)) {
 			if (client->handler) {
 				ret = client->handler(client->id,
-					client->ioreqs_map);
+					client->ioreqs_map,
+					client->client_priv);
 				if (ret < 0) {
 					pr_err("vhm-ioreq: err:%d\n", ret);
 					break;
