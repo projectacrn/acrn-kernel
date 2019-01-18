@@ -414,7 +414,7 @@ int acrn_ioeventfd_init(uint16_t vmid)
 	info->refcnt = 1;
 	INIT_LIST_HEAD(&info->ioeventfds);
 
-	ret = acrn_ioreq_attach_client(info->vhm_client_id, 0);
+	ret = acrn_ioreq_attach_client(info->vhm_client_id);
 	if (ret < 0) {
 		pr_err("Failed to attach vhm client %d!\n",
 				info->vhm_client_id);

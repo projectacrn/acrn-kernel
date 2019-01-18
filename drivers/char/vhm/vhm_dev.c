@@ -368,7 +368,7 @@ create_vm_fail:
 	case IC_ATTACH_IOREQ_CLIENT: {
 		int client = ioctl_param;
 
-		return acrn_ioreq_attach_client(client, 0);
+		return acrn_ioreq_attach_client(client);
 	}
 
 	case IC_NOTIFY_REQUEST_FINISH: {

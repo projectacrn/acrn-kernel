@@ -118,7 +118,7 @@ long virtio_dev_register(struct virtio_dev_info *dev)
 		goto range_err;
 	}
 
-	acrn_ioreq_attach_client(dev->_ctx.vhm_client_id, 0);
+	acrn_ioreq_attach_client(dev->_ctx.vhm_client_id);
 
 	return 0;
 

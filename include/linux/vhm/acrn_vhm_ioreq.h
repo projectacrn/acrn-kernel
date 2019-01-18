@@ -141,11 +141,10 @@ struct vhm_request *acrn_ioreq_get_reqbuf(int client_id);
  * to be ready to handle new request.
  *
  * @client_id: client id to identify ioreq client
- * @check_kthread_stop: whether check current kthread should be stopped
  *
  * Return: 0 on success, <0 on error, 1 if ioreq client is destroying
  */
-int acrn_ioreq_attach_client(int client_id, bool check_kthread_stop);
+int acrn_ioreq_attach_client(int client_id);
 
 /**
  * acrn_ioreq_distribute_request - deliver request to corresponding client
