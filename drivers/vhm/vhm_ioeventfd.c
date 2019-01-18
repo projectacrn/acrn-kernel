@@ -102,22 +102,6 @@ struct vhm_ioeventfd_info {
 	struct mutex ioeventfds_lock;
 };
 
-static struct vhm_ioeventfd_info *get_ioeventfd_info_by_client(
-		int client_id)
-{
-	struct vhm_ioeventfd_info *info = NULL;
-
-	mutex_lock(&vhm_ioeventfds_mutex);
-	list_for_each_entry(info, &vhm_ioeventfd_clients, list) {
-		if (info->vhm_client_id == client_id) {
-			info->refcnt++;
-			mutex_unlock(&vhm_ioeventfds_mutex);
-			return info;
-		}
-	}
-	mutex_unlock(&vhm_ioeventfds_mutex);
-	return NULL;
-}
 
 static struct vhm_ioeventfd_info *get_ioeventfd_info_by_vm(uint16_t vmid)
 {
@@ -323,7 +307,8 @@ static struct acrn_vhm_ioeventfd *vhm_ioeventfd_match(
 }
 
 static int acrn_ioeventfd_dispatch_ioreq(int client_id,
-		unsigned long *ioreqs_map)
+		unsigned long *ioreqs_map,
+		void *client_priv)
 {
 	struct vhm_request *req;
 	struct acrn_vhm_ioeventfd *p;
@@ -333,7 +318,7 @@ static int acrn_ioeventfd_dispatch_ioreq(int client_id,
 	int size;
 	int vcpu;
 
-	info = get_ioeventfd_info_by_client(client_id);
+	info = (struct vhm_ioeventfd_info *)client_priv;
 	if (!info)
 		return -EINVAL;
 
@@ -343,7 +328,6 @@ static int acrn_ioeventfd_dispatch_ioreq(int client_id,
 		if (!info->req_buf) {
 			pr_err("Failed to get req_buf for client %d\n",
 					info->vhm_client_id);
-			put_ioeventfd_info(info);
 			return -EINVAL;
 		}
 	}
@@ -389,7 +373,6 @@ next_ioreq:
 		}
 	}
 
-	put_ioeventfd_info(info);
 	return 0;
 }
 
@@ -411,7 +394,7 @@ int acrn_ioeventfd_init(uint16_t vmid)
 		return -ENOMEM;
 	snprintf(name, sizeof(name), "ioeventfd-%hu", vmid);
 	info->vhm_client_id = acrn_ioreq_create_client(vmid,
-			acrn_ioeventfd_dispatch_ioreq, name);
+			acrn_ioeventfd_dispatch_ioreq, info, name);
 	if (info->vhm_client_id < 0) {
 		pr_err("Failed to create ioeventfd client for ioreq!\n");
 		ret = -EINVAL;
@@ -426,16 +409,17 @@ int acrn_ioeventfd_init(uint16_t vmid)
 
 	info->vcpu_num = vm_info.max_vcpu;
 
+	mutex_init(&info->ioeventfds_lock);
+	info->vmid = vmid;
+	info->refcnt = 1;
+	INIT_LIST_HEAD(&info->ioeventfds);
+
 	ret = acrn_ioreq_attach_client(info->vhm_client_id, 0);
 	if (ret < 0) {
 		pr_err("Failed to attach vhm client %d!\n",
 				info->vhm_client_id);
 		goto client_fail;
 	}
-	mutex_init(&info->ioeventfds_lock);
-	info->vmid = vmid;
-	info->refcnt = 1;
-	INIT_LIST_HEAD(&info->ioeventfds);
 
 	mutex_lock(&vhm_ioeventfds_mutex);
 	list_add(&info->list, &vhm_ioeventfd_clients);
