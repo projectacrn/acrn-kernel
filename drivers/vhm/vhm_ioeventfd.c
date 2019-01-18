@@ -142,7 +142,6 @@ static void put_ioeventfd_info(struct vhm_ioeventfd_info *info)
 	if (info->refcnt == 0) {
 		list_del(&info->list);
 		mutex_unlock(&vhm_ioeventfds_mutex);
-		acrn_ioreq_destroy_client(info->vhm_client_id);
 		kfree(info);
 		return;
 	}
@@ -460,6 +459,7 @@ void acrn_ioeventfd_deinit(uint16_t vmid)
 	if (!info)
 		return;
 
+	acrn_ioreq_destroy_client(info->vhm_client_id);
 	put_ioeventfd_info(info);
 
 	mutex_lock(&info->ioeventfds_lock);
