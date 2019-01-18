@@ -222,7 +222,7 @@ int snd_skl_virtio_register_client(struct snd_skl_vbe *vbe)
 	}
 
 	/* just attach once as vhm will kick kthread */
-	acrn_ioreq_attach_client(client->vhm_client_id, 0);
+	acrn_ioreq_attach_client(client->vhm_client_id);
 
 	/* complete client init and add to list */
 	list_add(&client->list, &vbe->client_list);
