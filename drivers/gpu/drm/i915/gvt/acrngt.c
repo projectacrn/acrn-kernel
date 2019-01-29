@@ -83,9 +83,6 @@ void acrngt_instance_destroy(struct intel_vgpu *vgpu)
 	if (vgpu) {
 		info = (struct acrngt_hvm_dev *)vgpu->handle;
 
-		if (info && info->client != 0)
-			acrn_ioreq_destroy_client(info->client);
-
                 for_each_pipe(gvt->dev_priv, pipe) {
                         for_each_universal_plane(gvt->dev_priv, pipe, plane) {
                                 if (gvt->pipe_info[pipe].plane_owner[plane] ==
