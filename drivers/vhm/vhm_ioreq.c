@@ -488,20 +488,14 @@ int acrn_ioreq_del_iorange(int client_id, uint32_t type,
 	struct ioreq_range *range;
 	struct list_head *pos, *tmp;
 
-	if (client_id < 0 || client_id >= MAX_CLIENT) {
-		pr_err("vhm-ioreq: no client for id %d\n", client_id);
-		return -EFAULT;
-	}
 	if (end < start) {
 		pr_err("vhm-ioreq: end < start\n");
 		return -EFAULT;
 	}
 
 	client = acrn_ioreq_get_client(client_id);
-	if (!client) {
-		pr_err("vhm-ioreq: no client for id %d\n", client_id);
-		return -EFAULT;
-	}
+	if (!client)
+		return 0;
 
 	might_sleep();
 
