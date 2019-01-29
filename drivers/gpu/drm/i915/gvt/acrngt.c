@@ -890,15 +890,6 @@ static int acrngt_set_pvmmio(unsigned long handle, u64 start, u64 end, bool map)
 					pfn, mfn, rc);
 			return rc;
 		}
-		rc = acrn_ioreq_add_iorange(info->client, REQ_MMIO,
-				(pfn << PAGE_SHIFT) + VGT_PVINFO_PAGE,
-				((pfn + 1) << PAGE_SHIFT) + VGT_PVINFO_PAGE - 1);
-		if (rc) {
-			gvt_err("failed acrn_ioreq_add_iorange for pfn 0x%lx\n",
-				(pfn << PAGE_SHIFT) + VGT_PVINFO_PAGE);
-			return rc;
-		}
-
 	} else {
 		mfn = acrngt_virt_to_mfn(info->vgpu->mmio.vreg);
 
@@ -924,12 +915,6 @@ static int acrngt_set_pvmmio(unsigned long handle, u64 start, u64 end, bool map)
 					((pfn + mmio_size_fn) << PAGE_SHIFT) - 1);
 		if (rc) {
 			gvt_err("failed acrn_ioreq_add_iorange for pfn 0x%lx\n", pfn);
-			return rc;
-		}
-		rc = acrn_ioreq_add_iorange(info->client, REQ_MMIO, pfn << PAGE_SHIFT,
-					((pfn + mmio_size_fn) << PAGE_SHIFT) - 1);
-		if (rc) {
-			gvt_err("failed acrn_ioreq_del_iorange for pfn 0x%lx\n", pfn);
 			return rc;
 		}
 
