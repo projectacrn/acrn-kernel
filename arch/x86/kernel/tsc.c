@@ -1232,6 +1232,38 @@ struct system_counterval_t convert_art_to_tsc(u64 art)
 }
 EXPORT_SYMBOL(convert_art_to_tsc);
 
+void get_tsc_ns(struct system_counterval_t *tsc_counterval, u64 *tsc_ns)
+{
+	u64 tmp, res, rem;
+	u64 cycles;
+
+	tsc_counterval->cycles = clocksource_tsc.read(NULL);
+	cycles = tsc_counterval->cycles;
+	tsc_counterval->cs = art_related_clocksource;
+
+	rem = do_div(cycles, tsc_khz);
+
+	res = cycles * USEC_PER_SEC;
+	tmp = rem * USEC_PER_SEC;
+
+	do_div(tmp, tsc_khz);
+	res += tmp;
+
+	*tsc_ns = res;
+}
+EXPORT_SYMBOL(get_tsc_ns);
+
+u64 get_art_ns_now(void)
+{
+	struct system_counterval_t tsc_cycles;
+	u64 tsc_ns;
+
+	get_tsc_ns(&tsc_cycles, &tsc_ns);
+
+	return tsc_ns;
+}
+EXPORT_SYMBOL(get_art_ns_now);
+
 /**
  * convert_art_ns_to_tsc() - Convert ART in nanoseconds to TSC.
  * @art_ns: ART (Always Running Timer) in unit of nanoseconds
