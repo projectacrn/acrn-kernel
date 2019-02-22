@@ -10681,6 +10681,10 @@ static inline bool in_mmio_read_trap_list(u32 reg)
 	if (unlikely(reg == SBI_DATA.reg || reg == 0x6c060 || reg == 0x206c))
 		return true;
 
+	if (unlikely(reg == _PIPEADSL ||
+				reg == 0x71000 ||
+				reg == 0x72000))
+		return true;
 	return false;
 }
 
