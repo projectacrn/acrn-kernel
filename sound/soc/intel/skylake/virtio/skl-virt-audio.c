@@ -45,7 +45,8 @@ struct snd_skl_vbe_client *vbe_client_find(struct snd_skl_vbe *vbe,
 	return NULL;
 }
 
-static int vskl_vbs_handle_kick(int client_id, unsigned long *ioreqs_map)
+static int vskl_vbs_handle_kick(int client_id, unsigned long *ioreqs_map,
+				void *client_priv)
 {
 	struct vhm_request *req;
 	struct snd_skl_vbe_client *client;
@@ -61,7 +62,7 @@ static int vskl_vbs_handle_kick(int client_id, unsigned long *ioreqs_map)
 	dev_dbg(vskl->dev, "virtio audio kick handling!\n");
 
 	/* get the client this notification is for/from? */
-	client = vbe_client_find(vbe, client_id);
+	client = client_priv;
 	if (!client) {
 		dev_err(vskl->dev, "Ooops! client %d not found!\n",
 				client_id);
@@ -157,6 +158,7 @@ int vskl_vbs_register_client(struct snd_skl_vbe *vbe)
 	vmid = dev_info->_ctx.vmid;
 	client->vhm_client_id = acrn_ioreq_create_client(vmid,
 		vskl_vbs_handle_kick,
+		client,
 		"snd_skl_vbe kick init\n");
 	if (client->vhm_client_id < 0) {
 		dev_err(vbe->dev, "failed to create client of acrn ioreq!\n");

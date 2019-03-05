@@ -61,7 +61,9 @@
 #include <linux/poll.h>
 #include <linux/vhm/vhm_vm_mngt.h>
 
-typedef	int (*ioreq_handler_t)(int client_id, unsigned long *ioreqs_map);
+typedef	int (*ioreq_handler_t)(int client_id,
+				unsigned long *ioreqs_map,
+				void *client_priv);
 
 /**
  * acrn_ioreq_create_client - create ioreq client
@@ -73,12 +75,16 @@ typedef	int (*ioreq_handler_t)(int client_id, unsigned long *ioreqs_map);
  *           client thread context, set handler function pointer of its own.
  *           VHM will create kernel thread and call handler to handle request
  *
+ * @client_priv: the private structure for the given client.
+ *           When handler is not NULL, this is required and used as the
+ *           third argument of ioreq_handler callback
+ *
  * @name: the name of ioreq client
  *
  * Return: client id on success, <0 on error
  */
 int acrn_ioreq_create_client(unsigned long vmid, ioreq_handler_t handler,
-	char *name);
+				void *client_priv, char *name);
 
 /**
  * acrn_ioreq_destroy_client - destroy ioreq client

@@ -88,6 +88,7 @@ long virtio_dev_register(struct virtio_dev_info *dev)
 	dev->_ctx.vhm_client_id =
 			acrn_ioreq_create_client(dev->_ctx.vmid,
 						dev->dev_notify,
+						dev,
 						dev->name);
 	if (dev->_ctx.vhm_client_id < 0) {
 		pr_err("failed to create client of acrn ioreq!\n");

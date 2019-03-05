@@ -122,7 +122,8 @@ static int vbs_rng_hash_initialized = 0;
 static int vbs_rng_connection_cnt = 0;
 
 /* function declarations */
-static int handle_kick(int client_id, unsigned long *ioreqs_map);
+static int handle_kick(int client_id, unsigned long *ioreqs_map,
+		       void *client_priv);
 static long vbs_rng_reset(struct vbs_rng *rng);
 static void vbs_rng_stop(struct vbs_rng *rng);
 static void vbs_rng_flush(struct vbs_rng *rng);
@@ -155,24 +156,6 @@ static int vbs_rng_hash_add(struct vbs_rng *entry)
 
 	hash_add(HASH_NAME, &entry->node, virtio_dev_client_id(&entry->dev));
 	return 0;
-}
-
-static struct vbs_rng *vbs_rng_hash_find(int client_id)
-{
-	struct vbs_rng *entry;
-	int bkt;
-
-	if (!vbs_rng_hash_initialized) {
-		pr_err("RNG hash table not initialized!\n");
-		return NULL;
-	}
-
-	hash_for_each(HASH_NAME, bkt, entry, node)
-		if (virtio_dev_client_id(&entry->dev) == client_id)
-			return entry;
-
-	pr_err("Not found item matching client_id!\n");
-	return NULL;
 }
 
 static int vbs_rng_hash_del(int client_id)
@@ -251,7 +234,8 @@ static void handle_vq_kick(struct vbs_rng *rng, int vq_idx)
 	virtio_vq_endchains(vq, 1);	/* Generate interrupt if appropriate. */
 }
 
-static int handle_kick(int client_id, unsigned long *ioreqs_map)
+static int handle_kick(int client_id, unsigned long *ioreqs_map,
+		       void *client_priv)
 {
 	int val = -1;
 	struct vbs_rng *rng;
@@ -261,7 +245,7 @@ static int handle_kick(int client_id, unsigned long *ioreqs_map)
 
 	pr_debug("%s: handle kick!\n", __func__);
 
-	rng = vbs_rng_hash_find(client_id);
+	rng = container_of(client_priv, struct vbs_rng, dev);
 	if (rng == NULL) {
 		pr_err("%s: client %d not found!\n",
 				__func__, client_id);

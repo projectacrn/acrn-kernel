@@ -50,7 +50,8 @@ DECLARE_HASHTABLE(HASH_NAME, RNG_MAX_HASH_BITS);
 static int ipu_vbk_hash_initialized;
 static int ipu_vbk_connection_cnt;
 /* function declarations */
-static int handle_kick(int client_id, long unsigned int *req_cnt);
+static int handle_kick(int client_id, long unsigned int *req_cnt,
+			void *client_priv);
 static int ipu_vbk_reset(struct ipu4_virtio_be_priv *priv);
 static void ipu_vbk_stop(struct ipu4_virtio_be_priv *priv);
 static void ipu_vbk_flush(struct ipu4_virtio_be_priv *priv);
@@ -223,7 +224,8 @@ static void handle_vq_kick(int client_id, int vq_idx)
 		virtio_vq_endchains(vq, 1);
 }
 
-static int handle_kick(int client_id, long unsigned *ioreqs_map)
+static int handle_kick(int client_id, unsigned long *ioreqs_map,
+		       void *client_priv)
 {
 	int *val, i, count;
 	struct ipu4_virtio_be_priv *priv;
@@ -231,7 +233,7 @@ static int handle_kick(int client_id, long unsigned *ioreqs_map)
 	if (unlikely(bitmap_empty(ioreqs_map, VHM_REQUEST_MAX)))
 		return -EINVAL;
 
-	priv = ipu_vbk_hash_find(client_id);
+	priv = container_of(client_priv, struct ipu4_virtio_be_priv, dev);
 	if (priv == NULL) {
 		pr_err("%s: client %d not found!\n",
 				__func__, client_id);
