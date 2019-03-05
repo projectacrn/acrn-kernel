@@ -193,7 +193,7 @@ int vskl_vbs_register_client(struct snd_skl_vbe *vbe)
 	}
 
 	/* just attach once as vhm will kick kthread */
-	acrn_ioreq_attach_client(client->vhm_client_id, 0);
+	acrn_ioreq_attach_client(client->vhm_client_id);
 
 	INIT_LIST_HEAD(&client->substr_info_list);
 	/* complete client init and add to list */

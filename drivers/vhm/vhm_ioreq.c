@@ -606,7 +606,7 @@ static int ioreq_client_thread(void *data)
 	return 0;
 }
 
-int acrn_ioreq_attach_client(int client_id, bool check_kthread_stop)
+int acrn_ioreq_attach_client(int client_id)
 {
 	struct ioreq_client *client;
 
@@ -639,18 +639,10 @@ int acrn_ioreq_attach_client(int client_id, bool check_kthread_stop)
 			return -ENOMEM;
 		}
 	} else {
-		might_sleep();
-
-		if (check_kthread_stop) {
-			wait_event_freezable(client->wq,
-				(kthread_should_stop() ||
-				has_pending_request(client) ||
-				is_destroying(client)));
-		} else {
-			wait_event_freezable(client->wq,
-				(has_pending_request(client) ||
-				is_destroying(client)));
-		}
+		/* this is used for the user-space DM client */
+		wait_event_freezable(client->wq,
+			(has_pending_request(client) ||
+			is_destroying(client)));
 
 		if (is_destroying(client)) {
 			acrn_ioreq_put_client(client);

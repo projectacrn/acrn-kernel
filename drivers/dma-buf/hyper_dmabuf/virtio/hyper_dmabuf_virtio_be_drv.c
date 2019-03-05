@@ -268,7 +268,7 @@ static int virtio_be_register_vhm_client(struct virtio_dev_info *d)
 		goto err;
 	}
 
-	acrn_ioreq_attach_client(fe_info->client_id, 0);
+	acrn_ioreq_attach_client(fe_info->client_id);
 
 	virtio_fe_add(fe_info);
 
