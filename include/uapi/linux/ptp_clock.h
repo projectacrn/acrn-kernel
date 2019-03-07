@@ -103,6 +103,18 @@ struct ptp_perout_request {
 	unsigned int rsv[4];          /* Reserved for future use. */
 };
 
+struct ptp_event_count_tstamp {
+	unsigned int index;
+
+#define PTP_EVENT_COUNT_TSTAMP_POL_HIGH 0
+#define PTP_EVENT_COUNT_TSTAMP_POL_LOW BIT(0)
+	unsigned int flags;
+
+	struct ptp_clock_time device_time;
+	unsigned long long event_count;
+	unsigned int rsv[2];          /* Reserved for future use. */
+};
+
 #define PTP_MAX_SAMPLES 25 /* Maximum allowed offset measurement samples. */
 
 struct ptp_sys_offset {
