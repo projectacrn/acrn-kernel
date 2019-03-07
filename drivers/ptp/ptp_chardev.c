@@ -111,6 +111,7 @@ long ptp_ioctl(struct posix_clock *pc, unsigned int cmd, unsigned long arg)
 	struct ptp_clock *ptp = container_of(pc, struct ptp_clock, clock);
 	struct ptp_sys_offset_extended *extoff = NULL;
 	struct ptp_sys_offset_precise precise_offset;
+	struct ptp_event_count_tstamp counttstamp;
 	struct system_device_crosststamp xtstamp;
 	struct ptp_clock_info *ops = ptp->info;
 	struct ptp_sys_offset *sysoff = NULL;
@@ -197,6 +198,26 @@ long ptp_ioctl(struct posix_clock *pc, unsigned int cmd, unsigned long arg)
 		req.type = PTP_CLK_REQ_PEROUT;
 		enable = req.perout.period.sec || req.perout.period.nsec;
 		err = ops->enable(ops, &req, enable);
+		break;
+
+	case PTP_EVENT_COUNT_TSTAMP2:
+		if (!ops->counttstamp)
+			return -ENOTSUPP;
+		if (copy_from_user(&counttstamp, (void __user *)arg,
+				   sizeof(counttstamp))) {
+			err = -EFAULT;
+			break;
+		}
+		if (counttstamp.flags & ~PTP_EVENT_COUNT_TSTAMP_POL_LOW)
+			counttstamp.flags &= PTP_EVENT_COUNT_TSTAMP_POL_LOW;
+		if (counttstamp.rsv[0] || counttstamp.rsv[1]) {
+			err = -EINVAL;
+			break;
+		}
+		err = ops->counttstamp(ops, &counttstamp);
+		if (!err && copy_to_user((void __user *)arg, &counttstamp,
+						sizeof(counttstamp)))
+			err = -EFAULT;
 		break;
 
 	case PTP_ENABLE_PPS:
