@@ -1027,7 +1027,6 @@ static const struct pci_device_id i801_ids[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_WILDCATPOINT_LP_SMBUS) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_BAYTRAIL_SMBUS) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_BRASWELL_SMBUS) },
-	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_SUNRISEPOINT_H_SMBUS) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_SUNRISEPOINT_LP_SMBUS) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_CDF_SMBUS) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_DNV_SMBUS) },
@@ -1541,6 +1540,9 @@ static int i801_probe(struct pci_dev *dev, const struct pci_device_id *id)
 		/* If we have ACPI based watchdog use that instead */
 		if (!acpi_has_watchdog())
 			priv->features |= FEATURE_TCO;
+		if (dev->device == PCI_DEVICE_ID_INTEL_SUNRISEPOINT_H_SMBUS)
+			priv->features &= ~FEATURE_TCO;
+
 		priv->features |= FEATURE_HOST_NOTIFY;
 		break;
 
