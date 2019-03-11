@@ -15440,7 +15440,7 @@ static int intel_sanitize_plane_restriction(struct drm_i915_private *dev_priv)
 	unsigned int mask;
 
 	/*plane restriction feature is only for APL and KBL for now*/
-	if (!(IS_BROXTON(dev_priv) || IS_KABYLAKE(dev_priv))) {
+	if (!(IS_BROXTON(dev_priv) || IS_KABYLAKE(dev_priv) || IS_SKYLAKE(dev_priv))) {
 		i915_modparams.avail_planes_per_pipe = 0;
 		DRM_INFO("Turning off Plane Restrictions feature\n");
 	}
@@ -15448,7 +15448,7 @@ static int intel_sanitize_plane_restriction(struct drm_i915_private *dev_priv)
 	mask = i915_modparams.avail_planes_per_pipe;
 
 	/* make sure SOS has a (dummy) plane per pipe. */
-	if ((IS_BROXTON(dev_priv) || IS_KABYLAKE(dev_priv)) &&
+	if ((IS_BROXTON(dev_priv) || IS_KABYLAKE(dev_priv) || IS_SKYLAKE(dev_priv)) &&
 			intel_gvt_active(dev_priv)) {
 		enum pipe pipe;
 
