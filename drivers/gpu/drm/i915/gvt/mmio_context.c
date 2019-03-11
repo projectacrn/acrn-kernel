@@ -404,7 +404,8 @@ static void switch_mocs(struct intel_vgpu *pre, struct intel_vgpu *next,
 	if (WARN_ON(ring_id >= ARRAY_SIZE(regs)))
 		return;
 
-	if ((IS_KABYLAKE(dev_priv) || IS_BROXTON(dev_priv)) && ring_id == RCS)
+	if ((IS_KABYLAKE(dev_priv) || IS_SKYLAKE(dev_priv) || IS_BROXTON(dev_priv))
+	    && ring_id == RCS)
 		return;
 
 	if (!pre && !gen9_render_mocs.initialized)
@@ -484,8 +485,10 @@ static void switch_mmio(struct intel_vgpu *pre,
 		 * state image on kabylake, it's initialized by lri command and
 		 * save or restore with context together.
 		 */
-		if ((IS_KABYLAKE(dev_priv) || IS_BROXTON(dev_priv))
-			&& mmio->in_context)
+		if ((IS_KABYLAKE(dev_priv) ||
+		     IS_SKYLAKE(dev_priv) ||
+		     IS_BROXTON(dev_priv))
+		     && mmio->in_context)
 			continue;
 
 		// save

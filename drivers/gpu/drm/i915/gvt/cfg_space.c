@@ -400,7 +400,8 @@ int intel_vgpu_emulate_cfg_write(struct intel_vgpu *vgpu, unsigned int offset,
 		 * OpRegion. So here we don't report OpRegion to guest.
 		 */
 		if (IS_BROXTON(vgpu->gvt->dev_priv) ||
-				IS_KABYLAKE(vgpu->gvt->dev_priv))
+		    IS_SKYLAKE(vgpu->gvt->dev_priv) ||
+		    IS_KABYLAKE(vgpu->gvt->dev_priv))
 			return 0;
 
 		ret = intel_vgpu_opregion_base_write_handler(vgpu,
