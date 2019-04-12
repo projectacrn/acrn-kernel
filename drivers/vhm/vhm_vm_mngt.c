@@ -127,14 +127,16 @@ EXPORT_SYMBOL_GPL(vhm_get_vm_info);
 int vhm_inject_msi(unsigned long vmid, unsigned long msi_addr,
 		unsigned long msi_data)
 {
-	struct acrn_msi_entry msi;
+	struct acrn_msi_entry *msi;
 	int ret;
 
+	msi = acrn_mempool_alloc(GFP_KERNEL);
 	/* msi_addr: addr[19:12] with dest vcpu id */
 	/* msi_data: data[7:0] with vector */
-	msi.msi_addr = msi_addr;
-	msi.msi_data = msi_data;
-	ret = hcall_inject_msi(vmid, virt_to_phys(&msi));
+	msi->msi_addr = msi_addr;
+	msi->msi_data = msi_data;
+	ret = hcall_inject_msi(vmid, virt_to_phys(msi));
+	acrn_mempool_free(msi);
 	if (ret < 0) {
 		pr_err("vhm: failed to inject!\n");
 		return -EFAULT;
@@ -145,18 +147,23 @@ EXPORT_SYMBOL_GPL(vhm_inject_msi);
 
 unsigned long vhm_vm_gpa2hpa(unsigned long vmid, unsigned long gpa)
 {
-	struct vm_gpa2hpa gpa2hpa;
+	struct vm_gpa2hpa *gpa2hpa;
 	int ret;
+	unsigned long hpa;
 
-	gpa2hpa.gpa = gpa;
-	gpa2hpa.hpa = -1UL; /* Init value as invalid gpa */
-	ret = hcall_vm_gpa2hpa(vmid, virt_to_phys(&gpa2hpa));
+	gpa2hpa = acrn_mempool_alloc(GFP_KERNEL);
+	gpa2hpa->gpa = gpa;
+	gpa2hpa->hpa = -1UL; /* Init value as invalid gpa */
+	ret = hcall_vm_gpa2hpa(vmid, virt_to_phys(gpa2hpa));
 	if (ret < 0) {
 		pr_err("vhm: failed to inject!\n");
+		acrn_mempool_free(gpa2hpa);
 		return -EFAULT;
 	}
+	hpa = gpa2hpa->hpa;
 	mb();
-	return gpa2hpa.hpa;
+	acrn_mempool_free(gpa2hpa);
+	return hpa;
 }
 EXPORT_SYMBOL_GPL(vhm_vm_gpa2hpa);
 
