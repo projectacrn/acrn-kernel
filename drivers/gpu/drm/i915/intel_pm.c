@@ -5615,6 +5615,10 @@ static void skl_atomic_update_crtc_wm(struct intel_atomic_state *state,
 					ddb, plane_id);
 		}
 
+#if IS_ENABLED(CONFIG_DRM_I915_GVT)
+		skl_ddb_entry_write(dev_priv, CUR_BUF_CFG(pipe),
+				&dev_priv->gvt->ddb.plane[pipe][PLANE_CURSOR]);
+#endif
 		return;
 	}
 
