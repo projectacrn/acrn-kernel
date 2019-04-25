@@ -33,6 +33,8 @@ extern unsigned int coherency_max_size;
  * @physical_line_partition: number of physical cache lines sharing the
  *	same cachetag
  * @size: Total size of the cache
+ * @inclusive: Cache is inclusive of lower level caches. Only valid if
+ *	CACHE_INCLUSIVE_SET attribute is set.
  * @shared_cpu_map: logical cpumask representing all the cpus sharing
  *	this cache node
  * @attributes: bitfield representing various cache attributes
@@ -55,6 +57,7 @@ struct cacheinfo {
 	unsigned int ways_of_associativity;
 	unsigned int physical_line_partition;
 	unsigned int size;
+	unsigned int inclusive;
 	cpumask_t shared_cpu_map;
 	unsigned int attributes;
 #define CACHE_WRITE_THROUGH	BIT(0)
@@ -66,6 +69,7 @@ struct cacheinfo {
 #define CACHE_ALLOCATE_POLICY_MASK	\
 	(CACHE_READ_ALLOCATE | CACHE_WRITE_ALLOCATE)
 #define CACHE_ID		BIT(4)
+#define CACHE_INCLUSIVE_SET	BIT(5)
 	void *fw_token;
 	bool disable_sysfs;
 	void *priv;
