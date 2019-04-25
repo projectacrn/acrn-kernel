@@ -126,6 +126,30 @@ static unsigned int get_cache_line_size(unsigned int cpu, int level)
 }
 
 /**
+ * get_cache_inclusive - Determine if cache is inclusive of lower levels
+ * @cpu: CPU with which cache is associated
+ * @level: Cache level
+ *
+ * Context: @cpu has to be online.
+ * Return: 1 if cache is inclusive of lower cache levels, 0 if cache is not
+ *         inclusive of lower cache levels or on failure.
+ */
+static unsigned int get_cache_inclusive(unsigned int cpu, int level)
+{
+	struct cpu_cacheinfo *ci;
+	int i;
+
+	ci = get_cpu_cacheinfo(cpu);
+
+	for (i = 0; i < ci->num_leaves; i++) {
+		if (ci->info_list[i].level == level)
+			return ci->info_list[i].inclusive;
+	}
+
+	return 0;
+}
+
+/**
  * pseudo_lock_minor_get - Obtain available minor number
  * @minor: Pointer to where new minor number will be stored
  *
@@ -317,6 +341,12 @@ static int pseudo_lock_single_portion_valid(struct pseudo_lock_region *plr,
 		goto err_cpu;
 	}
 
+	if (p->r->cache_level == 3 &&
+	    !get_cache_inclusive(plr->cpu, p->r->cache_level)) {
+		rdt_last_cmd_puts("L3 cache not inclusive\n");
+		goto err_cpu;
+	}
+
 	plr->line_size = get_cache_line_size(plr->cpu, p->r->cache_level);
 	if (plr->line_size == 0) {
 		rdt_last_cmd_puts("Unable to compute cache line length\n");
@@ -415,6 +445,11 @@ static int pseudo_lock_l2_l3_portions_valid(struct pseudo_lock_region *plr,
 	if (!cpu_online(plr->cpu)) {
 		rdt_last_cmd_printf("CPU %u associated with cache not online\n",
 				    plr->cpu);
+		goto err_cpu;
+	}
+
+	if (!get_cache_inclusive(plr->cpu, l3_p->r->cache_level)) {
+		rdt_last_cmd_puts("L3 cache not inclusive\n");
 		goto err_cpu;
 	}
 
