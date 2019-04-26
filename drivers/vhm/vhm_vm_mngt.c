@@ -130,7 +130,7 @@ int vhm_inject_msi(unsigned long vmid, unsigned long msi_addr,
 	struct acrn_msi_entry *msi;
 	int ret;
 
-	msi = acrn_mempool_alloc(GFP_KERNEL);
+	msi = acrn_mempool_alloc(GFP_ATOMIC);
 	/* msi_addr: addr[19:12] with dest vcpu id */
 	/* msi_data: data[7:0] with vector */
 	msi->msi_addr = msi_addr;
