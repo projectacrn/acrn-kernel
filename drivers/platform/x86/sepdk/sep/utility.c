@@ -117,7 +117,7 @@ VOID UTILITY_Read_Cpuid(U64 cpuid_function, U64 *rax_value,
 
 #if defined(DRV_SEP_ACRN_ON)
 	if (cpuid_function != 0x40000000) {
-		struct profiling_pcpuid pcpuid;
+		static struct profiling_pcpuid pcpuid;
 		memset(&pcpuid, 0, sizeof(struct profiling_pcpuid));
 		pcpuid.leaf = (U32)cpuid_function;
 		if (rcx_value != NULL) {
