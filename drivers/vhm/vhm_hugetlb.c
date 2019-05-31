@@ -225,6 +225,47 @@ void hugepage_free_guest(struct vhm_vm *vm)
 	mutex_unlock(&vm->hugepage_lock);
 }
 
+u64 hugepage_gpa_to_hpa(struct vhm_vm *vm, u64 guest_phys)
+{
+	struct hugepage_map *map;
+
+	mutex_lock(&vm->hugepage_lock);
+	/* check 1G hlist first */
+	if (!hlist_empty(&vm->hugepage_hlist[HUGEPAGE_1G_HLIST_IDX])) {
+		hlist_for_each_entry(map,
+			&vm->hugepage_hlist[HUGEPAGE_1G_HLIST_IDX], hlist) {
+			if (map->guest_gpa > guest_phys)
+				continue;
+
+			if (guest_phys > map->guest_gpa + map->size)
+				break;
+
+			mutex_unlock(&vm->hugepage_lock);
+			return map->vm0_gpa + guest_phys - map->guest_gpa;
+		}
+	}
+
+	/* check 2m hlist */
+	hlist_for_each_entry(map,
+			hlist_2m_hash(vm, guest_phys), hlist) {
+		if (map->guest_gpa > guest_phys)
+			continue;
+
+		if (guest_phys > map->guest_gpa + map->size)
+			goto err;
+
+		mutex_unlock(&vm->hugepage_lock);
+		return map->vm0_gpa + guest_phys - map->guest_gpa;
+	}
+
+err:
+	mutex_unlock(&vm->hugepage_lock);
+	printk(KERN_WARNING "cannot find correct mem map, please check the "
+		"input's range or alignment");
+	return 0LL;
+}
+EXPORT_SYMBOL(hugepage_gpa_to_hpa);
+
 void *hugepage_map_guest_phys(struct vhm_vm *vm, u64 guest_phys, size_t size)
 {
 	struct hlist_node *htmp;

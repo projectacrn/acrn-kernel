@@ -66,7 +66,7 @@
 extern struct list_head vhm_vm_list;
 extern rwlock_t vhm_vm_list_lock;
 
-#define HUGEPAGE_2M_HLIST_ARRAY_SIZE	16
+#define HUGEPAGE_2M_HLIST_ARRAY_SIZE	32
 #define HUGEPAGE_1G_HLIST_ARRAY_SIZE	1
 #define HUGEPAGE_HLIST_ARRAY_SIZE	(HUGEPAGE_2M_HLIST_ARRAY_SIZE + \
 						HUGEPAGE_1G_HLIST_ARRAY_SIZE)

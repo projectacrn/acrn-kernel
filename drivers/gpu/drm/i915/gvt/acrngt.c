@@ -865,15 +865,11 @@ static unsigned long acrngt_gfn_to_pfn(unsigned long handle, unsigned long gfn)
 
 	gvt_dbg_core("convert gfn 0x%lx to pfn\n", gfn);
 	if (is_identical_mmap()) {
-		void *va = NULL;
+		hpa = hugepage_gpa_to_hpa(info->vm, gfn << PAGE_SHIFT);
 
-		va = map_guest_phys(info->vm_id, gfn << PAGE_SHIFT,
-				    1 << PAGE_SHIFT);
-		if (!va) {
+		if (!hpa) {
 			gvt_err("GVT: can not map gfn = 0x%lx!!!\n", gfn);
 			hpa = vhm_vm_gpa2hpa(info->vm_id, gfn << PAGE_SHIFT);
-		} else {
-			hpa = virt_to_phys(va);
 		}
 	} else {
 		hpa = vhm_vm_gpa2hpa(info->vm_id, gfn << PAGE_SHIFT);

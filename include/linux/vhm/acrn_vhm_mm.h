@@ -183,6 +183,7 @@ int unmap_guest_memseg(struct vhm_vm *vm, struct vm_memmap *memmap);
 int hugepage_map_guest(struct vhm_vm *vm, struct vm_memmap *memmap);
 void hugepage_free_guest(struct vhm_vm *vm);
 void *hugepage_map_guest_phys(struct vhm_vm *vm, u64 guest_phys, size_t size);
+u64 hugepage_gpa_to_hpa(struct vhm_vm *vm, u64 guest_phys);
 int hugepage_unmap_guest_phys(struct vhm_vm *vm, u64 guest_phys);
 
 /**
