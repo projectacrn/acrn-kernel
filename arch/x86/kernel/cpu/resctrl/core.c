@@ -221,6 +221,38 @@ static inline void cache_alloc_hsw_probe(void)
 	rdt_alloc_capable = true;
 }
 
+/*
+ * cache_alloc_8C_probe() - Have to probe for Intel 0x8C systems
+ * as they do not have CPUID enumeration support for L3 cache allocation
+ * (the L2 cache allocation does have CPUID enumeration support).
+ * Not all SKUs support L3 CAT so the test whether the first L3 CAT CBM can
+ * be written safely is required.
+ * Max CLOSids is 4 and max CBM length is 12. CDP is not supported.
+ *
+ * The global rdt_alloc_capable is not set here so that the enumeration of
+ * L2 CAT can proceed.
+ */
+static inline void cache_alloc_8C_probe(void)
+{
+	struct rdt_resource *r  = &rdt_resources_all[RDT_RESOURCE_L3];
+	u32 l, h, max_cbm = BIT_MASK(12) - 1;
+
+	if (wrmsr_safe(MSR_IA32_L3_CBM_BASE, max_cbm, 0))
+		return;
+	rdmsr(MSR_IA32_L3_CBM_BASE, l, h);
+
+	if (l != max_cbm)
+		return;
+
+	r->num_closid = 4;
+	r->default_ctrl = max_cbm;
+	r->cache.cbm_len = 12;
+	r->cache.shareable_bits = 0x400;
+	r->cache.min_cbm_bits = 1;
+	r->alloc_capable = true;
+	r->alloc_enabled = true;
+}
+
 bool is_mba_sc(struct rdt_resource *r)
 {
 	if (!r)
@@ -882,6 +914,11 @@ static __init void __check_quirks_intel(void)
 			set_rdt_options("!cmt,!mbmtotal,!mbmlocal,!l3cat");
 		else
 			set_rdt_options("!l3cat");
+		break;
+	case 0x8C:
+		if (!rdt_options[RDT_FLAG_L3_CAT].force_off)
+			cache_alloc_8C_probe();
+		break;
 	}
 }
 
