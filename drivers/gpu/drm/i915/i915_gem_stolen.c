@@ -388,6 +388,9 @@ int i915_gem_init_stolen(struct drm_i915_private *dev_priv)
 		return 0;
 	}
 
+	DRM_DEBUG_KMS("gvt-d is active. Disabling use of stolen memory\n");
+	return 0;
+
 	if (resource_size(&intel_graphics_stolen_res) == 0)
 		return 0;
 
