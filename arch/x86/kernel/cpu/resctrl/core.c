@@ -346,6 +346,24 @@ static void rdt_get_cache_alloc_cfg(int idx, struct rdt_resource *r)
 	r->data_width = (r->cache.cbm_len + 3) / 4;
 	r->alloc_capable = true;
 	r->alloc_enabled = true;
+	/*
+	 * FIXME: REMOVE ME
+	 * These workarounds are needed for 0x8C A0. Workarounds are safe
+	 * to run on all platforms since no L2 cache supporting CAT
+	 * has shareable bits set and no current platform supports 9 CLOSids.
+	 */
+	if (idx == 2) {
+		if (r->cache.shareable_bits != 0x0) {
+			pr_warn("Overriding L2 shareable bits (was 0x%X)\n",
+				r->cache.shareable_bits);
+			r->cache.shareable_bits = 0x0;
+		}
+		if (r->num_closid == 9) {
+			pr_warn("Overriding COS_MAX, retrieved edx.split.cos_max  = %u, but marking num clos as %u (without adding 1)\n",
+				edx.split.cos_max, edx.split.cos_max);
+			r->num_closid = edx.split.cos_max;
+		}
+	}
 }
 
 static void rdt_get_cdp_config(int level, int type)
