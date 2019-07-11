@@ -4334,6 +4334,8 @@ static void stmmac_common_interrupt(struct stmmac_priv *priv)
 			else
 				netif_carrier_off(priv->dev);
 		}
+
+		stmmac_tstamp_interrupt(priv, priv);
 	}
 }
 
@@ -4477,6 +4479,8 @@ static irqreturn_t stmmac_msi_intr_rx(int irq, void *data)
 		return IRQ_HANDLED;
 
 	stmmac_napi_check(priv, chan, DMA_DIR_RX);
+
+	stmmac_tstamp_interrupt(priv, priv);
 
 	return IRQ_HANDLED;
 }
