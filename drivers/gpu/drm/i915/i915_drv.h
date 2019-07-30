@@ -2610,7 +2610,7 @@ static inline bool intel_vtd_active(void)
 
 static inline bool intel_scanout_needs_vtd_wa(struct drm_i915_private *dev_priv)
 {
-	return INTEL_GEN(dev_priv) >= 6 && intel_vtd_active();
+	return INTEL_GEN(dev_priv) >= 6;
 }
 
 static inline bool
