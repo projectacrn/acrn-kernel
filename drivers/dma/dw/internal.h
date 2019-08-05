@@ -23,6 +23,9 @@ int do_dw_dma_enable(struct dw_dma_chip *chip);
 
 extern bool dw_dma_filter(struct dma_chan *chan, void *param);
 
+int idma32_xbar_probe(struct dw_dma_chip *chip);
+int idma32_xbar_remove(struct dw_dma_chip *chip);
+
 #ifdef CONFIG_ACPI
 void dw_dma_acpi_controller_register(struct dw_dma *dw);
 void dw_dma_acpi_controller_free(struct dw_dma *dw);
