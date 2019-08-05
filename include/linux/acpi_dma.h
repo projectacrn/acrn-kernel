@@ -18,12 +18,14 @@
 
 /**
  * struct acpi_dma_spec - slave device DMA resources
+ * @index:	index of FixedDMA() resource
  * @chan_id:	channel unique id
  * @slave_id:	request line unique id
  * @dev:	struct device of the DMA controller to be used in the filter
  *		function
  */
 struct acpi_dma_spec {
+	size_t		index;
 	int		chan_id;
 	int		slave_id;
 	struct device	*dev;

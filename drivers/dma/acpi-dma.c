@@ -319,7 +319,6 @@ static int acpi_dma_update_dma_spec(struct acpi_dma *adma,
 
 struct acpi_dma_parser_data {
 	struct acpi_dma_spec dma_spec;
-	size_t index;
 	size_t n;
 };
 
@@ -335,7 +334,7 @@ static int acpi_dma_parse_fixed_dma(struct acpi_resource *res, void *data)
 	if (res->type == ACPI_RESOURCE_TYPE_FIXED_DMA) {
 		struct acpi_resource_fixed_dma *dma = &res->data.fixed_dma;
 
-		if (pdata->n++ == pdata->index) {
+		if (pdata->n++ == pdata->dma_spec.index) {
 			pdata->dma_spec.chan_id = dma->channels;
 			pdata->dma_spec.slave_id = dma->request_lines;
 		}
@@ -373,9 +372,9 @@ struct dma_chan *acpi_dma_request_slave_chan_by_index(struct device *dev,
 		return ERR_PTR(-ENODEV);
 
 	memset(&pdata, 0, sizeof(pdata));
-	pdata.index = index;
 
 	/* Initial values for the request line and channel */
+	dma_spec->index = index;
 	dma_spec->chan_id = -1;
 	dma_spec->slave_id = -1;
 
