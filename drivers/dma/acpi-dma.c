@@ -374,6 +374,7 @@ struct dma_chan *acpi_dma_request_slave_chan_by_index(struct device *dev,
 	memset(&pdata, 0, sizeof(pdata));
 
 	/* Initial values for the request line and channel */
+	dma_spec->consumer = dev;
 	dma_spec->index = index;
 	dma_spec->chan_id = -1;
 	dma_spec->slave_id = -1;
