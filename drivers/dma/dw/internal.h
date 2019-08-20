@@ -77,4 +77,10 @@ static __maybe_unused const struct dw_dma_chip_pdata idma32_chip_pdata = {
 	.remove = idma32_dma_remove,
 };
 
+static __maybe_unused const struct dw_dma_chip_pdata idma32_xbar_pdata = {
+	.pdata = &idma32_pdata,
+	.probe = idma32_xbar_probe,
+	.remove = idma32_xbar_remove,
+};
+
 #endif /* _DMA_DW_INTERNAL_H */
