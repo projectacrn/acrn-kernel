@@ -546,7 +546,7 @@ void intel_gvt_reset_vgpu_locked(struct intel_vgpu *vgpu, bool dmlr,
 	unsigned int resetting_eng = dmlr ? ALL_ENGINES : engine_mask;
 	enum intel_engine_id i;
 	struct intel_engine_cs *engine;
-	bool enable_pvmmio = vgpu_vreg_t(vgpu, vgtif_reg(enable_pvmmio));
+	u32 enable_pvmmio = vgpu_vreg_t(vgpu, vgtif_reg(enable_pvmmio));
 
 	gvt_dbg_core("------------------------------------------\n");
 	gvt_dbg_core("resseting vgpu%d, dmlr %d, engine_mask %08x\n",
