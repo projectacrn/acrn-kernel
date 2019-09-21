@@ -2157,7 +2157,6 @@ static int stmmac_tx_clean(struct stmmac_priv *priv, int budget, u32 queue)
 static void stmmac_tx_err(struct stmmac_priv *priv, u32 chan)
 {
 	struct stmmac_tx_queue *tx_q = &priv->tx_queue[chan];
-	int i;
 
 	netif_tx_stop_queue(netdev_get_tx_queue(priv->dev, chan));
 
@@ -2165,19 +2164,7 @@ static void stmmac_tx_err(struct stmmac_priv *priv, u32 chan)
 	stmmac_stop_mac_tx(priv, priv->ioaddr);
 
 	dma_free_tx_skbufs(priv, chan);
-	for (i = 0; i < priv->dma_tx_size; i++)
-		if (priv->extend_desc)
-			stmmac_init_tx_desc(priv, &tx_q->dma_etx[i].basic,
-					    priv->mode,
-					    (i == priv->dma_tx_size - 1));
-		else if (priv->enhanced_tx_desc)
-			stmmac_init_tx_desc(priv, &tx_q->dma_enhtx[i].basic,
-					    priv->mode,
-					    (i == priv->dma_tx_size - 1));
-		else
-			stmmac_init_tx_desc(priv, &tx_q->dma_tx[i],
-					    priv->mode,
-					    (i == priv->dma_tx_size - 1));
+	stmmac_clear_tx_descriptors(priv, chan);
 	tx_q->dirty_tx = 0;
 	tx_q->cur_tx = 0;
 	tx_q->mss = 0;
