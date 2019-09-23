@@ -1257,8 +1257,18 @@ u64 get_art_ns_now(void)
 {
 	struct system_counterval_t tsc_cycles;
 	u64 tsc_ns;
+	unsigned int eax;
+	unsigned int ebx;
+	unsigned int ecx;
+	unsigned int edx;
 
 	get_tsc_ns(&tsc_cycles, &tsc_ns);
+
+	/* CPUID 15H TSC/Crystal ratio, plus optionally Crystal Hz */
+	cpuid(ART_CPUID_LEAF, &eax, &ebx, &ecx, &edx);
+
+	printk(KERN_INFO "====> tsc_ns %llu %llu\n", tsc_ns,
+			DIV_ROUND_UP_ULL(ecx * ebx, eax));
 
 	return tsc_ns;
 }
