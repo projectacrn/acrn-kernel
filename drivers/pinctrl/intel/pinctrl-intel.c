@@ -501,8 +501,8 @@ static int intel_gpio_request_enable(struct pinctrl_dev *pctldev,
 	/*
 	 * If pin is already configured in GPIO mode, we assume that
 	 * firmware provides correct settings. In such case we avoid
-	 * potential glitches on the pin. Otherwise, for the pin in
-	 * alternative mode, consumer has to supply respective flags.
+	 * potential glitches on the pin. Otherwise, for alternative
+	 * mode, consumer has to supply respective flags.
 	 */
 	if (intel_gpio_get_gpio_mode(padcfg0) == PADCFG0_PMODE_GPIO) {
 		raw_spin_unlock_irqrestore(&pctrl->lock, flags);
