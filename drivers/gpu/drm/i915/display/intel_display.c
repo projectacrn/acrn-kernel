@@ -12763,8 +12763,9 @@ pipe_config_infoframe_mismatch(struct drm_i915_private *dev_priv,
 	}
 }
 
-static void __printf(3, 4)
-pipe_config_mismatch(bool fastset, const char *name, const char *format, ...)
+static void __printf(4, 5)
+pipe_config_mismatch(bool fastset, const struct intel_crtc *crtc,
+		     const char *name, const char *format, ...)
 {
 	struct va_format vaf;
 	va_list args;
@@ -12774,9 +12775,11 @@ pipe_config_mismatch(bool fastset, const char *name, const char *format, ...)
 	vaf.va = &args;
 
 	if (fastset)
-		DRM_DEBUG_KMS("fastset mismatch in %s %pV\n", name, &vaf);
+		DRM_DEBUG_KMS("[CRTC:%d:%s] fastset mismatch in %s %pV\n",
+			      crtc->base.base.id, crtc->base.name, name, &vaf);
 	else
-		DRM_ERROR("mismatch in %s %pV\n", name, &vaf);
+		DRM_ERROR("[CRTC:%d:%s] mismatch in %s %pV\n",
+			  crtc->base.base.id, crtc->base.name, name, &vaf);
 
 	va_end(args);
 }
@@ -12804,6 +12807,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 			  bool fastset)
 {
 	struct drm_i915_private *dev_priv = to_i915(current_config->base.crtc->dev);
+	struct intel_crtc *crtc = to_intel_crtc(pipe_config->base.crtc);
 	bool ret = true;
 	u32 bp_gamma = 0;
 	bool fixup_inherited = fastset &&
@@ -12817,7 +12821,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 
 #define PIPE_CONF_CHECK_X(name) do { \
 	if (current_config->name != pipe_config->name) { \
-		pipe_config_mismatch(fastset, __stringify(name), \
+		pipe_config_mismatch(fastset, crtc, __stringify(name), \
 				     "(expected 0x%08x, found 0x%08x)", \
 				     current_config->name, \
 				     pipe_config->name); \
@@ -12827,7 +12831,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 
 #define PIPE_CONF_CHECK_I(name) do { \
 	if (current_config->name != pipe_config->name) { \
-		pipe_config_mismatch(fastset, __stringify(name), \
+		pipe_config_mismatch(fastset, crtc, __stringify(name), \
 				     "(expected %i, found %i)", \
 				     current_config->name, \
 				     pipe_config->name); \
@@ -12837,7 +12841,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 
 #define PIPE_CONF_CHECK_BOOL(name) do { \
 	if (current_config->name != pipe_config->name) { \
-		pipe_config_mismatch(fastset, __stringify(name), \
+		pipe_config_mismatch(fastset, crtc,  __stringify(name), \
 				     "(expected %s, found %s)", \
 				     yesno(current_config->name), \
 				     yesno(pipe_config->name)); \
@@ -12854,7 +12858,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 	if (!fixup_inherited || (!current_config->name && !pipe_config->name)) { \
 		PIPE_CONF_CHECK_BOOL(name); \
 	} else { \
-		pipe_config_mismatch(fastset, __stringify(name), \
+		pipe_config_mismatch(fastset, crtc, __stringify(name), \
 				     "unable to verify whether state matches exactly, forcing modeset (expected %s, found %s)", \
 				     yesno(current_config->name), \
 				     yesno(pipe_config->name)); \
@@ -12864,7 +12868,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 
 #define PIPE_CONF_CHECK_P(name) do { \
 	if (current_config->name != pipe_config->name) { \
-		pipe_config_mismatch(fastset, __stringify(name), \
+		pipe_config_mismatch(fastset, crtc, __stringify(name), \
 				     "(expected %p, found %p)", \
 				     current_config->name, \
 				     pipe_config->name); \
@@ -12876,7 +12880,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 	if (!intel_compare_link_m_n(&current_config->name, \
 				    &pipe_config->name,\
 				    !fastset)) { \
-		pipe_config_mismatch(fastset, __stringify(name), \
+		pipe_config_mismatch(fastset, crtc, __stringify(name), \
 				     "(expected tu %i gmch %i/%i link %i/%i, " \
 				     "found tu %i, gmch %i/%i link %i/%i)", \
 				     current_config->name.tu, \
@@ -12903,7 +12907,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 				    &pipe_config->name, !fastset) && \
 	    !intel_compare_link_m_n(&current_config->alt_name, \
 				    &pipe_config->name, !fastset)) { \
-		pipe_config_mismatch(fastset, __stringify(name), \
+		pipe_config_mismatch(fastset, crtc, __stringify(name), \
 				     "(expected tu %i gmch %i/%i link %i/%i, " \
 				     "or tu %i gmch %i/%i link %i/%i, " \
 				     "found tu %i, gmch %i/%i link %i/%i)", \
@@ -12928,7 +12932,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 
 #define PIPE_CONF_CHECK_FLAGS(name, mask) do { \
 	if ((current_config->name ^ pipe_config->name) & (mask)) { \
-		pipe_config_mismatch(fastset, __stringify(name), \
+		pipe_config_mismatch(fastset, crtc, __stringify(name), \
 				     "(%x) (expected %i, found %i)", \
 				     (mask), \
 				     current_config->name & (mask), \
@@ -12939,7 +12943,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 
 #define PIPE_CONF_CHECK_CLOCK_FUZZY(name) do { \
 	if (!intel_fuzzy_clock_check(current_config->name, pipe_config->name)) { \
-		pipe_config_mismatch(fastset, __stringify(name), \
+		pipe_config_mismatch(fastset, crtc, __stringify(name), \
 				     "(expected %i, found %i)", \
 				     current_config->name, \
 				     pipe_config->name); \
@@ -12959,7 +12963,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 
 #define PIPE_CONF_CHECK_COLOR_LUT(name1, name2, bit_precision) do { \
 	if (current_config->name1 != pipe_config->name1) { \
-		pipe_config_mismatch(fastset, __stringify(name1), \
+		pipe_config_mismatch(fastset, crtc, __stringify(name1), \
 				"(expected %i, found %i, won't compare lut values)", \
 				current_config->name1, \
 				pipe_config->name1); \
@@ -12968,7 +12972,7 @@ intel_pipe_config_compare(const struct intel_crtc_state *current_config,
 		if (!intel_color_lut_equal(current_config->name2, \
 					pipe_config->name2, pipe_config->name1, \
 					bit_precision)) { \
-			pipe_config_mismatch(fastset, __stringify(name2), \
+			pipe_config_mismatch(fastset, crtc, __stringify(name2), \
 					"hw_state doesn't match sw_state"); \
 			ret = false; \
 		} \
