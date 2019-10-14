@@ -137,11 +137,9 @@ static int intel_pmc_tgpio_gettime64(struct ptp_clock_info *info,
 		struct timespec64 *ts)
 {
 	struct intel_pmc_tgpio	*tgpio = to_intel_pmc_tgpio(info);
-	u64 now;
 
 	mutex_lock(&tgpio->lock);
-	now = get_art_ns_now();
-	*ts = ns_to_timespec64(now);
+	*ts = get_tsc_ns_now(NULL);
 	mutex_unlock(&tgpio->lock);
 
 	return 0;
@@ -226,25 +224,33 @@ static int intel_pmc_tgpio_config_input(struct intel_pmc_tgpio *tgpio,
 	return 0;
 }
 
+#define ptp_clock_time_to_ts64(x) ((struct timespec64){.tv_sec = (x).sec, \
+						       .tv_nsec = (x).nsec})
+
 static int intel_pmc_tgpio_config_output(struct intel_pmc_tgpio *tgpio,
 		struct ptp_perout_request *perout, int on)
 {
 	u32			ctrl;
+	u64			art;
 
 	ctrl = intel_pmc_tgpio_readl(tgpio->base, TGPIOCTL);
 	if (on) {
-		struct ptp_clock_time *period = &perout->period;
-		struct ptp_clock_time *start = &perout->start;
+		struct timespec64 period = ptp_clock_time_to_ts64
+			(perout->period);
+		struct timespec64 start = ptp_clock_time_to_ts64
+			(perout->start);
 
+		art = convert_tsc_ns_to_art(&start);
 		intel_pmc_tgpio_writel(tgpio->base, TGPIOCOMPV63_32,
-				start->sec);
+				art >> 32);
 		intel_pmc_tgpio_writel(tgpio->base, TGPIOCOMPV31_0,
-				start->nsec);
+				art & 0xFFFFFFFF);
 
+		art = convert_tsc_ns_to_art(&period);
 		intel_pmc_tgpio_writeq(tgpio->base, TGPIOPIV63_32,
-				period->sec);
+				art >> 32);
 		intel_pmc_tgpio_writeq(tgpio->base, TGPIOPIV31_0,
-				period->nsec);
+				art & 0xFFFFFFFF);
 
 		ctrl &= ~TGPIOCTL_DIR;
 		if (perout->flags & PTP_PEROUT_ONE_SHOT)
@@ -290,7 +296,10 @@ static int intel_pmc_tgpio_enable(struct ptp_clock_info *info,
 static int intel_pmc_tgpio_get_time_fn(ktime_t *device_time,
 		struct system_counterval_t *system_counter, void *_tgpio)
 {
-	get_tsc_ns(system_counter, device_time);
+	struct timespec64 now_ns;
+
+	now_ns = get_tsc_ns_now(system_counter);
+	*device_time = timespec64_to_ktime(now_ns);
 	return 0;
 }
 

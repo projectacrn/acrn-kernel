@@ -32,8 +32,9 @@ static inline cycles_t get_cycles(void)
 
 extern struct system_counterval_t convert_art_to_tsc(u64 art);
 extern struct system_counterval_t convert_art_ns_to_tsc(u64 art_ns);
-extern void get_tsc_ns(struct system_counterval_t *tsc_counterval, u64 *tsc_ns);
-extern u64 get_art_ns_now(void);
+extern struct timespec64 get_tsc_ns_now(struct system_counterval_t
+					*system_counter);
+extern u64 convert_tsc_ns_to_art(struct timespec64 *tsc_ns);
 
 extern void tsc_early_init(void);
 extern void tsc_init(void);

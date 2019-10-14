@@ -1232,14 +1232,15 @@ struct system_counterval_t convert_art_to_tsc(u64 art)
 }
 EXPORT_SYMBOL(convert_art_to_tsc);
 
-void get_tsc_ns(struct system_counterval_t *tsc_counterval, u64 *tsc_ns)
-{
+struct timespec64 get_tsc_ns_now(struct system_counterval_t *system_counter) {
 	u64 tmp, res, rem;
 	u64 cycles;
 
-	tsc_counterval->cycles = clocksource_tsc.read(NULL);
-	cycles = tsc_counterval->cycles;
-	tsc_counterval->cs = art_related_clocksource;
+	cycles = clocksource_tsc.read(NULL);
+	if (system_counter != NULL) {
+		system_counter->cycles = cycles;
+		system_counter->cs = art_related_clocksource;
+	}
 
 	rem = do_div(cycles, tsc_khz);
 
@@ -1249,30 +1250,46 @@ void get_tsc_ns(struct system_counterval_t *tsc_counterval, u64 *tsc_ns)
 	do_div(tmp, tsc_khz);
 	res += tmp;
 
-	*tsc_ns = res;
+	rem = do_div(res, NSEC_PER_SEC);
+
+	return (struct timespec64) {.tv_sec = res, .tv_nsec = rem};
 }
-EXPORT_SYMBOL(get_tsc_ns);
+EXPORT_SYMBOL(get_tsc_ns_now);
 
-u64 get_art_ns_now(void)
-{
-	struct system_counterval_t tsc_cycles;
-	u64 tsc_ns;
-	unsigned int eax;
-	unsigned int ebx;
-	unsigned int ecx;
-	unsigned int edx;
+static u64 convert_tsc_ns_to_tsc(struct timespec64 *tsc_ns) {
+	u64 tmp, res, rem;
+	u64 cycles;
 
-	get_tsc_ns(&tsc_cycles, &tsc_ns);
+	cycles = ((u64)tsc_ns->tv_sec * NSEC_PER_SEC) + tsc_ns->tv_nsec;
 
-	/* CPUID 15H TSC/Crystal ratio, plus optionally Crystal Hz */
-	cpuid(ART_CPUID_LEAF, &eax, &ebx, &ecx, &edx);
+	rem = do_div(cycles, USEC_PER_SEC);
 
-	printk(KERN_INFO "====> tsc_ns %llu %llu\n", tsc_ns,
-			DIV_ROUND_UP_ULL(ecx * ebx, eax));
+	res = cycles * tsc_khz;
+	tmp = rem * tsc_khz;
 
-	return tsc_ns;
+	do_div(tmp, USEC_PER_SEC);
+
+	return res + tmp;
 }
-EXPORT_SYMBOL(get_art_ns_now);
+
+
+u64 convert_tsc_ns_to_art(struct timespec64 *tsc_ns) {
+	u64 tmp, res, rem;
+	u64 cycles;
+
+	cycles = convert_tsc_ns_to_tsc( tsc_ns );
+	cycles -= art_to_tsc_offset;
+
+	rem = do_div(cycles, art_to_tsc_numerator);
+
+	res = cycles * art_to_tsc_denominator;
+	tmp = rem * art_to_tsc_denominator;
+
+	do_div(tmp, art_to_tsc_numerator);
+
+	return res + tmp;
+}
+EXPORT_SYMBOL(convert_tsc_ns_to_art);
 
 /**
  * convert_art_ns_to_tsc() - Convert ART in nanoseconds to TSC.
