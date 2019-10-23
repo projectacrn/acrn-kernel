@@ -84,7 +84,8 @@ struct drm_printer;
 	param(int, gvt_workload_priority, 0) \
 	param(unsigned int, avail_planes_per_pipe, 0) \
 	param(unsigned long long, domain_plane_owners, 0) \
-	param(bool, enable_context_restore, false)
+	param(bool, enable_context_restore, false) \
+	param(bool, enable_hp_work, false)
 
 #define MEMBER(T, member, ...) T member;
 struct i915_params {
