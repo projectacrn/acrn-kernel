@@ -54,6 +54,7 @@ struct intel_pmc_tgpio {
 
 	struct task_struct	*event_thread;
 	bool			input;
+	u64				prev_ec;
 };
 #define to_intel_pmc_tgpio(i)	(container_of((i), struct intel_pmc_tgpio, info))
 
@@ -168,8 +169,7 @@ static int intel_pmc_tgpio_event_thread(void *_tgpio)
 			schedule();
 
 		reg = intel_pmc_tgpio_readq(tgpio->base, TGPIOEC31_0);
-
-		for (i = 0; i < reg; i++) {
+		if (tgpio->prev_ec != reg) {
 			struct ptp_clock_event event;
 
 			event.type = PTP_CLOCK_EXTTS;
@@ -178,6 +178,10 @@ static int intel_pmc_tgpio_event_thread(void *_tgpio)
 					TGPIOTCV31_0);
 
 			ptp_clock_event(tgpio->clock, &event);
+
+			mutex_lock(&tgpio->lock);
+			tgpio->prev_ec = reg;
+			mutex_unlock(&tgpio->lock);
 		}
 		schedule_timeout_interruptible(10);
 	}
@@ -217,6 +221,7 @@ static int intel_pmc_tgpio_config_input(struct intel_pmc_tgpio *tgpio,
 
 	intel_pmc_tgpio_writel(tgpio->base, TGPIOCTL, ctrl);
 	tgpio->input = input;
+	tgpio->prev_ec = 0;
 
 	if (input)
 		wake_up_process(tgpio->event_thread);
