@@ -134,8 +134,11 @@ irqreturn_t netproxy_irq(int irq, void *dev_id)
 err_skb:
 	/* [REVERTME] DMA_CTL_CH(i) Workaround */
 	for (i = 0; i < EHL_PSE_ETH_DMA_TOTAL_CH; i++) {
-		writel(EHL_PSE_ETH_DMA_MISC_DTM_DRAM, priv->ioaddr
-		       + EHL_PSE_ETH_DMA_MISC_OFFSET + i * sizeof(u32));
+		value = readl(priv->ioaddr + EHL_PSE_ETH_DMA_MISC_OFFSET
+			      + i * sizeof(u32));
+		value |= EHL_PSE_ETH_DMA_MISC_DTM_DRAM;
+		writel(value, priv->ioaddr + EHL_PSE_ETH_DMA_MISC_OFFSET
+		       + i * sizeof(u32));
 	}
 
 	queue_work(priv->netprox_wq, &priv->netprox_task);
