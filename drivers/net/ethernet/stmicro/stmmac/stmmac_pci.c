@@ -349,10 +349,14 @@ static void ehl_pse_work_around(struct pci_dev *pdev,
 {
 	void __iomem *tempaddr = pcim_iomap_table(pdev)[0];
 	int i;
+	u32 val;
 
 	for (i = 0; i < EHL_PSE_ETH_DMA_TOTAL_CH; i++) {
-		writel(EHL_PSE_ETH_DMA_MISC_DTM_DRAM, tempaddr
-		       + EHL_PSE_ETH_DMA_MISC_OFFSET + i * sizeof(u32));
+		val = readl(tempaddr + EHL_PSE_ETH_DMA_MISC_OFFSET
+			    + i * sizeof(u32));
+		val |= EHL_PSE_ETH_DMA_MISC_DTM_DRAM;
+		writel(val, tempaddr + EHL_PSE_ETH_DMA_MISC_OFFSET
+		       + i * sizeof(u32));
 	}
 	plat->is_hfpga = 0;
 	plat->ehl_ao_wa = 1;
