@@ -260,6 +260,14 @@ struct stmmac_priv {
 
 	/* WA for EST */
 	int est_hw_del;
+
+	/* TX and RX PHY latency (ns) */
+	u64 phy_tx_latency_1000;
+	u64 phy_tx_latency_100;
+	u64 phy_tx_latency_10;
+	u64 phy_rx_latency_1000;
+	u64 phy_rx_latency_100;
+	u64 phy_rx_latency_10;
 };
 
 enum stmmac_state {
