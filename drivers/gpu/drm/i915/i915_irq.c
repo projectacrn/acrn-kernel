@@ -957,14 +957,14 @@ static int __intel_get_crtc_scanline(struct intel_crtc *crtc)
 	return (position + crtc->scanline_offset) % vtotal;
 }
 
-bool i915_get_crtc_scanoutpos(struct drm_device *dev, unsigned int pipe,
+bool i915_get_crtc_scanoutpos(struct drm_device *dev, unsigned int crtc_index,
 			      bool in_vblank_irq, int *vpos, int *hpos,
 			      ktime_t *stime, ktime_t *etime,
 			      const struct drm_display_mode *mode)
 {
 	struct drm_i915_private *dev_priv = to_i915(dev);
-	struct intel_crtc *intel_crtc = intel_get_crtc_for_pipe(dev_priv,
-								pipe);
+	struct intel_crtc *intel_crtc;
+	enum pipe pipe;
 	int position;
 	int vbl_start, vbl_end, hsync_start, htotal, vtotal;
 	unsigned long irqflags;
@@ -972,6 +972,8 @@ bool i915_get_crtc_scanoutpos(struct drm_device *dev, unsigned int pipe,
 		IS_G4X(dev_priv) || IS_GEN(dev_priv, 2) ||
 		mode->private_flags & I915_MODE_FLAG_USE_SCANLINE_COUNTER;
 
+	intel_crtc = get_intel_crtc_from_index(dev, crtc_index);
+	pipe = intel_crtc->pipe;
 	if (WARN_ON(!mode->crtc_clock)) {
 		DRM_DEBUG_DRIVER("trying to get scanoutpos for disabled "
 				 "pipe %c\n", pipe_name(pipe));
@@ -2768,7 +2770,11 @@ gen8_de_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 		I915_WRITE(GEN8_DE_PIPE_IIR(pipe), iir);
 
 		if (iir & GEN8_PIPE_VBLANK) {
-			drm_handle_vblank(&dev_priv->drm, pipe);
+			struct intel_crtc *crtc =
+				intel_get_crtc_for_pipe(dev_priv, pipe);
+
+			drm_handle_vblank(&dev_priv->drm,
+					  drm_crtc_index(&crtc->base));
 #if IS_ENABLED(CONFIG_DRM_I915_GVT)
 			gvt_notify_vblank(dev_priv, pipe);
 #endif

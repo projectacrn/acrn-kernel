@@ -3752,7 +3752,7 @@ bool intel_can_enable_sagv(struct intel_atomic_state *state)
 	int level, latency;
 	int sagv_block_time_us;
 
-	if (!intel_has_sagv(dev_priv))
+	if (!intel_has_sagv(dev_priv) || intel_vgpu_active(dev_priv))
 		return false;
 
 	if (IS_GEN(dev_priv, 9))
