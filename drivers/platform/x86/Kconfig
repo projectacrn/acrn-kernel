@@ -1334,6 +1334,17 @@ config PCENGINES_APU2
 	  To compile this driver as a module, choose M here: the module
 	  will be called pcengines-apuv2.
 
+config INTEL_SAFETY_ISLAND
+	tristate "Intel Safety Island"
+	depends on PCI
+	help
+	  The Intel Safety Island is a safety IP integrated in Intel's
+	  Elkhart Lake platform. This adds safety capability to the
+	  platform.
+	  This driver enables safety applications to interact with ISI.
+
+	  Say Y here if you want to support Intel ISI. If unsure, say N.
+
 config INTEL_ISHTP_ECLITE
 	tristate "Intel ISHTP eclite controller"
 	depends on INTEL_ISH_HID
