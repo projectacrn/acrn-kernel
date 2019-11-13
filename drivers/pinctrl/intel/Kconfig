@@ -82,6 +82,14 @@ config PINCTRL_DENVERTON
 	  This pinctrl driver provides an interface that allows configuring
 	  of Intel Denverton SoC pins and using them as GPIOs.
 
+config PINCTRL_ELKHARTLAKE
+	tristate "Intel Elkhart Lake SoC pinctrl and GPIO driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  This pinctrl driver provides an interface that allows configuring
+	  of Intel Elkhart Lake SoC pins and using them as GPIOs.
+
 config PINCTRL_GEMINILAKE
 	tristate "Intel Gemini Lake SoC pinctrl and GPIO driver"
 	depends on ACPI
@@ -114,5 +122,21 @@ config PINCTRL_SUNRISEPOINT
 	  Sunrisepoint is the PCH of Intel Skylake. This pinctrl driver
 	  provides an interface that allows configuring of PCH pins and
 	  using them as GPIOs.
+
+config PINCTRL_TIGERLAKE
+	tristate "Intel Tiger Lake pinctrl and GPIO driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  This pinctrl driver provides an interface that allows configuring
+	  of Intel Tiger Lake PCH pins and using them as GPIOs.
+
+config PINCTRL_WHITLEY
+	tristate "Intel Whitley pinctrl and GPIO driver"
+	depends on ACPI
+	select PINCTRL_INTEL
+	help
+	  This pinctrl driver provides an interface that allows configuring
+	  of Intel Whitley pins and using them as GPIOs.
 
 endif
