@@ -1232,6 +1232,65 @@ struct system_counterval_t convert_art_to_tsc(u64 art)
 }
 EXPORT_SYMBOL(convert_art_to_tsc);
 
+struct timespec64 get_tsc_ns_now(struct system_counterval_t *system_counter) {
+	u64 tmp, res, rem;
+	u64 cycles;
+
+	cycles = clocksource_tsc.read(NULL);
+	if (system_counter != NULL) {
+		system_counter->cycles = cycles;
+		system_counter->cs = art_related_clocksource;
+	}
+
+	rem = do_div(cycles, tsc_khz);
+
+	res = cycles * USEC_PER_SEC;
+	tmp = rem * USEC_PER_SEC;
+
+	do_div(tmp, tsc_khz);
+	res += tmp;
+
+	rem = do_div(res, NSEC_PER_SEC);
+
+	return (struct timespec64) {.tv_sec = res, .tv_nsec = rem};
+}
+EXPORT_SYMBOL(get_tsc_ns_now);
+
+static u64 convert_tsc_ns_to_tsc(struct timespec64 *tsc_ns) {
+	u64 tmp, res, rem;
+	u64 cycles;
+
+	cycles = ((u64)tsc_ns->tv_sec * NSEC_PER_SEC) + tsc_ns->tv_nsec;
+
+	rem = do_div(cycles, USEC_PER_SEC);
+
+	res = cycles * tsc_khz;
+	tmp = rem * tsc_khz;
+
+	do_div(tmp, USEC_PER_SEC);
+
+	return res + tmp;
+}
+
+
+u64 convert_tsc_ns_to_art(struct timespec64 *tsc_ns) {
+	u64 tmp, res, rem;
+	u64 cycles;
+
+	cycles = convert_tsc_ns_to_tsc( tsc_ns );
+	cycles -= art_to_tsc_offset;
+
+	rem = do_div(cycles, art_to_tsc_numerator);
+
+	res = cycles * art_to_tsc_denominator;
+	tmp = rem * art_to_tsc_denominator;
+
+	do_div(tmp, art_to_tsc_numerator);
+
+	return res + tmp;
+}
+EXPORT_SYMBOL(convert_tsc_ns_to_art);
+
 /**
  * convert_art_ns_to_tsc() - Convert ART in nanoseconds to TSC.
  * @art_ns: ART (Always Running Timer) in unit of nanoseconds
@@ -1369,9 +1428,6 @@ static int __init init_tsc_clocksource(void)
 	if (tsc_unstable)
 		goto unreg;
 
-	if (tsc_clocksource_reliable || no_tsc_watchdog)
-		clocksource_tsc.flags &= ~CLOCK_SOURCE_MUST_VERIFY;
-
 	if (boot_cpu_has(X86_FEATURE_NONSTOP_TSC_S3))
 		clocksource_tsc.flags |= CLOCK_SOURCE_SUSPEND_NONSTOP;
 
@@ -1478,6 +1534,11 @@ void __init tsc_init(void)
 	if (!boot_cpu_has(X86_FEATURE_TSC)) {
 		setup_clear_cpu_cap(X86_FEATURE_TSC_DEADLINE_TIMER);
 		return;
+	}
+
+	if (tsc_clocksource_reliable || no_tsc_watchdog) {
+		clocksource_tsc.flags &= ~CLOCK_SOURCE_MUST_VERIFY;
+		clocksource_tsc_early.flags &= ~CLOCK_SOURCE_MUST_VERIFY;
 	}
 
 	if (!tsc_khz) {
