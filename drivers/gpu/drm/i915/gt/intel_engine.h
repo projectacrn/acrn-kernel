@@ -20,6 +20,8 @@
 
 struct drm_printer;
 
+struct intel_gt;
+
 /* Early gen2 devices have a cacheline of just 32 bytes, using 64 is overkill,
  * but keeps the logic simple. Indeed, the whole purpose of this macro is just
  * to give some inclination as to some of the magic values used in the various
@@ -322,10 +324,10 @@ __intel_ring_space(unsigned int head, unsigned int tail, unsigned int size)
 	return (head - tail - CACHELINE_BYTES) & (size - 1);
 }
 
-int intel_engines_init_mmio(struct drm_i915_private *i915);
-int intel_engines_setup(struct drm_i915_private *i915);
-int intel_engines_init(struct drm_i915_private *i915);
-void intel_engines_cleanup(struct drm_i915_private *i915);
+int intel_engines_init_mmio(struct intel_gt *gt);
+int intel_engines_setup(struct intel_gt *gt);
+int intel_engines_init(struct intel_gt *gt);
+void intel_engines_cleanup(struct intel_gt *gt);
 
 int intel_engine_init_common(struct intel_engine_cs *engine);
 void intel_engine_cleanup_common(struct intel_engine_cs *engine);
@@ -349,7 +351,6 @@ void intel_engine_init_execlists(struct intel_engine_cs *engine);
 void intel_engine_init_breadcrumbs(struct intel_engine_cs *engine);
 void intel_engine_fini_breadcrumbs(struct intel_engine_cs *engine);
 
-void intel_engine_signal_breadcrumbs(struct intel_engine_cs *engine);
 void intel_engine_disarm_breadcrumbs(struct intel_engine_cs *engine);
 
 static inline void
@@ -422,8 +423,9 @@ static inline void __intel_engine_reset(struct intel_engine_cs *engine,
 	engine->serial++; /* contexts lost */
 }
 
-bool intel_engine_is_idle(struct intel_engine_cs *engine);
 bool intel_engines_are_idle(struct intel_gt *gt);
+bool intel_engine_is_idle(struct intel_engine_cs *engine);
+void intel_engine_flush_submission(struct intel_engine_cs *engine);
 
 void intel_engines_reset_default_submission(struct intel_gt *gt);
 
