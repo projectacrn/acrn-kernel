@@ -251,9 +251,10 @@ static int get_firmware_variant(struct ishtp_cl_data *client_data,
 				char *filename)
 {
 	int rv;
-	const char *val;
+	const char *val = "pseFw.bin";
 	struct device *devc = ishtp_get_pci_device(client_data->cl_device);
 
+	return snprintf(filename, FILENAME_SIZE, "intel/%s", val);
 	rv = device_property_read_string(devc, "firmware-name", &val);
 	if (rv < 0) {
 		dev_err(devc,
