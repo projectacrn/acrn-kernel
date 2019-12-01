@@ -362,7 +362,7 @@ static int ehl_rgmii_data(struct pci_dev *pdev,
 	ehl_rgmii_path_latency_data(plat);
 
 	/* Set PTP clock rate for EHL as 200MHz */
-	plat->clk_ptp_rate = 200000000;
+	plat->clk_ptp_rate = 204860000;
 
 	return ehl_common_data(pdev, plat);
 }
