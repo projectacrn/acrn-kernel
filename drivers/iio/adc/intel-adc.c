@@ -149,6 +149,16 @@
 #define ADC_VREF_UV		1600000
 #define ADC_DEFAULT_CONVERSION_TIMEOUT_MS 5000
 
+
+#define PSE_ADC_D0I3C 0x1000
+#define PSE_ADC_CGSR 0x1004
+
+#define PSE_ADC_D0I3_CIP BIT(0)
+#define PSE_ADC_D0I3_EN BIT(2)
+#define PSE_ADC_D0I3_RR BIT(3)
+#define PSE_ADC_CGSR_CG BIT(16)
+
+
 struct intel_adc {
 	struct completion completion;
 	void __iomem *regs;
@@ -200,12 +210,6 @@ static int intel_adc_single_channel_conversion(struct intel_adc *adc,
 	u32 ctrl;
 	u32 reg;
 
-	ctrl = intel_adc_readl(adc->regs, ADC_CONV_CTRL);
-	ctrl |= ADC_CONV_CTRL_CONV_MODE;
-	ctrl &= ~ADC_CONV_CTRL_NUM_SMPL_MASK;
-	ctrl |= ADC_CONV_CTRL_NUM_SMPL(1);
-	intel_adc_writel(adc->regs, ADC_CONV_CTRL, ctrl);
-
 	reg = intel_adc_readl(adc->regs, ADC_CONFIG1);
 	reg &= ~ADC_CONFIG1_CNL_SEL_MASK;
 	reg |= ADC_CONFIG1_CNL_SEL(channel->scan_index);
@@ -217,11 +221,18 @@ static int intel_adc_single_channel_conversion(struct intel_adc *adc,
 
 	intel_adc_writel(adc->regs, ADC_CONFIG1, reg);
 
+	ctrl = intel_adc_readl(adc->regs, ADC_CONV_CTRL);
+	ctrl |= ADC_CONV_CTRL_CONV_MODE;
+	ctrl &= ~ADC_CONV_CTRL_NUM_SMPL_MASK;
+	ctrl |= ADC_CONV_CTRL_NUM_SMPL(1);
+	intel_adc_writel(adc->regs, ADC_CONV_CTRL, ctrl);
+	
 	ctrl |= ADC_CONV_CTRL_REQ;
 	intel_adc_writel(adc->regs, ADC_CONV_CTRL, ctrl);
 
 	/* enable sample done IRQ event */
 	reg = intel_adc_readl(adc->regs, ADC_IMSC);
+	printk("adc IMSC = 0x%x", reg);
 	reg &= ~ADC_INTR_SMPL_DONE_INTR;
 	intel_adc_writel(adc->regs, ADC_IMSC, reg);
 
@@ -238,6 +249,12 @@ static int intel_adc_read_raw(struct iio_dev *iio,
 	struct intel_adc *adc = iio_priv(iio);
 	int shift;
 	int ret;
+	u32 reg;
+
+	pm_runtime_get_sync(iio->dev.parent);
+
+	reg = intel_adc_readl(adc->regs, ADC_PWR_STAT);
+	printk("adc ADC_PWR_STAT = 0x%x", reg);
 
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
@@ -263,6 +280,8 @@ static int intel_adc_read_raw(struct iio_dev *iio,
 		ret = -EINVAL;
 		break;
 	}
+
+	pm_runtime_put_sync(iio->dev.parent);
 
 	return ret;
 }
@@ -389,7 +408,7 @@ static int intel_adc_probe(struct pci_dev *pci, const struct pci_device_id *id)
 
 	pm_runtime_set_autosuspend_delay(&pci->dev, 1000);
 	pm_runtime_use_autosuspend(&pci->dev);
-	pm_runtime_put_autosuspend(&pci->dev);
+	pm_runtime_put_noidle(&pci->dev);
 	pm_runtime_allow(&pci->dev);
 
 	return 0;
@@ -407,6 +426,82 @@ static void intel_adc_remove(struct pci_dev *pci)
 	pci_free_irq_vectors(pci);
 }
 
+static int intel_adc_runtime_suspend(struct device *dev)
+{
+	struct pci_dev *pdev = container_of(dev, struct pci_dev, dev);
+	struct intel_adc *adc = pci_get_drvdata(pdev);
+	u32 d0i3c_reg;
+	u32 cgsr_reg;
+	unsigned long j0,j1,delay;
+
+	delay = msecs_to_jiffies(100);
+	j0 = jiffies;
+	j1 = j0 + delay;
+
+	cgsr_reg = intel_adc_readl(adc->regs, PSE_ADC_CGSR);
+	intel_adc_writel(adc->regs, PSE_ADC_CGSR, PSE_ADC_CGSR_CG);
+
+	d0i3c_reg = intel_adc_readl(adc->regs, PSE_ADC_D0I3C);
+
+	if (d0i3c_reg & PSE_ADC_D0I3_CIP) {
+		dev_info(dev, "%s d0i3c CIP detected", __func__);
+	} else {
+		intel_adc_writel(adc->regs, PSE_ADC_D0I3C, PSE_ADC_D0I3_EN);
+		d0i3c_reg = intel_adc_readl(adc->regs, PSE_ADC_D0I3C);
+	}
+
+	while (time_before(jiffies, j1)) {
+		d0i3c_reg = intel_adc_readl(adc->regs, PSE_ADC_D0I3C);
+		if (!(d0i3c_reg & PSE_ADC_D0I3_CIP)) {
+			break;
+		}
+	}
+
+	if (d0i3c_reg & PSE_ADC_D0I3_CIP) {
+		dev_info(dev, "%s: timeout waiting CIP to be cleared", __func__);
+	}
+
+	return 0;
+}
+
+static int intel_adc_runtime_resume(struct device *dev)
+{
+	struct pci_dev *pdev = container_of(dev, struct pci_dev, dev);
+	struct intel_adc *adc = pci_get_drvdata(pdev);
+	u32 d0i3c_reg;
+	u32 cgsr_reg;
+
+	cgsr_reg = intel_adc_readl(adc->regs, PSE_ADC_CGSR);
+
+	if (cgsr_reg & PSE_ADC_CGSR_CG) {
+		dev_info(dev, "%s Clock Gated, release now...", __func__);
+		intel_adc_writel(adc->regs, PSE_ADC_CGSR, (cgsr_reg & ~PSE_ADC_CGSR_CG));
+	}
+
+	d0i3c_reg = intel_adc_readl(adc->regs, PSE_ADC_D0I3C);
+
+	if (d0i3c_reg & PSE_ADC_D0I3_CIP) {
+		dev_info(dev, "%s d0i3c CIP detected", __func__);
+	} else {
+
+		if (d0i3c_reg & PSE_ADC_D0I3_EN)
+			d0i3c_reg &= ~PSE_ADC_D0I3_EN;
+
+		if (d0i3c_reg & PSE_ADC_D0I3_RR)
+			d0i3c_reg |= PSE_ADC_D0I3_RR;
+
+		intel_adc_writel(adc->regs, PSE_ADC_D0I3C, d0i3c_reg);
+		d0i3c_reg = intel_adc_readl(adc->regs, PSE_ADC_D0I3C);
+	}
+
+	return 0;
+}
+
+static const struct dev_pm_ops intel_adc_pm_ops = {
+	SET_RUNTIME_PM_OPS(intel_adc_runtime_suspend,
+			   intel_adc_runtime_resume, NULL)
+};
+
 static const struct pci_device_id intel_adc_id_table[] = {
 	{ PCI_VDEVICE(INTEL, 0x4bb8), },
 	{  } /* Terminating Entry */
@@ -418,6 +513,9 @@ static struct pci_driver intel_adc_driver = {
 	.probe		= intel_adc_probe,
 	.remove		= intel_adc_remove,
 	.id_table	= intel_adc_id_table,
+	.driver = {
+		.pm = &intel_adc_pm_ops,
+	}
 };
 module_pci_driver(intel_adc_driver);
 
