@@ -174,6 +174,12 @@ static int ish_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	init_waitqueue_head(&ishtp->suspend_wait);
 	init_waitqueue_head(&ishtp->resume_wait);
 
+	/* Enable PME for EHL */
+	if (pdev->device == EHL_Ax_DEVICE_ID) {
+		device_init_wakeup(&pdev->dev, 1);
+		dev_warn(dev, "evenadd ehl wakeup capability\n");
+	}
+
 	ret = ish_init(ishtp);
 	if (ret)
 		return ret;
@@ -310,6 +316,12 @@ static int __maybe_unused ish_resume(struct device *device)
 {
 	struct pci_dev *pdev = to_pci_dev(device);
 	struct ishtp_device *dev = pci_get_drvdata(pdev);
+
+	/* add this to finish power flow for EHL */
+	if (dev->pdev->device == EHL_Ax_DEVICE_ID) {
+		pci_set_power_state(pdev, PCI_D0);
+		dev_warn(dev->devc, "set power state to D0 for ehl\n");
+	}
 
 	ish_resume_device = device;
 	dev->resume_flag = 1;
