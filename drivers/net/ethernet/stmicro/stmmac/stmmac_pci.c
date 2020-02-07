@@ -1023,6 +1023,87 @@ static void stmmac_pci_remove(struct pci_dev *pdev)
 	pci_disable_device(pdev);
 }
 
+#define EHL_PSE_ETH_D0I3C	0x10410
+#define EHL_PSE_ETH_CGSR	0x10414
+
+#define EHL_PSE_ETH_D0I3_CIP	BIT(0)
+#define EHL_PSE_ETH_D0I3_EN	BIT(2)
+#define EHL_PSE_ETH_D0I3_RR	BIT(3)
+#define EHL_PSE_ETH_CGSR_CG	BIT(16)
+static void ehl_pse_set_d0i3(struct pci_dev *pdev)
+{
+	void __iomem *tempaddr = pcim_iomap_table(pdev)[0];
+	struct plat_stmmacenet_data *plat;
+	unsigned long j0, j1, delay;
+	u32 d0i3c_reg;
+	u32 cgsr_reg;
+
+	delay = msecs_to_jiffies(100);
+	j0 = jiffies;
+	j1 = j0 + delay;
+
+	plat = devm_kzalloc(&pdev->dev, sizeof(*plat), GFP_KERNEL);
+	if (!plat)
+		return;
+
+	if (!plat->is_pse)
+		return;
+
+	cgsr_reg = readl(tempaddr + EHL_PSE_ETH_CGSR);
+	writel(cgsr_reg | EHL_PSE_ETH_CGSR_CG, tempaddr + EHL_PSE_ETH_CGSR);
+
+	d0i3c_reg = readl(tempaddr + EHL_PSE_ETH_D0I3C);
+
+	if (d0i3c_reg & EHL_PSE_ETH_D0I3_CIP) {
+		dev_info(&pdev->dev, "%s d0i3c CIP detected", __func__);
+	} else {
+		writel(EHL_PSE_ETH_D0I3_EN, tempaddr + EHL_PSE_ETH_D0I3C);
+		d0i3c_reg = readl(tempaddr + EHL_PSE_ETH_D0I3C);
+	}
+
+	while (time_before(jiffies, j1)) {
+		d0i3c_reg = readl(tempaddr + EHL_PSE_ETH_D0I3C);
+		if (!(d0i3c_reg & EHL_PSE_ETH_D0I3_CIP))
+			break;
+	}
+
+	if (d0i3c_reg & EHL_PSE_ETH_D0I3_CIP) {
+		dev_info(&pdev->dev, "%s: timeout waiting CIP to be cleared",
+			 __func__);
+	}
+}
+
+static void ehl_pse_unset_d0i3(struct pci_dev *pdev)
+{
+	void __iomem *tempaddr = pcim_iomap_table(pdev)[0];
+	struct plat_stmmacenet_data *plat;
+	u32 d0i3c_reg;
+	u32 cgsr_reg;
+
+	plat = devm_kzalloc(&pdev->dev, sizeof(*plat), GFP_KERNEL);
+	if (!plat)
+		return;
+
+	if (!plat->is_pse)
+		return;
+
+	cgsr_reg = readl(tempaddr + EHL_PSE_ETH_CGSR);
+	writel(cgsr_reg & ~EHL_PSE_ETH_CGSR_CG, tempaddr + EHL_PSE_ETH_CGSR);
+
+	d0i3c_reg = readl(tempaddr + EHL_PSE_ETH_D0I3C);
+
+	if (d0i3c_reg & EHL_PSE_ETH_D0I3_CIP) {
+		dev_info(&pdev->dev, "%s d0i3c CIP detected", __func__);
+	} else {
+		if (d0i3c_reg & EHL_PSE_ETH_D0I3_EN)
+			d0i3c_reg &= ~EHL_PSE_ETH_D0I3_EN;
+
+		if (d0i3c_reg & EHL_PSE_ETH_D0I3_RR)
+			d0i3c_reg |= EHL_PSE_ETH_D0I3_RR;
+
+		writel(d0i3c_reg, tempaddr + EHL_PSE_ETH_D0I3C);
+	}
+}
 static int __maybe_unused stmmac_pci_suspend(struct device *dev)
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
@@ -1040,6 +1121,7 @@ static int __maybe_unused stmmac_pci_suspend(struct device *dev)
 	pci_wake_from_d3(pdev, true);
 	pci_set_power_state(pdev, PCI_D3hot);
 
+	ehl_pse_set_d0i3(pdev);
 	return 0;
 }
 
@@ -1048,6 +1130,7 @@ static int __maybe_unused stmmac_pci_resume(struct device *dev)
 	struct pci_dev *pdev = to_pci_dev(dev);
 	int ret;
 
+	ehl_pse_unset_d0i3(pdev);
 	pci_restore_state(pdev);
 	pci_set_power_state(pdev, PCI_D0);
 
