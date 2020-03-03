@@ -187,8 +187,31 @@ static struct dw_pci_controller dw_pci_controllers[] = {
 	},
 };
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_PM_SLEEP
 static int i2c_dw_pci_suspend(struct device *dev)
+{
+	struct dw_i2c_dev *i_dev = dev_get_drvdata(dev);
+
+	i_dev->suspended = true;
+	i_dev->disable(i_dev);
+
+	return 0;
+}
+
+static int i2c_dw_pci_resume(struct device *dev)
+{
+	struct dw_i2c_dev *i_dev = dev_get_drvdata(dev);
+	int ret;
+
+	ret = i_dev->init(i_dev);
+	i_dev->suspended = false;
+
+	return ret;
+}
+#endif
+
+#ifdef CONFIG_PM
+static int i2c_dw_pci_runtime_suspend(struct device *dev)
 {
 	struct dw_i2c_dev *i_dev = dev_get_drvdata(dev);
 	u32 d0i3c_reg;
@@ -228,7 +251,7 @@ static int i2c_dw_pci_suspend(struct device *dev)
 	return 0;
 }
 
-static int i2c_dw_pci_resume(struct device *dev)
+static int i2c_dw_pci_runtime_resume(struct device *dev)
 {
 	struct dw_i2c_dev *i_dev = dev_get_drvdata(dev);
 	int ret;
@@ -263,8 +286,12 @@ static int i2c_dw_pci_resume(struct device *dev)
 }
 #endif
 
-static UNIVERSAL_DEV_PM_OPS(i2c_dw_pm_ops, i2c_dw_pci_suspend,
-			    i2c_dw_pci_resume, NULL);
+static const struct dev_pm_ops i2c_dw_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(i2c_dw_pci_suspend,
+				i2c_dw_pci_resume)
+	SET_RUNTIME_PM_OPS(i2c_dw_pci_runtime_suspend, i2c_dw_pci_runtime_resume,
+				NULL)
+};
 
 static u32 i2c_dw_get_clk_rate_khz(struct dw_i2c_dev *dev)
 {
