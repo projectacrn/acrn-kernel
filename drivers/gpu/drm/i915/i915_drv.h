@@ -1292,6 +1292,9 @@ struct drm_i915_private {
 
 	I915_SELFTEST_DECLARE(struct i915_selftest_stash selftest;)
 
+	//Boot flag for Audio codec init once during boot
+	bool bootflag;
+
 	/*
 	 * NOTE: This is the dri1/ums dungeon, don't add stuff here. Your patch
 	 * will be rejected. Instead look for a better place.

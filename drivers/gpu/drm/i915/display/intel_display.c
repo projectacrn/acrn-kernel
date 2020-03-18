@@ -14114,6 +14114,18 @@ static int intel_atomic_check(struct drm_device *dev,
 		if (new_crtc_state->hw.mode.private_flags !=
 		    old_crtc_state->hw.mode.private_flags)
 			new_crtc_state->uapi.mode_changed = true;
+
+		/* Enable mode_change to make sure Audio codec init once during boot.
+		 * Otherwise, there is no display audio if no modeset happened, 
+		 * especially when BIOS fb resolution is match with mode probe.
+		 */
+               if( (dev_priv->bootflag==true) && new_crtc_state->hw.active)
+		{
+			new_crtc_state->uapi.mode_changed = true;
+
+		}
+
+
 	}
 
 	ret = drm_atomic_helper_check_modeset(dev, &state->base);
@@ -16854,6 +16866,13 @@ static int intel_initial_commit(struct drm_device *dev)
 	struct drm_modeset_acquire_ctx ctx;
 	struct intel_crtc *crtc;
 	int ret = 0;
+
+	/* Enable bootflag during boot to trigger modeset for make sure audio codec init happened.
+	 * Otherwise, there is no display audio if no modeset happened,
+	 * especially when BIOS fb resolution is match with mode probe. 
+	 */
+	struct drm_i915_private *dev_priv = to_i915(dev);
+	dev_priv->bootflag = true;
 
 	state = drm_atomic_state_alloc(dev);
 	if (!state)

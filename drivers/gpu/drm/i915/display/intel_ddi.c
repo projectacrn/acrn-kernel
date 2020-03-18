@@ -4043,6 +4043,13 @@ static void intel_ddi_update_pipe(struct intel_encoder *encoder,
 			 conn_state->content_protection !=
 			 DRM_MODE_CONTENT_PROTECTION_UNDESIRED);
 
+	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
+
+	/* Clear the bootflag once update pipe has bee called once. 
+	 * This is to make sure update pipe being called at least once during boot.
+	 */
+	dev_priv->bootflag=false;
+
 	if (!intel_crtc_has_type(crtc_state, INTEL_OUTPUT_HDMI))
 		intel_ddi_update_pipe_dp(encoder, crtc_state, conn_state);
 
