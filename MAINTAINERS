@@ -8880,6 +8880,11 @@ W:	http://lse.sourceforge.net/kdump/
 S:	Maintained
 F:	Documentation/admin-guide/kdump/
 
+KEEMBAY IPC DRIVER
+M:	Daniele Alessandrelli <daniele.alessandrelli@intel.com>
+S:	Maintained
+F:	Documentation/devicetree/bindings/soc/keembay/intel,keembay-ipc.yaml
+
 KEENE FM RADIO TRANSMITTER DRIVER
 M:	Hans Verkuil <hverkuil@xs4all.nl>
 L:	linux-media@vger.kernel.org
