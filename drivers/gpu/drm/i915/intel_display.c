@@ -3476,8 +3476,13 @@ static void skl_detach_scaler(struct intel_crtc *intel_crtc, int id)
 
 #if IS_ENABLED(CONFIG_DRM_I915_GVT)
 	if (intel_gvt_active(dev_priv) &&
-	    dev_priv->gvt->pipe_info[intel_crtc->pipe].scaler_owner[id] != 0)
-		return;
+	    dev_priv->gvt->pipe_info[intel_crtc->pipe].scaler_owner[id] != 0) {
+		int domain_id;
+
+		domain_id = dev_priv->gvt->pipe_info[intel_crtc->pipe].scaler_owner[id];
+		if (dev_priv->gvt->domain_ready[domain_id])
+			return;
+	}
 #endif
 
 	I915_WRITE(SKL_PS_CTRL(intel_crtc->pipe, id), 0);
