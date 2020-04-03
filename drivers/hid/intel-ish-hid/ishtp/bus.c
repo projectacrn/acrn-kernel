@@ -16,7 +16,7 @@
 #include "client.h"
 #include "hbm.h"
 
-static int ishtp_use_dma;
+static int ishtp_use_dma = 1;
 module_param_named(ishtp_use_dma, ishtp_use_dma, int, 0600);
 MODULE_PARM_DESC(ishtp_use_dma, "Use DMA to send messages");
 
