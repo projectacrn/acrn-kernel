@@ -200,6 +200,14 @@ config GPIO_EM
 	help
 	  Say yes here to support GPIO on Renesas Emma Mobile SoCs.
 
+config GPIO_EHL_PSE
+	tristate "Intel EHL PSE GPIO support"
+	depends on ACPI && X86
+	select GPIOLIB_IRQCHIP
+	help
+	  Driver for GPIO functionality on Intel Elkhart Lake SoC on
+	  PSE under Host-Owned mode
+
 config GPIO_EP93XX
 	def_bool y
 	depends on ARCH_EP93XX
