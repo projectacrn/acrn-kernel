@@ -208,6 +208,14 @@ config GPIO_EHL_PSE
 	  Driver for GPIO functionality on Intel Elkhart Lake SoC on
 	  PSE under Host-Owned mode
 
+config GPIO_EHL_PSE_PLAT
+	tristate "Intel EHL PSE GPIO support as platform MFD"
+	depends on ACPI && X86
+	select GPIOLIB_IRQCHIP
+	help
+	  Driver for GPIO functionality on Intel Elkhart Lake SoC on
+	  PSE under Host-Owned mode
+
 config GPIO_EP93XX
 	def_bool y
 	depends on ARCH_EP93XX
