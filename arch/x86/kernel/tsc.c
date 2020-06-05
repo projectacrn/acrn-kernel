@@ -1226,8 +1226,7 @@ static struct system_counterval_t _convert_art_to_tsc(u64 art, bool dur)
 	tmp = rem * art_to_tsc_numerator;
 
 	do_div(tmp, art_to_tsc_denominator);
-	if (!dur)
-		res += tmp + art_to_tsc_offset;
+	res += tmp;
 
 	/* TigerLake MCP A2 has a ART value of 0.5x of actual ART.
 	 * As it has same CPU family and model as the rest of the TigerLake
@@ -1239,17 +1238,22 @@ static struct system_counterval_t _convert_art_to_tsc(u64 art, bool dur)
 	    ebx_numerator == 0x5e)
 		res *= 2;
 
+	if (!dur)
+		res += art_to_tsc_offset;
+
 	return (struct system_counterval_t) {.cs = art_related_clocksource,
 			.cycles = res};
 }
 
-struct system_counterval_t convert_art_to_tsc(u64 art) {
+struct system_counterval_t convert_art_to_tsc(u64 art)
+{
 	return _convert_art_to_tsc(art, false);
 }
 EXPORT_SYMBOL(convert_art_to_tsc);
 
 static
-struct timespec64 get_tsc_ns(struct system_counterval_t *system_counter) {
+struct timespec64 get_tsc_ns(struct system_counterval_t *system_counter)
+{
 	u64 tmp, res, rem;
 	u64 cycles;
 
@@ -1259,7 +1263,8 @@ struct timespec64 get_tsc_ns(struct system_counterval_t *system_counter) {
 	res = cycles * USEC_PER_SEC;
 	tmp = rem * USEC_PER_SEC;
 
-	do_div(tmp, tsc_khz);
+	rem = do_div(tmp, tsc_khz);
+	tmp += rem > tsc_khz >> 2 ? 1 : 0;
 	res += tmp;
 
 	rem = do_div(res, NSEC_PER_SEC);
@@ -1267,7 +1272,8 @@ struct timespec64 get_tsc_ns(struct system_counterval_t *system_counter) {
 	return (struct timespec64) {.tv_sec = res, .tv_nsec = rem};
 }
 
-struct timespec64 get_tsc_ns_now(struct system_counterval_t *system_counter) {
+struct timespec64 get_tsc_ns_now(struct system_counterval_t *system_counter)
+{
 	struct system_counterval_t counterval;
 
 	if (system_counter == NULL)
@@ -1280,7 +1286,8 @@ struct timespec64 get_tsc_ns_now(struct system_counterval_t *system_counter) {
 }
 EXPORT_SYMBOL(get_tsc_ns_now);
 
-struct timespec64 convert_art_to_tsc_ns(u64 art) {
+struct timespec64 convert_art_to_tsc_ns(u64 art)
+{
 	struct system_counterval_t counterval;
 
 	counterval = _convert_art_to_tsc(art, false);
@@ -1289,7 +1296,8 @@ struct timespec64 convert_art_to_tsc_ns(u64 art) {
 }
 EXPORT_SYMBOL(convert_art_to_tsc_ns);
 
-struct timespec64 convert_art_to_tsc_ns_duration(u64 art) {
+struct timespec64 convert_art_to_tsc_ns_duration(u64 art)
+{
 	struct system_counterval_t counterval;
 
 	counterval = _convert_art_to_tsc(art, true);
@@ -1298,11 +1306,12 @@ struct timespec64 convert_art_to_tsc_ns_duration(u64 art) {
 }
 EXPORT_SYMBOL(convert_art_to_tsc_ns_duration);
 
-static u64 convert_tsc_ns_to_tsc(struct timespec64 *tsc_ns) {
+static u64 convert_tsc_ns_to_tsc(struct timespec64 *tsc_ns)
+{
 	u64 tmp, res, rem;
 	u64 cycles;
 
-	cycles = ((u64)tsc_ns->tv_sec * NSEC_PER_SEC) + tsc_ns->tv_nsec;
+	cycles = timespec64_to_ns(tsc_ns);
 
 	rem = do_div(cycles, USEC_PER_SEC);
 
@@ -1315,11 +1324,12 @@ static u64 convert_tsc_ns_to_tsc(struct timespec64 *tsc_ns) {
 }
 
 
-static u64 _convert_tsc_ns_to_art(struct timespec64 *tsc_ns, bool dur) {
+static u64 _convert_tsc_ns_to_art(struct timespec64 *tsc_ns, bool dur)
+{
 	u64 tmp, res, rem;
 	u64 cycles;
 
-	cycles = convert_tsc_ns_to_tsc( tsc_ns );
+	cycles = convert_tsc_ns_to_tsc(tsc_ns);
 	if (!dur)
 		cycles -= art_to_tsc_offset;
 
@@ -1328,17 +1338,20 @@ static u64 _convert_tsc_ns_to_art(struct timespec64 *tsc_ns, bool dur) {
 	res = cycles * art_to_tsc_denominator;
 	tmp = rem * art_to_tsc_denominator;
 
-	do_div(tmp, art_to_tsc_numerator);
+	rem = do_div(tmp, art_to_tsc_numerator);
+	tmp += rem > art_to_tsc_numerator >> 2 ? 1 : 0;
 
 	return res + tmp;
 }
 
-u64 convert_tsc_ns_to_art(struct timespec64 *tsc_ns) {
+u64 convert_tsc_ns_to_art(struct timespec64 *tsc_ns)
+{
 	return _convert_tsc_ns_to_art(tsc_ns, false);
 }
 EXPORT_SYMBOL(convert_tsc_ns_to_art);
 
-u64 convert_tsc_ns_to_art_duration(struct timespec64 *tsc_ns) {
+u64 convert_tsc_ns_to_art_duration(struct timespec64 *tsc_ns)
+{
 	return _convert_tsc_ns_to_art(tsc_ns, true);
 }
 EXPORT_SYMBOL(convert_tsc_ns_to_art_duration);
@@ -1480,6 +1493,9 @@ static int __init init_tsc_clocksource(void)
 	if (tsc_unstable)
 		goto unreg;
 
+	if (tsc_clocksource_reliable || no_tsc_watchdog)
+		clocksource_tsc.flags &= ~CLOCK_SOURCE_MUST_VERIFY;
+
 	if (boot_cpu_has(X86_FEATURE_NONSTOP_TSC_S3))
 		clocksource_tsc.flags |= CLOCK_SOURCE_SUSPEND_NONSTOP;
 
@@ -1586,11 +1602,6 @@ void __init tsc_init(void)
 	if (!boot_cpu_has(X86_FEATURE_TSC)) {
 		setup_clear_cpu_cap(X86_FEATURE_TSC_DEADLINE_TIMER);
 		return;
-	}
-
-	if (tsc_clocksource_reliable || no_tsc_watchdog) {
-		clocksource_tsc.flags &= ~CLOCK_SOURCE_MUST_VERIFY;
-		clocksource_tsc_early.flags &= ~CLOCK_SOURCE_MUST_VERIFY;
 	}
 
 	if (!tsc_khz) {

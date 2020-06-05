@@ -767,6 +767,16 @@ config WMI_BMOF
 	  To compile this driver as a module, choose M here: the module will
 	  be called wmi-bmof.
 
+config INTEL_WMI_SBL_FW_UPDATE
+   tristate "Intel WMI Slim Bootloader firmware update signaling driver"
+   depends on ACPI_WMI
+   help
+     Say Y here if you want to be able to use the WMI interface to signal
+     Slim Bootloader to trigger update on next reboot.
+
+     To compile this driver as a module, choose M here: the module will
+     be called intel-wmi-sbl-fw-update.
+
 config INTEL_WMI_THUNDERBOLT
 	tristate "Intel WMI thunderbolt force power driver"
 	depends on ACPI_WMI
@@ -1341,6 +1351,17 @@ config INTEL_ISHTP_ECLITE
 	help
 	  If you say Y here, you get support for talking to eclite fw on a
 	  dedicated low power chip over ISH Transport Protocol (ISHTP).
+
+config INTEL_SAFETY_ISLAND
+	tristate "Intel Safety Island"
+	depends on PCI
+	help
+	  The Intel Safety Island is a safety IP integrated in Intel's
+	  Elkhart Lake platform. This adds safety capability to the
+	  platform.
+	  This driver enables safety applications to interact with ISI.
+
+	  Say Y here if you want to support Intel ISI. If unsure, say N.
 
 source "drivers/platform/x86/intel_speed_select_if/Kconfig"
 

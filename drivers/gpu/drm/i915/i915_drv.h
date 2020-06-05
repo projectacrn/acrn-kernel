@@ -61,6 +61,7 @@
 #include "i915_fixed.h"
 #include "i915_params.h"
 #include "i915_reg.h"
+#include "i915_pvinfo.h"
 #include "i915_utils.h"
 
 #include "display/intel_bios.h"
@@ -115,6 +116,13 @@
 
 struct drm_i915_gem_object;
 
+/*
+ * The code assumes that the hpd_pins below have consecutive values and
+ * starting with HPD_PORT_A, the HPD pin associated with any port can be
+ * retrieved by adding the corresponding port (or phy) enum value to
+ * HPD_PORT_A in most cases. For example:
+ * HPD_PORT_C = HPD_PORT_A + PHY_C - PHY_A
+ */
 enum hpd_pin {
 	HPD_NONE = 0,
 	HPD_TV = HPD_NONE,     /* TV is known to be unreliable */
@@ -621,6 +629,9 @@ struct i915_gem_mm {
 
 #define I915_ENGINE_WEDGED_TIMEOUT  (60 * HZ)  /* Reset but no recovery? */
 
+/* Amount of SAGV/QGV points, BSpec precisely defines this */
+#define I915_NUM_QGV_POINTS 8
+
 struct ddi_vbt_port_info {
 	/* Non-NULL if port present. */
 	const struct child_device_config *child;
@@ -877,6 +888,7 @@ struct i915_virtual_gpu {
 	struct mutex lock; /* serialises sending of g2v_notify command pkts */
 	bool active;
 	u32 caps;
+	u32 scaler_owned;
 };
 
 /* used in computing the new watermarks state */
@@ -925,6 +937,10 @@ struct drm_i915_private {
 	 * hardware functions and similarly removed from the accessible range.
 	 */
 	resource_size_t stolen_usable_size;	/* Total size minus reserved ranges */
+
+	struct gvt_shared_page *shared_page;
+	spinlock_t shared_page_lock;
+	spinlock_t pvmmio_ppgtt_lock;
 
 	struct intel_uncore uncore;
 	struct intel_uncore_mmio_debug mmio_debug;
@@ -1237,7 +1253,8 @@ struct drm_i915_private {
 	} dram_info;
 
 	struct intel_bw_info {
-		unsigned int deratedbw[3]; /* for each QGV point */
+		/* for each QGV point */
+		unsigned int deratedbw[I915_NUM_QGV_POINTS];
 		u8 num_qgv_points;
 		u8 num_planes;
 	} max_bw[6];
@@ -1788,6 +1805,17 @@ static inline bool intel_vgpu_active(struct drm_i915_private *dev_priv)
 
 int i915_getparam_ioctl(struct drm_device *dev, void *data,
 			struct drm_file *file_priv);
+
+#ifdef CONFIG_DRM_I915_GVT
+int i915_gem_gvtbuffer_ioctl(struct drm_device *dev, void *data,
+			     struct drm_file *file);
+#else
+static inline int i915_gem_gvtbuffer_ioctl(struct drm_device *dev, void *data,
+			     struct drm_file *file)
+{
+	return -EINVAL;
+}
+#endif
 
 /* i915_gem.c */
 int i915_gem_init_userptr(struct drm_i915_private *dev_priv);

@@ -32,15 +32,19 @@ static void config_sub_second_increment(void __iomem *ioaddr,
 	unsigned long data;
 	u32 reg_value;
 
-	/* For GMAC3.x, 4.x versions, convert the ptp_clock to nano second
-	 *	formula = (1/ptp_clock) * 1000000000
-	 * where ptp_clock is 50MHz if fine method is used to update system
+	/* For GMAC3.x, 4.x versions, in "fine adjustement mode" set sub-second
+	 * increment to twice the number of nanoseconds of a clock cycle.
+	 * The calculation of the default_addend value by the caller will set it
+	 * to mid-range = 2^31 when the remainder of this division is zero,
+	 * which will make the accumulator overflow once every 2 ptp_clock
+	 * cycles, adding twice the number of nanoseconds of a clock cycle :
+	 * 2000000000ULL / ptp_clock.
 	 */
 	if (value & PTP_TCR_TSCFUPDT)
 		if (is_hfpga)
 			data = (1000000000ULL / 12500000);
 		else
-			data = (1000000000ULL / 50000000);
+			data = (2000000000ULL / ptp_clock);
 	else
 		data = (1000000000ULL / ptp_clock);
 
@@ -199,9 +203,15 @@ static void tstamp_interrupt(struct stmmac_priv *priv)
 	struct ptp_clock_event event;
 	unsigned long flags;
 	u32 num_snapshot;
+	u32 ts_status;
 	u32 tsync_int;
 	u64 ptp_time;
 	int i;
+
+	if (priv->plat->int_snapshot_en) {
+		wake_up(&priv->tstamp_busy_wait);
+		return;
+	}
 
 	tsync_int = readl(priv->ioaddr + GMAC_INT_STATUS) &
 			  GMAC_INT_TSIE;
@@ -209,10 +219,14 @@ static void tstamp_interrupt(struct stmmac_priv *priv)
 	if (!tsync_int)
 		return;
 
+	/* Read timestamp status to clear interrupt from either external
+	 * timestamp or start/end of PPS.
+	 */
+	ts_status = readl(priv->ioaddr + GMAC_TIMESTAMP_STATUS);
+
 	if (priv->plat->ext_snapshot_en) {
-		num_snapshot = (readl(priv->ioaddr + GMAC_TIMESTAMP_STATUS) &
-				GMAC_TIMESTAMP_ATSNS_MASK) >>
-				GMAC_TIMESTAMP_ATSNS_SHIFT;
+		num_snapshot = (ts_status & GMAC_TIMESTAMP_ATSNS_MASK) >>
+			       GMAC_TIMESTAMP_ATSNS_SHIFT;
 
 		for (i = 0; i < num_snapshot; i++) {
 			spin_lock_irqsave(&priv->ptp_lock, flags);

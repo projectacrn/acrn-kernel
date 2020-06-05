@@ -50,6 +50,7 @@ obj-$(CONFIG_PEAQ_WMI)		+= peaq-wmi.o
 obj-$(CONFIG_SURFACE3_WMI)	+= surface3-wmi.o
 obj-$(CONFIG_TOPSTAR_LAPTOP)	+= topstar-laptop.o
 obj-$(CONFIG_WMI_BMOF)		+= wmi-bmof.o
+obj-$(CONFIG_INTEL_WMI_SBL_FW_UPDATE)  += intel-wmi-sbl-fw-update.o
 obj-$(CONFIG_INTEL_WMI_THUNDERBOLT)	+= intel-wmi-thunderbolt.o
 obj-$(CONFIG_XIAOMI_WMI)	+= xiaomi-wmi.o
 
@@ -101,6 +102,9 @@ obj-$(CONFIG_I2C_MULTI_INSTANTIATE)	+= i2c-multi-instantiate.o
 obj-$(CONFIG_INTEL_ATOMISP2_PM)	+= intel_atomisp2_pm.o
 obj-$(CONFIG_PCENGINES_APU2)	+= pcengines-apuv2.o
 obj-$(CONFIG_INTEL_SPEED_SELECT_INTERFACE) += intel_speed_select_if/
+
+#Intel Safety Island
+obj-$(CONFIG_INTEL_SAFETY_ISLAND) += intel_isi_mb.o
 
 # sep and socwatch drivers
 obj-$(CONFIG_INTEL_SOCPERF)     += socperf/

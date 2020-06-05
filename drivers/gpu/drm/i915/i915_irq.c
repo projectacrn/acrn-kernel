@@ -52,6 +52,10 @@
 #include "i915_trace.h"
 #include "intel_pm.h"
 
+#if IS_ENABLED(CONFIG_DRM_I915_GVT)
+#include "gvt.h"
+#endif
+
 /**
  * DOC: interrupt handling
  *
@@ -252,6 +256,17 @@ void gen2_irq_init(struct intel_uncore *uncore,
 	intel_uncore_write16(uncore, GEN2_IMR, imr_val);
 	intel_uncore_posting_read16(uncore, GEN2_IMR);
 }
+
+
+#if IS_ENABLED(CONFIG_DRM_I915_GVT)
+static inline void gvt_notify_vblank(struct drm_i915_private *dev_priv,
+				     enum pipe pipe)
+{
+	if (dev_priv->gvt)
+		queue_work(system_highpri_wq,
+				&dev_priv->gvt->pipe_info[pipe].vblank_work);
+}
+#endif
 
 /* For display hotplug interrupt */
 static inline void
@@ -2315,8 +2330,16 @@ gen8_de_irq_handler(struct drm_i915_private *dev_priv, u32 master_ctl)
 		ret = IRQ_HANDLED;
 		I915_WRITE(GEN8_DE_PIPE_IIR(pipe), iir);
 
-		if (iir & GEN8_PIPE_VBLANK)
-			drm_handle_vblank(&dev_priv->drm, pipe);
+		if (iir & GEN8_PIPE_VBLANK) {
+			struct intel_crtc *crtc =
+				intel_get_crtc_for_pipe(dev_priv, pipe);
+
+			drm_handle_vblank(&dev_priv->drm,
+					  drm_crtc_index(&crtc->base));
+#if IS_ENABLED(CONFIG_DRM_I915_GVT)
+			gvt_notify_vblank(dev_priv, pipe);
+#endif
+		}
 
 		if (iir & GEN8_PIPE_CDCLK_CRC_DONE)
 			hsw_pipe_crc_irq_handler(dev_priv, pipe);
@@ -2646,7 +2669,9 @@ void bdw_disable_vblank(struct drm_crtc *crtc)
 	unsigned long irqflags;
 
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-	bdw_disable_pipe_irq(dev_priv, pipe, GEN8_PIPE_VBLANK);
+	/*since guest will see all the pipes, we don't want it disable vblank*/
+	if (!dev_priv->gvt)
+		bdw_disable_pipe_irq(dev_priv, pipe, GEN8_PIPE_VBLANK);
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
 }
 
@@ -2830,6 +2855,14 @@ static void gen11_irq_reset(struct drm_i915_private *dev_priv)
 
 	if (INTEL_PCH_TYPE(dev_priv) >= PCH_ICP)
 		GEN3_IRQ_RESET(uncore, SDE);
+
+	/* Wa_14010685332:icl */
+	if (INTEL_PCH_TYPE(dev_priv) == PCH_ICP) {
+		intel_uncore_rmw(uncore, SOUTH_CHICKEN1,
+				 SBCLK_RUN_REFCLK_DIS, SBCLK_RUN_REFCLK_DIS);
+		intel_uncore_rmw(uncore, SOUTH_CHICKEN1,
+				 SBCLK_RUN_REFCLK_DIS, 0);
+	}
 }
 
 void gen8_irq_power_well_post_enable(struct drm_i915_private *dev_priv,

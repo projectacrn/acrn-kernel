@@ -176,6 +176,7 @@ static int remove_intel_mgbe_phy_conv(struct mii_bus *bus)
 		return -1;
 
 	mdio_device_remove(mdiodev);
+	mdio_device_free(mdiodev);
 
 	return 0;
 }
@@ -187,6 +188,7 @@ static int intel_mgbe_common_data(struct pci_dev *pdev,
 
 	plat->pdev = pdev;
 	plat->bus_id = pci_dev_id(pdev);
+	plat->phy_addr = -1;
 
 	plat->clk_csr = 5;
 	plat->clk_trail_n = 2;
@@ -228,6 +230,13 @@ static int intel_mgbe_common_data(struct pci_dev *pdev,
 
 		/* Disable Priority config by default */
 		plat->tx_queues_cfg[i].use_prio = false;
+
+		/* Enable per queue TBS support on half of the Tx Queues.
+		 * For examples, if tx_queue_to_use = 8, then Tx Queue 4, 5, 6,
+		 * and 7 will have TBS support.
+		 */
+		if (plat->tsn_tbs_en && i >= (plat->tx_queues_to_use / 2))
+			plat->tx_queues_cfg[i].tbs_en = 1;
 	}
 
 	/* FIFO size is 4096 bytes for 1 tx/rx queue */
@@ -312,6 +321,7 @@ static int intel_mgbe_common_data(struct pci_dev *pdev,
 
 	plat->int_snapshot_num = AUX_SNAPSHOT1;
 	plat->ext_snapshot_num = AUX_SNAPSHOT0;
+	plat->int_snapshot_en = 0;
 	plat->ext_snapshot_en = 0;
 
 	return 0;
@@ -338,7 +348,6 @@ static int ehl_common_data(struct pci_dev *pdev,
 static int ehl_sgmii_data(struct pci_dev *pdev,
 			  struct plat_stmmacenet_data *plat)
 {
-	plat->phy_addr = 1;
 	plat->phy_interface = PHY_INTERFACE_MODE_SGMII;
 	ehl_sgmii_path_latency_data(plat);
 
@@ -355,7 +364,6 @@ static struct stmmac_pci_info ehl_sgmii1g_pci_info = {
 static int ehl_rgmii_data(struct pci_dev *pdev,
 			  struct plat_stmmacenet_data *plat)
 {
-	plat->phy_addr = 0;
 	plat->phy_interface = PHY_INTERFACE_MODE_RGMII;
 	ehl_rgmii_path_latency_data(plat);
 
@@ -393,6 +401,7 @@ static void ehl_pse_work_around(struct pci_dev *pdev,
 static int ehl_pse0_common_data(struct pci_dev *pdev,
 				struct plat_stmmacenet_data *plat)
 {
+#ifdef CONFIG_X86
 	if (boot_cpu_has(X86_FEATURE_ART)) {
 		unsigned int unused[3], ecx_pmc_art_freq;
 		/* Elkhart Lake PSE ART is 19.2MHz */
@@ -402,15 +411,16 @@ static int ehl_pse0_common_data(struct pci_dev *pdev,
 		plat->pmc_art_to_pse_art_ratio = ecx_pmc_art_freq /
 						 pse_art_freq;
 	}
+#endif
 
-	plat->phy_addr = 1;
 	plat->is_pse = 1;
+	plat->dma_bit_mask = 32;
 	ehl_pse_work_around(pdev, plat);
 
 	if (plat->is_hfpga)
 		plat->clk_ptp_rate = 20000000;
 	else
-		plat->clk_ptp_rate = 256000000;
+		plat->clk_ptp_rate = 200000000;
 
 	/* store A2H packets in L2 SRAM, access through BAR0 + 128KB */
 #ifdef CONFIG_STMMAC_NETWORK_PROXY
@@ -453,6 +463,7 @@ static struct stmmac_pci_info ehl_pse0_sgmii1g_pci_info = {
 static int ehl_pse1_common_data(struct pci_dev *pdev,
 				struct plat_stmmacenet_data *plat)
 {
+#ifdef CONFIG_X86
 	if (boot_cpu_has(X86_FEATURE_ART)) {
 		unsigned int unused[3], ecx_pmc_art_freq;
 		/* Elkhart Lake PSE ART is 19.2MHz */
@@ -462,15 +473,15 @@ static int ehl_pse1_common_data(struct pci_dev *pdev,
 		plat->pmc_art_to_pse_art_ratio = ecx_pmc_art_freq /
 						 pse_art_freq;
 	}
-
-	plat->phy_addr = 1;
+#endif
 	plat->is_pse = 1;
+	plat->dma_bit_mask = 32;
 	ehl_pse_work_around(pdev, plat);
 
 	if (plat->is_hfpga)
 		plat->clk_ptp_rate = 20000000;
 	else
-		plat->clk_ptp_rate = 256000000;
+		plat->clk_ptp_rate = 200000000;
 
 	/* store A2H packets in L2 SRAM, access through BAR0 + 128KB */
 #ifdef CONFIG_STMMAC_NETWORK_PROXY
@@ -539,17 +550,26 @@ static int tgl_common_data(struct pci_dev *pdev,
 	return 0;
 }
 
-static int tgl_sgmii_data(struct pci_dev *pdev,
-			  struct plat_stmmacenet_data *plat)
+static int tgl_sgmii_phy0_data(struct pci_dev *pdev,
+			       struct plat_stmmacenet_data *plat)
 {
-	plat->bus_id = 1;
-	plat->phy_addr = 0;
 	plat->phy_interface = PHY_INTERFACE_MODE_SGMII;
 	return tgl_common_data(pdev, plat);
 }
 
-static struct stmmac_pci_info tgl_sgmii1g_pci_info = {
-	.setup = tgl_sgmii_data,
+static struct stmmac_pci_info tgl_sgmii1g_phy0_pci_info = {
+	.setup = tgl_sgmii_phy0_data,
+};
+
+static int tgl_sgmii_phy1_data(struct pci_dev *pdev,
+			       struct plat_stmmacenet_data *plat)
+{
+	plat->phy_interface = PHY_INTERFACE_MODE_SGMII;
+	return tgl_common_data(pdev, plat);
+}
+
+static struct stmmac_pci_info tgl_sgmii1g_phy1_pci_info = {
+	.setup = tgl_sgmii_phy1_data,
 };
 
 static int synp_haps_sgmii_data(struct pci_dev *pdev,
@@ -596,7 +616,6 @@ static int icl_sgmii_data(struct pci_dev *pdev,
 	int ret;
 
 	plat->bus_id = 1;
-	plat->phy_addr = 1;
 	plat->phy_interface = PHY_INTERFACE_MODE_SGMII;
 
 	plat->rx_queues_to_use = 4;
@@ -1061,6 +1080,8 @@ static SIMPLE_DEV_PM_OPS(stmmac_pm_ops, stmmac_pci_suspend, stmmac_pci_resume);
 #define STMMAC_EHL_PSE1_SGMII1G_ID	0x4bb1
 #define STMMAC_EHL_PSE1_SGMII2G5_ID	0x4bb2
 #define STMMAC_TGL_SGMII1G_ID	0xa0ac
+#define STMMAC_TGLH_SGMII1G_0_ID 0x43ac
+#define STMMAC_TGLH_SGMII1G_1_ID 0x43a2
 #define STMMAC_GMAC5_ID		0x7102
 #define DEVICE_ID_HAPS_6X	0x7101
 #define STMMAC_ICP_LP_ID	0x34ac
@@ -1089,7 +1110,12 @@ static const struct pci_device_id stmmac_id_table[] = {
 		      ehl_pse1_sgmii1g_pci_info),
 	STMMAC_DEVICE(INTEL, STMMAC_EHL_PSE1_SGMII2G5_ID,
 		      ehl_pse1_sgmii1g_pci_info),
-	STMMAC_DEVICE(INTEL, STMMAC_TGL_SGMII1G_ID, tgl_sgmii1g_pci_info),
+	STMMAC_DEVICE(INTEL, STMMAC_TGL_SGMII1G_ID,
+		      tgl_sgmii1g_phy0_pci_info),
+	STMMAC_DEVICE(INTEL, STMMAC_TGLH_SGMII1G_0_ID,
+		      tgl_sgmii1g_phy0_pci_info),
+	STMMAC_DEVICE(INTEL, STMMAC_TGLH_SGMII1G_1_ID,
+		      tgl_sgmii1g_phy1_pci_info),
 	STMMAC_DEVICE(SYNOPSYS, STMMAC_GMAC5_ID, snps_gmac5_pci_info),
 	STMMAC_DEVICE(SYNOPSYS, DEVICE_ID_HAPS_6X, synp_haps_pci_info),
 	STMMAC_DEVICE(INTEL, STMMAC_ICP_LP_ID, icl_pci_info),

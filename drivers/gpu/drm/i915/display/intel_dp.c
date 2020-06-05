@@ -699,7 +699,7 @@ u32 intel_dp_pack_aux(const u8 *src, int src_bytes)
 	return v;
 }
 
-static void intel_dp_unpack_aux(u32 src, u8 *dst, int dst_bytes)
+void intel_dp_unpack_aux(u32 src, u8 *dst, int dst_bytes)
 {
 	int i;
 	if (dst_bytes > 4)
@@ -2308,6 +2308,17 @@ bool intel_dp_limited_color_range(const struct intel_crtc_state *crtc_state,
 	}
 }
 
+static bool intel_dp_port_has_audio(struct drm_i915_private *dev_priv,
+				    enum port port)
+{
+	if (IS_G4X(dev_priv))
+		return false;
+	if (INTEL_GEN(dev_priv) < 12 && port == PORT_A)
+		return false;
+
+	return true;
+}
+
 int
 intel_dp_compute_config(struct intel_encoder *encoder,
 			struct intel_crtc_state *pipe_config,
@@ -2341,7 +2352,7 @@ intel_dp_compute_config(struct intel_encoder *encoder,
 		return ret;
 
 	pipe_config->has_drrs = false;
-	if (IS_G4X(dev_priv) || port == PORT_A)
+	if (!intel_dp_port_has_audio(dev_priv, port))
 		pipe_config->has_audio = false;
 	else if (intel_conn_state->force_audio == HDMI_AUDIO_AUTO)
 		pipe_config->has_audio = intel_dp->has_audio;
@@ -2547,7 +2558,12 @@ static void wait_panel_status(struct intel_dp *intel_dp,
 			I915_READ(pp_stat_reg),
 			I915_READ(pp_ctrl_reg));
 
-	if (intel_de_wait_for_register(dev_priv, pp_stat_reg,
+	/*
+	 * Only wait for panel status if we are not in a GVT guest environment,
+	 * because such a wait in a GVT guest environment doesn't make any sense
+	 * as we are exposing virtual DP monitors to the guest.
+	 */
+	if (!intel_vgpu_active(dev_priv) && intel_de_wait_for_register(dev_priv, pp_stat_reg,
 				       mask, value, 5000))
 		DRM_ERROR("Panel status timeout: status %08x control %08x\n",
 				I915_READ(pp_stat_reg),
@@ -5476,25 +5492,23 @@ static bool bxt_digital_port_connected(struct intel_encoder *encoder)
 	return I915_READ(GEN8_DE_PORT_ISR) & bit;
 }
 
-static bool icl_combo_port_connected(struct drm_i915_private *dev_priv,
-				     struct intel_digital_port *intel_dig_port)
+static bool intel_combo_phy_connected(struct drm_i915_private *dev_priv,
+				      enum phy phy)
 {
-	enum port port = intel_dig_port->base.port;
-
-	if (HAS_PCH_MCC(dev_priv) && port == PORT_C)
+	if (HAS_PCH_MCC(dev_priv) && phy == PHY_C)
 		return I915_READ(SDEISR) & SDE_TC_HOTPLUG_ICP(PORT_TC1);
 
-	return I915_READ(SDEISR) & SDE_DDI_HOTPLUG_ICP(port);
+	return I915_READ(SDEISR) & SDE_DDI_HOTPLUG_ICP(phy);
 }
 
-static bool icl_digital_port_connected(struct intel_encoder *encoder)
+static bool icp_digital_port_connected(struct intel_encoder *encoder)
 {
 	struct drm_i915_private *dev_priv = to_i915(encoder->base.dev);
 	struct intel_digital_port *dig_port = enc_to_dig_port(&encoder->base);
 	enum phy phy = intel_port_to_phy(dev_priv, encoder->port);
 
 	if (intel_phy_is_combo(dev_priv, phy))
-		return icl_combo_port_connected(dev_priv, dig_port);
+		return intel_combo_phy_connected(dev_priv, phy);
 	else if (intel_phy_is_tc(dev_priv, phy))
 		return intel_tc_port_connected(dig_port);
 	else
@@ -5525,9 +5539,9 @@ static bool __intel_digital_port_connected(struct intel_encoder *encoder)
 			return g4x_digital_port_connected(encoder);
 	}
 
-	if (INTEL_GEN(dev_priv) >= 11)
-		return icl_digital_port_connected(encoder);
-	else if (IS_GEN(dev_priv, 10) || IS_GEN9_BC(dev_priv))
+	if (INTEL_PCH_TYPE(dev_priv) >= PCH_ICP)
+		return icp_digital_port_connected(encoder);
+	else if (INTEL_PCH_TYPE(dev_priv) >= PCH_SPT)
 		return spt_digital_port_connected(encoder);
 	else if (IS_GEN9_LP(dev_priv))
 		return bxt_digital_port_connected(encoder);

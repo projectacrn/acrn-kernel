@@ -48,9 +48,13 @@ struct stmmac_tx_info {
 	bool is_jumbo;
 };
 
+#define STMMAC_TBS_AVAIL	BIT(0)
+#define STMMAC_TBS_EN		BIT(1)
+
 /* Frequently used values are kept adjacent for cache effect */
 struct stmmac_tx_queue {
 	u32 tx_count_frames;
+	int tbs;
 	struct timer_list txtimer;
 	u32 queue_index;
 	struct stmmac_priv *priv_data;
@@ -189,6 +193,7 @@ struct stmmac_priv {
 	struct device *device;
 	struct mac_device_info *hw;
 	int (*hwif_quirks)(struct stmmac_priv *priv);
+	wait_queue_head_t tstamp_busy_wait;
 	struct mutex lock;
 	int hwts_all;
 
@@ -235,7 +240,6 @@ struct stmmac_priv {
 	int tx_lpi_enabled;
 	unsigned int mode;
 	unsigned int chain_mode;
-	int enhanced_tx_desc;
 	int extend_desc;
 	struct hwtstamp_config tstamp_config;
 	struct ptp_clock *ptp_clock;
@@ -272,7 +276,6 @@ struct stmmac_priv {
 
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *dbgfs_dir;
-	struct notifier_block stmmac_notifier;
 #endif
 
 	unsigned long state;
@@ -281,7 +284,6 @@ struct stmmac_priv {
 #ifdef CONFIG_STMMAC_NETWORK_PROXY
 	/* Network Proxy A2H Worker */
 	struct workqueue_struct *netprox_wq;
-	struct work_struct netprox_task;
 	bool networkproxy_exit;
 #endif
 
@@ -300,6 +302,9 @@ struct stmmac_priv {
 
 	/* WA for EST */
 	int est_hw_del;
+
+	/* Flag to track driver state from normal->xdp or vice versa */
+	bool cur_mode_is_normal;
 
 	/* XDP BPF Program */
 	struct bpf_prog *xdp_prog;
@@ -359,7 +364,11 @@ static inline bool stmmac_enabled_xdp(struct stmmac_priv *priv)
 
 static inline bool queue_is_xdp(struct stmmac_priv *priv, u32 queue_index)
 {
-	return (priv->tx_queue_is_xdp[queue_index] == true);
+	if (priv->tx_queue_is_xdp[queue_index] &&
+	    !priv->cur_mode_is_normal)
+		return true;
+
+	return false;
 }
 
 static inline void set_queue_xdp(struct stmmac_priv *priv, u32 queue_index)
@@ -375,6 +384,9 @@ static inline void clear_queue_xdp(struct stmmac_priv *priv, u32 queue_index)
 static inline struct stmmac_tx_queue *get_tx_queue(struct stmmac_priv *priv,
 						   u32 queue_index)
 {
+	if (queue_is_xdp(priv, queue_index) && !priv->cur_mode_is_normal)
+		return &priv->tx_queue[queue_index];
+
 	return queue_is_xdp(priv, queue_index) ?
 	       &priv->xdp_queue[queue_index - priv->plat->num_queue_pairs] :
 	       &priv->tx_queue[queue_index];

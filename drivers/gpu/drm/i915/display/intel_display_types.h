@@ -90,8 +90,8 @@ struct intel_framebuffer {
 	/* for each plane in the normal GTT view */
 	struct {
 		unsigned int x, y;
-	} normal[2];
-	/* for each plane in the rotated GTT view */
+	} normal[4];
+	/* for each plane in the rotated GTT view for no-CCS formats */
 	struct {
 		unsigned int x, y;
 		unsigned int pitch; /* pixels */
@@ -555,7 +555,7 @@ struct intel_plane_state {
 		 */
 		u32 stride;
 		int x, y;
-	} color_plane[2];
+	} color_plane[4];
 
 	/* plane control register */
 	u32 ctl;
@@ -620,6 +620,7 @@ struct intel_initial_plane_config {
 struct intel_scaler {
 	int in_use;
 	u32 mode;
+	int owned;
 };
 
 struct intel_crtc_scaler_state {
@@ -1607,7 +1608,12 @@ intel_crtc_has_dp_encoder(const struct intel_crtc_state *crtc_state)
 static inline void
 intel_wait_for_vblank(struct drm_i915_private *dev_priv, enum pipe pipe)
 {
-	drm_wait_one_vblank(&dev_priv->drm, pipe);
+	struct intel_crtc *crtc;
+
+	crtc = intel_get_crtc_for_pipe(dev_priv, pipe);
+	if (crtc)
+		drm_wait_one_vblank(&dev_priv->drm,
+				    drm_crtc_index(&crtc->base));
 }
 static inline void
 intel_wait_for_vblank_if_active(struct drm_i915_private *dev_priv, enum pipe pipe)
