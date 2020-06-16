@@ -2875,6 +2875,10 @@ static void gen11_irq_reset(struct drm_i915_private *dev_priv)
 				 SBCLK_RUN_REFCLK_DIS, SBCLK_RUN_REFCLK_DIS);
 		intel_uncore_rmw(uncore, SOUTH_CHICKEN1,
 				 SBCLK_RUN_REFCLK_DIS, 0);
+	} else if (INTEL_PCH_TYPE(dev_priv) == PCH_MCC) {
+		printk(KERN_ERR "Setting south_chicken1 SBCLK_RUN_REFCLK_DIS\n");
+		intel_uncore_rmw(uncore, SOUTH_CHICKEN1,
+				 SBCLK_RUN_REFCLK_DIS, SBCLK_RUN_REFCLK_DIS);
 	}
 }
 
