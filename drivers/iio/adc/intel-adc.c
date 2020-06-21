@@ -75,6 +75,9 @@
 /* ADC FIFO Status */
 #define ADC_FIFO_STTS_COUNT		GENMASK(9, 0)
 
+/* ADC FIFO Control */
+#define ADC_FIFO_CTRL_RESET		BIT(0)
+
 /* ADC Ctrl */
 #define ADC_CTRL_EN			BIT(0)
 #define ADC_CTRL_DATA_THRSHLD_MODE(r)	(((r) >> 1) & 3)
@@ -179,8 +182,15 @@ static void intel_adc_enable(struct intel_adc *adc)
 {
 	u32 ctrl;
 	u32 cfg1;
+	u32 reg;
 
+	/* Perform a RESET */
 	cfg1 = intel_adc_readl(adc->regs, ADC_CONFIG1);
+	cfg1 |= ADC_CONFIG1_ADC_RESET;
+	intel_adc_writel(adc->regs, ADC_CONFIG1, cfg1);
+
+	reg = intel_adc_readl(adc->regs, ADC_PWR_STAT);
+
 	cfg1 &= ~ADC_CONFIG1_ADC_RESET;
 	intel_adc_writel(adc->regs, ADC_CONFIG1, cfg1);
 
@@ -209,6 +219,13 @@ static int intel_adc_single_channel_conversion(struct intel_adc *adc,
 {
 	u32 ctrl;
 	u32 reg;
+	int ret;
+
+	/* Perform FIFO reset & disable TIMESTAMP */
+	reg = intel_adc_readl(adc->regs, ADC_FIFO_CTRL);
+	reg |= ADC_FIFO_CTRL_RESET;
+	reg &= ~GENMASK(17, 8);
+	intel_adc_writel(adc->regs, ADC_FIFO_CTRL, reg);
 
 	reg = intel_adc_readl(adc->regs, ADC_CONFIG1);
 	reg &= ~ADC_CONFIG1_CNL_SEL_MASK;
@@ -221,23 +238,39 @@ static int intel_adc_single_channel_conversion(struct intel_adc *adc,
 
 	intel_adc_writel(adc->regs, ADC_CONFIG1, reg);
 
+	intel_adc_writel(adc->regs, ADC_CONV_DELAY, 0x0);
+
 	ctrl = intel_adc_readl(adc->regs, ADC_CONV_CTRL);
+	ctrl &= ~ADC_CONV_CTRL_CONV_MODE;
+	intel_adc_writel(adc->regs, ADC_CONV_CTRL, ctrl);
+
+
 	ctrl |= ADC_CONV_CTRL_CONV_MODE;
 	ctrl &= ~ADC_CONV_CTRL_NUM_SMPL_MASK;
 	ctrl |= ADC_CONV_CTRL_NUM_SMPL(1);
 	intel_adc_writel(adc->regs, ADC_CONV_CTRL, ctrl);
-	
-	ctrl |= ADC_CONV_CTRL_REQ;
-	intel_adc_writel(adc->regs, ADC_CONV_CTRL, ctrl);
 
-	/* enable sample done IRQ event */
 	reg = intel_adc_readl(adc->regs, ADC_IMSC);
-	printk("adc IMSC = 0x%x", reg);
 	reg &= ~ADC_INTR_SMPL_DONE_INTR;
 	intel_adc_writel(adc->regs, ADC_IMSC, reg);
 
-	usleep_range(1000, 5000);
-	adc->value = intel_adc_readl(adc->regs, ADC_FIFO_DATA);
+	reg = intel_adc_readl(adc->regs, ADC_RIS);
+	intel_adc_writel(adc->regs, ADC_RIS, reg);
+
+	/* reinit the completion object, so IRQ will be used to read from FIFO */
+	reinit_completion(&adc->completion);
+
+	ctrl |= ADC_CONV_CTRL_REQ;
+	intel_adc_writel(adc->regs, ADC_CONV_CTRL, ctrl);
+
+	/* Let's wait for the completion to get the value */
+	ret = wait_for_completion_interruptible_timeout(&adc->completion, HZ);
+	if (ret == 0)
+		ret = -ETIMEDOUT;
+	if (ret < 0)
+		return ret;
+
+	*val = adc->value;
 
 	return 0;
 }
@@ -253,9 +286,6 @@ static int intel_adc_read_raw(struct iio_dev *iio,
 
 	pm_runtime_get_sync(iio->dev.parent);
 
-	reg = intel_adc_readl(adc->regs, ADC_PWR_STAT);
-	printk("adc ADC_PWR_STAT = 0x%x", reg);
-
 	switch (mask) {
 	case IIO_CHAN_INFO_RAW:
 		shift = channel->scan_type.shift;
@@ -265,6 +295,7 @@ static int intel_adc_read_raw(struct iio_dev *iio,
 			break;
 
 		intel_adc_enable(adc);
+
 
 		ret = intel_adc_single_channel_conversion(adc, channel, val);
 		if (ret) {
@@ -349,6 +380,7 @@ static irqreturn_t intel_adc_irq(int irq, void *_adc)
 
 	intel_adc_writel(adc->regs, ADC_IMSC, ADC_INTR_ALL_MASK);
 	adc->value = intel_adc_readl(adc->regs, ADC_FIFO_DATA);
+
 	complete(&adc->completion);
 
 	return IRQ_HANDLED;
