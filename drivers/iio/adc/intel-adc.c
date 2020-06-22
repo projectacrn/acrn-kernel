@@ -12,6 +12,8 @@
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/iio/iio.h>
+#include <linux/iio/events.h>
+
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -67,6 +69,7 @@
 #define ADC_FIFO_DATA			0x0800
 
 #define ADC_BITS			14
+#define ADC_NUM_CNL			8
 
 /* ADC DMA Ctrl */
 #define ADC_DMA_CTRL_EN			BIT(0)
@@ -79,8 +82,21 @@
 #define ADC_FIFO_CTRL_RESET		BIT(0)
 
 /* ADC Ctrl */
-#define ADC_CTRL_EN			BIT(0)
-#define ADC_CTRL_DATA_THRSHLD_MODE(r)	(((r) >> 1) & 3)
+#define ADC_CTRL_EN				BIT(0)
+#define ADC_CTRL_DATA_THRSHLD_MODE_MASK		GENMASK(2, 1)
+#define ADC_CTRL_DATA_THRSHLD_MODE_DISABLE	0
+#define ADC_CTRL_DATA_THRSHLD_MODE_PASSIVE	1
+#define ADC_CTRL_DATA_THRSHLD_MODE_ACTIVE	2
+
+/* ADC Loop Ctrl */
+#define ADC_LOOP_CTRL_MODE_MASK			GENMASK(1, 0)
+#define ADC_LOOP_CTRL_DISABLED			0
+#define ADC_LOOP_CTRL_CONTINUOS			1
+#define ADC_LOOP_CTRL_DEFINED			2
+#define ADC_NUM_LOOP_MASK			GENMASK(13, 4)
+#define ADC_LOOP_MODE_START			BIT(16)
+#define ADC_NUM_SLOTS_MASK			GENMASK(22, 20)
+#define ADC_NUM_SLOTS_SHIFT			20
 
 /* ADC Conversion Ctrl */
 #define ADC_CONV_CTRL_NUM_SMPL_MASK	GENMASK(17, 8)
@@ -101,6 +117,14 @@
 #define ADC_CONFIG1_CNL_SEL_MASK	GENMASK(3, 1)
 #define ADC_CONFIG1_CNL_SEL(ch)		((ch) << 1)
 #define ADC_CONFIG1_DIFF_SE_SEL		BIT(0)
+
+/* ADC Threshold Register */
+#define ADC_DATA_THRESHOLD(n)		((n) * 0x4) + ADC_DATA_THRESHOLD_0
+#define ADC_DATA_THRESHOLD_HIGH_MASK	GENMASK(15, 0)
+#define ADC_DATA_THRESHOLD_LOW_MASK	GENMASK(31, 16)
+
+/* ADC Threshold Configuration */
+#define ADC_THRESHOLD_LOW_SHIFT		8
 
 /* ADC Interrupt Mask Register */
 #define ADC_INTR_LOOP_DONE_INTR		BIT(22)
@@ -149,6 +173,26 @@
 				ADC_INTR_FIFO_FULL_INTR |		\
 				ADC_INTR_SMPL_DONE_INTR)
 
+#define ADC_INTR_DATA_THRSHLD_LOW	(ADC_INTR_DATA_THRSHLD_LOW_INTR_7 |	\
+					ADC_INTR_DATA_THRSHLD_LOW_INTR_6 |	\
+					ADC_INTR_DATA_THRSHLD_LOW_INTR_5 |	\
+					ADC_INTR_DATA_THRSHLD_LOW_INTR_4 |	\
+					ADC_INTR_DATA_THRSHLD_LOW_INTR_3 |	\
+					ADC_INTR_DATA_THRSHLD_LOW_INTR_2 |	\
+					ADC_INTR_DATA_THRSHLD_LOW_INTR_1 |	\
+					ADC_INTR_DATA_THRSHLD_LOW_INTR_0)
+#define ADC_INTR_DATA_THRSHLD_HIGH	(ADC_INTR_DATA_THRSHLD_HIGH_INTR_7 |	\
+					ADC_INTR_DATA_THRSHLD_HIGH_INTR_6 |	\
+					ADC_INTR_DATA_THRSHLD_HIGH_INTR_5 |	\
+					ADC_INTR_DATA_THRSHLD_HIGH_INTR_4 |	\
+					ADC_INTR_DATA_THRSHLD_HIGH_INTR_3 |	\
+					ADC_INTR_DATA_THRSHLD_HIGH_INTR_2 |	\
+					ADC_INTR_DATA_THRSHLD_HIGH_INTR_1 |	\
+					ADC_INTR_DATA_THRSHLD_HIGH_INTR_0)
+
+#define ADC_INTR_DATA_THRSHLD_ALL	(ADC_INTR_DATA_THRSHLD_LOW |	\
+					ADC_INTR_DATA_THRSHLD_HIGH)
+
 #define ADC_VREF_UV		1600000
 #define ADC_DEFAULT_CONVERSION_TIMEOUT_MS 5000
 
@@ -171,7 +215,16 @@
 struct intel_adc {
 	struct completion completion;
 	void __iomem *regs;
+
+	/* Using mutex to avoid racing condition */
+	struct mutex lock;
+
+	u32 irq_value;
 	u32 value;
+	u32 threshold[ADC_NUM_CNL];
+	u32 threshold_en;
+	u32 threshold_mode;
+	int num_slots;
 };
 
 static inline void intel_adc_writel(void __iomem *base, u32 offset, u32 value)
@@ -182,6 +235,18 @@ static inline void intel_adc_writel(void __iomem *base, u32 offset, u32 value)
 static inline u32 intel_adc_readl(void __iomem *base, u32 offset)
 {
 	return readl(base + offset);
+}
+
+static int intel_adc_get_num_slots(u32 threshold_en)
+{
+	u32 temp = ((threshold_en & 0xFF) | ((threshold_en & 0xFF00) >> 8));
+	int i, count = 0;
+
+	for (i = 0; i < ADC_NUM_CNL; i++)
+		if (( temp >> i ) & 0x1 )
+			count++;
+
+	return count;
 }
 
 static void intel_adc_enable(struct intel_adc *adc)
@@ -201,6 +266,11 @@ static void intel_adc_enable(struct intel_adc *adc)
 	intel_adc_writel(adc->regs, ADC_CONFIG1, cfg1);
 
 	ctrl = intel_adc_readl(adc->regs, ADC_CTRL);
+
+	/* Configure Threshold Value */
+	ctrl &= ~ADC_CTRL_DATA_THRSHLD_MODE_MASK;
+	ctrl |= (adc->threshold_mode << 1);
+
 	ctrl |= ADC_CTRL_EN;
 	intel_adc_writel(adc->regs, ADC_CTRL, ctrl);
 
@@ -281,6 +351,74 @@ static int intel_adc_single_channel_conversion(struct intel_adc *adc,
 	return 0;
 }
 
+static int intel_adc_program_threshold_events(struct intel_adc *adc)
+{
+	u32 ctrl = 0x0;
+	u32 reg = 0x0;
+	u32 temp;
+	int i, slot_num = 0;
+
+	/* Enable Threshold using LOOP MODE, only ACTIVE THRESHOLD mode for now*/
+	if (adc->threshold_en) {
+		adc->threshold_mode = ADC_CTRL_DATA_THRSHLD_MODE_ACTIVE;
+		intel_adc_enable(adc);
+
+		/* Perform FIFO reset & disable TIMESTAMP */
+		reg = intel_adc_readl(adc->regs, ADC_FIFO_CTRL);
+		reg |= ADC_FIFO_CTRL_RESET;
+		reg &= ~GENMASK(17, 8);
+		intel_adc_writel(adc->regs, ADC_FIFO_CTRL, reg);
+
+		/* Clear all ADC_CONV_* which is for Single Channel */
+		intel_adc_writel(adc->regs, ADC_CONV_CTRL, 0x0);
+
+		/* Disabled Single Channel, and set Single Ended Mode*/
+		reg = intel_adc_readl(adc->regs, ADC_CONFIG1);
+		reg &= ~ADC_CONFIG1_CNL_SEL_MASK;
+		reg |= ADC_CONFIG1_DIFF_SE_SEL;		// Single Ended Mode
+		intel_adc_writel(adc->regs, ADC_CONFIG1, reg);
+
+		/* Enable Continuos Loop Mode */
+		ctrl &= ~ADC_LOOP_CTRL_MODE_MASK;
+		ctrl |= ADC_LOOP_CTRL_CONTINUOS;
+
+		ctrl &= ~ADC_NUM_SLOTS_MASK;
+		ctrl |= (adc->num_slots - 1) << ADC_NUM_SLOTS_SHIFT;
+
+		intel_adc_writel(adc->regs, ADC_LOOP_CTRL, ctrl);
+
+		/* Program ADC_LOOP_SEQ */
+		temp = ((adc->threshold_en & 0xFF) | ((adc->threshold_en & 0xFF00) >> 8));
+		reg = 0x0;
+		for (i = 0; i < ADC_NUM_CNL; i++) {
+			if ((temp >> i) & 0x1)
+				reg |= i << (4 * slot_num++);
+		}
+
+		intel_adc_writel(adc->regs, ADC_LOOP_SEQ, reg);
+
+		intel_adc_writel(adc->regs, ADC_THRESHOLD_CONFIG, adc->threshold_en);
+
+		/* Unmask all threshold  intr & sample done intr */
+		reg = intel_adc_readl(adc->regs, ADC_IMSC);
+		reg &= ~ADC_INTR_DATA_THRSHLD_ALL;
+		reg &= ~ADC_INTR_SMPL_DONE_INTR;
+		intel_adc_writel(adc->regs, ADC_IMSC, reg);
+
+		/* Flush existing raw interrupt */
+		reg = intel_adc_readl(adc->regs, ADC_RIS);
+		intel_adc_writel(adc->regs, ADC_RIS, reg);
+
+		ctrl |= ADC_LOOP_MODE_START;
+		intel_adc_writel(adc->regs, ADC_LOOP_CTRL, ctrl);;
+	} else {
+		adc->threshold_mode = ADC_CTRL_DATA_THRSHLD_MODE_DISABLE ;
+		intel_adc_disable(adc);
+	}
+
+	return 0;
+}
+
 static int intel_adc_read_raw(struct iio_dev *iio,
 		struct iio_chan_spec const *channel, int *val, int *val2,
 		long mask)
@@ -288,7 +426,6 @@ static int intel_adc_read_raw(struct iio_dev *iio,
 	struct intel_adc *adc = iio_priv(iio);
 	int shift;
 	int ret;
-	u32 reg;
 
 	pm_runtime_get_sync(iio->dev.parent);
 
@@ -322,8 +459,111 @@ static int intel_adc_read_raw(struct iio_dev *iio,
 	return ret;
 }
 
+static int intel_adc_read_thresh(struct iio_dev *iio,
+	const struct iio_chan_spec *chan, enum iio_event_type type,
+	enum iio_event_direction dir, enum iio_event_info info, int *val,
+	int *val2)
+{
+	struct intel_adc *adc = iio_priv(iio);
+	if (dir == IIO_EV_DIR_FALLING)
+		*val = (adc->threshold[chan->channel] & ADC_DATA_THRESHOLD_LOW_MASK) >> 16;
+	else
+		*val = adc->threshold[chan->channel] & ADC_DATA_THRESHOLD_HIGH_MASK;
+
+	return IIO_VAL_INT;
+}
+
+static int intel_adc_write_thresh(struct iio_dev *iio,
+	const struct iio_chan_spec *chan, enum iio_event_type type,
+	enum iio_event_direction dir, enum iio_event_info info, int val,
+	int val2)
+{
+	struct intel_adc *adc = iio_priv(iio);
+
+	pm_runtime_get_sync(iio->dev.parent);
+
+	switch (dir) {
+	case IIO_EV_DIR_FALLING:
+		adc->threshold[chan->channel] &= ~(ADC_FIFO_DATA_SAMPLE_MASK << 16);
+		adc->threshold[chan->channel] |= ((val & ADC_FIFO_DATA_SAMPLE_MASK) << 16);
+		break;
+	case IIO_EV_DIR_RISING:
+		adc->threshold[chan->channel] &= ~(ADC_FIFO_DATA_SAMPLE_MASK);
+		adc->threshold[chan->channel] |= (val & ADC_FIFO_DATA_SAMPLE_MASK);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	/* Write to REG */
+	intel_adc_writel(adc->regs, ADC_DATA_THRESHOLD(chan->channel), adc->threshold[chan->channel]);
+
+	pm_runtime_put_sync(iio->dev.parent);
+
+	return 0;
+}
+
+static int intel_adc_write_event_config(struct iio_dev *iio,
+	const struct iio_chan_spec *chan, enum iio_event_type type,
+	enum iio_event_direction dir, int state)
+{
+	struct intel_adc *adc = iio_priv(iio);
+	u32 ori_thresh_en = adc->threshold_en;
+
+	/* +1 for rpm usage count on first channel enabling */
+	if (state && !adc->threshold_en)
+		pm_runtime_get_sync(iio->dev.parent);
+
+	mutex_lock(&adc->lock);
+
+	/* Update internal structure */
+	if (dir == IIO_EV_DIR_FALLING) {
+		if (state == 0)
+			adc->threshold_en &= ~((1 << chan->channel)<< ADC_THRESHOLD_LOW_SHIFT);
+		else
+			adc->threshold_en |= ((1 << chan->channel)<< ADC_THRESHOLD_LOW_SHIFT);
+	} else {
+		if (state == 0)
+			adc->threshold_en &= ~(1 << chan->channel);
+		else
+			adc->threshold_en |= (1 << chan->channel);
+	}
+
+	/* Based on the enabled threshold channel, recalculate num_slots */
+	adc->num_slots = intel_adc_get_num_slots(adc->threshold_en);
+
+	intel_adc_program_threshold_events(adc);
+
+	mutex_unlock(&adc->lock);
+
+	/* -1 for rpm usage count on last channel disabling */
+	if (!state && !adc->threshold_en && ori_thresh_en)
+		pm_runtime_put_sync(iio->dev.parent);
+
+	return 0;
+}
+
+static int intel_adc_read_event_config(struct iio_dev *iio,
+	const struct iio_chan_spec *chan, enum iio_event_type type,
+	enum iio_event_direction dir)
+{
+	struct intel_adc *adc = iio_priv(iio);
+	int val;
+
+	if (dir == IIO_EV_DIR_FALLING)
+		val = (((adc->threshold_en >> ADC_THRESHOLD_LOW_SHIFT) >> chan->channel ) & 1);
+	else
+		val = ((adc->threshold_en >> chan->channel) & 1);
+
+	return val;
+}
+
 static const struct iio_info intel_adc_info = {
 	.read_raw = intel_adc_read_raw,
+	.read_event_value = intel_adc_read_thresh,
+	.write_event_value = intel_adc_write_thresh,
+	.read_event_config = intel_adc_read_event_config,
+	.write_event_config = intel_adc_write_event_config,
 };
 
 static const struct iio_event_spec intel_adc_events[] = {
@@ -335,12 +575,8 @@ static const struct iio_event_spec intel_adc_events[] = {
 	}, {
 		.type = IIO_EV_TYPE_THRESH,
 		.dir = IIO_EV_DIR_FALLING,
-		.mask_separate = BIT(IIO_EV_INFO_VALUE),
-	}, {
-		.type = IIO_EV_TYPE_THRESH,
-		.dir = IIO_EV_DIR_EITHER,
-		.mask_separate = BIT(IIO_EV_INFO_ENABLE) |
-			BIT(IIO_EV_INFO_PERIOD),
+		.mask_separate = BIT(IIO_EV_INFO_VALUE) |
+			BIT(IIO_EV_INFO_ENABLE),
 	},
 };
 
@@ -376,20 +612,54 @@ static struct iio_chan_spec const intel_adc_channels[] = {
 static irqreturn_t intel_adc_irq(int irq, void *_adc)
 {
 	struct intel_adc *adc = _adc;
+	struct iio_dev *iio = iio_priv_to_dev(adc);
+	u32 thresh;
 	u32 status;
+	u32 reg;
+	int i;
 
 	status = intel_adc_readl(adc->regs, ADC_MIS);
-
+	
 	if (!status)
 		return IRQ_NONE;
 
-	/* Support for SAMPLE DONE INTR for now only */
-	if (status & ADC_INTR_SMPL_DONE_INTR) {
-		intel_adc_writel(adc->regs, ADC_IMSC, ADC_INTR_ALL_MASK);
-		adc->value = intel_adc_readl(adc->regs, ADC_FIFO_DATA) & ADC_FIFO_DATA_SAMPLE_MASK;
+	intel_adc_writel(adc->regs, ADC_IMSC, GENMASK(23,0));
+	intel_adc_writel(adc->regs, ADC_RIS, status);
 
+	/* Processing for Sampling Done interrupt */
+	if (status & ADC_INTR_SMPL_DONE_INTR) {
+		adc->value = intel_adc_readl(adc->regs, ADC_FIFO_DATA) & ADC_FIFO_DATA_SAMPLE_MASK;
 		complete(&adc->completion);
 	}
+
+	/* Processing for Thresholding LOW and HIGH separately, then raise IIO events */
+	if (status & ADC_INTR_DATA_THRSHLD_LOW) {
+		thresh = status & ADC_INTR_DATA_THRSHLD_LOW;
+		for (i = 0; i < ADC_NUM_CNL; i++) {
+			if (thresh & ADC_INTR_DATA_THRSHLD_LOW_INTR_0)
+				iio_push_event(iio, 
+					IIO_UNMOD_EVENT_CODE(IIO_VOLTAGE, i, IIO_EV_TYPE_THRESH, IIO_EV_DIR_FALLING),
+					iio_get_time_ns(iio));
+			thresh = thresh >> 2;
+		}
+	}
+
+	if (status & ADC_INTR_DATA_THRSHLD_HIGH) {
+		thresh = status & ADC_INTR_DATA_THRSHLD_HIGH;
+		for (i = 0; i < ADC_NUM_CNL; i++) {
+			if (thresh & ADC_INTR_DATA_THRSHLD_HIGH_INTR_0)
+				iio_push_event(iio, 
+					IIO_UNMOD_EVENT_CODE(IIO_VOLTAGE, i, IIO_EV_TYPE_THRESH, IIO_EV_DIR_RISING),
+					iio_get_time_ns(iio));
+			thresh = thresh >> 2;
+		}
+	}
+
+	/* unmask all threshold  intr & sample done intr */
+	reg = intel_adc_readl(adc->regs, ADC_IMSC);
+	reg &= ~ADC_INTR_DATA_THRSHLD_ALL;
+	reg &= ~ADC_INTR_SMPL_DONE_INTR;
+	intel_adc_writel(adc->regs, ADC_IMSC, reg);
 
 	return IRQ_HANDLED;
 }
@@ -421,6 +691,11 @@ static int intel_adc_probe(struct pci_dev *pci, const struct pci_device_id *id)
 		ret = -EFAULT;
 		return ret;
 	}
+
+	/* Threshold Mode is disabled by default */
+	adc->threshold_mode = ADC_CTRL_DATA_THRSHLD_MODE_DISABLE;
+
+	mutex_init(&adc->lock);
 
 	pci_set_drvdata(pci, adc);
 	init_completion(&adc->completion);
@@ -563,3 +838,4 @@ module_pci_driver(intel_adc_driver);
 MODULE_AUTHOR("Felipe Balbi <felipe.balbi@linux.intel.com>");
 MODULE_DESCRIPTION("Intel ADC");
 MODULE_LICENSE("GPL v2");
+
