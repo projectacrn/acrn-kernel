@@ -152,6 +152,12 @@
 #define ADC_VREF_UV		1600000
 #define ADC_DEFAULT_CONVERSION_TIMEOUT_MS 5000
 
+/* ADC FIFO Data */
+#define ADC_FIFO_DATA_SAMPLE_MASK	GENMASK(15, 0)
+#define ADC_FIFO_DATA_CNL_MASK		GENMASK(18, 16)
+#define ADC_FIFO_DATA_TYPE_MASK		BIN(23)
+#define ADC_FIFO_DATA_TYPE_DATA		0
+#define ADC_FIFO_DATA_TYPE_TIMESTAMP	1
 
 #define PSE_ADC_D0I3C 0x1000
 #define PSE_ADC_CGSR 0x1004
@@ -296,7 +302,6 @@ static int intel_adc_read_raw(struct iio_dev *iio,
 
 		intel_adc_enable(adc);
 
-
 		ret = intel_adc_single_channel_conversion(adc, channel, val);
 		if (ret) {
 			intel_adc_disable(adc);
@@ -378,10 +383,13 @@ static irqreturn_t intel_adc_irq(int irq, void *_adc)
 	if (!status)
 		return IRQ_NONE;
 
-	intel_adc_writel(adc->regs, ADC_IMSC, ADC_INTR_ALL_MASK);
-	adc->value = intel_adc_readl(adc->regs, ADC_FIFO_DATA);
+	/* Support for SAMPLE DONE INTR for now only */
+	if (status & ADC_INTR_SMPL_DONE_INTR) {
+		intel_adc_writel(adc->regs, ADC_IMSC, ADC_INTR_ALL_MASK);
+		adc->value = intel_adc_readl(adc->regs, ADC_FIFO_DATA) & ADC_FIFO_DATA_SAMPLE_MASK;
 
-	complete(&adc->completion);
+		complete(&adc->completion);
+	}
 
 	return IRQ_HANDLED;
 }
