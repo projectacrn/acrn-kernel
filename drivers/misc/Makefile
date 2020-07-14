@@ -60,4 +60,5 @@ obj-$(CONFIG_XILINX_SDFEC)	+= xilinx_sdfec.o
 obj-$(CONFIG_INTEL_GNA)        += gna/
 obj-y                          += xlink-pcie/
 obj-y                          += xlink-usb/
+obj-$(CONFIG_XLINK_IPC)        += xlink-ipc/
 obj-$(CONFIG_VPUSMM)		+= vpusmm/
