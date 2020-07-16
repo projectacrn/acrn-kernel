@@ -61,4 +61,5 @@ obj-$(CONFIG_INTEL_GNA)        += gna/
 obj-y                          += xlink-pcie/
 obj-y                          += xlink-usb/
 obj-$(CONFIG_XLINK_IPC)        += xlink-ipc/
+obj-$(CONFIG_XLINK_CORE)       += xlink-core/
 obj-$(CONFIG_VPUSMM)		+= vpusmm/
