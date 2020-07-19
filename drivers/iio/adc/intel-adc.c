@@ -25,6 +25,9 @@
 #include <linux/pm_runtime.h>
 #include <linux/slab.h>
 
+#include <linux/dma-mapping.h>
+#include <linux/dmaengine.h>
+#include <linux/highmem.h>
 
 
 #define ADC_DMA_CTRL			0x0000
@@ -75,6 +78,7 @@
 #define ADC_FIFO_DATA			0x0800
 
 #define ADC_NUM_CNL			8
+#define ADC_NUM_SAMPL_DEFAULT		10
 
 /* ADC Modes Supported */
 #define ADC_MODE_SINGLE_MODE		0
@@ -84,6 +88,7 @@
 /* ADC DMA Ctrl */
 #define ADC_DMA_CTRL_EN			BIT(0)
 #define ADC_DMA_CTRL_BRST_THRSLD	GENMASK(10, 1)
+#define ADC_DMA_CTRL_BRST_THRSLD_SHIFT	1
 
 /* ADC FIFO Status */
 #define ADC_FIFO_STTS_COUNT		GENMASK(9, 0)
@@ -143,8 +148,8 @@
 #define ADC_THRESHOLD_LOW_SHIFT		8
 
 /* ADC Interrupt Mask Register */
-#define ADC_INTR_FIFO_THRHLD_INTR	BIT(21)
-#define ADC_INTR_FIFO_OVERFLOW_INTR	BIT(21)
+#define ADC_INTR_FIFO_THRHLD_INTR	BIT(23)
+#define ADC_INTR_FIFO_OVERFLOW_INTR	BIT(22)
 #define ADC_INTR_FIFO_UNDERFLOW_INTR	BIT(21)
 #define ADC_INTR_DMA_DONE_INTR		BIT(20)
 #define ADC_INTR_DATA_THRSHLD_LOW_INTR_7 BIT(19)
@@ -232,6 +237,33 @@
 #define PSE_ADC_D0I3_RR BIT(3)
 #define PSE_ADC_CGSR_CG BIT(16)
 
+/**
+ * intel_adc_dma - EHL PSE ADC dma information struct
+ * @dma_chan:		the dma channel acquired
+ * @rx_buf:		dma coherent allocated area
+ * @rx_dma_buf:		dma handler for the buffer
+ * @phys_addr:		physical address of the ADC base register
+ * @buf_idx:		index inside the dma buffer where reading was last done
+ * @rx_buf_sz:		size of buffer used by DMA operation
+ * @watermark:		number of conversions to copy before DMA triggers irq
+ * @dma_ts:		hold the start timestamp of dma operation
+ */
+struct intel_adc_dma {
+	struct dma_chan			*dma_chan;
+	
+	dma_addr_t			rx_dma_buf;
+	phys_addr_t			phys_addr;
+	int				buf_idx;
+	int				rx_buf_sz;
+	int				watermark;
+	s64				dma_ts;
+	
+	struct sg_table rx_sg;
+	void *rx_buf;
+	unsigned len;
+};
+
+
 struct intel_adc {
 	struct completion completion;
 	void __iomem *regs;
@@ -247,6 +279,8 @@ struct intel_adc {
 	u32 threshold[ADC_NUM_CNL];
 	u32 threshold_en;
 	int num_slots;
+
+	struct intel_adc_dma dma_st;
 };
 
 static inline void intel_adc_writel(void __iomem *base, u32 offset, u32 value)
@@ -303,6 +337,7 @@ static void intel_adc_enable(struct intel_adc *adc)
 	usleep_range(1000, 1500);
 }
 
+
 static void intel_adc_disable(struct intel_adc *adc)
 {
 	u32 ctrl;
@@ -313,6 +348,127 @@ static void intel_adc_disable(struct intel_adc *adc)
 
 	adc->adc_mode = ADC_MODE_SINGLE_MODE;
 	adc->threshold_mode = ADC_CTRL_DATA_THRSHLD_MODE_DISABLE ;
+}
+
+static void intel_adc_dma_enable(struct intel_adc *adc)
+{
+	struct dma_slave_config config = {0};
+	struct iio_dev *iio = iio_priv_to_dev(adc);
+	struct device *dev = iio->dev.parent;
+	dma_cap_mask_t mask;
+
+	dma_cap_zero(mask);
+	dma_cap_set(DMA_SLAVE, mask);
+
+	if (adc->dma_st.dma_chan)
+		return;
+
+	adc->dma_st.dma_chan = dma_request_slave_channel_compat(mask, NULL, NULL,
+						       dev, "rx");
+	if (!adc->dma_st.dma_chan) {
+		dev_info(dev, "Failed to request DMA channel\n");
+		return;
+	}
+
+	adc->dma_st.len = (ADC_NUM_SAMPL_DEFAULT * adc->num_slots) * 4; /* DMA buffer in bytes */
+	adc->dma_st.rx_buf = dma_alloc_coherent(adc->dma_st.dma_chan->device->dev,
+					       adc->dma_st.len,
+					       &adc->dma_st.rx_dma_buf,
+					       GFP_KERNEL);
+	if (!adc->dma_st.rx_buf) {
+		dev_info(dev, "Failed to allocate coherent DMA area\n");
+		goto dma_chan_disable;
+	}
+
+	/* Configure DMA channel to read data register */
+	config.direction = DMA_DEV_TO_MEM;
+	config.src_addr = (phys_addr_t)(adc->dma_st.phys_addr
+			  + ADC_FIFO_DATA);
+	config.src_addr_width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+	config.src_maxburst = 1;
+	config.dst_maxburst = 1;
+
+	if (dmaengine_slave_config(adc->dma_st.dma_chan, &config)) {
+		dev_info(dev, "Failed to configure DMA slave\n");
+		goto dma_free_area;
+	}
+
+	dev_info(dev, "using %s for RX DMA transfers\n",
+		 dma_chan_name(adc->dma_st.dma_chan));
+
+	return;
+dma_chan_disable:
+	dma_release_channel(adc->dma_st.dma_chan);
+	adc->dma_st.dma_chan = 0;
+dma_free_area:
+	dma_free_coherent(adc->dma_st.dma_chan->device->dev, adc->dma_st.len,
+			  adc->dma_st.rx_buf, adc->dma_st.rx_dma_buf);
+}
+
+
+static void intel_adc_dma_disable(struct intel_adc *adc)
+{
+	if (!adc->dma_st.dma_chan)
+		return;
+
+	/* Release RX resources */
+	dmaengine_terminate_sync(adc->dma_st.dma_chan);
+
+	dma_free_coherent(adc->dma_st.dma_chan->device->dev, adc->dma_st.len,
+			  adc->dma_st.rx_buf, adc->dma_st.rx_dma_buf);
+
+	dma_release_channel(adc->dma_st.dma_chan);
+	adc->dma_st.dma_chan = NULL;
+}
+
+static void intel_adc_dma_done(void *arg)
+{
+	struct intel_adc *adc = arg;
+	struct iio_dev *iio = iio_priv_to_dev(adc);
+	int i = 0;
+	u32 reg;
+	u32 *buffer;
+
+	/* DMA RX completed, we will push the rx */
+	buffer = (u32 *)adc->dma_st.rx_buf;
+
+	/* DMA buffer in bytes, we read every 4bytes to match FIFO data width */
+	while (i < (adc->dma_st.len / 4)) {
+		reg = *buffer++;
+		iio_push_to_buffers(iio, &reg);
+		i++;
+	}
+
+	iio_trigger_notify_done(iio->trig);
+	intel_adc_dma_disable(adc);
+}
+
+static int intel_adc_dma_start(struct intel_adc *adc)
+{
+	struct dma_async_tx_descriptor *rxdesc;
+	dma_cookie_t cookie;
+	int ret;
+
+	rxdesc = dmaengine_prep_slave_single(adc->dma_st.dma_chan, adc->dma_st.rx_dma_buf,
+					   adc->dma_st.len, DMA_DEV_TO_MEM,
+					   DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+	if (!rxdesc)
+		return -EINVAL;
+
+	rxdesc->callback = &intel_adc_dma_done;
+	rxdesc->callback_param = adc;
+
+	cookie = dmaengine_submit(rxdesc);
+	ret = dma_submit_error(cookie);
+	if (ret) {
+		dmaengine_terminate_sync(adc->dma_st.dma_chan);
+		return ret;
+	}
+
+	/* Issue pending DMA requests */
+	dma_async_issue_pending(adc->dma_st.dma_chan);
+
+	return 0;
 }
 
 static int intel_adc_single_channel_conversion(struct intel_adc *adc,
@@ -379,6 +535,7 @@ static int intel_adc_single_channel_conversion(struct intel_adc *adc,
 static int intel_adc_loop_mode_conversion(struct intel_adc *adc, const u32 active_scan_mask)
 {
 	u32 ctrl = 0x0;
+	u32 dma_ctrl = 0x0;
 	u32 reg = 0x0;
 	int i, slot_num = 0;
 
@@ -397,10 +554,21 @@ static int intel_adc_loop_mode_conversion(struct intel_adc *adc, const u32 activ
 	reg |= ADC_CONFIG1_DIFF_SE_SEL;
 	intel_adc_writel(adc->regs, ADC_CONFIG1, reg);
 
+
+	/* Enable DMA handshake and start DMA */
+	intel_adc_dma_enable(adc);
+	intel_adc_dma_start(adc);
+
+	dma_ctrl = intel_adc_readl(adc->regs, ADC_DMA_CTRL);
+	dma_ctrl &= ~ADC_DMA_CTRL_BRST_THRSLD;
+	dma_ctrl |= (ADC_NUM_SAMPL_DEFAULT * adc->num_slots) << ADC_DMA_CTRL_BRST_THRSLD_SHIFT;
+	dma_ctrl |= ADC_DMA_CTRL_EN;
+	intel_adc_writel(adc->regs, ADC_DMA_CTRL, dma_ctrl);
+
 	/* Enable Defined Loop Mode with fixed 10 LOOPs */
 	ctrl &= ~ADC_LOOP_CTRL_MODE_MASK;
 	ctrl |= ADC_LOOP_CTRL_DEFINED;
-	ctrl |= ADC_LOOP_CTRL_NUM_LOOP(10);
+	ctrl |= ADC_LOOP_CTRL_NUM_LOOP(1);
 
 	ctrl &= ~ADC_NUM_SLOTS_MASK;
 	ctrl |= ADC_LOOP_CTRL_NUM_SLOT(adc->num_slots);
@@ -410,6 +578,8 @@ static int intel_adc_loop_mode_conversion(struct intel_adc *adc, const u32 activ
 	/* Program ADC_LOOP_SEQ */
 	reg = 0x0;
 	intel_adc_writel(adc->regs, ADC_LOOP_SEQ, reg);
+
+	/* Program ADC_LOOP_CFG_X - 10 samples */
 	for (i = 0; i < ADC_NUM_CNL; i++) {
 		if ((active_scan_mask >> i) & 0x1) {
 			reg |= i << (4 * slot_num++);
@@ -421,7 +591,7 @@ static int intel_adc_loop_mode_conversion(struct intel_adc *adc, const u32 activ
 	/* Mask for threshold intr & Unmask others */
 	reg = intel_adc_readl(adc->regs, ADC_IMSC);
 	reg |= ADC_INTR_DATA_THRSHLD_ALL;
-	reg &= ~(ADC_INTR_SMPL_DONE_INTR | ADC_INTR_SLOT_DONE_INTR | ADC_INTR_SEQ_DONE_INTR | ADC_INTR_LOOPS_DONE_INTR);
+	reg &= ~ADC_INTR_ALL_MASK;
 	intel_adc_writel(adc->regs, ADC_IMSC, reg);
 
 	/* Flush existing raw interrupt */
@@ -721,14 +891,18 @@ static irqreturn_t intel_adc_irq(int irq, void *_adc)
 	}
 
 	/* Handle for ADC_MODE_LOOP_MODE, triggered buffer for multiple reads */
-	if (adc->adc_mode == ADC_MODE_LOOP_MODE && status & ADC_INTR_LOOPS_DONE_INTR) {
-		for (i = 0; i < (10 * adc->num_slots); i++) {
-			/* retrieve chnl [18:16] and sample [15:0] */
-			adc->value = intel_adc_readl(adc->regs, ADC_FIFO_DATA) & ADC_FIFO_DATA_SAMPLE_DATA_MASK;
-			iio_push_to_buffers(iio, &adc->value);
+	/* Only for non-DMA mode */
+	if (adc->dma_st.dma_chan == 0) {
+		if (adc->adc_mode == ADC_MODE_LOOP_MODE && status & ADC_INTR_LOOPS_DONE_INTR) {
+			pr_info("%s no dma",__func__);
+			for (i = 0; i < (ADC_NUM_SAMPL_DEFAULT * adc->num_slots); i++) {
+				/* retrieve chnl [18:16] and sample [15:0] */
+				adc->value = intel_adc_readl(adc->regs, ADC_FIFO_DATA) & ADC_FIFO_DATA_SAMPLE_DATA_MASK;
+				iio_push_to_buffers(iio, &adc->value);
+			}
+			iio_trigger_notify_done(iio->trig);
+			intel_adc_disable(adc);
 		}
-		iio_trigger_notify_done(iio->trig);
-		intel_adc_disable(adc);
 	}
 
 	/* Handle for ADC_MODE_THRHLD_MODE */
@@ -760,6 +934,7 @@ static irqreturn_t intel_adc_irq(int irq, void *_adc)
 	/* unmask all threshold  intr & sample done intr */
 	reg = intel_adc_readl(adc->regs, ADC_IMSC);
 	reg &= ~ADC_INTR_DATA_THRSHLD_ALL;
+	reg &= ~ADC_INTR_ALL_MASK;
 	reg &= ~(ADC_INTR_SMPL_DONE_INTR | ADC_INTR_SLOT_DONE_INTR | ADC_INTR_SEQ_DONE_INTR | ADC_INTR_LOOPS_DONE_INTR);
 	intel_adc_writel(adc->regs, ADC_IMSC, reg);
 
@@ -816,6 +991,7 @@ static int intel_adc_probe(struct pci_dev *pci, const struct pci_device_id *id)
 	struct iio_dev *iio;
 	int ret;
 	int irq;
+	u32 reg;
 
 	iio = devm_iio_device_alloc(&pci->dev, sizeof(*adc));
 	if (!iio)
@@ -827,6 +1003,8 @@ static int intel_adc_probe(struct pci_dev *pci, const struct pci_device_id *id)
 		return ret;
 
 	pci_set_master(pci);
+
+	adc->dma_st.phys_addr = pci_resource_start(pci, 0);
 
 	ret = pcim_iomap_regions(pci, BIT(0), pci_name(pci));
 	if (ret)
@@ -873,6 +1051,11 @@ static int intel_adc_probe(struct pci_dev *pci, const struct pci_device_id *id)
 	if (ret)
 		goto err;
 
+	/* Reset FIFO */
+	reg = intel_adc_readl(adc->regs, ADC_FIFO_CTRL);
+	reg |= ADC_FIFO_CTRL_RESET;
+	intel_adc_writel(adc->regs, ADC_FIFO_CTRL, reg);
+
 	pm_runtime_set_autosuspend_delay(&pci->dev, 1000);
 	pm_runtime_use_autosuspend(&pci->dev);
 	pm_runtime_put_noidle(&pci->dev);
@@ -887,8 +1070,13 @@ err:
 
 static void intel_adc_remove(struct pci_dev *pci)
 {
+	struct intel_adc *adc = pci_get_drvdata(pci);
+
 	pm_runtime_forbid(&pci->dev);
 	pm_runtime_get_noresume(&pci->dev);
+
+	/* Free DMA resources */
+	intel_adc_dma_disable(adc);
 
 	devm_free_irq(&pci->dev, pci_irq_vector(pci, 0), pci_get_drvdata(pci));
 	pci_free_irq_vectors(pci);
