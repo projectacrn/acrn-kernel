@@ -23,15 +23,117 @@
 #include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/uio_driver.h>
+#include <linux/errno.h>
+#include <linux/interrupt.h>
+#include <linux/eventfd.h>
 
 #define DRIVER_VERSION	"0.01.0"
 #define DRIVER_AUTHOR	"Michael S. Tsirkin <mst@redhat.com>"
 #define DRIVER_DESC	"Generic UIO driver for PCI 2.3 devices"
 
+#if 0
+struct uio_msix_data {
+	int fd;
+	int vector;
+};
+#endif
+
+struct uio_msix_info {
+	struct msix_entry *entries;
+	struct eventfd_ctx **evts;
+	int nvecs;
+};
+
+//#define UIO_MSIX_DATA	_IOW('u', 100, struct uio_msix_data)
+
 struct uio_pci_generic_dev {
 	struct uio_info info;
 	struct pci_dev *pdev;
+	struct uio_msix_info msix_info;
 };
+
+static irqreturn_t uio_msix_handler(int irq, void *arg)
+{
+	struct eventfd_ctx *evt = arg;
+
+	eventfd_signal(evt, 1);
+	return IRQ_HANDLED;
+}
+
+static int map_msix_eventfd(struct uio_pci_generic_dev *gdev, int fd, int vector)
+{
+	int irq, err;
+	struct eventfd_ctx *evt;
+
+	/* Passing -1 is used to disable interrupt */
+	if (fd < 0) {
+		pci_disable_msi(gdev->pdev);
+		return 0;
+	}
+
+	if (vector >= gdev->msix_info.nvecs)
+		return -EINVAL;
+
+	irq = gdev->msix_info.entries[vector].vector;
+	evt = gdev->msix_info.evts[vector];
+	if (evt) {
+		free_irq(irq, evt);
+		eventfd_ctx_put(evt);
+		gdev->msix_info.evts[vector] = NULL;
+	}
+
+	evt = eventfd_ctx_fdget(fd);
+	if (!evt) {
+		return -EINVAL;
+	}
+
+	err = request_irq(irq, uio_msix_handler, 0, "UIO IRQ", evt);
+	if (err) {
+		eventfd_ctx_put(evt);
+		return err;
+	}
+
+	gdev->msix_info.evts[vector] = evt;
+	return 0;
+}
+
+static int uio_msi_ioctl(struct uio_info *info, unsigned int cmd, unsigned long arg)
+{
+	struct uio_pci_generic_dev *gdev = container_of(info, struct uio_pci_generic_dev, info);
+	struct uio_msix_data data;
+	int err = -EINVAL;
+
+	if (cmd  == UIO_MSIX_DATA) {
+		if (!copy_from_user(&data, (void __user *)arg, sizeof(data)))
+			err = map_msix_eventfd(gdev, data.fd, data.vector);
+	}
+	return err;
+}
+
+static int pci_generic_init_msix(struct uio_pci_generic_dev *gdev)
+{
+	unsigned char *buffer;
+	int i, nvecs;
+
+	nvecs = pci_msix_vec_count(gdev->pdev);
+	if (!nvecs)
+		return -EINVAL;
+
+	buffer = kzalloc(nvecs * (sizeof(struct msix_entry) +
+			sizeof(struct eventfd_ctx*)), GFP_KERNEL);
+	if (!buffer)
+		return -ENOMEM;
+
+	gdev->msix_info.entries = (struct msix_entry*)buffer;
+	gdev->msix_info.evts = (struct eventfd_ctx**)
+		((unsigned char *)buffer + nvecs * sizeof(struct msix_entry));
+	gdev->msix_info.nvecs = nvecs;
+
+	for (i = 0; i < nvecs; ++i)
+		gdev->msix_info.entries[i].entry = i;
+
+	return pci_enable_msix_exact(gdev->pdev, gdev->msix_info.entries, nvecs);
+}
 
 static inline struct uio_pci_generic_dev *
 to_uio_pci_generic_dev(struct uio_info *info)
@@ -95,23 +197,30 @@ static int probe(struct pci_dev *pdev,
 	gdev->info.name = "uio_pci_generic";
 	gdev->info.version = DRIVER_VERSION;
 	gdev->info.release = release;
+	gdev->info.ioctl = uio_msi_ioctl;
 	gdev->pdev = pdev;
+
 	if (pdev->irq) {
 		gdev->info.irq = pdev->irq;
 		gdev->info.irq_flags = IRQF_SHARED;
 		gdev->info.handler = irqhandler;
 	} else {
-		dev_warn(&pdev->dev, "No IRQ assigned to device: "
-			 "no support for interrupts?\n");
+		err = pci_generic_init_msix(gdev);
+		if (err)
+			dev_warn(&pdev->dev, "No IRQ assigned to device: "
+				"no support for interrupts?\n");
+		else
+			dev_warn(&pdev->dev, "MSIX is enabled for UIO device.\n");
 	}
-
 	err = uio_register_device(&pdev->dev, &gdev->info);
 	if (err)
 		goto err_register;
 	pci_set_drvdata(pdev, gdev);
 
 	return 0;
+
 err_register:
+	kfree(gdev->msix_info.entries);
 	kfree(gdev);
 err_alloc:
 err_verify:
@@ -125,6 +234,7 @@ static void remove(struct pci_dev *pdev)
 
 	uio_unregister_device(&gdev->info);
 	pci_disable_device(pdev);
+	kfree(gdev->msix_info.entries);
 	kfree(gdev);
 }
 
