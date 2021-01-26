@@ -344,7 +344,7 @@ create_vm_fail:
 			acrn_mempool_free(cv);
 			return -EFAULT;
 		}
-		refcount_inc(&vm->vcpu_num);
+		atomic_inc(&vm->vcpu_num);
 		acrn_mempool_free(cv);
 
 		return ret;
