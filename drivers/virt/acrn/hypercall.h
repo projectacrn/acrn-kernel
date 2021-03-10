@@ -15,6 +15,7 @@
 
 #define HC_ID_GEN_BASE			0x0UL
 #define HC_SOS_REMOVE_CPU		_HC_ID(HC_ID, HC_ID_GEN_BASE + 0x01)
+#define HC_GET_PLATFORM_INFO		_HC_ID(HC_ID, HC_ID_GEN_BASE + 0x03)
 
 #define HC_ID_VM_BASE			0x10UL
 #define HC_CREATE_VM			_HC_ID(HC_ID, HC_ID_VM_BASE + 0x00)
@@ -58,6 +59,17 @@
 static inline long hcall_sos_remove_cpu(u64 cpu)
 {
 	return acrn_hypercall1(HC_SOS_REMOVE_CPU, cpu);
+}
+
+/**
+ * hcall_get_platform_info() - Get platform information from the hypervisor
+ * @platform_info: Service VM GPA of the &struct acrn_platform_info
+ *
+ * Return: 0 on success, <0 on failure
+ */
+static inline long hcall_get_platform_info(u64 platform_info)
+{
+	return acrn_hypercall1(HC_GET_PLATFORM_INFO, platform_info);
 }
 
 /**

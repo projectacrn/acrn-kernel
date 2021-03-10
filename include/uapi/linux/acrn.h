@@ -580,12 +580,56 @@ struct acrn_irqfd {
 	struct acrn_msi_entry	msi;
 };
 
+#define ACRN_PLATFORM_LAPIC_IDS_MAX	64
+/**
+ * struct acrn_platform_info - Information of a platform from hypervisor
+ * @hw.cpu_num:			Physical CPU number of the platform
+ * @hw.version:			Version of this structure
+ * @hw.l2_cat_shift:		Order of the number of threads sharing L2 cache
+ * @hw.l3_cat_shift:		Order of the number of threads sharing L3 cache
+ * @hw.lapic_ids:		IDs of LAPICs of all threads
+ * @hw.reserved:		Reserved for alignment and should be 0
+ * @sw.max_vcpus_per_vm:	Maximum number of vCPU of a VM
+ * @sw.max_vms:			Maximum number of VM
+ * @sw.vm_config_size:		Size of configuration of a VM
+ * @sw.vm_configss_addr:	Memory address which user space provided to
+ *				store the VM configurations
+ * @sw.max_kata_containers:	Maximum number of VM for Kata containers
+ * @sw.reserved:		Reserved for alignment and should be 0
+ *
+ * If vm_configs_addr is provided, the driver uses a bounce buffer (kmalloced
+ * for continuous memory region) to fetch VM configurations data from the
+ * hypervisor.
+ */
+struct acrn_platform_info {
+	struct {
+		__u16	cpu_num;
+		__u16	version;
+		__u32	l2_cat_shift;
+		__u32	l3_cat_shift;
+		__u8	lapic_ids[ACRN_PLATFORM_LAPIC_IDS_MAX];
+		__u8	reserved[52];
+	} hw;
+
+	struct {
+		__u16	max_vcpus_per_vm;
+		__u16	max_vms;
+		__u32	vm_config_size;
+		void	__user *vm_configs_addr;
+		__u64	max_kata_containers;
+		__u8	reserved[104];
+	} sw;
+};
+
 /* The ioctl type, documented in ioctl-number.rst */
 #define ACRN_IOCTL_TYPE			0xA2
 
 /*
  * Common IOCTL IDs definition for ACRN userspace
  */
+#define ACRN_IOCTL_GET_PLATFORM_INFO	\
+	_IOR(ACRN_IOCTL_TYPE, 0x03, struct acrn_platform_info)
+
 #define ACRN_IOCTL_CREATE_VM		\
 	_IOWR(ACRN_IOCTL_TYPE, 0x10, struct acrn_vm_creation)
 #define ACRN_IOCTL_DESTROY_VM		\
