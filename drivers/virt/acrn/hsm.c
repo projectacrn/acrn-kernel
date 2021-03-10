@@ -108,6 +108,7 @@ static long acrn_dev_ioctl(struct file *filp, unsigned int cmd,
 			   unsigned long ioctl_param)
 {
 	struct acrn_vm *vm = filp->private_data;
+	struct acrn_platform_info *plat_info;
 	struct acrn_vm_creation *vm_param;
 	struct acrn_vcpu_regs *cpu_regs;
 	struct acrn_ioreq_notify notify;
@@ -115,9 +116,12 @@ static long acrn_dev_ioctl(struct file *filp, unsigned int cmd,
 	struct acrn_ioeventfd ioeventfd;
 	struct acrn_vm_memmap memmap;
 	struct acrn_mmiodev *mmiodev;
+	void __user *vm_configs_user;
 	struct acrn_msi_entry *msi;
 	struct acrn_pcidev *pcidev;
 	struct acrn_irqfd irqfd;
+	void *vm_configs = NULL;
+	size_t vm_configs_size;
 	struct acrn_vdev *vdev;
 	struct page *page;
 	u64 cstate_cmd;
@@ -130,6 +134,55 @@ static long acrn_dev_ioctl(struct file *filp, unsigned int cmd,
 	}
 
 	switch (cmd) {
+	case ACRN_IOCTL_GET_PLATFORM_INFO:
+		plat_info = memdup_user((void __user *)ioctl_param,
+					sizeof(struct acrn_platform_info));
+		if (IS_ERR(plat_info))
+			return PTR_ERR(plat_info);
+
+		for (i = 0; i < ARRAY_SIZE(plat_info->sw.reserved); i++)
+			if (plat_info->sw.reserved[i])
+				return -EINVAL;
+
+		for (i = 0; i < ARRAY_SIZE(plat_info->hw.reserved); i++)
+			if (plat_info->hw.reserved[i])
+				return -EINVAL;
+
+		vm_configs_size = plat_info->sw.vm_config_size *
+						plat_info->sw.max_vms;
+		if (plat_info->sw.vm_configs_addr && vm_configs_size) {
+			vm_configs_user = plat_info->sw.vm_configs_addr;
+			vm_configs = kzalloc(vm_configs_size, GFP_KERNEL);
+			if (IS_ERR(vm_configs)) {
+				kfree(plat_info);
+				return PTR_ERR(vm_configs);
+			}
+			plat_info->sw.vm_configs_addr =
+					(void __user *)virt_to_phys(vm_configs);
+		}
+
+		ret = hcall_get_platform_info(virt_to_phys(plat_info));
+		if (ret < 0) {
+			kfree(vm_configs);
+			kfree(plat_info);
+			dev_dbg(acrn_dev.this_device,
+				"Failed to get info of VM %u!\n", vm->vmid);
+			break;
+		}
+
+		if (vm_configs) {
+			if (copy_to_user(vm_configs_user, vm_configs,
+					 vm_configs_size))
+				ret = -EFAULT;
+			plat_info->sw.vm_configs_addr = vm_configs_user;
+		}
+		if (!ret && copy_to_user((void __user *)ioctl_param, plat_info,
+					 sizeof(*plat_info)))
+			ret = -EFAULT;
+
+		kfree(vm_configs);
+		kfree(plat_info);
+		break;
 	case ACRN_IOCTL_CREATE_VM:
 		vm_param = memdup_user((void __user *)ioctl_param,
 				       sizeof(struct acrn_vm_creation));
