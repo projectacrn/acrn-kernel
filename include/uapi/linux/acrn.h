@@ -418,6 +418,20 @@ struct acrn_pcidev {
 };
 
 /**
+ * struct acrn_mmiodev - Info for assigning or de-assigning a MMIO device
+ * @user_vm_pa:		Physical address of User VM of the MMIO device.
+ * @service_vm_pa:	Physical address of Service VM of the MMIO device.
+ * @size:		Size of the memory mapping of the MMIO device.
+ *
+ * This structure will be passed to hypervisor directly.
+ */
+struct acrn_mmiodev {
+	__u64	user_vm_pa;
+	__u64	service_vm_pa;
+	__u64	size;
+};
+
+/**
  * struct acrn_msi_entry - Info for injecting a MSI interrupt to a VM
  * @msi_addr:	MSI addr[19:12] with dest vCPU ID
  * @msi_data:	MSI data[7:0] with vector
@@ -568,6 +582,10 @@ struct acrn_irqfd {
 	_IOW(ACRN_IOCTL_TYPE, 0x55, struct acrn_pcidev)
 #define ACRN_IOCTL_DEASSIGN_PCIDEV	\
 	_IOW(ACRN_IOCTL_TYPE, 0x56, struct acrn_pcidev)
+#define ACRN_IOCTL_ASSIGN_MMIODEV	\
+	_IOW(ACRN_IOCTL_TYPE, 0x57, struct acrn_mmiodev)
+#define ACRN_IOCTL_DEASSIGN_MMIODEV	\
+	_IOW(ACRN_IOCTL_TYPE, 0x58, struct acrn_mmiodev)
 
 #define ACRN_IOCTL_PM_GET_CPU_STATE	\
 	_IOWR(ACRN_IOCTL_TYPE, 0x60, __u64)
