@@ -565,6 +565,7 @@ static int __init hsm_init(void)
 		misc_deregister(&acrn_dev);
 		return ret;
 	}
+	acrn_trace_init();
 	return 0;
 }
 
@@ -572,6 +573,7 @@ static void __exit hsm_exit(void)
 {
 	acrn_ioreq_intr_remove();
 	misc_deregister(&acrn_dev);
+	acrn_trace_exit();
 }
 module_init(hsm_init);
 module_exit(hsm_exit);

@@ -47,6 +47,9 @@
 #define HC_CREATE_VDEV			_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x09)
 #define HC_DESTROY_VDEV			_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x0A)
 
+#define HC_ID_DBG_BASE              0x60UL
+#define HC_SETUP_SBUF               _HC_ID(HC_ID, HC_ID_DBG_BASE + 0x00)
+
 #define HC_ID_PM_BASE			0x80UL
 #define HC_PM_GET_CPU_STATE		_HC_ID(HC_ID, HC_ID_PM_BASE + 0x00)
 
@@ -313,6 +316,11 @@ static inline long hcall_reset_ptdev_intr(u64 vmid, u64 irq)
 static inline long hcall_get_cpu_state(u64 cmd, u64 state)
 {
 	return acrn_hypercall2(HC_PM_GET_CPU_STATE, cmd, state);
+}
+
+static inline long hcall_setup_sbuf(unsigned long sbuf_head)
+{
+	return acrn_hypercall1(HC_SETUP_SBUF, sbuf_head);
 }
 
 #endif /* __ACRN_HSM_HYPERCALL_H */
