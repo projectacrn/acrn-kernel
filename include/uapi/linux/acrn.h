@@ -621,6 +621,12 @@ struct acrn_platform_info {
 	} sw;
 };
 
+struct sbuf_setup_param {
+	__u32	pcpu_id;
+	__u32	sbuf_id;
+	__u64	gpa;
+};
+
 /* The ioctl type, documented in ioctl-number.rst */
 #define ACRN_IOCTL_TYPE			0xA2
 
