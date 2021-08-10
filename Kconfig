@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0
-#
+# just for CI test
 # For a description of the syntax of this configuration file,
 # see Documentation/kbuild/kconfig-language.rst.
 #
