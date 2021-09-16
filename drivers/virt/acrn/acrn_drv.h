@@ -226,4 +226,6 @@ void acrn_irqfd_deinit(struct acrn_vm *vm);
 
 int acrn_trace_init(void);
 void acrn_trace_exit(void);
+int acrn_hvlog_init(void);
+void acrn_hvlog_exit(void);
 #endif /* __ACRN_HSM_DRV_H */

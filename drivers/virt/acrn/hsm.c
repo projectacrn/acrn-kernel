@@ -513,6 +513,7 @@ static int __init hsm_init(void)
 		return ret;
 	}
 	acrn_trace_init();
+	acrn_hvlog_init();
 	return 0;
 }
 
@@ -520,6 +521,7 @@ static void __exit hsm_exit(void)
 {
 	acrn_ioreq_intr_remove();
 	misc_deregister(&acrn_dev);
+	acrn_hvlog_exit();
 	acrn_trace_exit();
 }
 module_init(hsm_init);
