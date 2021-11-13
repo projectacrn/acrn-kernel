@@ -359,8 +359,6 @@ int acrn_hvlog_init(void)
 	int idx, ret = 0;
 	uint64_t cur_logbuf, last_logbuf;
 
-	struct acrn_platform_info *plat_info;
-
 	if (x86_hyper_type != X86_HYPER_ACRN) {
 		pr_err("acrn_trace: not support acrn hypervisor!\n");
 		return -EINVAL;
@@ -377,10 +375,7 @@ int acrn_hvlog_init(void)
 		return 0;
 	}
 
-	plat_info = kzalloc(sizeof(*plat_info), GFP_KERNEL);
-	ret = hcall_get_platform_info(virt_to_phys(plat_info));
-	if (!ret)
-		pcpu_nr = plat_info->hw.cpu_num;
+	pcpu_nr = total_cpus;
 
 	foreach_hvlog_type(idx, SBUF_HVLOG_TYPES) {
 		acrn_hvlog_devs[idx] = kcalloc(pcpu_nr,
