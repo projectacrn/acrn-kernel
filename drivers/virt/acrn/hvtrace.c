@@ -179,17 +179,13 @@ int acrn_trace_init(void)
 	int i, cpu;
 	shared_buf_t *sbuf;
 	struct miscdevice *miscdev;
-	struct acrn_platform_info *plat_info;
 
 	if (x86_hyper_type != X86_HYPER_ACRN) {
 		pr_err("acrn_trace: not support acrn hypervisor!\n");
 		return -EINVAL;
 	}
 
-	plat_info = kzalloc(sizeof(*plat_info), GFP_KERNEL);
-	ret = hcall_get_platform_info(virt_to_phys(plat_info));
-	if (!ret)
-		pcpu_num = plat_info->hw.cpu_num;
+	pcpu_num = total_cpus;
 
 	acrn_trace_devs = kcalloc(pcpu_num, sizeof(struct acrn_trace),
 				GFP_KERNEL);
@@ -236,7 +232,6 @@ int acrn_trace_init(void)
 	}
 
 	pr_info("Initialized acrn trace module with %u cpu\n", pcpu_num);
-	kfree(plat_info);
 	return ret;
 
 out_dereg:
