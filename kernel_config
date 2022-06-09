@@ -3668,7 +3668,7 @@ CONFIG_MFD_WL1273_CORE=m
 # CONFIG_MFD_INTEL_M10_BMC is not set
 # end of Multifunction device drivers
 
-# CONFIG_REGULATOR is not set
+CONFIG_REGULATOR=y
 CONFIG_RC_CORE=m
 CONFIG_RC_MAP=m
 CONFIG_LIRC=y
