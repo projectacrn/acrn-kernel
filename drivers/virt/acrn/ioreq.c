@@ -601,7 +601,7 @@ int acrn_ioreq_intr_setup(void)
 {
 	acrn_setup_intr_handler(ioreq_intr_handler);
 	ioreq_wq = alloc_workqueue("ioreq_wq",
-				   WQ_HIGHPRI | WQ_MEM_RECLAIM | WQ_UNBOUND, 1);
+				   WQ_HIGHPRI | WQ_MEM_RECLAIM, 1);
 	if (!ioreq_wq) {
 		dev_err(acrn_dev.this_device, "Failed to alloc workqueue!\n");
 		acrn_remove_intr_handler();
