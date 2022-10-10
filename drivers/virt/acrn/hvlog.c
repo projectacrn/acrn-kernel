@@ -293,7 +293,7 @@ static int init_hvlog_dev(uint64_t base, uint32_t hvlog_type)
 			offset = (base + (size * idx)) - hvlog_buf_phyaddr_base;
 			sbuf = hvlog_buf_virtaddr_base + offset;
 			sbuf = sbuf_construct(ele_num, ele_size, sbuf);
-			sbuf_share_setup(idx, ACRN_HVLOG, base + (size * idx));
+			sbuf_share_setup(ACRN_CURRENT_VMID, idx, ACRN_HVLOG, base + (size * idx));
 			break;
 		case SBUF_LAST_HVLOG:
 			snprintf(hvlog->name, sizeof(hvlog->name),
@@ -339,7 +339,7 @@ static void deinit_hvlog_dev(uint32_t hvlog_type)
 		hvlog = &acrn_hvlog_devs[hvlog_type][idx];
 		switch (hvlog_type) {
 		case SBUF_CUR_HVLOG:
-			sbuf_share_setup(idx, ACRN_HVLOG, 0);
+			sbuf_share_setup(ACRN_CURRENT_VMID, idx, ACRN_HVLOG, 0);
 			sbuf_deconstruct(hvlog->sbuf);
 			break;
 		case SBUF_LAST_HVLOG:
