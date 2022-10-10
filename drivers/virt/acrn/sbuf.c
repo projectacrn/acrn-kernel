@@ -170,7 +170,7 @@ int sbuf_get(shared_buf_t *sbuf, uint8_t *data)
 }
 EXPORT_SYMBOL(sbuf_get);
 
-int sbuf_share_setup(uint32_t pcpu_id, uint32_t sbuf_id, uint64_t gpa)
+int sbuf_share_setup(uint32_t vm_id, uint32_t pcpu_id, uint32_t sbuf_id, uint64_t gpa)
 {
 	struct sbuf_setup_param *ssp;
 	int ret;
@@ -184,7 +184,7 @@ int sbuf_share_setup(uint32_t pcpu_id, uint32_t sbuf_id, uint64_t gpa)
 	ssp->gpa = gpa;
 	pr_info("setup phys add = 0x%llx\n", ssp->gpa);
 
-	ret = hcall_setup_sbuf(virt_to_phys(ssp));
+	ret = hcall_setup_sbuf(vm_id, virt_to_phys(ssp));
 	kfree(ssp);
 	return ret;
 }

@@ -132,6 +132,7 @@ struct acrn_ioreq_client {
 };
 
 #define ACRN_INVALID_VMID (0xffffU)
+#define ACRN_CURRENT_VMID (0U)
 
 #define ACRN_VM_FLAG_DESTROYED		0U
 #define ACRN_VM_FLAG_CLEARING_IOREQ	1U
