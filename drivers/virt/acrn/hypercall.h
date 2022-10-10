@@ -35,6 +35,7 @@
 
 #define HC_ID_MEM_BASE			0x40UL
 #define HC_VM_SET_MEMORY_REGIONS	_HC_ID(HC_ID, HC_ID_MEM_BASE + 0x02)
+#define HC_SETUP_SBUF			_HC_ID(HC_ID, HC_ID_MEM_BASE + 0x04)
 
 #define HC_ID_PCI_BASE			0x50UL
 #define HC_SET_PTDEV_INTR		_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x03)
@@ -47,7 +48,6 @@
 #define HC_DESTROY_VDEV			_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x0A)
 
 #define HC_ID_DBG_BASE              0x60UL
-#define HC_SETUP_SBUF               _HC_ID(HC_ID, HC_ID_DBG_BASE + 0x00)
 
 #define HC_ID_PM_BASE			0x80UL
 #define HC_PM_GET_CPU_STATE		_HC_ID(HC_ID, HC_ID_PM_BASE + 0x00)
@@ -306,9 +306,9 @@ static inline long hcall_get_cpu_state(u64 cmd, u64 state)
 	return acrn_hypercall2(HC_PM_GET_CPU_STATE, cmd, state);
 }
 
-static inline long hcall_setup_sbuf(unsigned long sbuf_head)
+static inline long hcall_setup_sbuf(u64 vmid, unsigned long sbuf_head)
 {
-	return acrn_hypercall1(HC_SETUP_SBUF, sbuf_head);
+	return acrn_hypercall2(HC_SETUP_SBUF, vmid, sbuf_head);
 }
 
 #endif /* __ACRN_HSM_HYPERCALL_H */
