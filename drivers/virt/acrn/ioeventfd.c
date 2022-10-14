@@ -11,7 +11,7 @@
 
 #include <linux/eventfd.h>
 #include <linux/slab.h>
-
+#include <linux/io.h>
 #include "acrn_drv.h"
 
 /**
@@ -66,6 +66,42 @@ static bool hsm_ioeventfd_is_conflict(struct acrn_vm *vm,
 			return true;
 
 	return false;
+}
+
+static int acrn_ioeventfd_asyncio_config(struct acrn_vm *vm, struct acrn_ioeventfd *args)
+{
+	struct eventfd_ctx *eventfd;
+	struct acrn_asyncio_reqinfo *asyncio_info;
+	int ret;
+
+	if (!vm->asyncio_sbuf)
+		return -ENODEV;
+
+	asyncio_info = kzalloc(sizeof(*asyncio_info), GFP_KERNEL);
+	if (!asyncio_info)
+		return -ENOMEM;
+
+	eventfd = eventfd_ctx_fdget(args->fd);
+	if (IS_ERR(eventfd)) {
+		kfree(asyncio_info);
+		return PTR_ERR(eventfd);
+	}
+
+	asyncio_info->addr = args->addr;
+	asyncio_info->fd = (u64)eventfd;
+	if (args->flags & ACRN_IOEVENTFD_FLAG_PIO)
+		asyncio_info->type = ACRN_ASYNC_TYPE_PIO;
+	else
+		asyncio_info->type = ACRN_ASYNC_TYPE_MMIO;
+	if (args->flags & ACRN_IOEVENTFD_FLAG_DEASSIGN)
+		ret = hcall_asyncio_deassign(vm->vmid, virt_to_phys(asyncio_info));
+	else
+		ret = hcall_asyncio_assign(vm->vmid, virt_to_phys(asyncio_info));
+	if (ret < 0) {
+		dev_err(acrn_dev.this_device, "Failed to setup asyncio: base = 0x%llx!\n", args->addr);
+	}
+	kfree(asyncio_info);
+	return ret;
 }
 
 /*
@@ -233,11 +269,14 @@ int acrn_ioeventfd_config(struct acrn_vm *vm, struct acrn_ioeventfd *args)
 {
 	int ret;
 
-	if (args->flags & ACRN_IOEVENTFD_FLAG_DEASSIGN)
-		ret = acrn_ioeventfd_deassign(vm, args);
-	else
-		ret = acrn_ioeventfd_assign(vm, args);
-
+	if (args->flags & ACRN_IOEVENTFD_FLAG_ASYNCIO) {
+		ret = acrn_ioeventfd_asyncio_config(vm, args);
+	} else {
+		if (args->flags & ACRN_IOEVENTFD_FLAG_DEASSIGN)
+			ret = acrn_ioeventfd_deassign(vm, args);
+		else
+			ret = acrn_ioeventfd_assign(vm, args);
+	}
 	return ret;
 }
 
