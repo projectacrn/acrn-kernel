@@ -479,6 +479,43 @@ struct acrn_vdev {
 	__u8	args[128];
 };
 
+#define SBUF_MAGIC	0x5aa57aa71aa13aa3
+#define SBUF_MAX_SIZE	(1ULL << 22)
+#define SBUF_HEAD_SIZE	64
+
+/* sbuf flags */
+#define OVERRUN_CNT_EN	(1ULL << 0) /* whether overrun counting is enabled */
+#define OVERWRITE_EN	(1ULL << 1) /* whether overwrite is enabled */
+
+/**
+ * (sbuf) head + buf (store (ele_num - 1) elements at most)
+ * buffer empty: tail == head
+ * buffer full:  (tail + ele_size) % size == head
+ *
+ *             Base of memory for elements
+ *                |
+ *                |
+ * ---------------------------------------------------------------------------------------
+ * | shared_buf_t | raw data (ele_size)| raw date (ele_size) | ... | raw data (ele_size) |
+ * ---------------------------------------------------------------------------------------
+ * |
+ * |
+ * shared_buf_t *buf
+ */
+
+/* Make sure sizeof(shared_buf_t) == SBUF_HEAD_SIZE */
+typedef struct shared_buf {
+	__u64 magic;
+	__u32 ele_num;	/* number of elements */
+	__u32 ele_size;	/* sizeof of elements */
+	__u32 head;		/* offset from base, to read */
+	__u32 tail;		/* offset from base, to write */
+	__u64 flags;
+	__u32 overrun_cnt;	/* count of overrun */
+	__u32 size;		/* ele_num * ele_size */
+	__u32 padding[6];
+} __attribute__((aligned(64))) shared_buf_t;
+
 /**
  * struct acrn_msi_entry - Info for injecting a MSI interrupt to a VM
  * @msi_addr:	MSI addr[19:12] with dest vCPU ID
@@ -578,6 +615,21 @@ struct acrn_irqfd {
 	__s32			fd;
 	__u32			flags;
 	struct acrn_msi_entry	msi;
+};
+
+/**
+ * struct acrn_sbuf_param - Data to register a share buffer by hypercall
+ * @vcpu_id:	Id of the vcpu which own this sbuf.
+ * 		ACRN_INVALID_CPUID means the sbuf is belong to a VM.
+ * @reserved:	Reserved field.
+ * @sbuf_id:	Type of the sbuf.
+ * @gpa:	physcial address of the sbuf.
+ */
+struct acrn_sbuf_param {
+	__u16	vcpu_id;
+	__u16	reserved;
+	__u32	sbuf_id;
+	__u64	gpa;
 };
 
 /* The ioctl type, documented in ioctl-number.rst */
