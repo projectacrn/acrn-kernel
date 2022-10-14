@@ -32,6 +32,8 @@
 #define HC_ID_IOREQ_BASE		0x30UL
 #define HC_SET_IOREQ_BUFFER		_HC_ID(HC_ID, HC_ID_IOREQ_BASE + 0x00)
 #define HC_NOTIFY_REQUEST_FINISH	_HC_ID(HC_ID, HC_ID_IOREQ_BASE + 0x01)
+#define HC_ASYNCIO_ASSIGN		_HC_ID(HC_ID, HC_ID_IOREQ_BASE + 0x02)
+#define HC_ASYNCIO_DEASSIGN		_HC_ID(HC_ID, HC_ID_IOREQ_BASE + 0x03)
 
 #define HC_ID_MEM_BASE			0x40UL
 #define HC_VM_SET_MEMORY_REGIONS	_HC_ID(HC_ID, HC_ID_MEM_BASE + 0x02)
@@ -186,6 +188,22 @@ static inline long hcall_set_ioreq_buffer(u64 vmid, u64 buffer)
 static inline long hcall_set_sbuf(u64 vmid, u64 buffer)
 {
 	return acrn_hypercall2(HC_SET_SBUF, vmid, buffer);
+}
+
+/**
+ * hcall_asyncio_assign() - Assign asyncio requests.
+ * @vmid:	User VM ID
+ * @info_pa:	Service VM GPA of the asyncio request info
+ *
+ * Return: 0 on success, <0 on failure
+ */
+static inline long hcall_asyncio_assign(u64 vmid, u64 info_pa)
+{
+	return acrn_hypercall2(HC_ASYNCIO_ASSIGN, vmid, info_pa);
+}
+static inline long hcall_asyncio_deassign(u64 vmid, u64 info_pa)
+{
+	return acrn_hypercall2(HC_ASYNCIO_DEASSIGN, vmid, info_pa);
 }
 
 /**
