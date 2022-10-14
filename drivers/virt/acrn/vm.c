@@ -37,6 +37,7 @@ struct acrn_vm *acrn_vm_create(struct acrn_vm *vm,
 	mutex_init(&vm->regions_mapping_lock);
 	INIT_LIST_HEAD(&vm->ioreq_clients);
 	spin_lock_init(&vm->ioreq_clients_lock);
+	mutex_init(&vm->asyncio_lock);
 	vm->vmid = vm_param->vmid;
 	vm->vcpu_num = vm_param->vcpu_num;
 
@@ -80,6 +81,7 @@ int acrn_vm_destroy(struct acrn_vm *vm)
 	acrn_ioeventfd_deinit(vm);
 	acrn_irqfd_deinit(vm);
 	acrn_ioreq_deinit(vm);
+	acrn_asyncio_free(vm);
 
 	if (vm->monitor_page) {
 		put_page(vm->monitor_page);
