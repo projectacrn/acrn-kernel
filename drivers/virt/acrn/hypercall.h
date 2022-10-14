@@ -35,6 +35,7 @@
 
 #define HC_ID_MEM_BASE			0x40UL
 #define HC_VM_SET_MEMORY_REGIONS	_HC_ID(HC_ID, HC_ID_MEM_BASE + 0x02)
+#define HC_SET_SBUF			_HC_ID(HC_ID, HC_ID_MEM_BASE + 0x04)
 
 #define HC_ID_PCI_BASE			0x50UL
 #define HC_SET_PTDEV_INTR		_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x03)
@@ -173,6 +174,18 @@ static inline long hcall_set_irqline(u64 vmid, u64 op)
 static inline long hcall_set_ioreq_buffer(u64 vmid, u64 buffer)
 {
 	return acrn_hypercall2(HC_SET_IOREQ_BUFFER, vmid, buffer);
+}
+
+/**
+ * hcall_set_asyncio_buffer() - Set up the shared buffer.
+ * @vmid:	User VM ID
+ * @buffer:	Service VM GPA of the shared buffer
+ *
+ * Return: 0 on success, <0 on failure
+ */
+static inline long hcall_set_sbuf(u64 vmid, u64 buffer)
+{
+	return acrn_hypercall2(HC_SET_SBUF, vmid, buffer);
 }
 
 /**
