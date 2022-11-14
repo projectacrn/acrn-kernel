@@ -52,6 +52,9 @@
 #define HC_DEASSIGN_PIODEV		_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x0C)
 #define HC_MSR_ACCESS			_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x0D)
 
+#define HC_ID_DBG_BASE              0x60UL
+#define HC_SETUP_SBUF               _HC_ID(HC_ID, HC_ID_DBG_BASE + 0x00)
+
 #define HC_ID_PM_BASE			0x80UL
 #define HC_PM_GET_CPU_STATE		_HC_ID(HC_ID, HC_ID_PM_BASE + 0x00)
 
@@ -371,6 +374,11 @@ static inline long hcall_msr_access(u64 entry_num, u64 entry_addr)
 static inline long hcall_get_cpu_state(u64 cmd, u64 state)
 {
 	return acrn_hypercall2(HC_PM_GET_CPU_STATE, cmd, state);
+}
+
+static inline long hcall_setup_sbuf(unsigned long sbuf_head)
+{
+	return acrn_hypercall1(HC_SETUP_SBUF, sbuf_head);
 }
 
 #endif /* __ACRN_HSM_HYPERCALL_H */
