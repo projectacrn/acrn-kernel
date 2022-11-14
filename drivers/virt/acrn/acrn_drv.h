@@ -134,6 +134,8 @@ struct acrn_ioreq_client {
 #define ACRN_INVALID_VMID (0xffffU)
 #define ACRN_INVALID_CPUID (0xffffU)
 
+#define ACRN_SELF_VMID (0x0)
+
 #define ACRN_VM_FLAG_DESTROYED		0U
 #define ACRN_VM_FLAG_CLEARING_IOREQ	1U
 extern struct list_head acrn_vm_list;
@@ -233,4 +235,6 @@ int acrn_irqfd_init(struct acrn_vm *vm);
 int acrn_irqfd_config(struct acrn_vm *vm, struct acrn_irqfd *args);
 void acrn_irqfd_deinit(struct acrn_vm *vm);
 
+int acrn_trace_init(void);
+void acrn_trace_exit(void);
 #endif /* __ACRN_HSM_DRV_H */
