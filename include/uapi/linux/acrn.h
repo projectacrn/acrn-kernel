@@ -632,6 +632,11 @@ struct acrn_irqfd {
 };
 
 enum sbuf_type {
+	ACRN_TRACE,
+	ACRN_HVLOG,
+	ACRN_SEP,
+	ACRN_SOCWATCH,
+	ACRN_SBUF_TYPE_MAX,
 	ACRN_ASYNCIO = 64,
 };
 
@@ -646,6 +651,12 @@ enum sbuf_type {
 struct acrn_sbuf_param {
 	__u16	vcpu_id;
 	__u16	reserved;
+	__u32	sbuf_id;
+	__u64	gpa;
+};
+
+struct sbuf_setup_param {
+	__u32	pcpu_id;
 	__u32	sbuf_id;
 	__u64	gpa;
 };
