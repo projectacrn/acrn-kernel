@@ -484,13 +484,17 @@ struct acrn_vdev {
 
 /*struct acrn_asyncio_reqinfo - Data for setting asyncio request of User VM
  * @type:	IO type, ACRN_ASYNC_PIO/ACRN_ASYNC_MMIO
+ * @match_data:	Data matching or not. 0 indicates no data matching; 1 indicates exact matching.
  * @addr:	IO base address
  * @fd:		eventfd of this asynicio.
+ * @data:	Data for matching
  */
 struct acrn_asyncio_reqinfo {
 	__u32	type;
+	__u32	match_data;
 	__u64	addr;
 	__u64	fd;
+	__u64	data;
 };
 
 #define SBUF_MAGIC	0x5aa57aa71aa13aa3
