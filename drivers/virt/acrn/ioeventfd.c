@@ -93,6 +93,10 @@ static int acrn_ioeventfd_asyncio_config(struct acrn_vm *vm, struct acrn_ioevent
 		asyncio_info->type = ACRN_ASYNC_TYPE_PIO;
 	else
 		asyncio_info->type = ACRN_ASYNC_TYPE_MMIO;
+	if (args->flags & ACRN_IOEVENTFD_FLAG_DATAMATCH) {
+		asyncio_info->match_data = 1U;
+		asyncio_info->data = args->data;
+	}
 	if (args->flags & ACRN_IOEVENTFD_FLAG_DEASSIGN)
 		ret = hcall_asyncio_deassign(vm->vmid, virt_to_phys(asyncio_info));
 	else
