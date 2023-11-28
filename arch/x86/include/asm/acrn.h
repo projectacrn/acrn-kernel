@@ -19,6 +19,10 @@
  */
 #define ACRN_CPUID_TIMING_INFO		0x40000010
 
+/* Select x86 specific features in <linux/acrn.h> */
+#define __ACRN_HAVE_RESET_VM_V2
+#define __ACRN_HAVE_SET_REG
+
 void acrn_setup_intr_handler(void (*handler)(void));
 void acrn_remove_intr_handler(void);
 
