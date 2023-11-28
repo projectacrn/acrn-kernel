@@ -11,6 +11,7 @@
 #ifndef _UAPI_ACRN_H
 #define _UAPI_ACRN_H
 
+#include <asm/acrn.h>
 #include <linux/types.h>
 #include <linux/uuid.h>
 
@@ -418,6 +419,39 @@ struct acrn_pcidev {
 	__u32	bar[ACRN_PCI_NUM_BARS];
 };
 
+struct acrn_vm_reset_state {
+	__u32 vm_reset_mode;
+	__u32 reserved[7];
+};
+
+struct acrn_cap_bitmap {
+	__u32 index;
+	__u64 bitmap;
+};
+
+struct segment_sel {
+	__u16 selector;
+	__u64 base;
+	__u32 limit;
+	__u32 attr;
+};
+
+union acrn_reg {
+	__u16 wval;
+	__u32 dval;
+	__u64 qval;
+	/** for GDTR and IDTR */
+	struct acrn_descriptor_ptr dpt;
+	struct segment_sel seg_sel;
+};
+
+struct acrn_one_reg {
+	/** virtual CPU ID for the VCPU */
+	__u16 vcpu_id;
+	__u32 reg;
+	union acrn_reg value;
+};
+
 /**
  * struct acrn_mmiodev - Info for assigning or de-assigning a MMIO device
  * @name:			Name of the MMIO device.
@@ -666,6 +700,16 @@ struct sbuf_setup_param {
 #define ACRN_IOCTL_TYPE			0xA2
 
 /*
+ * Extension capability list.
+ */
+#ifdef __ACRN_HAVE_RESET_VM_V2
+#define ACRN_CAP_RESET_VM_V2	0
+#endif
+#ifdef __ACRN_HAVE_SET_REG
+#define ACRN_CAP_SET_REG	1
+#endif
+
+/*
  * Common IOCTL IDs definition for ACRN userspace
  */
 #define ACRN_IOCTL_CREATE_VM		\
@@ -680,6 +724,14 @@ struct sbuf_setup_param {
 	_IO(ACRN_IOCTL_TYPE, 0x15)
 #define ACRN_IOCTL_SET_VCPU_REGS	\
 	_IOW(ACRN_IOCTL_TYPE, 0x16, struct acrn_vcpu_regs)
+#define ACRN_IOCTL_GET_CAPS		\
+	_IOWR(ACRN_IOCTL_TYPE, 0x17, __u64)
+/* Available with ACRN_CAP_RESET_VM_V2 */
+#define ACRN_IOCTL_RESET_VM_V2		\
+	_IOW(ACRN_IOCTL_TYPE, 0x18, struct acrn_vm_reset_state)
+/* Available with ACRN_CAP_SET_REG */
+#define ACRN_IOCTL_SET_ONE_REG		\
+	_IOW(ACRN_IOCTL_TYPE, 0x19, struct acrn_one_reg)
 
 #define ACRN_IOCTL_INJECT_MSI		\
 	_IOW(ACRN_IOCTL_TYPE, 0x23, struct acrn_msi_entry)

@@ -101,6 +101,22 @@ static int pmcmd_ioctl(u64 cmd, void __user *uptr)
 	return ret;
 }
 
+static bool cmd_without_vm(unsigned int cmd)
+{
+	const unsigned int cmds[] = {
+		ACRN_IOCTL_CREATE_VM,
+		ACRN_IOCTL_GET_CAPS
+	};
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(cmds); i++) {
+		if (cmd == cmds[i])
+			return true;
+	}
+
+	return false;
+}
+
 /*
  * HSM relies on hypercall layer of the ACRN hypervisor to do the
  * sanity check against the input parameters.
@@ -109,6 +125,8 @@ static long acrn_dev_ioctl(struct file *filp, unsigned int cmd,
 			   unsigned long ioctl_param)
 {
 	struct acrn_vm *vm = filp->private_data;
+	struct acrn_vm_reset_state *vm_reset;
+	struct acrn_cap_bitmap *cap_bitmap;
 	struct acrn_vm_creation *vm_param;
 	struct acrn_vcpu_regs *cpu_regs;
 	struct acrn_ioreq_notify notify;
@@ -116,6 +134,7 @@ static long acrn_dev_ioctl(struct file *filp, unsigned int cmd,
 	struct acrn_ioeventfd ioeventfd;
 	struct acrn_vm_memmap memmap;
 	struct acrn_mmiodev *mmiodev;
+	struct acrn_one_reg *one_reg;
 	struct acrn_msi_entry *msi;
 	struct acrn_pcidev *pcidev;
 	struct acrn_irqfd irqfd;
@@ -124,7 +143,7 @@ static long acrn_dev_ioctl(struct file *filp, unsigned int cmd,
 	u64 cstate_cmd;
 	int i, ret = 0;
 
-	if (vm->vmid == ACRN_INVALID_VMID && cmd != ACRN_IOCTL_CREATE_VM) {
+	if (vm->vmid == ACRN_INVALID_VMID && !cmd_without_vm(cmd)) {
 		dev_dbg(acrn_dev.this_device,
 			"ioctl 0x%x: Invalid VM state!\n", cmd);
 		return -EINVAL;
@@ -221,6 +240,48 @@ static long acrn_dev_ioctl(struct file *filp, unsigned int cmd,
 				"Failed to set regs state of VM%u!\n",
 				vm->vmid);
 		kfree(cpu_regs);
+		break;
+	case ACRN_IOCTL_GET_CAPS:
+		cap_bitmap = memdup_user((void __user *)ioctl_param,
+					 sizeof(struct acrn_cap_bitmap));
+		if (IS_ERR(cap_bitmap))
+			return PTR_ERR(cap_bitmap);
+
+		ret = hcall_get_caps(virt_to_phys(cap_bitmap));
+		if (ret == 0)
+			ret = copy_to_user((void __user *)ioctl_param,
+					   cap_bitmap,
+					   sizeof(struct acrn_cap_bitmap));
+
+		if (ret < 0)
+			dev_dbg(acrn_dev.this_device, "Failed to get CAP\n");
+
+		kfree(cap_bitmap);
+		break;
+	case ACRN_IOCTL_RESET_VM_V2:
+		vm_reset = memdup_user((void __user *)ioctl_param,
+				       sizeof(struct acrn_vm_reset_state));
+		if (IS_ERR(vm_reset))
+			return PTR_ERR(vm_reset);
+
+		ret = hcall_reset_vm_v2(vm->vmid, virt_to_phys(vm_reset));
+		if (ret < 0)
+			dev_dbg(acrn_dev.this_device,
+				"Failed to restart VM %u!\n", vm->vmid);
+		kfree(vm_reset);
+		break;
+	case ACRN_IOCTL_SET_ONE_REG:
+		one_reg = memdup_user((void __user *)ioctl_param,
+				     sizeof(struct acrn_one_reg));
+		if (IS_ERR(one_reg))
+			return PTR_ERR(one_reg);
+
+		ret = hcall_set_one_reg(vm->vmid, virt_to_phys(one_reg));
+		if (ret < 0)
+			dev_dbg(acrn_dev.this_device,
+				"Failed to set one reg from VM%u/VCPU%u!\n",
+				vm->vmid, one_reg->vcpu_id);
+		kfree(one_reg);
 		break;
 	case ACRN_IOCTL_SET_MEMSEG:
 		if (copy_from_user(&memmap, (void __user *)ioctl_param,
