@@ -15,6 +15,7 @@
 
 #define HC_ID_GEN_BASE			0x0UL
 #define HC_SOS_REMOVE_CPU		_HC_ID(HC_ID, HC_ID_GEN_BASE + 0x01)
+#define HC_GET_CAPS			_HC_ID(HC_ID, HC_ID_GEN_BASE + 0x03)
 
 #define HC_ID_VM_BASE			0x10UL
 #define HC_CREATE_VM			_HC_ID(HC_ID, HC_ID_VM_BASE + 0x00)
@@ -23,6 +24,12 @@
 #define HC_PAUSE_VM			_HC_ID(HC_ID, HC_ID_VM_BASE + 0x03)
 #define HC_RESET_VM			_HC_ID(HC_ID, HC_ID_VM_BASE + 0x05)
 #define HC_SET_VCPU_REGS		_HC_ID(HC_ID, HC_ID_VM_BASE + 0x06)
+#ifdef __ACRN_HAVE_RESET_VM_V2
+#define HC_RESET_VM_V2			_HC_ID(HC_ID, HC_ID_VM_BASE + 0x07)
+#endif
+#ifdef __ACRN_HAVE_SET_REG
+#define HC_SET_ONE_REG			_HC_ID(HC_ID, HC_ID_VM_BASE + 0x08)
+#endif
 
 #define HC_ID_IRQ_BASE			0x20UL
 #define HC_INJECT_MSI			_HC_ID(HC_ID, HC_ID_IRQ_BASE + 0x03)
@@ -119,6 +126,41 @@ static inline long hcall_destroy_vm(u64 vmid)
 static inline long hcall_reset_vm(u64 vmid)
 {
 	return acrn_hypercall1(HC_RESET_VM, vmid);
+}
+
+/**
+ * hcall_reset_vm_v2() - Reset a User VM
+ * @vmid:	User VM ID
+ * @addr:	Service VM GPA of the reset info
+ *
+ * Return: 0 on success, <0 on failure
+ */
+static inline long hcall_reset_vm_v2(u64 vmid, u64 addr)
+{
+	return acrn_hypercall2(HC_RESET_VM_V2, vmid, addr);
+}
+
+/**
+ * hcall_get_caps() - Get supported capabilities
+ * @addr:	Service VM GPA of the capability bitmap info
+ *
+ * Return: 0 on success, <0 on failure
+ */
+static inline long hcall_get_caps(u64 addr)
+{
+	return acrn_hypercall1(HC_GET_CAPS, addr);
+}
+
+/**
+ * hcall_set_one_reg() - Set one register of a VCPU from User VM
+ * @vmid:	User VM ID
+ * @addr:	Service VM GPA of the one register info
+ *
+ * Return: 0 on success, <0 on failure
+ */
+static inline long hcall_set_one_reg(u64 vmid, u64 addr)
+{
+	return acrn_hypercall2(HC_SET_ONE_REG, vmid, addr);
 }
 
 /**
