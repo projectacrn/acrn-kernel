@@ -52,7 +52,7 @@ static inline uint32_t sbuf_calculate_allocate_size(uint32_t ele_num,
 {
 	uint64_t sbuf_allocate_size;
 
-	sbuf_allocate_size = ele_num * ele_size;
+	sbuf_allocate_size = (uint64_t)ele_num * ele_size;
 	sbuf_allocate_size +=  SBUF_HEAD_SIZE;
 	if (sbuf_allocate_size > SBUF_MAX_SIZE) {
 		pr_err("num=0x%x, size=0x%x exceed 0x%llx!\n",
