@@ -243,7 +243,7 @@ static void assign_hvlog_buf_base(uint64_t *cur_logbuf, uint64_t *last_logbuf)
 	ele_num = (size - SBUF_HEAD_SIZE) / LOG_ENTRY_SIZE;
 
 	foreach_cpu(pcpu_id, pcpu_nr) {
-		offset = (base0 + (size * pcpu_id)) - hvlog_buf_phyaddr_base;
+		offset = (base0 + ((uint64_t)size * pcpu_id)) - hvlog_buf_phyaddr_base;
 		sbuf = hvlog_buf_virtaddr_base + offset;
 		if (sbuf_check_valid(ele_num, LOG_ENTRY_SIZE, sbuf)) {
 			*last_logbuf = base0;
@@ -253,7 +253,7 @@ static void assign_hvlog_buf_base(uint64_t *cur_logbuf, uint64_t *last_logbuf)
 	}
 
 	foreach_cpu(pcpu_id, pcpu_nr) {
-		offset = (base1 + (size * pcpu_id)) - hvlog_buf_phyaddr_base;
+		offset = (base1 + ((uint64_t)size * pcpu_id)) - hvlog_buf_phyaddr_base;
 		sbuf = hvlog_buf_virtaddr_base + offset;
 		if (sbuf_check_valid(ele_num, LOG_ENTRY_SIZE, sbuf)) {
 			*last_logbuf = base1;
@@ -269,8 +269,8 @@ static void assign_hvlog_buf_base(uint64_t *cur_logbuf, uint64_t *last_logbuf)
 
 static int init_hvlog_dev(uint64_t base, uint32_t hvlog_type)
 {
-	int err = 0;
-	uint16_t idx, i;
+	int err = 0, i;
+	uint16_t idx;
 	shared_buf_t *sbuf;
 	struct acrn_hvlog *hvlog;
 	uint32_t ele_size, ele_num, size;
@@ -293,7 +293,8 @@ static int init_hvlog_dev(uint64_t base, uint32_t hvlog_type)
 			offset = (base + (size * idx)) - hvlog_buf_phyaddr_base;
 			sbuf = hvlog_buf_virtaddr_base + offset;
 			sbuf = sbuf_construct(ele_num, ele_size, sbuf);
-			acrn_sbuf_setup(ACRN_SELF_VMID, idx, ACRN_HVLOG, base + (size * idx));
+			acrn_sbuf_setup(ACRN_SELF_VMID, idx, ACRN_HVLOG,
+						base + ((uint64_t)size * idx));
 			break;
 		case SBUF_LAST_HVLOG:
 			snprintf(hvlog->name, sizeof(hvlog->name),
