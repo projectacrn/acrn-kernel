@@ -116,6 +116,7 @@ static long acrn_dev_ioctl(struct file *filp, unsigned int cmd,
 	struct acrn_ioeventfd ioeventfd;
 	struct acrn_vm_memmap memmap;
 	struct acrn_mmiodev *mmiodev;
+	struct acrn_pio_region *pio_region;
 	struct acrn_msi_entry *msi;
 	struct acrn_pcidev *pcidev;
 	struct acrn_irqfd irqfd;
@@ -330,6 +331,30 @@ static long acrn_dev_ioctl(struct file *filp, unsigned int cmd,
 			dev_dbg(acrn_dev.this_device,
 				"Failed to reset intr for ptdev!\n");
 		kfree(irq_info);
+		break;
+	case ACRN_IOCTL_ASSIGN_PIO_REGION:
+		pio_region = memdup_user((void __user *)ioctl_param,
+				       sizeof(struct acrn_pio_region));
+		if (IS_ERR(pio_region))
+			return PTR_ERR(pio_region);
+
+		ret = hcall_assign_pio_region(vm->vmid, virt_to_phys(pio_region));
+		if (ret < 0)
+			dev_dbg(acrn_dev.this_device,
+				"Failed to assign PIO resource!\n");
+		kfree(pio_region);
+		break;
+	case ACRN_IOCTL_DEASSIGN_PIO_REGION:
+		pio_region = memdup_user((void __user *)ioctl_param,
+				       sizeof(struct acrn_pio_region));
+		if (IS_ERR(pio_region))
+			return PTR_ERR(pio_region);
+
+		ret = hcall_deassign_pio_region(vm->vmid, virt_to_phys(pio_region));
+		if (ret < 0)
+			dev_dbg(acrn_dev.this_device,
+				"Failed to deassign PIO resource!\n");
+		kfree(pio_region);
 		break;
 	case ACRN_IOCTL_SET_IRQLINE:
 		ret = hcall_set_irqline(vm->vmid, ioctl_param);

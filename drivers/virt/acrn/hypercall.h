@@ -48,6 +48,8 @@
 #define HC_DEASSIGN_MMIODEV		_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x08)
 #define HC_CREATE_VDEV			_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x09)
 #define HC_DESTROY_VDEV			_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x0A)
+#define HC_ASSIGN_PIO_REGION		_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x0B)
+#define HC_DEASSIGN_PIO_REGION		_HC_ID(HC_ID, HC_ID_PCI_BASE + 0x0C)
 
 #define HC_ID_DBG_BASE              0x60UL
 #define HC_SETUP_SBUF               _HC_ID(HC_ID, HC_ID_DBG_BASE + 0x00)
@@ -326,6 +328,30 @@ static inline long hcall_set_ptdev_intr(u64 vmid, u64 irq)
 static inline long hcall_reset_ptdev_intr(u64 vmid, u64 irq)
 {
 	return acrn_hypercall2(HC_RESET_PTDEV_INTR, vmid, irq);
+}
+
+/**
+ * hcall_assign_pio_region() - Assign a PIO region to a User VM
+ * @vmid:	User VM ID
+ * @addr:	Service VM GPA of the &struct acrn_pio_region
+ *
+ * Return: 0 on success, <0 on failure
+ */
+static inline long hcall_assign_pio_region(u64 vmid, u64 addr)
+{
+	return acrn_hypercall2(HC_ASSIGN_PIO_REGION, vmid, addr);
+}
+
+/**
+ * hcall_deassign_pio_region() - De-assign a PIO region from a User VM
+ * @vmid:	User VM ID
+ * @addr:	Service VM GPA of the &struct acrn_pio_region
+ *
+ * Return: 0 on success, <0 on failure
+ */
+static inline long hcall_deassign_pio_region(u64 vmid, u64 addr)
+{
+	return acrn_hypercall2(HC_DEASSIGN_PIO_REGION, vmid, addr);
 }
 
 /*
