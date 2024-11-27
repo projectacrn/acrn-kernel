@@ -24,6 +24,7 @@
 #ifndef _DRM_VBLANK_H_
 #define _DRM_VBLANK_H_
 
+#include "drm/drm.h"
 #include <linux/seqlock.h>
 #include <linux/idr.h>
 #include <linux/poll.h>
@@ -70,6 +71,8 @@ struct drm_pending_vblank_event {
 		 * should use MODE_QUEUE_SEQUENCE and &event.seq instead.
 		 */
 		struct drm_event_vblank vbl;
+
+		struct drm_event_vblank_flip vblf;
 
 		/**
 		 * @event.seq: Event payload for the MODE_QUEUEU_SEQUENCE IOCTL.

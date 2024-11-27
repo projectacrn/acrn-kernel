@@ -24,6 +24,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "drm/drm.h"
+#include "linux/compiler_attributes.h"
 #include <linux/export.h>
 #include <linux/kthread.h>
 #include <linux/moduleparam.h>
@@ -1023,11 +1025,14 @@ EXPORT_SYMBOL(drm_crtc_next_vblank_start);
 
 static void send_vblank_event(struct drm_device *dev,
 		struct drm_pending_vblank_event *e,
-		u64 seq, ktime_t now)
+		u64 seq, u64 flip_sequence, ktime_t now)
 {
 	struct timespec64 tv;
 
 	switch (e->event.base.type) {
+	case DRM_EVENT_VBLANK_FLIP:
+		e->event.vblf.flip_sequence = flip_sequence;
+		fallthrough;
 	case DRM_EVENT_VBLANK:
 	case DRM_EVENT_FLIP_COMPLETE:
 		tv = ktime_to_timespec64(now);
@@ -1136,7 +1141,7 @@ void drm_crtc_send_vblank_event(struct drm_crtc *crtc,
 		now = ktime_get();
 	}
 	e->pipe = pipe;
-	send_vblank_event(dev, e, seq, now);
+	send_vblank_event(dev, e, seq, crtc->flip_sequence, now);
 }
 EXPORT_SYMBOL(drm_crtc_send_vblank_event);
 
@@ -1385,7 +1390,7 @@ void drm_crtc_vblank_off(struct drm_crtc *crtc)
 			     e->sequence, seq);
 		list_del(&e->base.link);
 		drm_vblank_put(dev, pipe);
-		send_vblank_event(dev, e, seq, now);
+		send_vblank_event(dev, e, seq, crtc->flip_sequence, now);
 	}
 
 	/* Cancel any leftover pending vblank work */
@@ -1605,7 +1610,7 @@ EXPORT_SYMBOL(drm_crtc_vblank_restore);
 
 static int drm_queue_vblank_event(struct drm_device *dev, unsigned int pipe,
 				  u64 req_seq,
-				  union drm_wait_vblank *vblwait,
+				  union drm_wait_vblank *vblwait, bool flip,
 				  struct drm_file *file_priv)
 {
 	struct drm_vblank_crtc *vblank = drm_vblank_crtc(dev, pipe);
@@ -1621,8 +1626,8 @@ static int drm_queue_vblank_event(struct drm_device *dev, unsigned int pipe,
 	}
 
 	e->pipe = pipe;
-	e->event.base.type = DRM_EVENT_VBLANK;
-	e->event.base.length = sizeof(e->event.vbl);
+	e->event.base.type = flip ? DRM_EVENT_VBLANK_FLIP : DRM_EVENT_VBLANK;
+	e->event.base.length = flip ? sizeof(e->event.vblf) : sizeof(e->event.vbl);
 	e->event.vbl.user_data = vblwait->request.signal;
 	e->event.vbl.crtc_id = 0;
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
@@ -1661,7 +1666,9 @@ static int drm_queue_vblank_event(struct drm_device *dev, unsigned int pipe,
 	e->sequence = req_seq;
 	if (drm_vblank_passed(seq, req_seq)) {
 		drm_vblank_put(dev, pipe);
-		send_vblank_event(dev, e, seq, now);
+		send_vblank_event(dev, e, seq,
+			drm_crtc_from_index(dev, pipe)->flip_sequence,
+			now);
 		vblwait->reply.sequence = seq;
 	} else {
 		/* drm_handle_vblank_events will call drm_vblank_put */
@@ -1829,7 +1836,9 @@ int drm_wait_vblank_ioctl(struct drm_device *dev, void *data,
 		/* must hold on to the vblank ref until the event fires
 		 * drm_vblank_put will be called asynchronously
 		 */
-		return drm_queue_vblank_event(dev, pipe, req_seq, vblwait, file_priv);
+		return drm_queue_vblank_event(dev, pipe, req_seq, vblwait, 
+					(flags & _DRM_VBLANK_FLIP) == _DRM_VBLANK_FLIP,
+					file_priv);
 	}
 
 	if (req_seq != seq) {
@@ -1895,7 +1904,7 @@ static void drm_handle_vblank_events(struct drm_device *dev, unsigned int pipe)
 
 		list_del(&e->base.link);
 		drm_vblank_put(dev, pipe);
-		send_vblank_event(dev, e, seq, now);
+		send_vblank_event(dev, e, seq, crtc->flip_sequence, now);
 	}
 
 	if (crtc && crtc->funcs->get_vblank_timestamp)
@@ -1917,6 +1926,7 @@ static void drm_handle_vblank_events(struct drm_device *dev, unsigned int pipe)
 bool drm_handle_vblank(struct drm_device *dev, unsigned int pipe)
 {
 	struct drm_vblank_crtc *vblank = drm_vblank_crtc(dev, pipe);
+	struct drm_crtc *crtc = drm_crtc_from_index(dev, pipe);
 	unsigned long irqflags;
 	bool disable_irq;
 
@@ -1942,6 +1952,11 @@ bool drm_handle_vblank(struct drm_device *dev, unsigned int pipe)
 	}
 
 	drm_update_vblank_count(dev, pipe, true);
+
+	if (drm_vblank_passed(drm_vblank_count(dev, pipe),
+			      crtc->pending_flip_sequence)) {
+		WRITE_ONCE(crtc->flip_sequence, crtc->pending_flip_sequence);
+	}
 
 	spin_unlock(&dev->vblank_time_lock);
 
@@ -2142,7 +2157,7 @@ int drm_crtc_queue_sequence_ioctl(struct drm_device *dev, void *data,
 
 	if (drm_vblank_passed(seq, req_seq)) {
 		drm_crtc_vblank_put(crtc);
-		send_vblank_event(dev, e, seq, now);
+		send_vblank_event(dev, e, seq, crtc->flip_sequence, now);
 		queue_seq->sequence = seq;
 	} else {
 		/* drm_handle_vblank_events will call drm_vblank_put */

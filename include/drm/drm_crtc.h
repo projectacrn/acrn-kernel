@@ -1163,6 +1163,20 @@ struct drm_crtc {
 	unsigned long fence_seqno;
 
 	/**
+	 * @flip_sequence:
+	 *
+	 * Last vblank sequence where a page flip happened on this CRTC.
+	 */
+	unsigned long flip_sequence;
+
+	/**
+	 * @pending_flip_sequence:
+	 *
+	 * The next point page flip will happen.
+	 */
+	unsigned long pending_flip_sequence;
+
+	/**
 	 * @timeline_name:
 	 *
 	 * The name of the CRTC's fence timeline.

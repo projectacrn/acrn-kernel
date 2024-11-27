@@ -25,6 +25,7 @@
  * Daniel Vetter <daniel.vetter@ffwll.ch>
  */
 
+#include "drm/drm_crtc.h"
 #include <linux/dma-fence.h>
 #include <linux/ktime.h>
 
@@ -1756,6 +1757,24 @@ void drm_atomic_helper_wait_for_flip_done(struct drm_device *dev,
 }
 EXPORT_SYMBOL(drm_atomic_helper_wait_for_flip_done);
 
+void drm_atomic_helper_update_flip_sequence(struct drm_device *dev,
+					  struct drm_atomic_state *old_state)
+{
+	struct drm_crtc *crtc;
+	struct drm_crtc_state *new_crtc_state;
+	int i, ret;
+
+	for_each_new_crtc_in_state(old_state, crtc, new_crtc_state, i) {
+		if (crtc->funcs && crtc->funcs->get_vblank_timestamp)
+			WRITE_ONCE(crtc->pending_flip_sequence,
+				drm_crtc_accurate_vblank_count(crtc) + 1);
+		else
+			WRITE_ONCE(crtc->pending_flip_sequence,
+				drm_crtc_vblank_count(crtc) + 1);
+	}
+}
+EXPORT_SYMBOL(drm_atomic_helper_update_flip_sequence);
+
 /**
  * drm_atomic_helper_commit_tail - commit atomic update to hardware
  * @old_state: atomic state object with old state structures
@@ -1778,6 +1797,8 @@ void drm_atomic_helper_commit_tail(struct drm_atomic_state *old_state)
 	drm_atomic_helper_commit_planes(dev, old_state, 0);
 
 	drm_atomic_helper_commit_modeset_enables(dev, old_state);
+
+	drm_atomic_helper_update_flip_sequence(dev, old_state);
 
 	drm_atomic_helper_fake_vblank(old_state);
 

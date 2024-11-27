@@ -489,6 +489,7 @@ enum drm_vblank_seq_type {
 
 #define _DRM_VBLANK_TYPES_MASK (_DRM_VBLANK_ABSOLUTE | _DRM_VBLANK_RELATIVE)
 #define _DRM_VBLANK_FLAGS_MASK (_DRM_VBLANK_EVENT | _DRM_VBLANK_SIGNAL | \
+				_DRM_VBLANK_FLIP | \
 				_DRM_VBLANK_SECONDARY | _DRM_VBLANK_NEXTONMISS)
 
 struct drm_wait_vblank_request {
@@ -1345,6 +1346,8 @@ struct drm_event {
  */
 #define DRM_EVENT_CRTC_SEQUENCE	0x03
 
+#define DRM_EVENT_VBLANK_FLIP 0x0f
+
 struct drm_event_vblank {
 	struct drm_event base;
 	__u64 user_data;
@@ -1352,6 +1355,17 @@ struct drm_event_vblank {
 	__u32 tv_usec;
 	__u32 sequence;
 	__u32 crtc_id; /* 0 on older kernels that do not support this */
+};
+
+struct drm_event_vblank_flip {
+	struct drm_event base;
+	__u64 user_data;
+	__u32 tv_sec;
+	__u32 tv_usec;
+	__u32 sequence;
+	__u32 crtc_id; /* 0 on older kernels that do not support this */
+	/* Will be 1 if we have flip in this vblank and be 0 otherwise */
+	__u64 flip_sequence;
 };
 
 /* Event delivered at sequence. Time stamp marks when the first pixel
