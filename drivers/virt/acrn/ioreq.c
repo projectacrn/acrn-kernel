@@ -212,7 +212,7 @@ static int acrn_asyncio_dispatch(struct acrn_vm *vm)
 
 	fd_ptr = acrn_sbuf_get_data_ptr(sbuf);
 	while (fd_ptr) {
-		eventfd_signal((struct eventfd_ctx *)(*fd_ptr) , 1);
+		eventfd_signal((struct eventfd_ctx *)(*fd_ptr));
 		acrn_sbuf_move_next(sbuf);
 		fd_ptr = acrn_sbuf_get_data_ptr(sbuf);
 	}
