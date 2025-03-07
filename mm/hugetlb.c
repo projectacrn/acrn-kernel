@@ -48,6 +48,7 @@
 #include <linux/page_owner.h>
 #include "internal.h"
 #include "hugetlb_vmemmap.h"
+#include <asm/hypervisor.h>
 
 int hugetlb_max_hstate __read_mostly;
 unsigned int default_hstate_idx;
@@ -6160,7 +6161,18 @@ static vm_fault_t hugetlb_no_page(struct address_space *mapping,
 				ret = 0;
 			goto out;
 		}
-		folio_zero_user(folio, vmf->real_address);
+
+		/*
+		 * In ACRN environment, hugetlb pages are used as post-launched VM
+		 * memory only so far, and guest memory will be cleared by ACRN kernel
+		 * HSM driver when guest VM shutdown or ACRN DM application exit,
+		 * skipping this cleanup here to speed up ACRN DM initialization.
+		 */
+#ifdef CONFIG_ACRN_HSM
+		if (!hypervisor_is_type(X86_HYPER_ACRN))
+#endif
+			folio_zero_user(folio, vmf->real_address);
+
 		__folio_mark_uptodate(folio);
 		new_folio = true;
 
