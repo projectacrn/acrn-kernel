@@ -359,6 +359,7 @@ void acrn_vm_all_ram_unmap(struct acrn_vm *vm)
 	mutex_lock(&vm->regions_mapping_lock);
 	for (i = 0; i < vm->regions_mapping_count; i++) {
 		region_mapping = &vm->regions_mapping[i];
+		memset(region_mapping->service_vm_va, 0, region_mapping->size);
 		vunmap(region_mapping->service_vm_va);
 		for (j = 0; j < region_mapping->npages; j++)
 			unpin_user_page(region_mapping->pages[j]);
