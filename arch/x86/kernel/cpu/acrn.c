@@ -31,6 +31,7 @@ static void __init acrn_init_platform(void)
 
 	x86_platform.calibrate_tsc = acrn_get_tsc_khz;
 	x86_platform.calibrate_cpu = acrn_get_tsc_khz;
+	x86_platform.legacy.i8042 = X86_LEGACY_I8042_PLATFORM_ABSENT;
 }
 
 static bool acrn_x2apic_available(void)
